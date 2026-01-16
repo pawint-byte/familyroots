@@ -126,7 +126,8 @@ export default function Pricing() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-4xl font-bold">
-                  $0<span className="text-lg font-normal text-muted-foreground">/month</span>
+                  {freePlan?.prices?.[0] ? formatPrice(freePlan.prices[0].unit_amount) : "$0"}
+                  <span className="text-lg font-normal text-muted-foreground">/month</span>
                 </div>
                 <ul className="space-y-3">
                   <li className="flex items-center gap-2">
@@ -177,7 +178,8 @@ export default function Pricing() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-4xl font-bold">
-                  $9.99<span className="text-lg font-normal text-muted-foreground">/month</span>
+                  {premiumPlan?.prices?.[0] ? formatPrice(premiumPlan.prices[0].unit_amount) : "$9.99"}
+                  <span className="text-lg font-normal text-muted-foreground">/month</span>
                 </div>
                 <ul className="space-y-3">
                   <li className="flex items-center gap-2">

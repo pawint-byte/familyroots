@@ -374,15 +374,20 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      if (!user?.stripeSubscriptionId) {
+      if (!user?.stripeCustomerId) {
         return res.json({ subscription: null, tier: "free" });
       }
 
-      const subscription = await stripeService.getSubscription(user.stripeSubscriptionId);
-      res.json({ 
-        subscription, 
-        tier: subscription?.status === "active" ? "premium" : "free" 
-      });
+      const subscription = await stripeService.getCustomerSubscription(user.stripeCustomerId);
+      
+      if (subscription && subscription.status === "active") {
+        if (user.stripeSubscriptionId !== subscription.id) {
+          await storage.updateUserStripeInfo(userId, { stripeSubscriptionId: subscription.id });
+        }
+        return res.json({ subscription, tier: "premium" });
+      }
+      
+      res.json({ subscription: null, tier: "free" });
     } catch (error) {
       console.error("Error fetching subscription:", error);
       res.status(500).json({ message: "Failed to fetch subscription" });
