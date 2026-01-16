@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import TreeView from "@/pages/tree-view";
+import Pricing from "@/pages/pricing";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -28,6 +29,7 @@ function Router() {
     <Switch>
       <Route path="/" component={user ? Dashboard : Landing} />
       <Route path="/tree/:id" component={TreeView} />
+      <Route path="/pricing" component={Pricing} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -15,7 +15,7 @@ export default function Landing() {
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features">Features</a>
             <a href="#timeline" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-timeline">Timeline</a>
-            <a href="#collaboration" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-collaboration">Collaboration</a>
+            <a href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">Pricing</a>
           </nav>
           <div className="flex items-center gap-2">
             <ThemeToggle />

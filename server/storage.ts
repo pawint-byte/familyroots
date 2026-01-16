@@ -1,10 +1,11 @@
 import { 
-  familyTrees, familyMembers, relationships, treeCollaborators, familyEvents,
+  familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
   type TreeCollaborator, type InsertTreeCollaborator,
-  type FamilyEvent, type InsertFamilyEvent
+  type FamilyEvent, type InsertFamilyEvent,
+  type User
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, ilike, desc } from "drizzle-orm";
@@ -39,6 +40,10 @@ export interface IStorage {
   getEvents(treeId: string): Promise<FamilyEvent[]>;
   createEvent(event: InsertFamilyEvent): Promise<FamilyEvent>;
   deleteEvent(id: string): Promise<boolean>;
+
+  // Users
+  getUser(id: string): Promise<User | undefined>;
+  updateUserStripeInfo(userId: string, info: { stripeCustomerId?: string; stripeSubscriptionId?: string }): Promise<User | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -163,6 +168,20 @@ export class DatabaseStorage implements IStorage {
   async deleteEvent(id: string): Promise<boolean> {
     await db.delete(familyEvents).where(eq(familyEvents.id, id));
     return true;
+  }
+
+  // Users
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async updateUserStripeInfo(userId: string, info: { stripeCustomerId?: string; stripeSubscriptionId?: string }): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({ ...info, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
   }
 }
 
