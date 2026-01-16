@@ -7,7 +7,7 @@ import {
   insertRelationshipSchema, insertFamilyEventSchema 
 } from "@shared/schema";
 import { stripeService } from "./stripeService";
-import { getStripePublishableKey } from "./stripeClient";
+import { getStripePublishableKey, isStripeConfigured } from "./stripeClient";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -320,7 +320,7 @@ export async function registerRoutes(
     }
   });
 
-  // Stripe Routes
+  // Stripe Routes - all gracefully handle missing Stripe configuration
   
   // Get publishable key
   app.get("/api/stripe/config", async (req, res) => {
@@ -328,12 +328,12 @@ export async function registerRoutes(
       const publishableKey = await getStripePublishableKey();
       res.json({ publishableKey });
     } catch (error) {
-      console.error("Error getting Stripe config:", error);
-      res.status(500).json({ message: "Failed to get Stripe config" });
+      console.error("Stripe not configured:", error);
+      res.json({ publishableKey: null, configured: false });
     }
   });
 
-  // Get products with prices
+  // Get products with prices - returns default plans if Stripe not configured
   app.get("/api/products", async (req, res) => {
     try {
       const rows = await stripeService.listProductsWithPrices();
@@ -363,8 +363,27 @@ export async function registerRoutes(
 
       res.json({ data: Array.from(productsMap.values()) });
     } catch (error) {
-      console.error("Error fetching products:", error);
-      res.status(500).json({ message: "Failed to fetch products" });
+      console.error("Products fetch error (Stripe may not be configured):", error);
+      // Return default products when Stripe is not available
+      res.json({ 
+        data: [
+          {
+            id: 'default_free',
+            name: 'Free Plan',
+            description: 'Perfect for getting started',
+            metadata: { tier: 'free', maxTrees: '1', maxMembers: '20' },
+            prices: [{ id: 'free_price', unit_amount: 0, currency: 'usd', recurring: { interval: 'month' } }]
+          },
+          {
+            id: 'default_premium',
+            name: 'Premium Plan',
+            description: 'Unlimited features for genealogists',
+            metadata: { tier: 'premium', maxTrees: 'unlimited', maxMembers: 'unlimited' },
+            prices: [{ id: 'premium_price', unit_amount: 999, currency: 'usd', recurring: { interval: 'month' } }]
+          }
+        ],
+        configured: false
+      });
     }
   });
 
@@ -378,7 +397,7 @@ export async function registerRoutes(
         return res.json({ subscription: null, tier: "free" });
       }
 
-      const subscription = await stripeService.getCustomerSubscription(user.stripeCustomerId);
+      const subscription = await stripeService.getCustomerSubscription(user.stripeCustomerId) as { id: string; status: string } | null;
       
       if (subscription && subscription.status === "active") {
         if (user.stripeSubscriptionId !== subscription.id) {
@@ -389,14 +408,18 @@ export async function registerRoutes(
       
       res.json({ subscription: null, tier: "free" });
     } catch (error) {
-      console.error("Error fetching subscription:", error);
-      res.status(500).json({ message: "Failed to fetch subscription" });
+      console.error("Subscription check error:", error);
+      res.json({ subscription: null, tier: "free" });
     }
   });
 
   // Create checkout session
   app.post("/api/checkout", isAuthenticated, async (req: any, res) => {
     try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       const { priceId } = req.body;
@@ -433,6 +456,10 @@ export async function registerRoutes(
   // Customer portal
   app.post("/api/customer-portal", isAuthenticated, async (req: any, res) => {
     try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment portal is not available" });
+      }
+
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
 

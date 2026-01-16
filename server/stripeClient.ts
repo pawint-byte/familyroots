@@ -2,6 +2,8 @@ import Stripe from 'stripe';
 
 let connectionSettings: any;
 
+let stripeConfigured = true;
+
 async function getCredentials() {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
@@ -10,8 +12,9 @@ async function getCredentials() {
       ? 'depl ' + process.env.WEB_REPL_RENEWAL
       : null;
 
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+  if (!xReplitToken || !hostname) {
+    stripeConfigured = false;
+    throw new Error('Stripe connector not available');
   }
 
   const connectorName = 'stripe';
@@ -35,13 +38,19 @@ async function getCredentials() {
   connectionSettings = data.items?.[0];
 
   if (!connectionSettings || (!connectionSettings.settings.publishable || !connectionSettings.settings.secret)) {
+    stripeConfigured = false;
     throw new Error(`Stripe ${targetEnvironment} connection not found`);
   }
 
+  stripeConfigured = true;
   return {
     publishableKey: connectionSettings.settings.publishable,
     secretKey: connectionSettings.settings.secret,
   };
+}
+
+export function isStripeConfigured() {
+  return stripeConfigured;
 }
 
 export async function getUncachableStripeClient() {
