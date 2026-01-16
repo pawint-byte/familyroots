@@ -30,7 +30,8 @@ async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL environment variable is required for Stripe integration.');
+    log('DATABASE_URL not found - skipping Stripe initialization', 'stripe');
+    return;
   }
 
   try {
@@ -38,7 +39,13 @@ async function initStripe() {
     await runMigrations({ databaseUrl });
     log('Stripe schema ready', 'stripe');
 
-    const stripeSync = await getStripeSync();
+    let stripeSync;
+    try {
+      stripeSync = await getStripeSync();
+    } catch (error: any) {
+      log(`Stripe not configured: ${error.message}`, 'stripe');
+      return;
+    }
 
     log('Setting up managed webhook...', 'stripe');
     const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
@@ -56,7 +63,6 @@ async function initStripe() {
       });
   } catch (error) {
     console.error('Failed to initialize Stripe:', error);
-    throw error;
   }
 }
 
@@ -125,7 +131,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await initStripe();
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -152,6 +157,11 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      
+      // Initialize Stripe after server is listening (non-blocking)
+      initStripe().catch(err => {
+        console.error('Stripe initialization error:', err);
+      });
     },
   );
 })();
