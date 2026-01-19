@@ -237,7 +237,7 @@ export default function Landing() {
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
               <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-              <a href="#" className="hover:text-foreground transition-colors">Contact</a>
+              <a href="mailto:pawint@me.com" className="hover:text-foreground transition-colors">Contact</a>
             </div>
           </div>
         </div>
