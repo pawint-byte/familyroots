@@ -183,15 +183,17 @@ export default function Gifts() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link href={user ? "/" : "/"}>
-              <a className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity">
+              <a className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity" data-testid="link-back-home">
                 <ArrowLeft className="h-4 w-4" />
                 Back to {user ? "Dashboard" : "Home"}
               </a>
             </Link>
-            <div className="flex items-center gap-2">
-              <TreeDeciduous className="h-6 w-6 text-primary" />
-              <span className="font-serif text-xl font-semibold">FamilyRoots</span>
-            </div>
+            <Link href="/">
+              <a className="flex items-center gap-2 hover:opacity-80 transition-opacity" data-testid="link-brand-logo">
+                <TreeDeciduous className="h-6 w-6 text-primary" />
+                <span className="font-serif text-xl font-semibold">FamilyRoots</span>
+              </a>
+            </Link>
           </div>
         </div>
       </header>
@@ -214,7 +216,7 @@ export default function Gifts() {
 
         <div className="space-y-16">
           {giftCategories.map((category) => (
-            <section key={category.id} id={category.id}>
+            <section key={category.id} id={category.id} data-testid={`section-${category.id}`}>
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 rounded-lg bg-primary/10">
                   <category.icon className="h-6 w-6 text-primary" />
