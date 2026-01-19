@@ -1,0 +1,307 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { SEO } from "@/components/seo";
+import { useAuth } from "@/hooks/use-auth";
+import { Link } from "wouter";
+import { 
+  ExternalLink, 
+  Gift, 
+  TreeDeciduous, 
+  Frame, 
+  BookOpen, 
+  Gem,
+  Heart,
+  Users,
+  ArrowLeft
+} from "lucide-react";
+
+interface GiftCategory {
+  id: string;
+  name: string;
+  description: string;
+  icon: typeof Gift;
+  products: GiftProduct[];
+}
+
+interface GiftProduct {
+  id: string;
+  name: string;
+  description: string;
+  priceRange: string;
+  link: string;
+  store: string;
+  popular?: boolean;
+}
+
+const giftCategories: GiftCategory[] = [
+  {
+    id: "ornaments",
+    name: "Family Tree Ornaments",
+    description: "Beautiful ornaments to celebrate your family heritage",
+    icon: TreeDeciduous,
+    products: [
+      {
+        id: "1",
+        name: "Personalized Family Tree Ornament",
+        description: "Custom engraved ornament with family names and birth years",
+        priceRange: "$15 - $35",
+        link: "https://www.etsy.com/search?q=family+tree+ornament+personalized",
+        store: "Etsy",
+        popular: true,
+      },
+      {
+        id: "2",
+        name: "Birthstone Family Tree Pendant",
+        description: "Tree design with birthstones representing each family member",
+        priceRange: "$25 - $60",
+        link: "https://www.amazon.com/s?k=family+tree+birthstone+ornament",
+        store: "Amazon",
+      },
+      {
+        id: "3",
+        name: "Wooden Family Tree Display",
+        description: "Handcrafted wooden tree with hanging name tags",
+        priceRange: "$40 - $100",
+        link: "https://www.etsy.com/search?q=wooden+family+tree+display",
+        store: "Etsy",
+      },
+    ],
+  },
+  {
+    id: "wall-art",
+    name: "Wall Art & Prints",
+    description: "Display your family history beautifully on your walls",
+    icon: Frame,
+    products: [
+      {
+        id: "4",
+        name: "Custom Family Tree Canvas",
+        description: "Large canvas print with customizable family tree design",
+        priceRange: "$50 - $150",
+        link: "https://www.etsy.com/search?q=family+tree+canvas+custom",
+        store: "Etsy",
+        popular: true,
+      },
+      {
+        id: "5",
+        name: "Ancestry Chart Print",
+        description: "Professional genealogy chart ready for framing",
+        priceRange: "$30 - $80",
+        link: "https://www.amazon.com/s?k=ancestry+chart+print",
+        store: "Amazon",
+      },
+      {
+        id: "6",
+        name: "Photo Family Tree Frame",
+        description: "Multi-photo frame designed as a family tree",
+        priceRange: "$35 - $75",
+        link: "https://www.amazon.com/s?k=family+tree+photo+frame",
+        store: "Amazon",
+      },
+    ],
+  },
+  {
+    id: "books",
+    name: "Memory Books & Journals",
+    description: "Preserve stories and memories for future generations",
+    icon: BookOpen,
+    products: [
+      {
+        id: "7",
+        name: "Family History Journal",
+        description: "Guided journal for recording family stories and memories",
+        priceRange: "$20 - $40",
+        link: "https://www.amazon.com/s?k=family+history+journal",
+        store: "Amazon",
+        popular: true,
+      },
+      {
+        id: "8",
+        name: "Grandmother's Story Book",
+        description: "Keepsake book for grandparents to share their life story",
+        priceRange: "$15 - $30",
+        link: "https://www.amazon.com/s?k=grandparents+memory+book",
+        store: "Amazon",
+      },
+      {
+        id: "9",
+        name: "Family Recipe Cookbook",
+        description: "Blank cookbook for preserving family recipes",
+        priceRange: "$15 - $35",
+        link: "https://www.etsy.com/search?q=family+recipe+book+blank",
+        store: "Etsy",
+      },
+    ],
+  },
+  {
+    id: "jewelry",
+    name: "Family Jewelry",
+    description: "Wearable keepsakes celebrating family bonds",
+    icon: Gem,
+    products: [
+      {
+        id: "10",
+        name: "Family Tree Necklace",
+        description: "Sterling silver tree of life pendant with birthstones",
+        priceRange: "$30 - $100",
+        link: "https://www.etsy.com/search?q=family+tree+necklace+birthstone",
+        store: "Etsy",
+        popular: true,
+      },
+      {
+        id: "11",
+        name: "Personalized Family Ring",
+        description: "Custom ring engraved with family names or initials",
+        priceRange: "$40 - $150",
+        link: "https://www.etsy.com/search?q=personalized+family+ring",
+        store: "Etsy",
+      },
+      {
+        id: "12",
+        name: "Family Crest Pendant",
+        description: "Custom pendant featuring your family coat of arms",
+        priceRange: "$50 - $200",
+        link: "https://www.etsy.com/search?q=family+crest+pendant+custom",
+        store: "Etsy",
+      },
+    ],
+  },
+];
+
+export default function Gifts() {
+  const { user } = useAuth();
+
+  return (
+    <div className="min-h-screen bg-background">
+      <SEO
+        title="Family Tree Gifts & Products | FamilyRoots"
+        description="Discover beautiful family tree ornaments, wall art, memory books, and jewelry. Perfect gifts to celebrate your family heritage and preserve memories."
+      />
+
+      <header className="border-b border-border bg-card">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <Link href={user ? "/" : "/"}>
+              <a className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity">
+                <ArrowLeft className="h-4 w-4" />
+                Back to {user ? "Dashboard" : "Home"}
+              </a>
+            </Link>
+            <div className="flex items-center gap-2">
+              <TreeDeciduous className="h-6 w-6 text-primary" />
+              <span className="font-serif text-xl font-semibold">FamilyRoots</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-12">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full mb-4">
+            <Gift className="h-5 w-5" />
+            <span className="font-medium">Gift Ideas</span>
+          </div>
+          <h1 className="font-serif text-4xl font-bold text-foreground mb-4">
+            Family Tree Gifts & Products
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Discover beautiful ways to celebrate and preserve your family heritage. 
+            From personalized ornaments to keepsake jewelry, find the perfect gift 
+            for yourself or loved ones.
+          </p>
+        </div>
+
+        <div className="space-y-16">
+          {giftCategories.map((category) => (
+            <section key={category.id} id={category.id}>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <category.icon className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-serif text-2xl font-semibold text-foreground">
+                    {category.name}
+                  </h2>
+                  <p className="text-muted-foreground">{category.description}</p>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {category.products.map((product) => (
+                  <Card key={product.id} className="hover-elevate" data-testid={`card-product-${product.id}`}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-lg">{product.name}</CardTitle>
+                        {product.popular && (
+                          <Badge variant="secondary" className="shrink-0">
+                            <Heart className="h-3 w-3 mr-1" />
+                            Popular
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription>{product.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-lg font-semibold text-foreground">
+                            {product.priceRange}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            on {product.store}
+                          </p>
+                        </div>
+                        <Button asChild>
+                          <a 
+                            href={product.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            data-testid={`link-product-${product.id}`}
+                          >
+                            Shop Now
+                            <ExternalLink className="h-4 w-4 ml-2" />
+                          </a>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        <section className="mt-16 bg-card border border-border rounded-xl p-8 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="p-3 rounded-full bg-primary/10">
+              <Users className="h-8 w-8 text-primary" />
+            </div>
+          </div>
+          <h2 className="font-serif text-2xl font-semibold text-foreground mb-3">
+            Create Your Own Family Tree
+          </h2>
+          <p className="text-muted-foreground max-w-xl mx-auto mb-6">
+            Before you gift, document your family history with FamilyRoots. 
+            Build a beautiful interactive family tree that you can share with loved ones.
+          </p>
+          <Button size="lg" asChild>
+            <Link href="/">
+              <a data-testid="link-start-tree">
+                <TreeDeciduous className="h-5 w-5 mr-2" />
+                Start Your Family Tree
+              </a>
+            </Link>
+          </Button>
+        </section>
+
+        <footer className="mt-16 pt-8 border-t border-border text-center text-sm text-muted-foreground">
+          <p>
+            Note: Product links lead to external marketplaces. Prices and availability 
+            may vary. FamilyRoots is not affiliated with these sellers.
+          </p>
+        </footer>
+      </main>
+    </div>
+  );
+}

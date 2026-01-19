@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { 
   insertFamilyTreeSchema, insertFamilyMemberSchema, 
   insertRelationshipSchema, insertFamilyEventSchema 
@@ -17,6 +18,9 @@ export async function registerRoutes(
   // Setup authentication
   await setupAuth(app);
   registerAuthRoutes(app);
+  
+  // Setup object storage for photo uploads
+  registerObjectStorageRoutes(app);
 
   // Get all trees for the current user
   app.get("/api/trees", isAuthenticated, async (req: any, res) => {

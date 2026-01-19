@@ -24,6 +24,7 @@ export default function Landing() {
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features">Features</a>
             <a href="#timeline" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-timeline">Timeline</a>
             <a href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">Pricing</a>
+            <a href="/gifts" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-gifts">Gifts</a>
           </nav>
           <div className="flex items-center gap-2">
             <ThemeToggle />

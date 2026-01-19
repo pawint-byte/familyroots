@@ -1,13 +1,16 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Upload, X, Loader2, User } from "lucide-react";
+import { useUpload } from "@/hooks/use-upload";
 import type { InsertFamilyMember } from "@shared/schema";
 
 const memberFormSchema = z.object({
@@ -32,6 +35,16 @@ interface MemberFormProps {
 }
 
 export default function MemberForm({ treeId, initialData, onSubmit, isLoading }: MemberFormProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(initialData?.photoUrl || null);
+  
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (response) => {
+      form.setValue("photoUrl", response.objectPath);
+      setPhotoPreview(response.objectPath);
+    },
+  });
+
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(memberFormSchema),
     defaultValues: {
@@ -48,6 +61,28 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
   });
 
   const isLiving = form.watch("isLiving");
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      return;
+    }
+
+    const localPreview = URL.createObjectURL(file);
+    setPhotoPreview(localPreview);
+
+    await uploadFile(file);
+  };
+
+  const handleRemovePhoto = () => {
+    form.setValue("photoUrl", "");
+    setPhotoPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleSubmit = (values: MemberFormValues) => {
     const data: InsertFamilyMember = {
@@ -192,14 +227,61 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
           name="photoUrl"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Photo URL</FormLabel>
-              <FormControl>
-                <Input 
-                  placeholder="https://example.com/photo.jpg" 
-                  {...field} 
-                  data-testid="input-photo-url"
-                />
-              </FormControl>
+              <FormLabel>Photo</FormLabel>
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20 border-2 border-border">
+                  {photoPreview ? (
+                    <AvatarImage src={photoPreview} alt="Preview" />
+                  ) : null}
+                  <AvatarFallback className="bg-muted">
+                    <User className="h-8 w-8 text-muted-foreground" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    data-testid="input-photo-file"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    data-testid="button-upload-photo"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Photo
+                      </>
+                    )}
+                  </Button>
+                  {photoPreview && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemovePhoto}
+                      className="text-destructive hover:text-destructive"
+                      data-testid="button-remove-photo"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <Input type="hidden" {...field} />
+              </div>
               <FormMessage />
             </FormItem>
           )}

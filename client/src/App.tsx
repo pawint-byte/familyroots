@@ -10,6 +10,7 @@ import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import TreeView from "@/pages/tree-view";
 import Pricing from "@/pages/pricing";
+import Gifts from "@/pages/gifts";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/" component={user ? Dashboard : Landing} />
       <Route path="/tree/:id" component={TreeView} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/gifts" component={Gifts} />
       <Route component={NotFound} />
     </Switch>
   );
