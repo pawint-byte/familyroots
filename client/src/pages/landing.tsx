@@ -1,11 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SEO, defaultStructuredData } from "@/components/seo";
 import { Trees, Users, Share2, Shield, Search, Calendar, ArrowRight, Sparkles } from "lucide-react";
 
 export default function Landing() {
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="FamilyRoots - Build Your Family's Living Legacy"
+        description="Create beautiful, interactive family trees that connect generations. Preserve stories, share memories, and discover your roots together. Free forever plan available."
+        keywords="family tree, genealogy, ancestry, family history, interactive family tree, family members, heritage"
+        ogType="website"
+        structuredData={defaultStructuredData}
+      />
       <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">

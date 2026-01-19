@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -71,6 +72,11 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Dashboard - FamilyRoots | Manage Your Family Trees"
+        description="Manage and explore your family trees. Create new trees, add family members, and preserve your heritage."
+        keywords="family tree dashboard, manage genealogy, family history management"
+      />
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">

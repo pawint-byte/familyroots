@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SEO } from "@/components/seo";
 import { useAuth } from "@/hooks/use-auth";
 import { Trees, Check, ArrowLeft, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
@@ -68,8 +69,44 @@ export default function Pricing() {
     checkoutMutation.mutate(priceId);
   };
 
+  const pricingStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "FamilyRoots Premium",
+    "description": "Unlimited family trees and members for genealogy enthusiasts",
+    "offers": [
+      {
+        "@type": "Offer",
+        "name": "Free Plan",
+        "price": "0",
+        "priceCurrency": "USD",
+        "description": "1 family tree, up to 20 members"
+      },
+      {
+        "@type": "Offer",
+        "name": "Premium Plan",
+        "price": "9.99",
+        "priceCurrency": "USD",
+        "priceSpecification": {
+          "@type": "UnitPriceSpecification",
+          "price": "9.99",
+          "priceCurrency": "USD",
+          "billingIncrement": 1,
+          "unitCode": "MON"
+        },
+        "description": "Unlimited family trees and members"
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Pricing - FamilyRoots | Family Tree Plans"
+        description="Choose your FamilyRoots plan. Start free with 1 tree and 20 members, or go Premium for unlimited trees and family members at $9.99/month."
+        keywords="family tree pricing, genealogy plans, family history subscription"
+        structuredData={pricingStructuredData}
+      />
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">

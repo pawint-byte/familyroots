@@ -17,6 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
@@ -127,8 +128,16 @@ export default function TreeView() {
     );
   }
 
+  const treeName = treeData?.tree?.name || "Family Tree";
+  const memberCount = treeData?.members?.length || 0;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <SEO
+        title={`${treeName} - FamilyRoots`}
+        description={`Explore and manage ${treeName} with ${memberCount} family members. Add members, define relationships, and visualize your family history.`}
+        keywords="family tree, genealogy, ancestry, family members, relationships"
+      />
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
