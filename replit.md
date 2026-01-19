@@ -80,6 +80,20 @@ Preferred communication style: Simple, everyday language.
 - JSON-LD structured data for Organization schema
 - Component: `client/src/components/seo.tsx`
 
+### Photo Uploads
+- Uses Replit Object Storage with presigned URL flow for secure uploads
+- Two-step upload process: request presigned URL → upload directly to storage
+- Photos stored privately and served via object storage URLs
+- Hook: `client/src/hooks/use-upload.ts`
+- Component: Photo upload UI integrated in `client/src/components/member-form.tsx`
+- Routes: `server/replit_integrations/object_storage/routes.ts`
+
+### Gifts & Products Page
+- Curated collection of family tree related products (ornaments, wall art, memory books, jewelry)
+- Links to external marketplaces (Etsy, Amazon)
+- Accessible from landing page navigation
+- Page: `client/src/pages/gifts.tsx`
+
 ## External Dependencies
 
 ### Database
