@@ -67,6 +67,19 @@ Preferred communication style: Simple, everyday language.
 - Consistent spacing scale using Tailwind utilities
 - Component patterns following Ancestry.com genealogy UX and Linear's modern aesthetic
 
+### AI Chatbot
+- Floating "Help" button on all pages that opens a chat interface
+- Uses OpenAI GPT-4.1-mini via Replit AI Integrations (no API key required)
+- Provides genealogy assistance, app guidance, and family history help
+- Streaming responses via Server-Sent Events (SSE)
+- Components: `client/src/components/chatbot.tsx`, `server/chatbot.ts`
+
+### SEO Implementation
+- Client-side SEO component updates meta tags, Open Graph, and Twitter cards
+- Page-specific SEO for landing, dashboard, pricing, and tree view pages
+- JSON-LD structured data for Organization schema
+- Component: `client/src/components/seo.tsx`
+
 ## External Dependencies
 
 ### Database
@@ -82,6 +95,8 @@ Preferred communication style: Simple, everyday language.
 - **Forms**: react-hook-form with zod validation
 - **Data**: @tanstack/react-query, drizzle-orm
 - **Auth**: passport, openid-client, express-session, connect-pg-simple
+- **AI**: @replit/ai (OpenAI integration via Replit AI Integrations)
+- **Payments**: Stripe for subscription management
 
 ### Development Tools
 - Vite dev server with HMR
