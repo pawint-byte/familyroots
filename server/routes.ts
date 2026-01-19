@@ -8,6 +8,7 @@ import {
 } from "@shared/schema";
 import { stripeService } from "./stripeService";
 import { getStripePublishableKey, isStripeConfigured } from "./stripeClient";
+import { streamChatResponse } from "./chatbot";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -477,6 +478,48 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating portal session:", error);
       res.status(500).json({ message: "Failed to create portal session" });
+    }
+  });
+
+  // AI Chatbot endpoint (streaming)
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { message, history = [] } = req.body;
+
+      if (!message || typeof message !== "string") {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      // Set up SSE for streaming
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+
+      let fullResponse = "";
+
+      // Handle client disconnect
+      let aborted = false;
+      res.on("close", () => {
+        aborted = true;
+      });
+
+      for await (const chunk of streamChatResponse(message, history)) {
+        if (aborted) break;
+        fullResponse += chunk;
+        res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true, fullContent: fullResponse })}\n\n`);
+      res.end();
+    } catch (error) {
+      console.error("Chat error:", error);
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: "Failed to get response" })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ error: "Failed to process chat message" });
+      }
     }
   });
 

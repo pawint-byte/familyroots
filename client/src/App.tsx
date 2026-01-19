@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
+import { Chatbot } from "@/components/chatbot";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import TreeView from "@/pages/tree-view";
@@ -42,6 +43,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <Chatbot />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

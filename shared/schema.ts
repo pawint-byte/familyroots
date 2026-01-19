@@ -6,6 +6,9 @@ import { z } from "zod";
 // Re-export auth models
 export * from "./models/auth";
 
+// Re-export chat models (for AI chatbot)
+export * from "./models/chat";
+
 // Enums
 export const genderEnum = pgEnum("gender", ["male", "female", "other"]);
 export const relationshipTypeEnum = pgEnum("relationship_type", ["parent", "child", "spouse", "sibling"]);
