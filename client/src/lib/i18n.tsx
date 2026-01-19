@@ -2,11 +2,11 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 
 export type Language = "en" | "es" | "fr" | "de";
 
-export const languages: { code: Language; name: string; flag: string }[] = [
-  { code: "en", name: "English", flag: "🇺🇸" },
-  { code: "es", name: "Español", flag: "🇪🇸" },
-  { code: "fr", name: "Français", flag: "🇫🇷" },
-  { code: "de", name: "Deutsch", flag: "🇩🇪" },
+export const languages: { code: Language; name: string; shortCode: string }[] = [
+  { code: "en", name: "English", shortCode: "EN" },
+  { code: "es", name: "Español", shortCode: "ES" },
+  { code: "fr", name: "Français", shortCode: "FR" },
+  { code: "de", name: "Deutsch", shortCode: "DE" },
 ];
 
 type TranslationKeys = {
@@ -46,6 +46,8 @@ type TranslationKeys = {
     ctaTitle: string;
     ctaDescription: string;
     ctaButton: string;
+    gdprCompliant: string;
+    freePlan: string;
   };
   gifts: {
     pageTitle: string;
@@ -139,6 +141,8 @@ const translations: Record<Language, TranslationKeys> = {
       ctaTitle: "Ready to discover your roots?",
       ctaDescription: "Join thousands of families preserving their heritage with FamilyRoots",
       ctaButton: "Start Free Today",
+      gdprCompliant: "GDPR Compliant",
+      freePlan: "Free Forever Plan",
     },
     gifts: {
       pageTitle: "Family Tree Gifts & Products",
@@ -230,6 +234,8 @@ const translations: Record<Language, TranslationKeys> = {
       ctaTitle: "¿Listo para descubrir tus raíces?",
       ctaDescription: "Únete a miles de familias preservando su herencia con FamilyRoots",
       ctaButton: "Comienza Gratis Hoy",
+      gdprCompliant: "Cumple con GDPR",
+      freePlan: "Plan Gratis Para Siempre",
     },
     gifts: {
       pageTitle: "Regalos y Productos de Árbol Genealógico",
@@ -321,6 +327,8 @@ const translations: Record<Language, TranslationKeys> = {
       ctaTitle: "Prêt à découvrir vos racines?",
       ctaDescription: "Rejoignez des milliers de familles qui préservent leur héritage avec FamilyRoots",
       ctaButton: "Commencez Gratuitement",
+      gdprCompliant: "Conforme au RGPD",
+      freePlan: "Plan Gratuit Pour Toujours",
     },
     gifts: {
       pageTitle: "Cadeaux et Produits d'Arbre Généalogique",
@@ -412,6 +420,8 @@ const translations: Record<Language, TranslationKeys> = {
       ctaTitle: "Bereit, Ihre Wurzeln zu entdecken?",
       ctaDescription: "Schließen Sie sich Tausenden von Familien an, die ihr Erbe mit FamilyRoots bewahren",
       ctaButton: "Heute Kostenlos Starten",
+      gdprCompliant: "DSGVO-konform",
+      freePlan: "Für Immer Kostenlos",
     },
     gifts: {
       pageTitle: "Stammbaum Geschenke & Produkte",

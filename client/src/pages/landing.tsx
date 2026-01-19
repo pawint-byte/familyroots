@@ -1,10 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
+import { useI18n } from "@/lib/i18n";
 import { Trees, Users, Share2, Shield, Search, Calendar, ArrowRight, Sparkles } from "lucide-react";
 
 export default function Landing() {
+  const { t } = useI18n();
   return (
     <div className="min-h-screen bg-background">
       <SEO
@@ -21,18 +24,19 @@ export default function Landing() {
             <span className="font-serif text-xl font-semibold">FamilyRoots</span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features">Features</a>
-            <a href="#timeline" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-timeline">Timeline</a>
-            <a href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">Pricing</a>
-            <a href="/gifts" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-gifts">Gifts</a>
+            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features">{t.nav.features}</a>
+            <a href="#timeline" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-timeline">{t.nav.timeline}</a>
+            <a href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">{t.nav.pricing}</a>
+            <a href="/gifts" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-gifts">{t.nav.gifts}</a>
           </nav>
           <div className="flex items-center gap-2">
+            <LanguageSwitcher />
             <ThemeToggle />
             <a href="/api/login">
-              <Button variant="ghost" data-testid="button-login">Log In</Button>
+              <Button variant="ghost" data-testid="button-login">{t.nav.login}</Button>
             </a>
             <a href="/api/login">
-              <Button data-testid="button-get-started">Get Started</Button>
+              <Button data-testid="button-get-started">{t.nav.getStarted}</Button>
             </a>
           </div>
         </div>
@@ -46,34 +50,33 @@ export default function Landing() {
               <div className="space-y-8">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
                   <Sparkles className="h-4 w-4" />
-                  <span>Discover Your Heritage</span>
+                  <span>{t.landing.heroTagline}</span>
                 </div>
                 <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
-                  Build Your Family's <span className="text-primary">Living Legacy</span>
+                  {t.landing.heroTitle} <span className="text-primary">{t.landing.heroTitleHighlight}</span>
                 </h1>
                 <p className="text-lg md:text-xl text-muted-foreground max-w-xl">
-                  Create beautiful, interactive family trees that connect generations. 
-                  Preserve stories, share memories, and discover your roots together.
+                  {t.landing.heroDescription}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <a href="/api/login">
                     <Button size="lg" className="gap-2" data-testid="button-hero-start">
-                      Start Your Tree
+                      {t.landing.startTree}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   </a>
                   <Button size="lg" variant="outline" data-testid="button-hero-demo">
-                    Watch Demo
+                    {t.landing.watchDemo}
                   </Button>
                 </div>
                 <div className="flex items-center gap-6 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4 text-primary" />
-                    <span>GDPR Compliant</span>
+                    <span>{t.landing.gdprCompliant}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-primary" />
-                    <span>Free Forever Plan</span>
+                    <span>{t.landing.freePlan}</span>
                   </div>
                 </div>
               </div>
@@ -127,9 +130,9 @@ export default function Landing() {
         <section id="features" className="py-24 bg-card/50">
           <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-              <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4">Everything You Need</h2>
+              <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4">{t.landing.featuresTitle}</h2>
               <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                Powerful features to help you build, explore, and share your family history
+                {t.landing.featuresSubtitle}
               </p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -138,9 +141,9 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Trees className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg">Interactive Trees</h3>
+                  <h3 className="font-semibold text-lg">{t.landing.feature1Title}</h3>
                   <p className="text-muted-foreground">
-                    Build dynamic family trees with drag-and-drop simplicity. Zoom, pan, and explore generations seamlessly.
+                    {t.landing.feature1Desc}
                   </p>
                 </CardContent>
               </Card>
@@ -149,9 +152,9 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Users className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg">Rich Profiles</h3>
+                  <h3 className="font-semibold text-lg">{t.landing.feature2Title}</h3>
                   <p className="text-muted-foreground">
-                    Add photos, stories, birth dates, locations, and detailed notes for each family member.
+                    {t.landing.feature2Desc}
                   </p>
                 </CardContent>
               </Card>
@@ -160,9 +163,9 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Share2 className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg">Collaborate</h3>
+                  <h3 className="font-semibold text-lg">{t.landing.feature3Title}</h3>
                   <p className="text-muted-foreground">
-                    Invite family members to contribute. Control who can view and edit your tree.
+                    {t.landing.feature3Desc}
                   </p>
                 </CardContent>
               </Card>
@@ -171,9 +174,9 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Search className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg">Smart Search</h3>
+                  <h3 className="font-semibold text-lg">{t.landing.feature4Title}</h3>
                   <p className="text-muted-foreground">
-                    Find any family member instantly by name, date, or location across your entire tree.
+                    {t.landing.feature4Desc}
                   </p>
                 </CardContent>
               </Card>
@@ -182,9 +185,9 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Calendar className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg">Timeline View</h3>
+                  <h3 className="font-semibold text-lg">{t.landing.feature5Title}</h3>
                   <p className="text-muted-foreground">
-                    See your family history unfold chronologically with events, milestones, and memories.
+                    {t.landing.feature5Desc}
                   </p>
                 </CardContent>
               </Card>
@@ -193,9 +196,9 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Shield className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg">Privacy First</h3>
+                  <h3 className="font-semibold text-lg">{t.landing.feature6Title}</h3>
                   <p className="text-muted-foreground">
-                    Your data is encrypted and secure. Full control over who sees your family information.
+                    {t.landing.feature6Desc}
                   </p>
                 </CardContent>
               </Card>
@@ -206,14 +209,14 @@ export default function Landing() {
         <section className="py-24">
           <div className="container mx-auto px-4 text-center">
             <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4">
-              Start Building Your Family Tree Today
+              {t.landing.ctaTitle}
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-8">
-              Join thousands of families preserving their heritage. Free forever, no credit card required.
+              {t.landing.ctaDescription}
             </p>
             <a href="/api/login">
               <Button size="lg" className="gap-2" data-testid="button-cta-start">
-                Create Your Free Account
+                {t.landing.ctaButton}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </a>

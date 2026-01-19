@@ -2,7 +2,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SEO } from "@/components/seo";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/lib/i18n";
 import { Link } from "wouter";
 import { 
   ExternalLink, 
@@ -171,6 +174,7 @@ const giftCategories: GiftCategory[] = [
 
 export default function Gifts() {
   const { user } = useAuth();
+  const { t } = useI18n();
 
   return (
     <div className="min-h-screen bg-background">
@@ -185,15 +189,19 @@ export default function Gifts() {
             <Link href={user ? "/" : "/"}>
               <a className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity" data-testid="link-back-home">
                 <ArrowLeft className="h-4 w-4" />
-                Back to {user ? "Dashboard" : "Home"}
+                {t.nav.backToHome}
               </a>
             </Link>
-            <Link href="/">
-              <a className="flex items-center gap-2 hover:opacity-80 transition-opacity" data-testid="link-brand-logo">
-                <TreeDeciduous className="h-6 w-6 text-primary" />
-                <span className="font-serif text-xl font-semibold">FamilyRoots</span>
-              </a>
-            </Link>
+            <div className="flex items-center gap-4">
+              <LanguageSwitcher />
+              <ThemeToggle />
+              <Link href="/">
+                <a className="flex items-center gap-2 hover:opacity-80 transition-opacity" data-testid="link-brand-logo">
+                  <TreeDeciduous className="h-6 w-6 text-primary" />
+                  <span className="font-serif text-xl font-semibold">FamilyRoots</span>
+                </a>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -202,15 +210,13 @@ export default function Gifts() {
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full mb-4">
             <Gift className="h-5 w-5" />
-            <span className="font-medium">Gift Ideas</span>
+            <span className="font-medium">{t.gifts.giftIdeas}</span>
           </div>
           <h1 className="font-serif text-4xl font-bold text-foreground mb-4">
-            Family Tree Gifts & Products
+            {t.gifts.pageTitle}
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Discover beautiful ways to celebrate and preserve your family heritage. 
-            From personalized ornaments to keepsake jewelry, find the perfect gift 
-            for yourself or loved ones.
+            {t.gifts.pageDescription}
           </p>
         </div>
 
@@ -238,7 +244,7 @@ export default function Gifts() {
                         {product.popular && (
                           <Badge variant="secondary" className="shrink-0">
                             <Heart className="h-3 w-3 mr-1" />
-                            Popular
+                            {t.gifts.popular}
                           </Badge>
                         )}
                       </div>
@@ -251,7 +257,7 @@ export default function Gifts() {
                             {product.priceRange}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            on {product.store}
+                            {t.gifts.priceOn} {product.store}
                           </p>
                         </div>
                         <Button asChild>
@@ -261,7 +267,7 @@ export default function Gifts() {
                             rel="noopener noreferrer"
                             data-testid={`link-product-${product.id}`}
                           >
-                            Shop Now
+                            {t.gifts.shopNow}
                             <ExternalLink className="h-4 w-4 ml-2" />
                           </a>
                         </Button>
@@ -281,17 +287,16 @@ export default function Gifts() {
             </div>
           </div>
           <h2 className="font-serif text-2xl font-semibold text-foreground mb-3">
-            Create Your Own Family Tree
+            {t.gifts.createTreeTitle}
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto mb-6">
-            Before you gift, document your family history with FamilyRoots. 
-            Build a beautiful interactive family tree that you can share with loved ones.
+            {t.gifts.createTreeDescription}
           </p>
           <Button size="lg" asChild>
             <Link href="/">
               <a data-testid="link-start-tree">
                 <TreeDeciduous className="h-5 w-5 mr-2" />
-                Start Your Family Tree
+                {t.gifts.startTreeButton}
               </a>
             </Link>
           </Button>
@@ -299,8 +304,7 @@ export default function Gifts() {
 
         <footer className="mt-16 pt-8 border-t border-border text-center text-sm text-muted-foreground">
           <p>
-            Note: Product links lead to external marketplaces. Prices and availability 
-            may vary. FamilyRoots is not affiliated with these sellers.
+            {t.gifts.disclaimer}
           </p>
         </footer>
       </main>
