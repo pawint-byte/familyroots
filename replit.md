@@ -74,6 +74,17 @@ Preferred communication style: Simple, everyday language.
 - Streaming responses via Server-Sent Events (SSE)
 - Components: `client/src/components/chatbot.tsx`, `server/chatbot.ts`
 
+### Internationalization (i18n)
+- Built-in multi-language support for English, Spanish, French, and German
+- Language context with React Context API and localStorage persistence
+- Auto-detects browser language preference on first visit
+- Language switcher component in navigation headers using text codes (EN, ES, FR, DE)
+- Core files:
+  - `client/src/lib/i18n.tsx`: Language context, translations, and helper hooks
+  - `client/src/components/language-switcher.tsx`: Dropdown language selector component
+- Translated pages: Landing page, Gifts page
+- Access translations via `useLanguage()` hook: `const { t, language, setLanguage } = useLanguage();`
+
 ### SEO Implementation
 - Client-side SEO component updates meta tags, Open Graph, and Twitter cards
 - Page-specific SEO for landing, dashboard, pricing, and tree view pages
