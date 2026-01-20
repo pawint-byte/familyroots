@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
+import { getVideoById } from './heygen';
 
 const app = express();
 const httpServer = createServer(app);
@@ -103,6 +104,80 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+const crawlerUserAgents = [
+  'facebookexternalhit',
+  'twitterbot',
+  'linkedinbot',
+  'slackbot',
+  'discordbot',
+  'telegrambot',
+  'whatsapp',
+  'bsky',
+  'baiduspider',
+  'googlebot',
+];
+
+function isCrawler(userAgent: string | undefined): boolean {
+  if (!userAgent) return false;
+  const ua = userAgent.toLowerCase();
+  return crawlerUserAgents.some(crawler => ua.includes(crawler));
+}
+
+app.get('/video/:id', async (req, res, next) => {
+  if (!isCrawler(req.headers['user-agent'])) {
+    return next();
+  }
+
+  try {
+    const video = await getVideoById(req.params.id);
+    if (!video || video.status !== 'completed' || !video.videoUrl) {
+      return next();
+    }
+
+    const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+    const videoPageUrl = `${baseUrl}/video/${video.id}`;
+    const description = video.script.substring(0, 200) + (video.script.length > 200 ? '...' : '');
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${video.title} | FamilyRoots</title>
+  <meta name="description" content="${description}">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="video.other">
+  <meta property="og:url" content="${videoPageUrl}">
+  <meta property="og:title" content="${video.title}">
+  <meta property="og:description" content="${description}">
+  ${video.thumbnailUrl ? `<meta property="og:image" content="${video.thumbnailUrl}">` : ''}
+  <meta property="og:video" content="${video.videoUrl}">
+  <meta property="og:video:type" content="video/mp4">
+  
+  <!-- Twitter -->
+  <meta name="twitter:card" content="player">
+  <meta name="twitter:url" content="${videoPageUrl}">
+  <meta name="twitter:title" content="${video.title}">
+  <meta name="twitter:description" content="${description}">
+  ${video.thumbnailUrl ? `<meta name="twitter:image" content="${video.thumbnailUrl}">` : ''}
+  <meta name="twitter:player" content="${video.videoUrl}">
+  
+  <meta http-equiv="refresh" content="0;url=${videoPageUrl}">
+</head>
+<body>
+  <p>Redirecting to video...</p>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html');
+    return res.send(html);
+  } catch (error) {
+    console.error('Error serving video meta tags:', error);
+    return next();
+  }
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
