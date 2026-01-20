@@ -13,6 +13,7 @@ export * from "./models/chat";
 export const genderEnum = pgEnum("gender", ["male", "female", "other"]);
 export const relationshipTypeEnum = pgEnum("relationship_type", ["parent", "child", "spouse", "sibling"]);
 export const privacyEnum = pgEnum("privacy", ["private", "public"]);
+export const videoStatusEnum = pgEnum("video_status", ["pending", "processing", "completed", "failed"]);
 
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
@@ -73,6 +74,26 @@ export const familyEvents = pgTable("family_events", {
   description: text("description"),
   location: text("location"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// HeyGen Generated Videos
+export const generatedVideos = pgTable("generated_videos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  heygenVideoId: varchar("heygen_video_id"),
+  title: text("title").notNull(),
+  script: text("script").notNull(),
+  avatarId: varchar("avatar_id").notNull(),
+  voiceId: varchar("voice_id").notNull(),
+  backgroundUrl: text("background_url"),
+  destinationUrl: text("destination_url").notNull(),
+  status: videoStatusEnum("status").default("pending").notNull(),
+  videoUrl: text("video_url"),
+  thumbnailUrl: text("thumbnail_url"),
+  duration: text("duration"),
+  errorMessage: text("error_message"),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Relations
@@ -152,6 +173,12 @@ export const insertFamilyEventSchema = createInsertSchema(familyEvents).omit({
   createdAt: true,
 });
 
+export const insertGeneratedVideoSchema = createInsertSchema(generatedVideos).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type FamilyTree = typeof familyTrees.$inferSelect;
 export type InsertFamilyTree = z.infer<typeof insertFamilyTreeSchema>;
@@ -167,3 +194,6 @@ export type InsertTreeCollaborator = z.infer<typeof insertTreeCollaboratorSchema
 
 export type FamilyEvent = typeof familyEvents.$inferSelect;
 export type InsertFamilyEvent = z.infer<typeof insertFamilyEventSchema>;
+
+export type GeneratedVideo = typeof generatedVideos.$inferSelect;
+export type InsertGeneratedVideo = z.infer<typeof insertGeneratedVideoSchema>;

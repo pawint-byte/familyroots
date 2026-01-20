@@ -10,6 +10,11 @@ import {
 import { stripeService } from "./stripeService";
 import { getStripePublishableKey, isStripeConfigured } from "./stripeClient";
 import { streamChatResponse } from "./chatbot";
+import { 
+  getAvatars, getVoices, generateVideo, syncVideoStatus, 
+  getAllVideos, getVideoById, deleteVideo 
+} from "./heygen";
+import { postToBluesky } from "./bluesky";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -524,6 +529,153 @@ export async function registerRoutes(
       } else {
         res.status(500).json({ error: "Failed to process chat message" });
       }
+    }
+  });
+
+  // HeyGen Video Routes (Admin only)
+  
+  // Get available avatars
+  app.get("/api/admin/heygen/avatars", isAuthenticated, async (req: any, res) => {
+    try {
+      const avatars = await getAvatars();
+      res.json(avatars);
+    } catch (error: any) {
+      console.error("Error fetching avatars:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch avatars" });
+    }
+  });
+
+  // Get available voices
+  app.get("/api/admin/heygen/voices", isAuthenticated, async (req: any, res) => {
+    try {
+      const voices = await getVoices();
+      res.json(voices);
+    } catch (error: any) {
+      console.error("Error fetching voices:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch voices" });
+    }
+  });
+
+  // Generate a video
+  app.post("/api/admin/videos", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { title, script, avatarId, voiceId, backgroundUrl, destinationUrl } = req.body;
+
+      if (!title || !script || !avatarId || !voiceId || !destinationUrl) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const video = await generateVideo({
+        title,
+        script,
+        avatarId,
+        voiceId,
+        backgroundUrl,
+        destinationUrl,
+        createdBy: userId,
+      });
+
+      res.status(201).json(video);
+    } catch (error: any) {
+      console.error("Error generating video:", error);
+      res.status(500).json({ message: error.message || "Failed to generate video" });
+    }
+  });
+
+  // Get all videos
+  app.get("/api/admin/videos", isAuthenticated, async (req: any, res) => {
+    try {
+      const videos = await getAllVideos();
+      res.json(videos);
+    } catch (error: any) {
+      console.error("Error fetching videos:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch videos" });
+    }
+  });
+
+  // Sync video status from HeyGen
+  app.post("/api/admin/videos/:id/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const video = await syncVideoStatus(id);
+      res.json(video);
+    } catch (error: any) {
+      console.error("Error syncing video:", error);
+      res.status(500).json({ message: error.message || "Failed to sync video status" });
+    }
+  });
+
+  // Delete a video
+  app.delete("/api/admin/videos/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await deleteVideo(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting video:", error);
+      res.status(500).json({ message: error.message || "Failed to delete video" });
+    }
+  });
+
+  // Post video to Bluesky
+  app.post("/api/admin/videos/:id/share/bluesky", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { message } = req.body;
+
+      const video = await getVideoById(id);
+      if (!video) {
+        return res.status(404).json({ message: "Video not found" });
+      }
+
+      if (video.status !== "completed" || !video.videoUrl) {
+        return res.status(400).json({ message: "Video is not ready for sharing" });
+      }
+
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const videoPageUrl = `${baseUrl}/video/${video.id}`;
+
+      const result = await postToBluesky({
+        message: message || `Check out this video: ${video.title}`,
+        url: videoPageUrl,
+        title: video.title,
+        description: video.script.substring(0, 200) + (video.script.length > 200 ? "..." : ""),
+        thumbnailUrl: video.thumbnailUrl || undefined,
+      });
+
+      res.json({ success: true, postUri: result.uri });
+    } catch (error: any) {
+      console.error("Error posting to Bluesky:", error);
+      res.status(500).json({ message: error.message || "Failed to post to Bluesky" });
+    }
+  });
+
+  // Public video page - get video by ID (no auth required)
+  app.get("/api/videos/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const video = await getVideoById(id);
+      
+      if (!video) {
+        return res.status(404).json({ message: "Video not found" });
+      }
+
+      if (video.status !== "completed" || !video.videoUrl) {
+        return res.status(404).json({ message: "Video not available" });
+      }
+
+      res.json({
+        id: video.id,
+        title: video.title,
+        videoUrl: video.videoUrl,
+        thumbnailUrl: video.thumbnailUrl,
+        destinationUrl: video.destinationUrl,
+        duration: video.duration,
+      });
+    } catch (error: any) {
+      console.error("Error fetching video:", error);
+      res.status(500).json({ message: "Failed to fetch video" });
     }
   });
 
