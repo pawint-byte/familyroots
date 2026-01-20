@@ -85,6 +85,20 @@ Preferred communication style: Simple, everyday language.
 - Translated pages: Landing page, Gifts page
 - Access translations via `useLanguage()` hook: `const { t, language, setLanguage } = useLanguage();`
 
+### HeyGen Video Generation
+- Admin interface at `/admin/videos` for AI avatar video creation
+- Integrates with HeyGen API for avatar/voice selection and video generation
+- Videos stored in `generated_videos` table with status tracking (pending, processing, completed, failed)
+- Public video page at `/video/:id` with rich social media meta tags
+- Server-side rendering of Open Graph/Twitter meta tags for social media crawlers
+- Bluesky integration for sharing videos with rich previews
+- Environment secrets required: `HEYGEN_API_KEY`, `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD`
+- Core files:
+  - `server/heygen.ts`: HeyGen API integration
+  - `server/bluesky.ts`: Bluesky posting integration
+  - `client/src/pages/admin-videos.tsx`: Admin video management page
+  - `client/src/pages/video.tsx`: Public video playback page
+
 ### SEO Implementation
 - Client-side SEO component updates meta tags, Open Graph, and Twitter cards
 - Page-specific SEO for landing, dashboard, pricing, and tree view pages
