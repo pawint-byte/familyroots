@@ -158,6 +158,38 @@ export const accountHeirs = pgTable("account_heirs", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Education History table (for tracking education of family members)
+export const educationHistory = pgTable("education_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(),
+  institution: text("institution").notNull(),
+  degree: text("degree"),
+  fieldOfStudy: text("field_of_study"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  graduated: boolean("graduated").default(false),
+  honors: text("honors"),
+  location: text("location"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Career History table (for tracking employment of family members)
+export const careerHistory = pgTable("career_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(),
+  employer: text("employer").notNull(),
+  jobTitle: text("job_title"),
+  industry: text("industry"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  isCurrent: boolean("is_current").default(false),
+  location: text("location"),
+  achievements: text("achievements"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const familyTreesRelations = relations(familyTrees, ({ many }) => ({
   members: many(familyMembers),
@@ -172,6 +204,22 @@ export const familyMembersRelations = relations(familyMembers, ({ one, many }) =
     references: [familyTrees.id],
   }),
   events: many(familyEvents),
+  education: many(educationHistory),
+  career: many(careerHistory),
+}));
+
+export const educationHistoryRelations = relations(educationHistory, ({ one }) => ({
+  member: one(familyMembers, {
+    fields: [educationHistory.memberId],
+    references: [familyMembers.id],
+  }),
+}));
+
+export const careerHistoryRelations = relations(careerHistory, ({ one }) => ({
+  member: one(familyMembers, {
+    fields: [careerHistory.memberId],
+    references: [familyMembers.id],
+  }),
 }));
 
 export const relationshipsRelations = relations(relationships, ({ one }) => ({
@@ -291,6 +339,16 @@ export const insertAccountHeirSchema = createInsertSchema(accountHeirs).omit({
   updatedAt: true,
 });
 
+export const insertEducationHistorySchema = createInsertSchema(educationHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCareerHistorySchema = createInsertSchema(careerHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type FamilyTree = typeof familyTrees.$inferSelect;
 export type InsertFamilyTree = z.infer<typeof insertFamilyTreeSchema>;
@@ -321,3 +379,9 @@ export type InsertGeneratedVideo = z.infer<typeof insertGeneratedVideoSchema>;
 
 export type AccountHeir = typeof accountHeirs.$inferSelect;
 export type InsertAccountHeir = z.infer<typeof insertAccountHeirSchema>;
+
+export type EducationHistory = typeof educationHistory.$inferSelect;
+export type InsertEducationHistory = z.infer<typeof insertEducationHistorySchema>;
+
+export type CareerHistory = typeof careerHistory.$inferSelect;
+export type InsertCareerHistory = z.infer<typeof insertCareerHistorySchema>;
