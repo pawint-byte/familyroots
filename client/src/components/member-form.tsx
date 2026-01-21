@@ -16,6 +16,8 @@ import type { InsertFamilyMember } from "@shared/schema";
 const memberFormSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().optional(),
+  nickname: z.string().optional(),
+  email: z.string().email().optional().or(z.literal("")),
   gender: z.enum(["male", "female", "other"]).optional(),
   birthDate: z.string().optional(),
   birthPlace: z.string().optional(),
@@ -50,6 +52,8 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
     defaultValues: {
       firstName: initialData?.firstName || "",
       lastName: initialData?.lastName || "",
+      nickname: (initialData as any)?.nickname || "",
+      email: (initialData as any)?.email || "",
       gender: initialData?.gender,
       birthDate: initialData?.birthDate || "",
       birthPlace: initialData?.birthPlace || "",
@@ -89,6 +93,8 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
       treeId,
       firstName: values.firstName,
       lastName: values.lastName || null,
+      nickname: values.nickname || null,
+      email: values.email || null,
       gender: values.gender || null,
       birthDate: values.birthDate || null,
       birthPlace: values.birthPlace || null,
@@ -125,6 +131,35 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
                 <FormLabel>Last Name</FormLabel>
                 <FormControl>
                   <Input placeholder="Doe" {...field} data-testid="input-last-name" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="nickname"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nickname</FormLabel>
+                <FormControl>
+                  <Input placeholder="Johnny" {...field} data-testid="input-nickname" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="john@example.com" {...field} data-testid="input-email" />
                 </FormControl>
                 <FormMessage />
               </FormItem>

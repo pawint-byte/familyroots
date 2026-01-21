@@ -29,6 +29,8 @@ import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from 
 import FamilyTreeVisualization from "@/components/family-tree-visualization";
 import MemberForm from "@/components/member-form";
 import { NameHistorySection } from "@/components/name-history";
+import { MemberDiscoverability } from "@/components/member-discoverability";
+import { MatchRequests } from "@/components/match-requests";
 import { EducationHistorySection } from "@/components/education-history";
 import { CareerHistorySection } from "@/components/career-history";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
@@ -656,6 +658,11 @@ export default function TreeView() {
                   canEdit={canEdit}
                 />
 
+                <MemberDiscoverability 
+                  member={selectedMember} 
+                  canEdit={canEdit}
+                />
+
                 <div className="flex gap-2 pt-4 border-t border-border">
                   <Button variant="outline" className="flex-1 gap-2" data-testid="button-edit-member">
                     <Edit className="h-4 w-4" />
@@ -685,6 +692,13 @@ export default function TreeView() {
           treeId={treeData.tree.id}
           treeName={treeData.tree.name}
         />
+      )}
+
+      {/* Match Requests Section - visible to tree owner/editors */}
+      {treeData?.tree && canEdit && (
+        <div className="fixed bottom-4 right-4 z-40 w-80" data-testid="match-requests-panel">
+          <MatchRequests treeId={treeData.tree.id} canEdit={canEdit} />
+        </div>
       )}
     </div>
   );
