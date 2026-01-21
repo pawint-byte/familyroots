@@ -1,6 +1,7 @@
 import { 
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
   treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
+  discoverableMembers, matchRequests,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -12,6 +13,8 @@ import {
   type AccountHeir, type InsertAccountHeir,
   type EducationHistory, type InsertEducationHistory,
   type CareerHistory, type InsertCareerHistory,
+  type DiscoverableMember, type InsertDiscoverableMember,
+  type MatchRequest, type InsertMatchRequest,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -97,6 +100,21 @@ export interface IStorage {
   createCareerHistory(career: InsertCareerHistory): Promise<CareerHistory>;
   updateCareerHistory(id: string, data: Partial<InsertCareerHistory>): Promise<CareerHistory | undefined>;
   deleteCareerHistory(id: string): Promise<boolean>;
+
+  // Discoverable Members
+  getDiscoverableMember(memberId: string): Promise<DiscoverableMember | undefined>;
+  getDiscoverableMembersByTree(treeId: string): Promise<DiscoverableMember[]>;
+  createOrUpdateDiscoverableMember(data: InsertDiscoverableMember): Promise<DiscoverableMember>;
+  deleteDiscoverableMember(memberId: string): Promise<boolean>;
+  findPotentialMatches(memberId: string): Promise<{ member: FamilyMember; matchScore: number; matchCriteria: string[] }[]>;
+
+  // Match Requests
+  getMatchRequests(treeId: string): Promise<MatchRequest[]>;
+  getSentMatchRequests(treeId: string): Promise<MatchRequest[]>;
+  getMatchRequest(id: string): Promise<MatchRequest | undefined>;
+  createMatchRequest(request: InsertMatchRequest): Promise<MatchRequest>;
+  updateMatchRequest(id: string, data: Partial<InsertMatchRequest>): Promise<MatchRequest | undefined>;
+  deleteMatchRequest(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -469,6 +487,142 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCareerHistory(id: string): Promise<boolean> {
     await db.delete(careerHistory).where(eq(careerHistory.id, id));
+    return true;
+  }
+
+  // Discoverable Members
+  async getDiscoverableMember(memberId: string): Promise<DiscoverableMember | undefined> {
+    const [result] = await db.select().from(discoverableMembers)
+      .where(eq(discoverableMembers.memberId, memberId));
+    return result;
+  }
+
+  async getDiscoverableMembersByTree(treeId: string): Promise<DiscoverableMember[]> {
+    return db.select().from(discoverableMembers)
+      .where(eq(discoverableMembers.treeId, treeId));
+  }
+
+  async createOrUpdateDiscoverableMember(data: InsertDiscoverableMember): Promise<DiscoverableMember> {
+    const existing = await this.getDiscoverableMember(data.memberId);
+    if (existing) {
+      const [updated] = await db.update(discoverableMembers)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(discoverableMembers.memberId, data.memberId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(discoverableMembers).values(data).returning();
+    return created;
+  }
+
+  async deleteDiscoverableMember(memberId: string): Promise<boolean> {
+    await db.delete(discoverableMembers).where(eq(discoverableMembers.memberId, memberId));
+    return true;
+  }
+
+  async findPotentialMatches(memberId: string): Promise<{ member: FamilyMember; matchScore: number; matchCriteria: string[] }[]> {
+    const sourceMember = await this.getMember(memberId);
+    if (!sourceMember) return [];
+
+    const sourceDiscoverable = await this.getDiscoverableMember(memberId);
+    if (!sourceDiscoverable || !sourceDiscoverable.isDiscoverable) return [];
+
+    const allDiscoverable = await db.select().from(discoverableMembers)
+      .where(and(
+        eq(discoverableMembers.isDiscoverable, true)
+      ));
+
+    const matches: { member: FamilyMember; matchScore: number; matchCriteria: string[] }[] = [];
+
+    for (const discoverable of allDiscoverable) {
+      if (discoverable.memberId === memberId) continue;
+      if (discoverable.treeId === sourceMember.treeId) continue;
+
+      const targetMember = await this.getMember(discoverable.memberId);
+      if (!targetMember) continue;
+
+      const matchCriteria: string[] = [];
+      let matchScore = 0;
+
+      if (sourceDiscoverable.matchByEmail && discoverable.matchByEmail && 
+          sourceMember.email && targetMember.email && 
+          sourceMember.email.toLowerCase() === targetMember.email.toLowerCase()) {
+        matchCriteria.push("email");
+        matchScore += 50;
+      }
+
+      if (sourceDiscoverable.matchByName && discoverable.matchByName) {
+        const sourceFullName = `${sourceMember.firstName} ${sourceMember.lastName || ''}`.toLowerCase().trim();
+        const targetFullName = `${targetMember.firstName} ${targetMember.lastName || ''}`.toLowerCase().trim();
+        if (sourceFullName === targetFullName) {
+          matchCriteria.push("name");
+          matchScore += 30;
+        }
+      }
+
+      if (sourceDiscoverable.matchByNickname && discoverable.matchByNickname &&
+          sourceMember.nickname && targetMember.nickname &&
+          sourceMember.nickname.toLowerCase() === targetMember.nickname.toLowerCase()) {
+        matchCriteria.push("nickname");
+        matchScore += 20;
+      }
+
+      if (sourceDiscoverable.matchByBirthdate && discoverable.matchByBirthdate &&
+          sourceMember.birthDate && targetMember.birthDate &&
+          sourceMember.birthDate === targetMember.birthDate) {
+        matchCriteria.push("birthdate");
+        matchScore += 25;
+      }
+
+      if (sourceDiscoverable.matchByBirthplace && discoverable.matchByBirthplace &&
+          sourceMember.birthPlace && targetMember.birthPlace &&
+          sourceMember.birthPlace.toLowerCase() === targetMember.birthPlace.toLowerCase()) {
+        matchCriteria.push("birthplace");
+        matchScore += 15;
+      }
+
+      if (matchScore > 0) {
+        matches.push({ member: targetMember, matchScore, matchCriteria });
+      }
+    }
+
+    return matches.sort((a, b) => b.matchScore - a.matchScore);
+  }
+
+  // Match Requests
+  async getMatchRequests(treeId: string): Promise<MatchRequest[]> {
+    return db.select().from(matchRequests)
+      .where(eq(matchRequests.targetTreeId, treeId))
+      .orderBy(desc(matchRequests.createdAt));
+  }
+
+  async getSentMatchRequests(treeId: string): Promise<MatchRequest[]> {
+    return db.select().from(matchRequests)
+      .where(eq(matchRequests.requestingTreeId, treeId))
+      .orderBy(desc(matchRequests.createdAt));
+  }
+
+  async getMatchRequest(id: string): Promise<MatchRequest | undefined> {
+    const [result] = await db.select().from(matchRequests)
+      .where(eq(matchRequests.id, id));
+    return result;
+  }
+
+  async createMatchRequest(request: InsertMatchRequest): Promise<MatchRequest> {
+    const [created] = await db.insert(matchRequests).values(request).returning();
+    return created;
+  }
+
+  async updateMatchRequest(id: string, data: Partial<InsertMatchRequest>): Promise<MatchRequest | undefined> {
+    const [updated] = await db.update(matchRequests)
+      .set({ ...data, respondedAt: new Date() })
+      .where(eq(matchRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteMatchRequest(id: string): Promise<boolean> {
+    await db.delete(matchRequests).where(eq(matchRequests.id, id));
     return true;
   }
 }

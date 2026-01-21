@@ -17,6 +17,7 @@ export const videoStatusEnum = pgEnum("video_status", ["pending", "processing", 
 export const collaboratorRoleEnum = pgEnum("collaborator_role", ["viewer", "editor", "co_owner"]);
 export const nameChangeReasonEnum = pgEnum("name_change_reason", ["birth", "marriage", "divorce", "adoption", "legal", "other"]);
 export const heirStatusEnum = pgEnum("heir_status", ["pending", "notified", "transferred", "cancelled"]);
+export const matchRequestStatusEnum = pgEnum("match_request_status", ["pending", "accepted", "declined", "expired"]);
 
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
@@ -35,6 +36,8 @@ export const familyMembers = pgTable("family_members", {
   treeId: varchar("tree_id").notNull(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name"),
+  nickname: text("nickname"),
+  email: text("email"),
   gender: genderEnum("gender"),
   birthDate: date("birth_date"),
   birthPlace: text("birth_place"),
@@ -190,6 +193,37 @@ export const careerHistory = pgTable("career_history", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Discoverable Members table (for opt-in family matching)
+export const discoverableMembers = pgTable("discoverable_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull().unique(),
+  treeId: varchar("tree_id").notNull(),
+  isDiscoverable: boolean("is_discoverable").default(false).notNull(),
+  matchByEmail: boolean("match_by_email").default(false),
+  matchByName: boolean("match_by_name").default(false),
+  matchByNickname: boolean("match_by_nickname").default(false),
+  matchByBirthdate: boolean("match_by_birthdate").default(false),
+  matchByBirthplace: boolean("match_by_birthplace").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Match Requests table (for connecting family trees)
+export const matchRequests = pgTable("match_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  requestingTreeId: varchar("requesting_tree_id").notNull(),
+  requestingMemberId: varchar("requesting_member_id").notNull(),
+  targetTreeId: varchar("target_tree_id").notNull(),
+  targetMemberId: varchar("target_member_id").notNull(),
+  requestedBy: varchar("requested_by").notNull(),
+  status: matchRequestStatusEnum("status").default("pending").notNull(),
+  matchScore: text("match_score"),
+  matchCriteria: text("match_criteria"),
+  message: text("message"),
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const familyTreesRelations = relations(familyTrees, ({ many }) => ({
   members: many(familyMembers),
@@ -218,6 +252,36 @@ export const educationHistoryRelations = relations(educationHistory, ({ one }) =
 export const careerHistoryRelations = relations(careerHistory, ({ one }) => ({
   member: one(familyMembers, {
     fields: [careerHistory.memberId],
+    references: [familyMembers.id],
+  }),
+}));
+
+export const discoverableMembersRelations = relations(discoverableMembers, ({ one }) => ({
+  member: one(familyMembers, {
+    fields: [discoverableMembers.memberId],
+    references: [familyMembers.id],
+  }),
+  tree: one(familyTrees, {
+    fields: [discoverableMembers.treeId],
+    references: [familyTrees.id],
+  }),
+}));
+
+export const matchRequestsRelations = relations(matchRequests, ({ one }) => ({
+  requestingTree: one(familyTrees, {
+    fields: [matchRequests.requestingTreeId],
+    references: [familyTrees.id],
+  }),
+  targetTree: one(familyTrees, {
+    fields: [matchRequests.targetTreeId],
+    references: [familyTrees.id],
+  }),
+  requestingMember: one(familyMembers, {
+    fields: [matchRequests.requestingMemberId],
+    references: [familyMembers.id],
+  }),
+  targetMember: one(familyMembers, {
+    fields: [matchRequests.targetMemberId],
     references: [familyMembers.id],
   }),
 }));
@@ -349,6 +413,17 @@ export const insertCareerHistorySchema = createInsertSchema(careerHistory).omit(
   createdAt: true,
 });
 
+export const insertDiscoverableMemberSchema = createInsertSchema(discoverableMembers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMatchRequestSchema = createInsertSchema(matchRequests).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type FamilyTree = typeof familyTrees.$inferSelect;
 export type InsertFamilyTree = z.infer<typeof insertFamilyTreeSchema>;
@@ -385,3 +460,9 @@ export type InsertEducationHistory = z.infer<typeof insertEducationHistorySchema
 
 export type CareerHistory = typeof careerHistory.$inferSelect;
 export type InsertCareerHistory = z.infer<typeof insertCareerHistorySchema>;
+
+export type DiscoverableMember = typeof discoverableMembers.$inferSelect;
+export type InsertDiscoverableMember = z.infer<typeof insertDiscoverableMemberSchema>;
+
+export type MatchRequest = typeof matchRequests.$inferSelect;
+export type InsertMatchRequest = z.infer<typeof insertMatchRequestSchema>;
