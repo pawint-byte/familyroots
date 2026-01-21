@@ -202,7 +202,7 @@ export function CareerHistorySection({ memberId, canEdit }: CareerHistoryProps) 
         </CardHeader>
         <CardContent className="py-4 pt-0">
           {(!careerHistory || careerHistory.length === 0) ? (
-            <p className="text-sm text-muted-foreground">No career records</p>
+            <p className="text-sm text-muted-foreground" data-testid="text-no-career">No career records</p>
           ) : (
             <div className="space-y-4">
               {careerHistory.map((entry) => (
@@ -399,6 +399,7 @@ export function CareerHistorySection({ memberId, canEdit }: CareerHistoryProps) 
                   setEditingEntry(null);
                   resetForm();
                 }}
+                data-testid="button-cancel-career"
               >
                 Cancel
               </Button>

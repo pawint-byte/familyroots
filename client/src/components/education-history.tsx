@@ -201,7 +201,7 @@ export function EducationHistorySection({ memberId, canEdit }: EducationHistoryP
         </CardHeader>
         <CardContent className="py-4 pt-0">
           {(!educationHistory || educationHistory.length === 0) ? (
-            <p className="text-sm text-muted-foreground">No education records</p>
+            <p className="text-sm text-muted-foreground" data-testid="text-no-education">No education records</p>
           ) : (
             <div className="space-y-4">
               {educationHistory.map((entry) => (
@@ -394,6 +394,7 @@ export function EducationHistorySection({ memberId, canEdit }: EducationHistoryP
                   setEditingEntry(null);
                   resetForm();
                 }}
+                data-testid="button-cancel-education"
               >
                 Cancel
               </Button>

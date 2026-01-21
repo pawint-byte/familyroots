@@ -106,6 +106,19 @@ Preferred communication style: Simple, everyday language.
   - `server/routes.ts`: API endpoints for heir CRUD and inactivity checking
   - `server/lib/email.ts`: Email templates for notifications
 
+### Education & Career History
+- Track education and career/employment history for each family member
+- Database tables:
+  - `education_history`: institution, degree, fieldOfStudy, startDate, endDate, graduated, honors, location, notes
+  - `career_history`: employer, jobTitle, industry, startDate, endDate, isCurrent, location, achievements, notes
+- API routes:
+  - GET/POST/PATCH/DELETE `/api/members/:memberId/education`
+  - GET/POST/PATCH/DELETE `/api/members/:memberId/career`
+- UI components displayed in member detail sheet (tree view):
+  - `client/src/components/education-history.tsx`: Education history section with add/edit/delete
+  - `client/src/components/career-history.tsx`: Career history section with add/edit/delete
+- Both sections support date ranges, location tracking, and free-form notes
+
 ### AI Chatbot
 - Floating "Help" button on all pages that opens a chat interface
 - Uses OpenAI GPT-4.1-mini via Replit AI Integrations (no API key required)
