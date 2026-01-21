@@ -106,6 +106,30 @@ Preferred communication style: Simple, everyday language.
   - `server/routes.ts`: API endpoints for heir CRUD and inactivity checking
   - `server/lib/email.ts`: Email templates for notifications
 
+### Smart Family Member Matching
+- Cross-tree member matching to discover shared family connections between different users' trees
+- Privacy-first opt-in design: members are private by default, users control which data points can be used for matching
+- Database tables:
+  - `discoverable_members`: Stores opt-in settings (memberId, isDiscoverable, allowMatchByEmail, allowMatchByName, allowMatchByNickname, allowMatchByBirthdate, allowMatchByBirthplace)
+  - `match_requests`: Tracks connection requests between trees (requesterId, requestedMemberId, requesterTreeId, requestedTreeId, status: pending/accepted/declined/expired)
+- Matching algorithm with weighted scoring:
+  - Email: 50 points (highest priority)
+  - Full name: 30 points
+  - Birthdate: 25 points
+  - Nickname: 20 points
+  - Birthplace: 15 points
+- Match results sorted by score, only basic info shared before connection accepted
+- API routes:
+  - GET/POST /api/members/:memberId/discoverability - Get/update discoverability settings
+  - GET /api/members/:memberId/potential-matches - Find potential matches
+  - GET/POST /api/trees/:treeId/match-requests - Get/create match requests
+  - PATCH /api/match-requests/:requestId/respond - Accept/decline requests
+- UI components:
+  - `client/src/components/member-discoverability.tsx`: Toggle discoverability and select match criteria in member detail sheet
+  - `client/src/components/match-requests.tsx`: Fixed panel showing incoming/sent requests with tabs
+- Accepted match requests automatically create tree connections between both trees
+- Authorization: All routes verify tree ownership or collaborator edit permissions
+
 ### Education & Career History
 - Track education and career/employment history for each family member
 - Database tables:
