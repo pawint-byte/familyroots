@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import crypto from "crypto";
+import { calculateRelationship, getSubtreeBetweenMembers } from "./lib/relationship-calculator";
 
 // Validation schemas for API requests
 const createInvitationSchema = z.object({
@@ -281,6 +282,101 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error searching members:", error);
       res.status(500).json({ message: "Failed to search members" });
+    }
+  });
+
+  // Calculate relationship between two members
+  app.get("/api/trees/:treeId/relationship", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const { fromMemberId, toMemberId } = req.query;
+      const userId = req.user.claims.sub;
+      
+      if (!fromMemberId || !toMemberId || typeof fromMemberId !== "string" || typeof toMemberId !== "string") {
+        return res.status(400).json({ message: "Both fromMemberId and toMemberId are required" });
+      }
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Check if user has access (owner or collaborator)
+      if (tree.ownerId !== userId) {
+        const collaborators = await storage.getCollaborators(treeId);
+        const hasAccess = collaborators.some(c => c.userId === userId);
+        if (!hasAccess) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+      
+      const members = await storage.getMembers(treeId);
+      const relationships = await storage.getRelationships(treeId);
+      
+      const result = calculateRelationship(fromMemberId, toMemberId, members, relationships);
+      
+      if (!result) {
+        return res.json({ 
+          relationshipName: "not directly related",
+          path: [],
+          commonAncestors: [],
+          generationsFromA: 0,
+          generationsFromB: 0,
+          isDirectLine: false
+        });
+      }
+      
+      // Enhance with member names for the path
+      const membersMap = new Map(members.map(m => [m.id, m]));
+      const pathWithNames = result.path.map(id => {
+        const member = membersMap.get(id);
+        return member ? { id, name: `${member.firstName} ${member.lastName}` } : { id, name: "Unknown" };
+      });
+      
+      res.json({
+        ...result,
+        pathWithNames
+      });
+    } catch (error) {
+      console.error("Error calculating relationship:", error);
+      res.status(500).json({ message: "Failed to calculate relationship" });
+    }
+  });
+
+  // Get subtree between two members
+  app.get("/api/trees/:treeId/subtree", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const { fromMemberId, toMemberId } = req.query;
+      const userId = req.user.claims.sub;
+      
+      if (!fromMemberId || !toMemberId || typeof fromMemberId !== "string" || typeof toMemberId !== "string") {
+        return res.status(400).json({ message: "Both fromMemberId and toMemberId are required" });
+      }
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Check if user has access (owner or collaborator)
+      if (tree.ownerId !== userId) {
+        const collaborators = await storage.getCollaborators(treeId);
+        const hasAccess = collaborators.some(c => c.userId === userId);
+        if (!hasAccess) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+      
+      const members = await storage.getMembers(treeId);
+      const relationships = await storage.getRelationships(treeId);
+      
+      const subtree = getSubtreeBetweenMembers(fromMemberId, toMemberId, members, relationships);
+      
+      res.json(subtree);
+    } catch (error) {
+      console.error("Error getting subtree:", error);
+      res.status(500).json({ message: "Failed to get subtree" });
     }
   });
 
