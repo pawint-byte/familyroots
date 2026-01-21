@@ -105,6 +105,12 @@ Preferred communication style: Simple, everyday language.
 - JSON-LD structured data for Organization schema
 - Component: `client/src/components/seo.tsx`
 
+### Email Service
+- Resend integration for transactional emails
+- Templates include: welcome emails, collaboration invites, event notifications, tree update notifications
+- Core file: `server/lib/email.ts`
+- Functions: `sendWelcomeEmail`, `sendCollaborationInvite`, `sendEventNotification`, `sendTreeUpdateNotification`
+
 ### Photo Uploads
 - Uses Replit Object Storage with presigned URL flow for secure uploads
 - Two-step upload process: request presigned URL → upload directly to storage
