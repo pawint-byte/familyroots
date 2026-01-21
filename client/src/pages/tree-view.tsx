@@ -29,6 +29,8 @@ import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from 
 import FamilyTreeVisualization from "@/components/family-tree-visualization";
 import MemberForm from "@/components/member-form";
 import { NameHistorySection } from "@/components/name-history";
+import { EducationHistorySection } from "@/components/education-history";
+import { CareerHistorySection } from "@/components/career-history";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import TimelineView from "@/components/timeline-view";
 
@@ -640,6 +642,16 @@ export default function TreeView() {
                 )}
 
                 <NameHistorySection 
+                  memberId={selectedMember.id} 
+                  canEdit={canEdit}
+                />
+
+                <EducationHistorySection 
+                  memberId={selectedMember.id} 
+                  canEdit={canEdit}
+                />
+
+                <CareerHistorySection 
                   memberId={selectedMember.id} 
                   canEdit={canEdit}
                 />
