@@ -46,6 +46,8 @@ export default function TreeView() {
   const [isMemberDetailOpen, setIsMemberDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [zoom, setZoom] = useState(1);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [newTreeName, setNewTreeName] = useState("");
 
   const treeId = params?.id;
 
@@ -96,6 +98,38 @@ export default function TreeView() {
       });
     },
   });
+
+  const renameTreeMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return apiRequest("PATCH", `/api/trees/${treeId}`, { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      setIsRenameOpen(false);
+      toast({
+        title: "Success",
+        description: "Tree renamed successfully!",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to rename tree",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRenameOpen = () => {
+    setNewTreeName(treeData?.tree.name || "");
+    setIsRenameOpen(true);
+  };
+
+  const handleRenameSubmit = () => {
+    if (newTreeName.trim()) {
+      renameTreeMutation.mutate(newTreeName.trim());
+    }
+  };
 
   const handleMemberClick = (member: FamilyMember) => {
     setSelectedMember(member);
@@ -154,7 +188,17 @@ export default function TreeView() {
                 <Skeleton className="h-6 w-40" />
               ) : (
                 <>
-                  <h1 className="font-serif text-lg font-semibold">{treeData?.tree.name}</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-serif text-lg font-semibold">{treeData?.tree.name}</h1>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={handleRenameOpen}
+                      data-testid="button-rename-tree"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary" className="text-xs">
                       {treeData?.tree.privacy}
@@ -221,6 +265,50 @@ export default function TreeView() {
                   onSubmit={(data) => addMemberMutation.mutate(data)}
                   isLoading={addMemberMutation.isPending}
                 />
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isRenameOpen} onOpenChange={(open) => {
+              setIsRenameOpen(open);
+              if (!open) setNewTreeName("");
+            }}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="font-serif">Rename Tree</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="tree-name">Tree Name</Label>
+                    <Input
+                      id="tree-name"
+                      value={newTreeName}
+                      onChange={(e) => setNewTreeName(e.target.value)}
+                      placeholder="Enter tree name"
+                      data-testid="input-tree-name"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleRenameSubmit();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsRenameOpen(false)}
+                      data-testid="button-cancel-rename"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleRenameSubmit}
+                      disabled={!newTreeName.trim() || renameTreeMutation.isPending}
+                      data-testid="button-save-rename"
+                    >
+                      {renameTreeMutation.isPending ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                </div>
               </DialogContent>
             </Dialog>
           </div>
