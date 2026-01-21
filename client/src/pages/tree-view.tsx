@@ -35,6 +35,7 @@ import { EducationHistorySection } from "@/components/education-history";
 import { CareerHistorySection } from "@/components/career-history";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import TimelineView from "@/components/timeline-view";
+import { RelationshipDisplay, FocusMemberSelector } from "@/components/relationship-display";
 
 interface TreeData {
   tree: FamilyTree;
@@ -49,6 +50,7 @@ export default function TreeView() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("tree");
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
+  const [focusMember, setFocusMember] = useState<FamilyMember | null>(null);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isMemberDetailOpen, setIsMemberDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -429,6 +431,22 @@ export default function TreeView() {
               </div>
             ) : treeData?.members && treeData.members.length > 0 ? (
               <>
+                {/* Focus Member Selector */}
+                <div className="absolute top-4 left-4 z-10 bg-background/95 backdrop-blur rounded-lg p-3 shadow-lg border" data-testid="focus-selector-container">
+                  <FocusMemberSelector
+                    members={treeData.members}
+                    focusMember={focusMember}
+                    onSelectFocus={setFocusMember}
+                  />
+                  {focusMember && selectedMember && treeId && (
+                    <RelationshipDisplay
+                      treeId={treeId}
+                      focusMember={focusMember}
+                      selectedMember={selectedMember}
+                      onClearFocus={() => setFocusMember(null)}
+                    />
+                  )}
+                </div>
                 <FamilyTreeVisualization
                   members={treeData.members}
                   relationships={treeData.relationships || []}
@@ -597,6 +615,16 @@ export default function TreeView() {
                 </div>
               </SheetHeader>
 
+              {/* Relationship to focus person */}
+              {focusMember && treeId && focusMember.id !== selectedMember.id && (
+                <RelationshipDisplay
+                  treeId={treeId}
+                  focusMember={focusMember}
+                  selectedMember={selectedMember}
+                  onClearFocus={() => setFocusMember(null)}
+                />
+              )}
+
               <div className="space-y-6">
                 {(selectedMember.birthDate || selectedMember.birthPlace) && (
                   <div className="space-y-2">
@@ -663,7 +691,16 @@ export default function TreeView() {
                   canEdit={canEdit}
                 />
 
-                <div className="flex gap-2 pt-4 border-t border-border">
+                <div className="flex gap-2 pt-4 border-t border-border flex-wrap">
+                  <Button 
+                    variant={focusMember?.id === selectedMember.id ? "default" : "outline"} 
+                    className="gap-2"
+                    onClick={() => setFocusMember(focusMember?.id === selectedMember.id ? null : selectedMember)}
+                    data-testid="button-set-focus"
+                  >
+                    <User className="h-4 w-4" />
+                    {focusMember?.id === selectedMember.id ? "Focus Set" : "Set as Focus"}
+                  </Button>
                   <Button variant="outline" className="flex-1 gap-2" data-testid="button-edit-member">
                     <Edit className="h-4 w-4" />
                     Edit
