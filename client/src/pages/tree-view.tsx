@@ -131,6 +131,33 @@ export default function TreeView() {
     }
   };
 
+  const deleteTreeMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("DELETE", `/api/trees/${treeId}`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      toast({
+        title: "Success",
+        description: "Tree deleted successfully",
+      });
+      navigate("/dashboard");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete tree",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteTree = () => {
+    if (confirm("Are you sure you want to delete this tree? This action cannot be undone.")) {
+      deleteTreeMutation.mutate();
+    }
+  };
+
   const handleMemberClick = (member: FamilyMember) => {
     setSelectedMember(member);
     setIsMemberDetailOpen(true);
@@ -242,7 +269,11 @@ export default function TreeView() {
                   Import GEDCOM
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2 text-destructive">
+                <DropdownMenuItem 
+                  className="gap-2 text-destructive"
+                  onClick={handleDeleteTree}
+                  data-testid="button-delete-tree"
+                >
                   <Trash2 className="h-4 w-4" />
                   Delete Tree
                 </DropdownMenuItem>

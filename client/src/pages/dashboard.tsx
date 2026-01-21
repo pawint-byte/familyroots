@@ -14,8 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { FamilyTree } from "@shared/schema";
 
@@ -28,6 +28,9 @@ export default function Dashboard() {
   const [newTreeName, setNewTreeName] = useState("");
   const [newTreeDescription, setNewTreeDescription] = useState("");
   const [newTreePrivacy, setNewTreePrivacy] = useState<"private" | "public">("private");
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [renameTreeId, setRenameTreeId] = useState<string | null>(null);
+  const [renameTreeName, setRenameTreeName] = useState("");
 
   const { data: trees, isLoading } = useQuery<FamilyTree[]>({
     queryKey: ["/api/trees"],
@@ -68,6 +71,69 @@ export default function Dashboard() {
       description: newTreeDescription || undefined,
       privacy: newTreePrivacy,
     });
+  };
+
+  const renameTreeMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      return apiRequest("PATCH", `/api/trees/${id}`, { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      setIsRenameDialogOpen(false);
+      setRenameTreeId(null);
+      setRenameTreeName("");
+      toast({
+        title: "Success",
+        description: "Tree renamed successfully!",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to rename tree",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteTreeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/trees/${id}`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      toast({
+        title: "Success",
+        description: "Tree deleted successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete tree",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRenameClick = (e: React.MouseEvent, tree: FamilyTree) => {
+    e.stopPropagation();
+    setRenameTreeId(tree.id);
+    setRenameTreeName(tree.name);
+    setIsRenameDialogOpen(true);
+  };
+
+  const handleRenameSubmit = () => {
+    if (renameTreeId && renameTreeName.trim()) {
+      renameTreeMutation.mutate({ id: renameTreeId, name: renameTreeName.trim() });
+    }
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, treeId: string) => {
+    e.stopPropagation();
+    if (confirm("Are you sure you want to delete this tree? This action cannot be undone.")) {
+      deleteTreeMutation.mutate(treeId);
+    }
   };
 
   return (
@@ -238,9 +304,27 @@ export default function Dashboard() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem>Share</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="gap-2"
+                        onClick={(e) => handleRenameClick(e, tree)}
+                        data-testid={`button-rename-tree-${tree.id}`}
+                      >
+                        <Edit className="h-4 w-4" />
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="gap-2">
+                        <Share2 className="h-4 w-4" />
+                        Share
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        className="gap-2 text-destructive"
+                        onClick={(e) => handleDeleteClick(e, tree.id)}
+                        data-testid={`button-delete-tree-${tree.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </CardHeader>
@@ -280,6 +364,53 @@ export default function Dashboard() {
           </Card>
         )}
       </main>
+
+      <Dialog open={isRenameDialogOpen} onOpenChange={(open) => {
+        setIsRenameDialogOpen(open);
+        if (!open) {
+          setRenameTreeId(null);
+          setRenameTreeName("");
+        }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Rename Tree</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="rename-tree-name">Tree Name</Label>
+              <Input
+                id="rename-tree-name"
+                value={renameTreeName}
+                onChange={(e) => setRenameTreeName(e.target.value)}
+                placeholder="Enter tree name"
+                data-testid="input-rename-tree"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleRenameSubmit();
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsRenameDialogOpen(false)}
+                data-testid="button-cancel-rename"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleRenameSubmit}
+                disabled={!renameTreeName.trim() || renameTreeMutation.isPending}
+                data-testid="button-save-rename"
+              >
+                {renameTreeMutation.isPending ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
