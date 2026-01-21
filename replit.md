@@ -88,6 +88,24 @@ Preferred communication style: Simple, everyday language.
   - `client/src/pages/join-tree.tsx`: Invitation acceptance page
   - `client/src/components/name-history.tsx`: Name change timeline
 
+### Deadman Switch (Account Heir)
+- Allows users to designate an heir who will inherit their family trees after extended inactivity
+- Configurable inactivity period (6, 9, 12, 18, or 24 months)
+- Two-phase transfer process:
+  1. After inactivity period: Email reminder sent to account owner (30 days to respond)
+  2. After 30 more days: Account and trees transferred to designated heir
+- Account settings page at `/account/settings` for heir designation
+- Database tables:
+  - `account_heirs`: Stores heir designation (heirEmail, heirName, relationship, status)
+  - `users.lastActivityAt`: Tracks last user activity
+  - `users.inactivityReminderSentAt`: Tracks when reminder was sent
+- Email templates for inactivity reminder and transfer notification
+- Admin endpoint for batch checking inactive accounts (for cron job integration)
+- Core files:
+  - `client/src/pages/account-settings.tsx`: Account settings and heir designation UI
+  - `server/routes.ts`: API endpoints for heir CRUD and inactivity checking
+  - `server/lib/email.ts`: Email templates for notifications
+
 ### AI Chatbot
 - Floating "Help" button on all pages that opens a chat interface
 - Uses OpenAI GPT-4.1-mini via Replit AI Integrations (no API key required)

@@ -1329,7 +1329,7 @@ export async function registerRoutes(
   // Get current user's designated heir
   app.get("/api/account/heir", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const heir = await storage.getAccountHeir(userId);
       res.json(heir || null);
     } catch (error: any) {
@@ -1341,7 +1341,7 @@ export async function registerRoutes(
   // Create or update account heir
   app.post("/api/account/heir", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const validatedData = insertAccountHeirSchema.safeParse({
         ...req.body,
         userId,
@@ -1372,7 +1372,7 @@ export async function registerRoutes(
   // Delete account heir
   app.delete("/api/account/heir", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const existingHeir = await storage.getAccountHeir(userId);
       
       if (!existingHeir) {
@@ -1390,7 +1390,7 @@ export async function registerRoutes(
   // Update user activity (called on various user actions)
   app.post("/api/account/activity", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       await storage.updateUserActivity(userId);
       res.json({ success: true });
     } catch (error: any) {
@@ -1494,7 +1494,7 @@ export async function registerRoutes(
   // Get account settings including activity info
   app.get("/api/account/settings", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       const heir = await storage.getAccountHeir(userId);
 
