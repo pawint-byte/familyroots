@@ -796,6 +796,286 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== EDUCATION HISTORY ROUTES ====================
+
+  // Get education history for a member
+  app.get("/api/members/:memberId/education", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const education = await storage.getEducationHistory(memberId);
+      res.json(education);
+    } catch (error) {
+      console.error("Error getting education history:", error);
+      res.status(500).json({ message: "Failed to get education history" });
+    }
+  });
+
+  // Create education history entry
+  app.post("/api/members/:memberId/education", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const education = await storage.createEducationHistory({
+        memberId,
+        institution: req.body.institution,
+        degree: req.body.degree,
+        fieldOfStudy: req.body.fieldOfStudy,
+        startDate: req.body.startDate,
+        endDate: req.body.endDate,
+        graduated: req.body.graduated,
+        honors: req.body.honors,
+        location: req.body.location,
+        notes: req.body.notes,
+      });
+      res.status(201).json(education);
+    } catch (error) {
+      console.error("Error creating education history:", error);
+      res.status(500).json({ message: "Failed to create education history" });
+    }
+  });
+
+  // Update education history entry
+  app.patch("/api/members/:memberId/education/:educationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId, educationId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const updated = await storage.updateEducationHistory(educationId, req.body);
+      if (!updated) {
+        return res.status(404).json({ message: "Education entry not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating education history:", error);
+      res.status(500).json({ message: "Failed to update education history" });
+    }
+  });
+
+  // Delete education history entry
+  app.delete("/api/members/:memberId/education/:educationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId, educationId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      await storage.deleteEducationHistory(educationId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting education history:", error);
+      res.status(500).json({ message: "Failed to delete education history" });
+    }
+  });
+
+  // ==================== CAREER HISTORY ROUTES ====================
+
+  // Get career history for a member
+  app.get("/api/members/:memberId/career", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const career = await storage.getCareerHistory(memberId);
+      res.json(career);
+    } catch (error) {
+      console.error("Error getting career history:", error);
+      res.status(500).json({ message: "Failed to get career history" });
+    }
+  });
+
+  // Create career history entry
+  app.post("/api/members/:memberId/career", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const career = await storage.createCareerHistory({
+        memberId,
+        employer: req.body.employer,
+        jobTitle: req.body.jobTitle,
+        industry: req.body.industry,
+        startDate: req.body.startDate,
+        endDate: req.body.endDate,
+        isCurrent: req.body.isCurrent,
+        location: req.body.location,
+        achievements: req.body.achievements,
+        notes: req.body.notes,
+      });
+      res.status(201).json(career);
+    } catch (error) {
+      console.error("Error creating career history:", error);
+      res.status(500).json({ message: "Failed to create career history" });
+    }
+  });
+
+  // Update career history entry
+  app.patch("/api/members/:memberId/career/:careerId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId, careerId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const updated = await storage.updateCareerHistory(careerId, req.body);
+      if (!updated) {
+        return res.status(404).json({ message: "Career entry not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating career history:", error);
+      res.status(500).json({ message: "Failed to update career history" });
+    }
+  });
+
+  // Delete career history entry
+  app.delete("/api/members/:memberId/career/:careerId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId, careerId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      await storage.deleteCareerHistory(careerId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting career history:", error);
+      res.status(500).json({ message: "Failed to delete career history" });
+    }
+  });
+
   // ==================== TREE CONNECTION ROUTES ====================
 
   // Get connections for a tree
