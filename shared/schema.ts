@@ -14,6 +14,8 @@ export const genderEnum = pgEnum("gender", ["male", "female", "other"]);
 export const relationshipTypeEnum = pgEnum("relationship_type", ["parent", "child", "spouse", "sibling"]);
 export const privacyEnum = pgEnum("privacy", ["private", "public"]);
 export const videoStatusEnum = pgEnum("video_status", ["pending", "processing", "completed", "failed"]);
+export const collaboratorRoleEnum = pgEnum("collaborator_role", ["viewer", "editor", "co_owner"]);
+export const nameChangeReasonEnum = pgEnum("name_change_reason", ["birth", "marriage", "divorce", "adoption", "legal", "other"]);
 
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
@@ -58,9 +60,51 @@ export const treeCollaborators = pgTable("tree_collaborators", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   treeId: varchar("tree_id").notNull(),
   userId: varchar("user_id").notNull(),
+  role: collaboratorRoleEnum("role").default("viewer").notNull(),
   canEdit: boolean("can_edit").default(false),
   invitedAt: timestamp("invited_at").defaultNow().notNull(),
   acceptedAt: timestamp("accepted_at"),
+});
+
+// Tree Invitations table (for shareable invite links)
+export const treeInvitations = pgTable("tree_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  treeId: varchar("tree_id").notNull(),
+  inviteCode: varchar("invite_code").notNull().unique(),
+  role: collaboratorRoleEnum("role").default("viewer").notNull(),
+  createdBy: varchar("created_by").notNull(),
+  expiresAt: timestamp("expires_at"),
+  maxUses: text("max_uses"),
+  usedCount: text("used_count").default("0"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Tree Connections table (for linking two trees together)
+export const treeConnections = pgTable("tree_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tree1Id: varchar("tree1_id").notNull(),
+  tree2Id: varchar("tree2_id").notNull(),
+  connector1MemberId: varchar("connector1_member_id"),
+  connector2MemberId: varchar("connector2_member_id"),
+  connectionType: text("connection_type").default("marriage"),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Name History table (for tracking name changes through life events)
+export const nameHistory = pgTable("name_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name"),
+  maidenName: text("maiden_name"),
+  reason: nameChangeReasonEnum("reason").notNull(),
+  effectiveDate: date("effective_date"),
+  endDate: date("end_date"),
+  spouseId: varchar("spouse_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Family Events (for timeline)
@@ -134,6 +178,35 @@ export const treeCollaboratorsRelations = relations(treeCollaborators, ({ one })
   }),
 }));
 
+export const treeInvitationsRelations = relations(treeInvitations, ({ one }) => ({
+  tree: one(familyTrees, {
+    fields: [treeInvitations.treeId],
+    references: [familyTrees.id],
+  }),
+}));
+
+export const nameHistoryRelations = relations(nameHistory, ({ one }) => ({
+  member: one(familyMembers, {
+    fields: [nameHistory.memberId],
+    references: [familyMembers.id],
+  }),
+  spouse: one(familyMembers, {
+    fields: [nameHistory.spouseId],
+    references: [familyMembers.id],
+  }),
+}));
+
+export const treeConnectionsRelations = relations(treeConnections, ({ one }) => ({
+  tree1: one(familyTrees, {
+    fields: [treeConnections.tree1Id],
+    references: [familyTrees.id],
+  }),
+  tree2: one(familyTrees, {
+    fields: [treeConnections.tree2Id],
+    references: [familyTrees.id],
+  }),
+}));
+
 export const familyEventsRelations = relations(familyEvents, ({ one }) => ({
   tree: one(familyTrees, {
     fields: [familyEvents.treeId],
@@ -168,6 +241,21 @@ export const insertTreeCollaboratorSchema = createInsertSchema(treeCollaborators
   invitedAt: true,
 });
 
+export const insertTreeInvitationSchema = createInsertSchema(treeInvitations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertNameHistorySchema = createInsertSchema(nameHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTreeConnectionSchema = createInsertSchema(treeConnections).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertFamilyEventSchema = createInsertSchema(familyEvents).omit({
   id: true,
   createdAt: true,
@@ -191,6 +279,15 @@ export type InsertRelationship = z.infer<typeof insertRelationshipSchema>;
 
 export type TreeCollaborator = typeof treeCollaborators.$inferSelect;
 export type InsertTreeCollaborator = z.infer<typeof insertTreeCollaboratorSchema>;
+
+export type TreeInvitation = typeof treeInvitations.$inferSelect;
+export type InsertTreeInvitation = z.infer<typeof insertTreeInvitationSchema>;
+
+export type NameHistory = typeof nameHistory.$inferSelect;
+export type InsertNameHistory = z.infer<typeof insertNameHistorySchema>;
+
+export type TreeConnection = typeof treeConnections.$inferSelect;
+export type InsertTreeConnection = z.infer<typeof insertTreeConnectionSchema>;
 
 export type FamilyEvent = typeof familyEvents.$inferSelect;
 export type InsertFamilyEvent = z.infer<typeof insertFamilyEventSchema>;

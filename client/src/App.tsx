@@ -14,6 +14,7 @@ import Pricing from "@/pages/pricing";
 import Gifts from "@/pages/gifts";
 import AdminVideos from "@/pages/admin-videos";
 import VideoPage from "@/pages/video";
+import JoinTree from "@/pages/join-tree";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -38,6 +39,7 @@ function Router() {
       <Route path="/gifts" component={Gifts} />
       <Route path="/admin/videos" component={AdminVideos} />
       <Route path="/video/:id" component={VideoPage} />
+      <Route path="/join/:inviteCode" component={JoinTree} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -17,6 +17,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import type { FamilyTree } from "@shared/schema";
 
 export default function Dashboard() {
@@ -31,6 +32,8 @@ export default function Dashboard() {
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [renameTreeId, setRenameTreeId] = useState<string | null>(null);
   const [renameTreeName, setRenameTreeName] = useState("");
+  const [shareTreeId, setShareTreeId] = useState<string | null>(null);
+  const [shareTreeName, setShareTreeName] = useState("");
 
   const { data: trees, isLoading } = useQuery<FamilyTree[]>({
     queryKey: ["/api/trees"],
@@ -312,7 +315,15 @@ export default function Dashboard() {
                         <Edit className="h-4 w-4" />
                         Rename
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="gap-2">
+                      <DropdownMenuItem 
+                        className="gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShareTreeId(tree.id);
+                          setShareTreeName(tree.name);
+                        }}
+                        data-testid={`button-share-tree-${tree.id}`}
+                      >
                         <Share2 className="h-4 w-4" />
                         Share
                       </DropdownMenuItem>
@@ -411,6 +422,18 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ShareTreeDialog
+        open={!!shareTreeId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShareTreeId(null);
+            setShareTreeName("");
+          }
+        }}
+        treeId={shareTreeId || ""}
+        treeName={shareTreeName}
+      />
     </div>
   );
 }

@@ -5,8 +5,29 @@ import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integra
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { 
   insertFamilyTreeSchema, insertFamilyMemberSchema, 
-  insertRelationshipSchema, insertFamilyEventSchema 
+  insertRelationshipSchema, insertFamilyEventSchema,
+  insertNameHistorySchema, insertTreeConnectionSchema
 } from "@shared/schema";
+import { z } from "zod";
+import crypto from "crypto";
+
+// Validation schemas for API requests
+const createInvitationSchema = z.object({
+  role: z.enum(["viewer", "editor", "co_owner"]),
+  expiresInDays: z.number().int().min(1).max(365).optional(),
+  maxUses: z.number().int().min(1).max(1000).optional(),
+});
+
+const updateCollaboratorRoleSchema = z.object({
+  role: z.enum(["viewer", "editor", "co_owner"]),
+});
+
+const createTreeConnectionSchema = z.object({
+  targetTreeId: z.string().min(1),
+  connector1MemberId: z.string().optional(),
+  connector2MemberId: z.string().optional(),
+  connectionType: z.enum(["marriage", "adoption", "other"]).optional(),
+});
 import { stripeService } from "./stripeService";
 import { getStripePublishableKey, isStripeConfigured } from "./stripeClient";
 import { streamChatResponse } from "./chatbot";
@@ -27,12 +48,18 @@ export async function registerRoutes(
   // Setup object storage for photo uploads
   registerObjectStorageRoutes(app);
 
-  // Get all trees for the current user
+  // Get all trees for the current user (owned and collaborated)
   app.get("/api/trees", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const trees = await storage.getTrees(userId);
-      res.json(trees);
+      const ownedTrees = await storage.getTrees(userId);
+      
+      // Get collaborated trees
+      const { collaboratedTrees } = await storage.getCollaboratedTrees(userId);
+      
+      // Combine and deduplicate
+      const allTrees = [...ownedTrees, ...collaboratedTrees];
+      res.json(allTrees);
     } catch (error) {
       console.error("Error fetching trees:", error);
       res.status(500).json({ message: "Failed to fetch trees" });
@@ -89,8 +116,16 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       
       const tree = await storage.getTree(id);
-      if (!tree || tree.ownerId !== userId) {
-        return res.status(403).json({ message: "Access denied" });
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Check if owner or co-owner
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, id);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
 
       // Validate update data - only allow specific fields
@@ -117,8 +152,16 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       
       const tree = await storage.getTree(id);
-      if (!tree || tree.ownerId !== userId) {
-        return res.status(403).json({ message: "Access denied" });
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Check if owner or co-owner
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, id);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
 
       await storage.deleteTree(id);
@@ -327,6 +370,594 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error adding event:", error);
       res.status(400).json({ message: "Failed to add event" });
+    }
+  });
+
+  // ==================== COLLABORATION ROUTES ====================
+
+  // Generate invite link for a tree
+  app.post("/api/trees/:treeId/invitations", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      // Validate request body
+      const parseResult = createInvitationSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid request data", 
+          errors: parseResult.error.errors 
+        });
+      }
+      
+      const { role = "viewer", expiresInDays, maxUses } = parseResult.data;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Only owner or co-owners can create invitations
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Only owners can create invitations" });
+        }
+      }
+
+      const inviteCode = crypto.randomBytes(16).toString("hex");
+      const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000) : null;
+      
+      const invitation = await storage.createInvitation({
+        treeId,
+        inviteCode,
+        role,
+        createdBy: userId,
+        expiresAt,
+        maxUses: maxUses ? String(maxUses) : null,
+        isActive: true,
+      });
+      
+      res.status(201).json(invitation);
+    } catch (error) {
+      console.error("Error creating invitation:", error);
+      res.status(500).json({ message: "Failed to create invitation" });
+    }
+  });
+
+  // Get all invitations for a tree
+  app.get("/api/trees/:treeId/invitations", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Only owner or co-owners can view invitations
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const invitations = await storage.getInvitationsByTree(treeId);
+      res.json(invitations);
+    } catch (error) {
+      console.error("Error fetching invitations:", error);
+      res.status(500).json({ message: "Failed to fetch invitations" });
+    }
+  });
+
+  // Get invitation details by invite code (public - for join page)
+  app.get("/api/invitations/:inviteCode", async (req, res) => {
+    try {
+      const { inviteCode } = req.params;
+      const invitation = await storage.getInvitation(inviteCode);
+      
+      if (!invitation || !invitation.isActive) {
+        return res.status(404).json({ message: "Invitation not found or expired" });
+      }
+
+      // Check expiration
+      if (invitation.expiresAt && new Date(invitation.expiresAt) < new Date()) {
+        return res.status(410).json({ message: "Invitation has expired" });
+      }
+
+      // Check max uses
+      if (invitation.maxUses && parseInt(invitation.usedCount || "0") >= parseInt(invitation.maxUses)) {
+        return res.status(410).json({ message: "Invitation has reached maximum uses" });
+      }
+
+      const tree = await storage.getTree(invitation.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      res.json({ 
+        invitation: { ...invitation, inviteCode: undefined },
+        treeName: tree.name,
+        role: invitation.role
+      });
+    } catch (error) {
+      console.error("Error fetching invitation:", error);
+      res.status(500).json({ message: "Failed to fetch invitation" });
+    }
+  });
+
+  // Accept an invitation and join a tree
+  app.post("/api/invitations/:inviteCode/accept", isAuthenticated, async (req: any, res) => {
+    try {
+      const { inviteCode } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const invitation = await storage.getInvitation(inviteCode);
+      
+      if (!invitation || !invitation.isActive) {
+        return res.status(404).json({ message: "Invitation not found or expired" });
+      }
+
+      // Check expiration
+      if (invitation.expiresAt && new Date(invitation.expiresAt) < new Date()) {
+        return res.status(410).json({ message: "Invitation has expired" });
+      }
+
+      // Check max uses
+      const usedCount = parseInt(invitation.usedCount || "0");
+      if (invitation.maxUses && usedCount >= parseInt(invitation.maxUses)) {
+        return res.status(410).json({ message: "Invitation has reached maximum uses" });
+      }
+
+      const tree = await storage.getTree(invitation.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      // Check if user is already owner
+      if (tree.ownerId === userId) {
+        return res.status(400).json({ message: "You are already the owner of this tree" });
+      }
+
+      // Check if already a collaborator
+      const existingCollab = await storage.getCollaboratorByUserAndTree(userId, invitation.treeId);
+      if (existingCollab) {
+        return res.status(400).json({ message: "You are already a collaborator on this tree" });
+      }
+
+      // Atomically increment the used count FIRST to prevent over-subscription
+      // This ensures only one concurrent request succeeds per available slot
+      const incrementSuccess = await storage.atomicIncrementInvitationUsage(invitation.id, usedCount);
+      if (!incrementSuccess) {
+        return res.status(410).json({ message: "Invitation has reached maximum uses" });
+      }
+
+      // Try to add collaborator, with rollback on failure
+      try {
+        const canEdit = invitation.role === "editor" || invitation.role === "co_owner";
+        const collaborator = await storage.addCollaborator({
+          treeId: invitation.treeId,
+          userId,
+          role: invitation.role,
+          canEdit,
+          acceptedAt: new Date(),
+        });
+
+        res.status(201).json({ collaborator, treeName: tree.name });
+      } catch (collaboratorError) {
+        // Roll back the increment if collaborator insert fails
+        await storage.atomicDecrementInvitationUsage(invitation.id, usedCount + 1);
+        throw collaboratorError;
+      }
+    } catch (error) {
+      console.error("Error accepting invitation:", error);
+      res.status(500).json({ message: "Failed to accept invitation" });
+    }
+  });
+
+  // Delete an invitation
+  app.delete("/api/trees/:treeId/invitations/:invitationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, invitationId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      await storage.deleteInvitation(invitationId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting invitation:", error);
+      res.status(500).json({ message: "Failed to delete invitation" });
+    }
+  });
+
+  // Get collaborators for a tree
+  app.get("/api/trees/:treeId/collaborators", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Check access
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const collaborators = await storage.getCollaborators(treeId);
+      res.json(collaborators);
+    } catch (error) {
+      console.error("Error fetching collaborators:", error);
+      res.status(500).json({ message: "Failed to fetch collaborators" });
+    }
+  });
+
+  // Update collaborator role
+  app.patch("/api/trees/:treeId/collaborators/:collaboratorId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, collaboratorId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      // Validate request body
+      const parseResult = updateCollaboratorRoleSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid request data", 
+          errors: parseResult.error.errors 
+        });
+      }
+      
+      const { role } = parseResult.data;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Only owner or co-owners can change roles
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Only owners can change roles" });
+        }
+      }
+
+      const canEdit = role === "editor" || role === "co_owner";
+      const updated = await storage.updateCollaborator(collaboratorId, { role, canEdit });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating collaborator:", error);
+      res.status(500).json({ message: "Failed to update collaborator" });
+    }
+  });
+
+  // Remove a collaborator
+  app.delete("/api/trees/:treeId/collaborators/:collaboratorId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, collaboratorId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Only owner or co-owners can remove collaborators
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      await storage.removeCollaborator(collaboratorId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing collaborator:", error);
+      res.status(500).json({ message: "Failed to remove collaborator" });
+    }
+  });
+
+  // ==================== NAME HISTORY ROUTES ====================
+
+  // Get name history for a member
+  app.get("/api/members/:memberId/name-history", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const history = await storage.getNameHistory(memberId);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching name history:", error);
+      res.status(500).json({ message: "Failed to fetch name history" });
+    }
+  });
+
+  // Add name history entry
+  app.post("/api/members/:memberId/name-history", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      // Get the member to check tree access
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Check if user can edit
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const data = insertNameHistorySchema.parse({ ...req.body, memberId });
+      const entry = await storage.createNameHistory(data);
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error("Error adding name history:", error);
+      res.status(400).json({ message: "Failed to add name history" });
+    }
+  });
+
+  // Update name history entry
+  app.patch("/api/members/:memberId/name-history/:historyId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId, historyId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const allowedFields = ["firstName", "lastName", "maidenName", "reason", "effectiveDate", "endDate", "spouseId", "notes"];
+      const updateData: Record<string, any> = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updateData[field] = req.body[field];
+        }
+      }
+
+      const updated = await storage.updateNameHistory(historyId, updateData);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating name history:", error);
+      res.status(400).json({ message: "Failed to update name history" });
+    }
+  });
+
+  // Delete name history entry
+  app.delete("/api/members/:memberId/name-history/:historyId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId, historyId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      await storage.deleteNameHistory(historyId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting name history:", error);
+      res.status(500).json({ message: "Failed to delete name history" });
+    }
+  });
+
+  // ==================== TREE CONNECTION ROUTES ====================
+
+  // Get connections for a tree
+  app.get("/api/trees/:treeId/connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Check access
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const connections = await storage.getTreeConnections(treeId);
+      
+      // Enrich with tree info
+      const enrichedConnections = await Promise.all(
+        connections.map(async (conn) => {
+          const otherTreeId = conn.tree1Id === treeId ? conn.tree2Id : conn.tree1Id;
+          const otherTree = await storage.getTree(otherTreeId);
+          return {
+            ...conn,
+            connectedTree: otherTree ? { id: otherTree.id, name: otherTree.name } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedConnections);
+    } catch (error) {
+      console.error("Error fetching connections:", error);
+      res.status(500).json({ message: "Failed to fetch connections" });
+    }
+  });
+
+  // Connect two trees
+  app.post("/api/trees/:treeId/connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      // Validate request body
+      const parseResult = createTreeConnectionSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid request data", 
+          errors: parseResult.error.errors 
+        });
+      }
+      
+      const { targetTreeId, connector1MemberId, connector2MemberId, connectionType } = parseResult.data;
+
+      // Prevent self-connection
+      if (treeId === targetTreeId) {
+        return res.status(400).json({ message: "Cannot connect a tree to itself" });
+      }
+
+      const tree1 = await storage.getTree(treeId);
+      const tree2 = await storage.getTree(targetTreeId);
+      
+      if (!tree1 || !tree2) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Check for existing connection (deduplication)
+      const existingConnections = await storage.getTreeConnections(treeId);
+      const alreadyConnected = existingConnections.some(
+        c => (c.tree1Id === treeId && c.tree2Id === targetTreeId) ||
+             (c.tree1Id === targetTreeId && c.tree2Id === treeId)
+      );
+      if (alreadyConnected) {
+        return res.status(409).json({ message: "These trees are already connected" });
+      }
+      
+      // Check if user is owner or co-owner of tree1
+      if (tree1.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "You must be an owner to connect trees" });
+        }
+      }
+
+      // Check if user is owner or co-owner of tree2
+      if (tree2.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, targetTreeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "You must be an owner of both trees to connect them" });
+        }
+      }
+
+      // Create the connection
+      const connection = await storage.createTreeConnection({
+        tree1Id: treeId,
+        tree2Id: targetTreeId,
+        connector1MemberId: connector1MemberId || null,
+        connector2MemberId: connector2MemberId || null,
+        connectionType: connectionType || "marriage",
+        createdBy: userId,
+      });
+
+      // Make both owners co-owners of each other's trees
+      if (tree1.ownerId !== tree2.ownerId) {
+        // Add tree1 owner as co-owner of tree2
+        const existing1 = await storage.getCollaboratorByUserAndTree(tree1.ownerId, targetTreeId);
+        if (!existing1) {
+          await storage.addCollaborator({
+            treeId: targetTreeId,
+            userId: tree1.ownerId,
+            role: "co_owner",
+            canEdit: true,
+            acceptedAt: new Date(),
+          });
+        }
+
+        // Add tree2 owner as co-owner of tree1
+        const existing2 = await storage.getCollaboratorByUserAndTree(tree2.ownerId, treeId);
+        if (!existing2) {
+          await storage.addCollaborator({
+            treeId: treeId,
+            userId: tree2.ownerId,
+            role: "co_owner",
+            canEdit: true,
+            acceptedAt: new Date(),
+          });
+        }
+      }
+
+      res.status(201).json(connection);
+    } catch (error) {
+      console.error("Error connecting trees:", error);
+      res.status(500).json({ message: "Failed to connect trees" });
+    }
+  });
+
+  // Delete a tree connection
+  app.delete("/api/trees/:treeId/connections/:connectionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, connectionId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      await storage.deleteTreeConnection(connectionId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting connection:", error);
+      res.status(500).json({ message: "Failed to delete connection" });
     }
   });
 

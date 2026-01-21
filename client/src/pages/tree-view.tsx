@@ -28,6 +28,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from "@shared/schema";
 import FamilyTreeVisualization from "@/components/family-tree-visualization";
 import MemberForm from "@/components/member-form";
+import { NameHistorySection } from "@/components/name-history";
+import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import TimelineView from "@/components/timeline-view";
 
 interface TreeData {
@@ -40,6 +42,7 @@ export default function TreeView() {
   const [, params] = useRoute("/tree/:id");
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("tree");
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
@@ -48,6 +51,7 @@ export default function TreeView() {
   const [zoom, setZoom] = useState(1);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [newTreeName, setNewTreeName] = useState("");
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   const treeId = params?.id;
 
@@ -55,6 +59,21 @@ export default function TreeView() {
     queryKey: ["/api/trees", treeId],
     enabled: !!treeId,
   });
+
+  // Query collaborator status
+  const { data: collaborators } = useQuery<Array<{userId: string; role: string}>>({
+    queryKey: ["/api/trees", treeId, "collaborators"],
+    enabled: !!treeId,
+  });
+
+  const userId = user?.id;
+  const isOwner = treeData?.tree?.ownerId === userId;
+  
+  // Check if user is a collaborator with edit permissions
+  const userCollaboration = collaborators?.find(c => c.userId === userId);
+  const isCoOwner = userCollaboration?.role === "co_owner";
+  const isEditor = userCollaboration?.role === "editor";
+  const canEdit = isOwner || isCoOwner || isEditor;
 
   const addMemberMutation = useMutation({
     mutationFn: async (data: InsertFamilyMember) => {
@@ -217,14 +236,16 @@ export default function TreeView() {
                 <>
                   <div className="flex items-center gap-2">
                     <h1 className="font-serif text-lg font-semibold">{treeData?.tree.name}</h1>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={handleRenameOpen}
-                      data-testid="button-rename-tree"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                    {(isOwner || isCoOwner) && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={handleRenameOpen}
+                        data-testid="button-rename-tree"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary" className="text-xs">
@@ -250,9 +271,16 @@ export default function TreeView() {
                 data-testid="input-search-members"
               />
             </div>
-            <Button variant="outline" size="icon" data-testid="button-share">
-              <Share2 className="h-4 w-4" />
-            </Button>
+            {(isOwner || isCoOwner) && (
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={() => setIsShareOpen(true)}
+                data-testid="button-share"
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" data-testid="button-more-options">
@@ -264,29 +292,36 @@ export default function TreeView() {
                   <Download className="h-4 w-4" />
                   Export GEDCOM
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2">
-                  <Upload className="h-4 w-4" />
-                  Import GEDCOM
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="gap-2 text-destructive"
-                  onClick={handleDeleteTree}
-                  data-testid="button-delete-tree"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Tree
-                </DropdownMenuItem>
+                {canEdit && (
+                  <DropdownMenuItem className="gap-2">
+                    <Upload className="h-4 w-4" />
+                    Import GEDCOM
+                  </DropdownMenuItem>
+                )}
+                {(isOwner || isCoOwner) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      className="gap-2 text-destructive"
+                      onClick={handleDeleteTree}
+                      data-testid="button-delete-tree"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Tree
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             <ThemeToggle />
-            <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" data-testid="button-add-member">
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Add Member</span>
-                </Button>
-              </DialogTrigger>
+            {canEdit && (
+              <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" data-testid="button-add-member">
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">Add Member</span>
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="font-serif">Add Family Member</DialogTitle>
@@ -297,7 +332,8 @@ export default function TreeView() {
                   isLoading={addMemberMutation.isPending}
                 />
               </DialogContent>
-            </Dialog>
+              </Dialog>
+            )}
 
             <Dialog open={isRenameOpen} onOpenChange={(open) => {
               setIsRenameOpen(open);
@@ -603,6 +639,11 @@ export default function TreeView() {
                   </div>
                 )}
 
+                <NameHistorySection 
+                  memberId={selectedMember.id} 
+                  canEdit={canEdit}
+                />
+
                 <div className="flex gap-2 pt-4 border-t border-border">
                   <Button variant="outline" className="flex-1 gap-2" data-testid="button-edit-member">
                     <Edit className="h-4 w-4" />
@@ -624,6 +665,15 @@ export default function TreeView() {
           )}
         </SheetContent>
       </Sheet>
+
+      {treeData?.tree && (
+        <ShareTreeDialog
+          open={isShareOpen}
+          onOpenChange={setIsShareOpen}
+          treeId={treeData.tree.id}
+          treeName={treeData.tree.name}
+        />
+      )}
     </div>
   );
 }
