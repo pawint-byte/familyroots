@@ -16,6 +16,7 @@ export const privacyEnum = pgEnum("privacy", ["private", "public"]);
 export const videoStatusEnum = pgEnum("video_status", ["pending", "processing", "completed", "failed"]);
 export const collaboratorRoleEnum = pgEnum("collaborator_role", ["viewer", "editor", "co_owner"]);
 export const nameChangeReasonEnum = pgEnum("name_change_reason", ["birth", "marriage", "divorce", "adoption", "legal", "other"]);
+export const heirStatusEnum = pgEnum("heir_status", ["pending", "notified", "transferred", "cancelled"]);
 
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
@@ -136,6 +137,23 @@ export const generatedVideos = pgTable("generated_videos", {
   duration: text("duration"),
   errorMessage: text("error_message"),
   createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Account Heirs table (for deadman switch feature)
+export const accountHeirs = pgTable("account_heirs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  heirEmail: text("heir_email").notNull(),
+  heirName: text("heir_name").notNull(),
+  relationship: text("relationship"),
+  heirUserId: varchar("heir_user_id"),
+  status: heirStatusEnum("status").default("pending").notNull(),
+  inactivityMonths: text("inactivity_months").default("6"),
+  reminderSentAt: timestamp("reminder_sent_at"),
+  transferredAt: timestamp("transferred_at"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -267,6 +285,12 @@ export const insertGeneratedVideoSchema = createInsertSchema(generatedVideos).om
   updatedAt: true,
 });
 
+export const insertAccountHeirSchema = createInsertSchema(accountHeirs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type FamilyTree = typeof familyTrees.$inferSelect;
 export type InsertFamilyTree = z.infer<typeof insertFamilyTreeSchema>;
@@ -294,3 +318,6 @@ export type InsertFamilyEvent = z.infer<typeof insertFamilyEventSchema>;
 
 export type GeneratedVideo = typeof generatedVideos.$inferSelect;
 export type InsertGeneratedVideo = z.infer<typeof insertGeneratedVideoSchema>;
+
+export type AccountHeir = typeof accountHeirs.$inferSelect;
+export type InsertAccountHeir = z.infer<typeof insertAccountHeirSchema>;

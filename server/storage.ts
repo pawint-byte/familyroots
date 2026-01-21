@@ -1,6 +1,6 @@
 import { 
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
-  treeInvitations, nameHistory, treeConnections,
+  treeInvitations, nameHistory, treeConnections, accountHeirs,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -9,6 +9,7 @@ import {
   type TreeInvitation, type InsertTreeInvitation,
   type NameHistory, type InsertNameHistory,
   type TreeConnection, type InsertTreeConnection,
+  type AccountHeir, type InsertAccountHeir,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -70,7 +71,18 @@ export interface IStorage {
 
   // Users
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   updateUserStripeInfo(userId: string, info: { stripeCustomerId?: string; stripeSubscriptionId?: string }): Promise<User | undefined>;
+  updateUserActivity(userId: string): Promise<void>;
+  getInactiveUsers(inactivityMonths: number): Promise<User[]>;
+  updateUserInactivityReminder(userId: string): Promise<void>;
+  
+  // Account Heirs
+  getAccountHeir(userId: string): Promise<AccountHeir | undefined>;
+  createAccountHeir(heir: InsertAccountHeir): Promise<AccountHeir>;
+  updateAccountHeir(id: string, data: Partial<InsertAccountHeir>): Promise<AccountHeir | undefined>;
+  deleteAccountHeir(id: string): Promise<boolean>;
+  getHeirsAwaitingTransfer(): Promise<AccountHeir[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -337,6 +349,63 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return updated;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async updateUserActivity(userId: string): Promise<void> {
+    await db.update(users)
+      .set({ lastActivityAt: new Date(), updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async getInactiveUsers(inactivityMonths: number): Promise<User[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - inactivityMonths);
+    
+    const allUsers = await db.select().from(users);
+    return allUsers.filter(user => {
+      const lastActivity = user.lastActivityAt || user.createdAt;
+      return lastActivity && lastActivity < cutoffDate;
+    });
+  }
+
+  async updateUserInactivityReminder(userId: string): Promise<void> {
+    await db.update(users)
+      .set({ inactivityReminderSentAt: new Date(), updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  // Account Heirs
+  async getAccountHeir(userId: string): Promise<AccountHeir | undefined> {
+    const [heir] = await db.select().from(accountHeirs).where(eq(accountHeirs.userId, userId));
+    return heir;
+  }
+
+  async createAccountHeir(heir: InsertAccountHeir): Promise<AccountHeir> {
+    const [created] = await db.insert(accountHeirs).values(heir).returning();
+    return created;
+  }
+
+  async updateAccountHeir(id: string, data: Partial<InsertAccountHeir>): Promise<AccountHeir | undefined> {
+    const [updated] = await db.update(accountHeirs)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(accountHeirs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAccountHeir(id: string): Promise<boolean> {
+    await db.delete(accountHeirs).where(eq(accountHeirs.id, id));
+    return true;
+  }
+
+  async getHeirsAwaitingTransfer(): Promise<AccountHeir[]> {
+    return db.select().from(accountHeirs)
+      .where(eq(accountHeirs.status, "notified"));
   }
 }
 

@@ -23,6 +23,8 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   stripeCustomerId: varchar("stripe_customer_id"),
   stripeSubscriptionId: varchar("stripe_subscription_id"),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  inactivityReminderSentAt: timestamp("inactivity_reminder_sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
