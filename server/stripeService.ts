@@ -20,6 +20,12 @@ export class StripeService {
       mode: 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
+      payment_method_options: {
+        card: {
+          request_three_d_secure: 'automatic',
+        },
+      },
+      allow_promotion_codes: true,
     });
   }
 
