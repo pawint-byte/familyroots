@@ -204,6 +204,112 @@ export async function sendEventNotification(
   return sendEmail(to, subject, html);
 }
 
+// Inactivity reminder email (for deadman switch)
+export async function sendInactivityReminder(
+  to: string,
+  userName: string,
+  heirName: string,
+  daysUntilTransfer: number
+) {
+  const subject = 'Action Required: Your FamilyRoots Account Will Be Transferred';
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .warning-card { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .warning-title { color: #DC2626; font-weight: bold; font-size: 18px; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 14px 35px; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+        .countdown { font-size: 36px; font-weight: bold; color: #DC2626; text-align: center; margin: 20px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Account Transfer Warning</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${userName},</p>
+        <div class="warning-card">
+          <div class="warning-title">Your account has been inactive</div>
+          <p>We noticed you haven't logged into FamilyRoots for an extended period. To protect your family tree data, you previously designated <strong>${heirName}</strong> as your account heir.</p>
+        </div>
+        <p class="countdown">${daysUntilTransfer} days remaining</p>
+        <p style="text-align: center;">If you don't log in within <strong>${daysUntilTransfer} days</strong>, your account and all family trees will be transferred to ${heirName}.</p>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/dashboard" class="button">Log In Now to Keep Your Account</a>
+        </p>
+        <p style="color: #6b7280; font-size: 14px;">If you intended for this transfer to happen, you can ignore this email. Your designated heir will receive access to your family trees.</p>
+      </div>
+      <div class="footer">
+        <p>© FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this because you set up an account heir for your FamilyRoots account.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
+// Account transfer notification to heir
+export async function sendAccountTransferNotification(
+  to: string,
+  heirName: string,
+  originalOwnerName: string,
+  treeCount: number
+) {
+  const subject = `You've Been Granted Access to ${originalOwnerName}'s Family Trees`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .info-card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+        .tree-count { font-size: 48px; font-weight: bold; color: #4F46E5; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Account Access Granted</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${heirName},</p>
+        <p><strong>${originalOwnerName}</strong> designated you as their account heir on FamilyRoots. Due to extended inactivity, their account has been transferred to you.</p>
+        <div class="info-card">
+          <div class="tree-count">${treeCount}</div>
+          <p style="color: #6b7280; margin: 0;">Family tree${treeCount !== 1 ? 's' : ''} now in your care</p>
+        </div>
+        <p>You now have full ownership of these family trees, including:</p>
+        <ul>
+          <li>All family member profiles and photos</li>
+          <li>Relationship connections</li>
+          <li>Family events and milestones</li>
+          <li>Name history records</li>
+        </ul>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/dashboard" class="button">View Your Family Trees</a>
+        </p>
+        <p style="color: #6b7280; font-size: 14px;">If you don't have a FamilyRoots account yet, you'll be prompted to create one when you click the button above.</p>
+      </div>
+      <div class="footer">
+        <p>© FamilyRoots - Preserve Your Family's Legacy</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
 // Tree update notification
 export async function sendTreeUpdateNotification(
   to: string,

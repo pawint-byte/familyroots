@@ -15,6 +15,7 @@ import Gifts from "@/pages/gifts";
 import AdminVideos from "@/pages/admin-videos";
 import VideoPage from "@/pages/video";
 import JoinTree from "@/pages/join-tree";
+import AccountSettings from "@/pages/account-settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -34,12 +35,14 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={user ? Dashboard : Landing} />
+      <Route path="/dashboard" component={Dashboard} />
       <Route path="/tree/:id" component={TreeView} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/gifts" component={Gifts} />
       <Route path="/admin/videos" component={AdminVideos} />
       <Route path="/video/:id" component={VideoPage} />
       <Route path="/join/:inviteCode" component={JoinTree} />
+      <Route path="/account/settings" component={AccountSettings} />
       <Route component={NotFound} />
     </Switch>
   );

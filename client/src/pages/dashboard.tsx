@@ -179,10 +179,15 @@ export default function Dashboard() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem className="flex items-center gap-2">
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/account/settings")}
+                  data-testid="button-account-settings"
+                >
                   <Settings className="h-4 w-4" />
-                  <span>Settings</span>
+                  <span>Account Settings</span>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="flex items-center gap-2 text-destructive"
                   onClick={() => logout()}

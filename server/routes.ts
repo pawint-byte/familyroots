@@ -36,6 +36,8 @@ import {
   getAllVideos, getVideoById, deleteVideo 
 } from "./heygen";
 import { postToBluesky, testBlueskyConnection } from "./bluesky";
+import { sendInactivityReminder, sendAccountTransferNotification } from "./lib/email";
+import { insertAccountHeirSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1317,6 +1319,197 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error fetching video:", error);
       res.status(500).json({ message: "Failed to fetch video" });
+    }
+  });
+
+  // ========================================
+  // DEADMAN SWITCH / ACCOUNT HEIR ROUTES
+  // ========================================
+
+  // Get current user's designated heir
+  app.get("/api/account/heir", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const heir = await storage.getAccountHeir(userId);
+      res.json(heir || null);
+    } catch (error: any) {
+      console.error("Error fetching account heir:", error);
+      res.status(500).json({ message: "Failed to fetch account heir" });
+    }
+  });
+
+  // Create or update account heir
+  app.post("/api/account/heir", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const validatedData = insertAccountHeirSchema.safeParse({
+        ...req.body,
+        userId,
+      });
+      
+      if (!validatedData.success) {
+        return res.status(400).json({ 
+          message: "Invalid heir data", 
+          errors: validatedData.error.errors 
+        });
+      }
+
+      const existingHeir = await storage.getAccountHeir(userId);
+      
+      if (existingHeir) {
+        const updated = await storage.updateAccountHeir(existingHeir.id, validatedData.data);
+        res.json(updated);
+      } else {
+        const created = await storage.createAccountHeir(validatedData.data);
+        res.status(201).json(created);
+      }
+    } catch (error: any) {
+      console.error("Error saving account heir:", error);
+      res.status(500).json({ message: "Failed to save account heir" });
+    }
+  });
+
+  // Delete account heir
+  app.delete("/api/account/heir", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const existingHeir = await storage.getAccountHeir(userId);
+      
+      if (!existingHeir) {
+        return res.status(404).json({ message: "No heir designation found" });
+      }
+
+      await storage.deleteAccountHeir(existingHeir.id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting account heir:", error);
+      res.status(500).json({ message: "Failed to delete account heir" });
+    }
+  });
+
+  // Update user activity (called on various user actions)
+  app.post("/api/account/activity", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      await storage.updateUserActivity(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating user activity:", error);
+      res.status(500).json({ message: "Failed to update activity" });
+    }
+  });
+
+  // Admin endpoint: Check for inactive accounts and send reminders / perform transfers
+  // In production, this would be called by a cron job
+  app.post("/api/admin/check-inactive-accounts", isAuthenticated, async (req: any, res) => {
+    try {
+      const results = {
+        remindersent: 0,
+        transferred: 0,
+        errors: [] as string[],
+      };
+
+      // Get all inactive users (6+ months)
+      const inactiveUsers = await storage.getInactiveUsers(6);
+
+      for (const user of inactiveUsers) {
+        const heir = await storage.getAccountHeir(user.id);
+        if (!heir) continue;
+
+        const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'User';
+
+        // Check if reminder was already sent
+        if (heir.status === "pending" && !user.inactivityReminderSentAt) {
+          // Send reminder email (30 days to respond)
+          try {
+            if (user.email) {
+              await sendInactivityReminder(user.email, userName, heir.heirName, 30);
+            }
+            await storage.updateUserInactivityReminder(user.id);
+            await storage.updateAccountHeir(heir.id, { status: "notified", reminderSentAt: new Date() });
+            results.remindersent++;
+          } catch (emailError: any) {
+            results.errors.push(`Failed to send reminder to ${user.email}: ${emailError.message}`);
+          }
+        } 
+        // Check if 30 days passed since reminder - time to transfer
+        else if (heir.status === "notified" && heir.reminderSentAt) {
+          const daysSinceReminder = Math.floor(
+            (Date.now() - new Date(heir.reminderSentAt).getTime()) / (1000 * 60 * 60 * 24)
+          );
+
+          if (daysSinceReminder >= 30) {
+            try {
+              // Transfer all trees to heir
+              const userTrees = await storage.getTrees(user.id);
+              
+              // Check if heir has an account, create connection if they do
+              let heirUser = await storage.getUserByEmail(heir.heirEmail);
+              
+              for (const tree of userTrees) {
+                if (heirUser) {
+                  // Transfer ownership to existing heir user
+                  await storage.updateTree(tree.id, { ownerId: heirUser.id });
+                } else {
+                  // Add heir as co-owner until they create an account
+                  await storage.addCollaborator({
+                    treeId: tree.id,
+                    userId: heir.heirEmail, // Use email as placeholder
+                    role: "co_owner",
+                    canEdit: true,
+                    acceptedAt: new Date(),
+                  });
+                }
+              }
+
+              // Send notification to heir
+              await sendAccountTransferNotification(
+                heir.heirEmail,
+                heir.heirName,
+                userName,
+                userTrees.length
+              );
+
+              // Mark transfer as complete
+              await storage.updateAccountHeir(heir.id, { 
+                status: "transferred", 
+                transferredAt: new Date() 
+              });
+
+              results.transferred++;
+            } catch (transferError: any) {
+              results.errors.push(`Failed to transfer account for ${user.email}: ${transferError.message}`);
+            }
+          }
+        }
+      }
+
+      res.json(results);
+    } catch (error: any) {
+      console.error("Error checking inactive accounts:", error);
+      res.status(500).json({ message: "Failed to check inactive accounts" });
+    }
+  });
+
+  // Get account settings including activity info
+  app.get("/api/account/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      const heir = await storage.getAccountHeir(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({
+        lastActivityAt: user.lastActivityAt,
+        inactivityReminderSentAt: user.inactivityReminderSentAt,
+        heir: heir || null,
+      });
+    } catch (error: any) {
+      console.error("Error fetching account settings:", error);
+      res.status(500).json({ message: "Failed to fetch account settings" });
     }
   });
 
