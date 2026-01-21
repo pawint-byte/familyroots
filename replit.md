@@ -33,7 +33,10 @@ Preferred communication style: Simple, everyday language.
   - `family_trees`: Tree metadata with ownership and privacy settings
   - `family_members`: Individual profiles with birth/death dates, photos, notes
   - `relationships`: Parent/child/spouse/sibling connections between members
-  - `tree_collaborators`: Shared access permissions
+  - `tree_collaborators`: Shared access permissions with roles (viewer, editor, co_owner)
+  - `tree_invitations`: Shareable invitation links with expiration and usage limits
+  - `name_history`: Tracks name changes through life events (birth, marriage, divorce, adoption)
+  - `tree_connections`: Links between family trees with shared co-ownership
   - `family_events`: Timeline events associated with trees
   - `sessions`: Authentication session storage
   - `users`: User accounts from Replit Auth
@@ -66,6 +69,24 @@ Preferred communication style: Simple, everyday language.
 - Color theming via CSS custom properties supporting light/dark modes
 - Consistent spacing scale using Tailwind utilities
 - Component patterns following Ancestry.com genealogy UX and Linear's modern aesthetic
+
+### Collaboration System
+- Share family trees with other users via invitation links
+- Three permission levels:
+  - **Viewer**: Can view tree and members (read-only)
+  - **Editor**: Can add/edit members and relationships
+  - **Co-owner**: Full tree management including sharing and deletion
+- Invitation links support:
+  - Role assignment (viewer, editor, co-owner)
+  - Expiration dates (optional)
+  - Maximum usage limits (optional)
+- Join tree page at `/join/:inviteCode` for accepting invitations
+- Tree connections allow linking two trees with shared co-ownership
+- Name history tracking for life events (birth, marriage, divorce, adoption)
+- Core components:
+  - `client/src/components/share-tree-dialog.tsx`: Invitation and collaborator management
+  - `client/src/pages/join-tree.tsx`: Invitation acceptance page
+  - `client/src/components/name-history.tsx`: Name change timeline
 
 ### AI Chatbot
 - Floating "Help" button on all pages that opens a chat interface
