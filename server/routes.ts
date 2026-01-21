@@ -1076,6 +1076,352 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== MEMBER DISCOVERABILITY ROUTES ====================
+
+  // Get discoverability settings for a member
+  app.get("/api/members/:memberId/discoverability", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const discoverability = await storage.getDiscoverableMember(memberId);
+      res.json(discoverability || { memberId, isDiscoverable: false });
+    } catch (error) {
+      console.error("Error getting discoverability settings:", error);
+      res.status(500).json({ message: "Failed to get discoverability settings" });
+    }
+  });
+
+  // Update discoverability settings for a member
+  app.post("/api/members/:memberId/discoverability", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const discoverability = await storage.createOrUpdateDiscoverableMember({
+        memberId,
+        treeId: member.treeId,
+        isDiscoverable: req.body.isDiscoverable ?? false,
+        matchByEmail: req.body.matchByEmail ?? false,
+        matchByName: req.body.matchByName ?? false,
+        matchByNickname: req.body.matchByNickname ?? false,
+        matchByBirthdate: req.body.matchByBirthdate ?? false,
+        matchByBirthplace: req.body.matchByBirthplace ?? false,
+      });
+      res.json(discoverability);
+    } catch (error) {
+      console.error("Error updating discoverability settings:", error);
+      res.status(500).json({ message: "Failed to update discoverability settings" });
+    }
+  });
+
+  // Find potential matches for a member
+  app.get("/api/members/:memberId/potential-matches", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const matches = await storage.findPotentialMatches(memberId);
+      
+      // Don't return full member details, just basic info for privacy
+      const safeMatches = matches.map(m => ({
+        matchScore: m.matchScore,
+        matchCriteria: m.matchCriteria,
+        member: {
+          id: m.member.id,
+          firstName: m.member.firstName,
+          lastName: m.member.lastName,
+          treeId: m.member.treeId,
+        }
+      }));
+      
+      res.json(safeMatches);
+    } catch (error) {
+      console.error("Error finding potential matches:", error);
+      res.status(500).json({ message: "Failed to find potential matches" });
+    }
+  });
+
+  // ==================== MATCH REQUEST ROUTES ====================
+
+  // Get match requests for a tree (incoming)
+  app.get("/api/trees/:treeId/match-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const requests = await storage.getMatchRequests(treeId);
+      
+      // Enrich with member and tree info
+      const enrichedRequests = await Promise.all(
+        requests.map(async (request) => {
+          const requestingMember = await storage.getMember(request.requestingMemberId);
+          const targetMember = await storage.getMember(request.targetMemberId);
+          const requestingTree = await storage.getTree(request.requestingTreeId);
+          return {
+            ...request,
+            requestingMember: requestingMember ? {
+              id: requestingMember.id,
+              firstName: requestingMember.firstName,
+              lastName: requestingMember.lastName,
+            } : null,
+            targetMember: targetMember ? {
+              id: targetMember.id,
+              firstName: targetMember.firstName,
+              lastName: targetMember.lastName,
+            } : null,
+            requestingTree: requestingTree ? { id: requestingTree.id, name: requestingTree.name } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedRequests);
+    } catch (error) {
+      console.error("Error getting match requests:", error);
+      res.status(500).json({ message: "Failed to get match requests" });
+    }
+  });
+
+  // Get sent match requests for a tree
+  app.get("/api/trees/:treeId/match-requests/sent", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const requests = await storage.getSentMatchRequests(treeId);
+      
+      // Enrich with member and tree info
+      const enrichedRequests = await Promise.all(
+        requests.map(async (request) => {
+          const requestingMember = await storage.getMember(request.requestingMemberId);
+          const targetMember = await storage.getMember(request.targetMemberId);
+          const targetTree = await storage.getTree(request.targetTreeId);
+          return {
+            ...request,
+            requestingMember: requestingMember ? {
+              id: requestingMember.id,
+              firstName: requestingMember.firstName,
+              lastName: requestingMember.lastName,
+            } : null,
+            targetMember: targetMember ? {
+              id: targetMember.id,
+              firstName: targetMember.firstName,
+              lastName: targetMember.lastName,
+            } : null,
+            targetTree: targetTree ? { id: targetTree.id, name: targetTree.name } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedRequests);
+    } catch (error) {
+      console.error("Error getting sent match requests:", error);
+      res.status(500).json({ message: "Failed to get sent match requests" });
+    }
+  });
+
+  // Create a match request
+  app.post("/api/match-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { requestingMemberId, targetMemberId, message } = req.body;
+      
+      const requestingMember = await storage.getMember(requestingMemberId);
+      if (!requestingMember) {
+        return res.status(404).json({ message: "Requesting member not found" });
+      }
+      
+      const targetMember = await storage.getMember(targetMemberId);
+      if (!targetMember) {
+        return res.status(404).json({ message: "Target member not found" });
+      }
+      
+      const requestingTree = await storage.getTree(requestingMember.treeId);
+      if (!requestingTree) {
+        return res.status(404).json({ message: "Requesting tree not found" });
+      }
+      
+      if (requestingTree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, requestingMember.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const request = await storage.createMatchRequest({
+        requestingTreeId: requestingMember.treeId,
+        requestingMemberId,
+        targetTreeId: targetMember.treeId,
+        targetMemberId,
+        requestedBy: userId,
+        message,
+      });
+      
+      res.status(201).json(request);
+    } catch (error) {
+      console.error("Error creating match request:", error);
+      res.status(500).json({ message: "Failed to create match request" });
+    }
+  });
+
+  // Respond to a match request (accept/decline)
+  app.patch("/api/match-requests/:requestId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      const { status } = req.body;
+      const userId = req.user.claims.sub;
+      
+      const request = await storage.getMatchRequest(requestId);
+      if (!request) {
+        return res.status(404).json({ message: "Match request not found" });
+      }
+      
+      const targetTree = await storage.getTree(request.targetTreeId);
+      if (!targetTree) {
+        return res.status(404).json({ message: "Target tree not found" });
+      }
+      
+      if (targetTree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, request.targetTreeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      if (!["accepted", "declined"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status. Use 'accepted' or 'declined'" });
+      }
+
+      const updated = await storage.updateMatchRequest(requestId, { status });
+      
+      // If accepted, create a tree connection
+      if (status === "accepted" && updated) {
+        await storage.createTreeConnection({
+          tree1Id: request.requestingTreeId,
+          tree2Id: request.targetTreeId,
+          connector1MemberId: request.requestingMemberId,
+          connector2MemberId: request.targetMemberId,
+          connectionType: "shared_member",
+          createdBy: userId,
+        });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error responding to match request:", error);
+      res.status(500).json({ message: "Failed to respond to match request" });
+    }
+  });
+
+  // Delete a match request
+  app.delete("/api/match-requests/:requestId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const request = await storage.getMatchRequest(requestId);
+      if (!request) {
+        return res.status(404).json({ message: "Match request not found" });
+      }
+      
+      // Check if user owns the requesting tree (can cancel) or target tree
+      const requestingTree = await storage.getTree(request.requestingTreeId);
+      const targetTree = await storage.getTree(request.targetTreeId);
+      
+      const ownsRequesting = requestingTree?.ownerId === userId;
+      const ownsTarget = targetTree?.ownerId === userId;
+      
+      if (!ownsRequesting && !ownsTarget) {
+        const requestingCollab = await storage.getCollaboratorByUserAndTree(userId, request.requestingTreeId);
+        const targetCollab = await storage.getCollaboratorByUserAndTree(userId, request.targetTreeId);
+        if (!requestingCollab?.canEdit && !targetCollab?.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      await storage.deleteMatchRequest(requestId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting match request:", error);
+      res.status(500).json({ message: "Failed to delete match request" });
+    }
+  });
+
   // ==================== TREE CONNECTION ROUTES ====================
 
   // Get connections for a tree
