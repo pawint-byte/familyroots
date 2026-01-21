@@ -5,6 +5,20 @@ let connectionSettings: any;
 let stripeConfigured = true;
 
 async function getCredentials() {
+  // First, try environment variables (works in production)
+  const envPublishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+  const envSecretKey = process.env.STRIPE_SECRET_KEY;
+  
+  if (envPublishableKey && envSecretKey) {
+    console.log('Using Stripe credentials from environment variables');
+    stripeConfigured = true;
+    return {
+      publishableKey: envPublishableKey,
+      secretKey: envSecretKey,
+    };
+  }
+
+  // Fallback to Replit connector (development)
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
