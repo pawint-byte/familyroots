@@ -14,7 +14,7 @@ import {
   getAvatars, getVoices, generateVideo, syncVideoStatus, 
   getAllVideos, getVideoById, deleteVideo 
 } from "./heygen";
-import { postToBluesky } from "./bluesky";
+import { postToBluesky, testBlueskyConnection } from "./bluesky";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -534,6 +534,16 @@ export async function registerRoutes(
 
   // HeyGen Video Routes (Admin only)
   
+  // Test Bluesky connection
+  app.get("/api/admin/test-bluesky", isAuthenticated, async (req: any, res) => {
+    try {
+      const result = await testBlueskyConnection();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Get available avatars
   app.get("/api/admin/heygen/avatars", isAuthenticated, async (req: any, res) => {
     try {

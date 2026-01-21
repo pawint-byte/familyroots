@@ -49,6 +49,24 @@ async function fetchAndUploadImage(agent: BskyAgent, imageUrl: string) {
   }
 }
 
+export async function testBlueskyConnection() {
+  try {
+    const agent = await createAgent();
+    const profile = await agent.getProfile({ actor: agent.session?.handle || "" });
+    return {
+      success: true,
+      handle: profile.data.handle,
+      displayName: profile.data.displayName,
+      followersCount: profile.data.followersCount,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
 export async function postToBluesky(params: {
   message: string;
   url: string;
