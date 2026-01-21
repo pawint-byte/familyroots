@@ -1,6 +1,6 @@
 import { 
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
-  treeInvitations, nameHistory, treeConnections, accountHeirs,
+  treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -10,6 +10,8 @@ import {
   type NameHistory, type InsertNameHistory,
   type TreeConnection, type InsertTreeConnection,
   type AccountHeir, type InsertAccountHeir,
+  type EducationHistory, type InsertEducationHistory,
+  type CareerHistory, type InsertCareerHistory,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -83,6 +85,18 @@ export interface IStorage {
   updateAccountHeir(id: string, data: Partial<InsertAccountHeir>): Promise<AccountHeir | undefined>;
   deleteAccountHeir(id: string): Promise<boolean>;
   getHeirsAwaitingTransfer(): Promise<AccountHeir[]>;
+
+  // Education History
+  getEducationHistory(memberId: string): Promise<EducationHistory[]>;
+  createEducationHistory(education: InsertEducationHistory): Promise<EducationHistory>;
+  updateEducationHistory(id: string, data: Partial<InsertEducationHistory>): Promise<EducationHistory | undefined>;
+  deleteEducationHistory(id: string): Promise<boolean>;
+
+  // Career History
+  getCareerHistory(memberId: string): Promise<CareerHistory[]>;
+  createCareerHistory(career: InsertCareerHistory): Promise<CareerHistory>;
+  updateCareerHistory(id: string, data: Partial<InsertCareerHistory>): Promise<CareerHistory | undefined>;
+  deleteCareerHistory(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -406,6 +420,56 @@ export class DatabaseStorage implements IStorage {
   async getHeirsAwaitingTransfer(): Promise<AccountHeir[]> {
     return db.select().from(accountHeirs)
       .where(eq(accountHeirs.status, "notified"));
+  }
+
+  // Education History
+  async getEducationHistory(memberId: string): Promise<EducationHistory[]> {
+    return db.select().from(educationHistory)
+      .where(eq(educationHistory.memberId, memberId))
+      .orderBy(desc(educationHistory.startDate));
+  }
+
+  async createEducationHistory(education: InsertEducationHistory): Promise<EducationHistory> {
+    const [created] = await db.insert(educationHistory).values(education).returning();
+    return created;
+  }
+
+  async updateEducationHistory(id: string, data: Partial<InsertEducationHistory>): Promise<EducationHistory | undefined> {
+    const [updated] = await db.update(educationHistory)
+      .set(data)
+      .where(eq(educationHistory.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteEducationHistory(id: string): Promise<boolean> {
+    await db.delete(educationHistory).where(eq(educationHistory.id, id));
+    return true;
+  }
+
+  // Career History
+  async getCareerHistory(memberId: string): Promise<CareerHistory[]> {
+    return db.select().from(careerHistory)
+      .where(eq(careerHistory.memberId, memberId))
+      .orderBy(desc(careerHistory.startDate));
+  }
+
+  async createCareerHistory(career: InsertCareerHistory): Promise<CareerHistory> {
+    const [created] = await db.insert(careerHistory).values(career).returning();
+    return created;
+  }
+
+  async updateCareerHistory(id: string, data: Partial<InsertCareerHistory>): Promise<CareerHistory | undefined> {
+    const [updated] = await db.update(careerHistory)
+      .set(data)
+      .where(eq(careerHistory.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCareerHistory(id: string): Promise<boolean> {
+    await db.delete(careerHistory).where(eq(careerHistory.id, id));
+    return true;
   }
 }
 
