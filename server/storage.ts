@@ -1,7 +1,7 @@
 import { 
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
   treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
-  discoverableMembers, matchRequests,
+  discoverableMembers, matchRequests, memberInvitations,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -15,6 +15,7 @@ import {
   type CareerHistory, type InsertCareerHistory,
   type DiscoverableMember, type InsertDiscoverableMember,
   type MatchRequest, type InsertMatchRequest,
+  type MemberInvitation, type InsertMemberInvitation,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -115,6 +116,12 @@ export interface IStorage {
   createMatchRequest(request: InsertMatchRequest): Promise<MatchRequest>;
   updateMatchRequest(id: string, data: Partial<InsertMatchRequest>): Promise<MatchRequest | undefined>;
   deleteMatchRequest(id: string): Promise<boolean>;
+
+  // Member Invitations
+  getMemberInvitationByEmail(email: string, memberId: string): Promise<MemberInvitation | undefined>;
+  getMemberInvitationsByEmail(email: string): Promise<MemberInvitation[]>;
+  createMemberInvitation(invitation: InsertMemberInvitation): Promise<MemberInvitation>;
+  updateMemberInvitationStatus(id: string, status: 'clicked' | 'registered'): Promise<MemberInvitation | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -624,6 +631,44 @@ export class DatabaseStorage implements IStorage {
   async deleteMatchRequest(id: string): Promise<boolean> {
     await db.delete(matchRequests).where(eq(matchRequests.id, id));
     return true;
+  }
+
+  // Member Invitations
+  async getMemberInvitationByEmail(email: string, memberId: string): Promise<MemberInvitation | undefined> {
+    const [result] = await db.select().from(memberInvitations)
+      .where(and(
+        eq(memberInvitations.email, email.toLowerCase()),
+        eq(memberInvitations.memberId, memberId)
+      ));
+    return result;
+  }
+
+  async getMemberInvitationsByEmail(email: string): Promise<MemberInvitation[]> {
+    return db.select().from(memberInvitations)
+      .where(eq(memberInvitations.email, email.toLowerCase()))
+      .orderBy(desc(memberInvitations.sentAt));
+  }
+
+  async createMemberInvitation(invitation: InsertMemberInvitation): Promise<MemberInvitation> {
+    const [created] = await db.insert(memberInvitations).values({
+      ...invitation,
+      email: invitation.email.toLowerCase()
+    }).returning();
+    return created;
+  }
+
+  async updateMemberInvitationStatus(id: string, status: 'clicked' | 'registered'): Promise<MemberInvitation | undefined> {
+    const updateData: any = { status };
+    if (status === 'clicked') {
+      updateData.clickedAt = new Date();
+    } else if (status === 'registered') {
+      updateData.registeredAt = new Date();
+    }
+    const [updated] = await db.update(memberInvitations)
+      .set(updateData)
+      .where(eq(memberInvitations.id, id))
+      .returning();
+    return updated;
   }
 }
 

@@ -18,6 +18,7 @@ export const collaboratorRoleEnum = pgEnum("collaborator_role", ["viewer", "edit
 export const nameChangeReasonEnum = pgEnum("name_change_reason", ["birth", "marriage", "divorce", "adoption", "legal", "other"]);
 export const heirStatusEnum = pgEnum("heir_status", ["pending", "notified", "transferred", "cancelled"]);
 export const matchRequestStatusEnum = pgEnum("match_request_status", ["pending", "accepted", "declined", "expired"]);
+export const memberInvitationStatusEnum = pgEnum("member_invitation_status", ["pending", "clicked", "registered"]);
 
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
@@ -224,6 +225,22 @@ export const matchRequests = pgTable("match_requests", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Member Invitations table (track emails sent to non-registered users when added as family members)
+export const memberInvitations = pgTable("member_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull(),
+  memberId: varchar("member_id").notNull(),
+  treeId: varchar("tree_id").notNull(),
+  treeName: text("tree_name").notNull(),
+  invitedBy: varchar("invited_by").notNull(),
+  inviterName: text("inviter_name").notNull(),
+  memberName: text("member_name").notNull(),
+  status: memberInvitationStatusEnum("status").default("pending").notNull(),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  clickedAt: timestamp("clicked_at"),
+  registeredAt: timestamp("registered_at"),
+});
+
 // Relations
 export const familyTreesRelations = relations(familyTrees, ({ many }) => ({
   members: many(familyMembers),
@@ -283,6 +300,17 @@ export const matchRequestsRelations = relations(matchRequests, ({ one }) => ({
   targetMember: one(familyMembers, {
     fields: [matchRequests.targetMemberId],
     references: [familyMembers.id],
+  }),
+}));
+
+export const memberInvitationsRelations = relations(memberInvitations, ({ one }) => ({
+  member: one(familyMembers, {
+    fields: [memberInvitations.memberId],
+    references: [familyMembers.id],
+  }),
+  tree: one(familyTrees, {
+    fields: [memberInvitations.treeId],
+    references: [familyTrees.id],
   }),
 }));
 
@@ -424,6 +452,11 @@ export const insertMatchRequestSchema = createInsertSchema(matchRequests).omit({
   createdAt: true,
 });
 
+export const insertMemberInvitationSchema = createInsertSchema(memberInvitations).omit({
+  id: true,
+  sentAt: true,
+});
+
 // Types
 export type FamilyTree = typeof familyTrees.$inferSelect;
 export type InsertFamilyTree = z.infer<typeof insertFamilyTreeSchema>;
@@ -466,3 +499,6 @@ export type InsertDiscoverableMember = z.infer<typeof insertDiscoverableMemberSc
 
 export type MatchRequest = typeof matchRequests.$inferSelect;
 export type InsertMatchRequest = z.infer<typeof insertMatchRequestSchema>;
+
+export type MemberInvitation = typeof memberInvitations.$inferSelect;
+export type InsertMemberInvitation = z.infer<typeof insertMemberInvitationSchema>;

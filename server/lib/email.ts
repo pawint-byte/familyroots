@@ -310,6 +310,87 @@ export async function sendAccountTransferNotification(
   return sendEmail(to, subject, html);
 }
 
+// Family member invitation email (for non-registered users added to a family tree)
+export async function sendFamilyMemberInvitation(
+  to: string,
+  memberName: string,
+  treeName: string,
+  inviterName: string
+) {
+  const subject = `You've been added to the "${treeName}" family tree!`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .highlight-card { background: white; border-radius: 12px; padding: 25px; margin: 20px 0; border: 2px solid #4F46E5; text-align: center; }
+        .tree-name { font-size: 22px; font-weight: bold; color: #4F46E5; margin-bottom: 8px; }
+        .added-as { color: #6b7280; font-size: 14px; }
+        .member-name { font-size: 18px; font-weight: 600; color: #1f2937; margin-top: 5px; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 14px 35px; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 500; }
+        .feature-list { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border: 1px solid #e5e7eb; }
+        .feature-item { display: flex; align-items: flex-start; margin: 12px 0; }
+        .feature-icon { color: #4F46E5; font-weight: bold; margin-right: 10px; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>You're Part of a Family Tree!</h1>
+      </div>
+      <div class="content">
+        <p>Hi there,</p>
+        <p><strong>${inviterName}</strong> has added you to their family tree on FamilyRoots.</p>
+        
+        <div class="highlight-card">
+          <div class="tree-name">${treeName}</div>
+          <div class="added-as">You've been added as</div>
+          <div class="member-name">${memberName}</div>
+        </div>
+        
+        <p>This means you're part of a growing family network! By joining FamilyRoots, you can:</p>
+        
+        <div class="feature-list">
+          <div class="feature-item">
+            <span class="feature-icon">&#10003;</span>
+            <span><strong>Start your own family tree</strong> - Document your side of the family</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">&#10003;</span>
+            <span><strong>Connect automatically</strong> - Our smart matching links your tree to relatives</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">&#10003;</span>
+            <span><strong>Preserve family stories</strong> - Add photos, dates, and memories</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">&#10003;</span>
+            <span><strong>Discover relatives</strong> - Find family connections you never knew existed</span>
+          </div>
+        </div>
+        
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app" class="button">Join FamilyRoots - It's Free</a>
+        </p>
+        
+        <p style="color: #6b7280; font-size: 14px; text-align: center;">
+          When you sign up with this email address, you'll automatically be connected to ${inviterName}'s tree.
+        </p>
+      </div>
+      <div class="footer">
+        <p>© FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this because ${inviterName} added you as a family member. If this was a mistake, you can safely ignore this email.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
 // Tree update notification
 export async function sendTreeUpdateNotification(
   to: string,

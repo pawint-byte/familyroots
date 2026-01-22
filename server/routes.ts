@@ -37,7 +37,7 @@ import {
   getAllVideos, getVideoById, deleteVideo 
 } from "./heygen";
 import { postToBluesky, testBlueskyConnection } from "./bluesky";
-import { sendInactivityReminder, sendAccountTransferNotification } from "./lib/email";
+import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation } from "./lib/email";
 import { insertAccountHeirSchema } from "@shared/schema";
 
 export async function registerRoutes(
@@ -197,6 +197,53 @@ export async function registerRoutes(
 
       const data = insertFamilyMemberSchema.parse({ ...req.body, treeId });
       const member = await storage.createMember(data);
+
+      // Check if email was provided and if user doesn't exist - send invitation
+      if (member.email) {
+        try {
+          const existingUser = await storage.getUserByEmail(member.email);
+          if (!existingUser) {
+            // Check if we've already sent an invitation for this email+member combo
+            const existingInvitation = await storage.getMemberInvitationByEmail(member.email, member.id);
+            if (!existingInvitation) {
+              // Get the current user's name
+              const currentUser = await storage.getUser(userId);
+              const inviterName = currentUser?.firstName && currentUser?.lastName 
+                ? `${currentUser.firstName} ${currentUser.lastName}` 
+                : currentUser?.firstName || currentUser?.email || "A family member";
+              
+              const memberName = member.lastName 
+                ? `${member.firstName} ${member.lastName}` 
+                : member.firstName;
+
+              // Send invitation email
+              await sendFamilyMemberInvitation(
+                member.email,
+                memberName,
+                tree.name,
+                inviterName
+              );
+
+              // Track the invitation
+              await storage.createMemberInvitation({
+                email: member.email,
+                memberId: member.id,
+                treeId: tree.id,
+                treeName: tree.name,
+                invitedBy: userId,
+                inviterName,
+                memberName
+              });
+
+              console.log(`Sent family member invitation to ${member.email} for tree "${tree.name}"`);
+            }
+          }
+        } catch (emailError) {
+          // Don't fail the member creation if email fails
+          console.error("Error sending member invitation email:", emailError);
+        }
+      }
+
       res.status(201).json(member);
     } catch (error) {
       console.error("Error adding member:", error);
@@ -223,8 +270,12 @@ export async function registerRoutes(
         }
       }
 
+      // Get existing member to check if email is being added
+      const existingMember = await storage.getMember(memberId);
+      const oldEmail = existingMember?.email;
+
       // Validate update data - only allow specific fields
-      const allowedFields = ["firstName", "lastName", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes"];
+      const allowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes"];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
@@ -233,6 +284,53 @@ export async function registerRoutes(
       }
 
       const updated = await storage.updateMember(memberId, updateData);
+
+      // If email was added or changed, check if we should send an invitation
+      if (updated && updated.email && updated.email !== oldEmail) {
+        try {
+          const existingUser = await storage.getUserByEmail(updated.email);
+          if (!existingUser) {
+            // Check if we've already sent an invitation for this email+member combo
+            const existingInvitation = await storage.getMemberInvitationByEmail(updated.email, memberId);
+            if (!existingInvitation) {
+              // Get the current user's name
+              const currentUser = await storage.getUser(userId);
+              const inviterName = currentUser?.firstName && currentUser?.lastName 
+                ? `${currentUser.firstName} ${currentUser.lastName}` 
+                : currentUser?.firstName || currentUser?.email || "A family member";
+              
+              const memberName = updated.lastName 
+                ? `${updated.firstName} ${updated.lastName}` 
+                : updated.firstName;
+
+              // Send invitation email
+              await sendFamilyMemberInvitation(
+                updated.email,
+                memberName,
+                tree.name,
+                inviterName
+              );
+
+              // Track the invitation
+              await storage.createMemberInvitation({
+                email: updated.email,
+                memberId: updated.id,
+                treeId: tree.id,
+                treeName: tree.name,
+                invitedBy: userId,
+                inviterName,
+                memberName
+              });
+
+              console.log(`Sent family member invitation to ${updated.email} for tree "${tree.name}"`);
+            }
+          }
+        } catch (emailError) {
+          // Don't fail the update if email fails
+          console.error("Error sending member invitation email:", emailError);
+        }
+      }
+
       res.json(updated);
     } catch (error) {
       console.error("Error updating member:", error);
