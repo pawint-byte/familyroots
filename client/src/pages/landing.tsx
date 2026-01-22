@@ -4,7 +4,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
 import { useI18n } from "@/lib/i18n";
-import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home } from "lucide-react";
+import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 
@@ -359,6 +359,17 @@ export default function Landing() {
                   <h3 className="font-semibold text-lg">{t.landing.feature6Title}</h3>
                   <p className="text-muted-foreground">
                     {t.landing.feature6Desc}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="hover-elevate group">
+                <CardContent className="p-6 space-y-4">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Shirt className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg">Custom Merchandise</h3>
+                  <p className="text-muted-foreground">
+                    Turn your family tree into keepsakes. Order custom mugs, t-shirts, posters, and more with your tree printed on them - shipped directly to you.
                   </p>
                 </CardContent>
               </Card>

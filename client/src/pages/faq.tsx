@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -165,6 +165,40 @@ export default function FAQ() {
         {
           question: "Is there an AI assistant to help me?",
           answer: "Yes! Look for the Help button at the bottom of any page. Our AI assistant can answer questions about genealogy, help you understand relationship terms, give tips on researching your family history, and guide you through using FamilyRoots features."
+        }
+      ]
+    },
+    {
+      title: "Merchandise & Gifts",
+      icon: <Gift className="h-5 w-5" />,
+      items: [
+        {
+          question: "Can I put my family tree on a mug, t-shirt, or poster?",
+          answer: "Yes! You can export your family tree as a high-quality image and then order custom merchandise directly through our site. Choose from mugs, t-shirts, posters, and more. Your tree is printed on the product and shipped directly to you - all without leaving FamilyRoots."
+        },
+        {
+          question: "How does the merchandise ordering work?",
+          answer: "It's simple: 1) View your family tree, 2) Click 'Create Merchandise', 3) Choose a product (mug, shirt, poster, etc.), 4) Preview how your tree looks on the item, 5) Checkout securely with your card. We handle production and shipping through our print partner."
+        },
+        {
+          question: "What products can I put my family tree on?",
+          answer: "We offer a variety of products including ceramic mugs, t-shirts in various sizes, hoodies, posters, canvas prints, and more. Each product shows a live preview of your tree before you order, so you know exactly what you're getting."
+        },
+        {
+          question: "How long does merchandise take to arrive?",
+          answer: "Most orders are printed and shipped within 2-5 business days. Delivery time depends on your location - typically 5-10 business days for US addresses. You'll receive tracking information via email once your order ships."
+        },
+        {
+          question: "Can I download my family tree as an image?",
+          answer: "Absolutely! You can export your family tree as a high-resolution PNG image at any time. This is great for printing at home, sharing digitally, or using in your own creative projects. Look for the 'Export' button when viewing your tree."
+        },
+        {
+          question: "Are the products good quality?",
+          answer: "Yes! We partner with a professional print-on-demand service that uses high-quality materials and printing techniques. Products are made to order, ensuring fresh production and no excess inventory waste."
+        },
+        {
+          question: "Can I order merchandise as a gift for family members?",
+          answer: "Definitely! Family tree merchandise makes wonderful gifts for reunions, holidays, or special occasions. During checkout, you can ship to any address - perfect for surprising relatives with a personalized family keepsake."
         }
       ]
     }
