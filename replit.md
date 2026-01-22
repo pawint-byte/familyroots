@@ -48,5 +48,8 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
 - **Video Generation**: HeyGen API
 - **Social Media**: Bluesky
 - **Payments**: Stripe (for subscription management and merchandise checkout)
+  - Uses `stripe-replit-sync` library for automated webhook management
+  - Webhooks are auto-configured at `/api/stripe/webhook` - no manual Stripe Dashboard setup required
+  - Stripe data syncs automatically to PostgreSQL database
 - **Print-on-Demand**: Printful API for merchandise fulfillment
 - **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image.
