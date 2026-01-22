@@ -130,6 +130,27 @@ Preferred communication style: Simple, everyday language.
 - Accepted match requests automatically create tree connections between both trees
 - Authorization: All routes verify tree ownership or collaborator edit permissions
 
+### Dynamic Relationship Calculator
+- Shows how any two family members are related within a tree
+- Uses BFS algorithm to find common ancestors and calculate generational distances
+- Supports genealogical terminology:
+  - Direct line: parent, child, grandparent, great-grandparent
+  - Siblings: brother, sister, half-sibling
+  - Extended family: uncle, aunt, nephew, niece
+  - Cousins with "removed" notation (e.g., "first cousin once removed")
+  - Spouses and in-laws
+- API endpoints:
+  - GET `/api/trees/:treeId/relationship?fromMemberId=X&toMemberId=Y` - Calculate relationship between two members
+  - GET `/api/trees/:treeId/subtree?rootMemberId=X` - Get subtree from a member
+- Core implementation: `server/lib/relationship-calculator.ts`
+- UI components:
+  - `client/src/components/relationship-display.tsx`: Shows relationship in member detail sheet
+  - `client/src/components/focus-member-selector.tsx`: Dropdown to select viewing perspective
+- State management:
+  - Uses ID-based state (focusMemberId) with useMemo derivation for stability across re-renders
+  - Focus person persists when closing/opening member detail sheets
+  - RelationshipDisplay appears in detail sheet showing "Viewing from [name]'s perspective"
+
 ### Education & Career History
 - Track education and career/employment history for each family member
 - Database tables:

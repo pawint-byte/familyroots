@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,7 @@ export default function TreeView() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("tree");
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
-  const [focusMember, setFocusMember] = useState<FamilyMember | null>(null);
+  const [focusMemberId, setFocusMemberId] = useState<string | null>(null);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isMemberDetailOpen, setIsMemberDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,6 +65,12 @@ export default function TreeView() {
     queryKey: ["/api/trees", treeId],
     enabled: !!treeId,
   });
+
+  // Derive focusMember from ID for stable state across re-renders
+  const focusMember = useMemo(() => {
+    if (!focusMemberId || !treeData?.members) return null;
+    return treeData.members.find(m => m.id === focusMemberId) || null;
+  }, [focusMemberId, treeData?.members]);
 
   // Query collaborator status
   const { data: collaborators } = useQuery<Array<{userId: string; role: string}>>({
@@ -436,16 +442,8 @@ export default function TreeView() {
                   <FocusMemberSelector
                     members={treeData.members}
                     focusMember={focusMember}
-                    onSelectFocus={setFocusMember}
+                    onSelectFocus={(member) => setFocusMemberId(member?.id || null)}
                   />
-                  {focusMember && selectedMember && treeId && (
-                    <RelationshipDisplay
-                      treeId={treeId}
-                      focusMember={focusMember}
-                      selectedMember={selectedMember}
-                      onClearFocus={() => setFocusMember(null)}
-                    />
-                  )}
                 </div>
                 <FamilyTreeVisualization
                   members={treeData.members}
@@ -616,12 +614,11 @@ export default function TreeView() {
               </SheetHeader>
 
               {/* Relationship to focus person */}
-              {focusMember && treeId && focusMember.id !== selectedMember.id && (
+              {focusMember && treeId && (
                 <RelationshipDisplay
                   treeId={treeId}
                   focusMember={focusMember}
                   selectedMember={selectedMember}
-                  onClearFocus={() => setFocusMember(null)}
                 />
               )}
 
@@ -693,13 +690,13 @@ export default function TreeView() {
 
                 <div className="flex gap-2 pt-4 border-t border-border flex-wrap">
                   <Button 
-                    variant={focusMember?.id === selectedMember.id ? "default" : "outline"} 
+                    variant={focusMemberId === selectedMember.id ? "default" : "outline"} 
                     className="gap-2"
-                    onClick={() => setFocusMember(focusMember?.id === selectedMember.id ? null : selectedMember)}
+                    onClick={() => setFocusMemberId(focusMemberId === selectedMember.id ? null : selectedMember.id)}
                     data-testid="button-set-focus"
                   >
                     <User className="h-4 w-4" />
-                    {focusMember?.id === selectedMember.id ? "Focus Set" : "Set as Focus"}
+                    {focusMemberId === selectedMember.id ? "Focus Set" : "Set as Focus"}
                   </Button>
                   <Button variant="outline" className="flex-1 gap-2" data-testid="button-edit-member">
                     <Edit className="h-4 w-4" />
