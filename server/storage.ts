@@ -120,6 +120,7 @@ export interface IStorage {
   // Member Invitations
   getMemberInvitationByEmail(email: string, memberId: string): Promise<MemberInvitation | undefined>;
   getMemberInvitationsByEmail(email: string): Promise<MemberInvitation[]>;
+  getMemberInvitationsByTree(treeId: string): Promise<MemberInvitation[]>;
   createMemberInvitation(invitation: InsertMemberInvitation): Promise<MemberInvitation>;
   updateMemberInvitationStatus(id: string, status: 'clicked' | 'registered'): Promise<MemberInvitation | undefined>;
 }
@@ -646,6 +647,12 @@ export class DatabaseStorage implements IStorage {
   async getMemberInvitationsByEmail(email: string): Promise<MemberInvitation[]> {
     return db.select().from(memberInvitations)
       .where(eq(memberInvitations.email, email.toLowerCase()))
+      .orderBy(desc(memberInvitations.sentAt));
+  }
+
+  async getMemberInvitationsByTree(treeId: string): Promise<MemberInvitation[]> {
+    return db.select().from(memberInvitations)
+      .where(eq(memberInvitations.treeId, treeId))
       .orderBy(desc(memberInvitations.sentAt));
   }
 

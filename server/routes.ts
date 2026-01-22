@@ -226,12 +226,14 @@ export async function registerRoutes(
                 : member.firstName;
 
               // Send invitation email
+              console.log(`Attempting to send invitation to ${member.email} for member "${memberName}" in tree "${tree.name}"...`);
               await sendFamilyMemberInvitation(
                 member.email,
                 memberName,
                 tree.name,
                 inviterName
               );
+              console.log(`Successfully sent invitation email to ${member.email}`);
 
               // Track the invitation
               await storage.createMemberInvitation({
@@ -244,12 +246,16 @@ export async function registerRoutes(
                 memberName
               });
 
-              console.log(`Sent family member invitation to ${member.email} for tree "${tree.name}"`);
+              console.log(`Recorded invitation in database for ${member.email}`);
+            } else {
+              console.log(`Skipping invitation to ${member.email} - already sent previously`);
             }
+          } else {
+            console.log(`Skipping invitation to ${member.email} - user already exists in system`);
           }
-        } catch (emailError) {
+        } catch (emailError: any) {
           // Don't fail the member creation if email fails
-          console.error("Error sending member invitation email:", emailError);
+          console.error(`Error sending member invitation email to ${member.email}:`, emailError?.message || emailError);
         }
       }
 
@@ -919,6 +925,84 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error removing collaborator:", error);
       res.status(500).json({ message: "Failed to remove collaborator" });
+    }
+  });
+
+  // ==================== MEMBER INVITATIONS ROUTES ====================
+
+  // Get all member invitations for a tree (for tracking email status)
+  app.get("/api/trees/:treeId/member-invitations", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      // Check ownership or collaboration
+      if (tree.ownerId !== userId) {
+        const collaboration = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collaboration) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const invitations = await storage.getMemberInvitationsByTree(treeId);
+      res.json(invitations);
+    } catch (error) {
+      console.error("Error fetching member invitations:", error);
+      res.status(500).json({ message: "Failed to fetch member invitations" });
+    }
+  });
+
+  // Resend invitation email for a member
+  app.post("/api/trees/:treeId/member-invitations/:invitationId/resend", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, invitationId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      // Check ownership or editor permission
+      if (tree.ownerId !== userId) {
+        const collaboration = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collaboration || collaboration.role === 'viewer') {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      // Get the invitation
+      const invitations = await storage.getMemberInvitationsByTree(treeId);
+      const invitation = invitations.find(inv => inv.id === invitationId);
+      if (!invitation) {
+        return res.status(404).json({ message: "Invitation not found" });
+      }
+
+      // Get the current user's name
+      const currentUser = await storage.getUser(userId);
+      const inviterName = currentUser?.firstName && currentUser?.lastName 
+        ? `${currentUser.firstName} ${currentUser.lastName}` 
+        : currentUser?.firstName || currentUser?.email || "A family member";
+
+      // Resend the email
+      console.log(`Resending invitation to ${invitation.email} for tree "${tree.name}"...`);
+      await sendFamilyMemberInvitation(
+        invitation.email,
+        invitation.memberName,
+        tree.name,
+        inviterName
+      );
+      console.log(`Successfully resent invitation to ${invitation.email}`);
+
+      res.json({ message: "Invitation resent successfully" });
+    } catch (error: any) {
+      console.error("Error resending invitation:", error);
+      res.status(500).json({ message: error?.message || "Failed to resend invitation" });
     }
   });
 

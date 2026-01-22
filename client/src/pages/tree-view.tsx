@@ -31,6 +31,7 @@ import MemberForm from "@/components/member-form";
 import { NameHistorySection } from "@/components/name-history";
 import { MemberDiscoverability } from "@/components/member-discoverability";
 import { MatchRequests } from "@/components/match-requests";
+import { InvitationStatus } from "@/components/invitation-status";
 import { EducationHistorySection } from "@/components/education-history";
 import { CareerHistorySection } from "@/components/career-history";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
@@ -596,6 +597,13 @@ export default function TreeView() {
                     <Plus className="h-4 w-4" />
                     Add Member
                   </Button>
+                </div>
+              )}
+
+              {/* Email Invitation Status - visible to tree owner/editors */}
+              {treeData?.tree && canEdit && (
+                <div className="mt-6" data-testid="invitation-status-panel">
+                  <InvitationStatus treeId={treeData.tree.id} />
                 </div>
               )}
             </div>
