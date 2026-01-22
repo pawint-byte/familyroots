@@ -14,7 +14,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
-  Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle
+  Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
+  AlertTriangle, Info, Sparkles
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
@@ -26,6 +27,9 @@ interface Product {
   category: string;
   basePrice: number;
   image: string;
+  maxMembers?: number;
+  printArea?: string;
+  recommendation?: string;
 }
 
 interface Variant {
@@ -55,11 +59,17 @@ function getCategoryIcon(category: string) {
 
 function ProductCard({ 
   product, 
-  onCustomize 
+  onCustomize,
+  memberCount 
 }: { 
   product: Product; 
   onCustomize: (product: Product) => void;
+  memberCount?: number;
 }) {
+  const isSuitable = !memberCount || !product.maxMembers || memberCount <= product.maxMembers;
+  const isRecommended = memberCount && product.maxMembers && memberCount <= product.maxMembers && 
+    (product.printArea === 'full' || memberCount <= product.maxMembers * 0.8);
+  
   return (
     <Card className="overflow-hidden hover-elevate" data-testid={`card-product-${product.id}`}>
       <div className="aspect-square bg-muted relative overflow-hidden">
@@ -69,12 +79,23 @@ function ProductCard({
           className="w-full h-full object-cover"
           loading="lazy"
         />
-        <Badge 
-          className="absolute top-2 right-2" 
-          variant="secondary"
-        >
-          {product.category}
-        </Badge>
+        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+          <Badge variant="secondary">
+            {product.category}
+          </Badge>
+          {memberCount && isRecommended && (
+            <Badge className="bg-green-600 text-white">
+              <Sparkles className="h-3 w-3 mr-1" />
+              Recommended
+            </Badge>
+          )}
+          {memberCount && !isSuitable && (
+            <Badge variant="destructive">
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              Too Small
+            </Badge>
+          )}
+        </div>
       </div>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
@@ -84,6 +105,12 @@ function ProductCard({
         <CardDescription className="line-clamp-2">
           {product.description}
         </CardDescription>
+        {product.recommendation && (
+          <p className="text-xs text-muted-foreground mt-1 flex items-start gap-1">
+            <Info className="h-3 w-3 mt-0.5 shrink-0" />
+            {product.recommendation}
+          </p>
+        )}
       </CardHeader>
       <CardFooter className="flex justify-between items-center">
         <div className="text-lg font-semibold">
@@ -145,8 +172,14 @@ function ProductCustomizer({
     enabled: !!product.id,
   });
 
+  const { data: treeMembers = [] } = useQuery<{ id: number }[]>({
+    queryKey: ["/api/trees", selectedTreeId, "members"],
+    enabled: !!selectedTreeId,
+  });
+
   const selectedVariant = variants.find(v => v.id === selectedVariantId);
   const selectedTree = trees.find(t => t.id === selectedTreeId);
+  const treeMemberCount = treeMembers.length;
 
   const subtotal = selectedVariant 
     ? parseFloat(selectedVariant.price) * quantity * 100 
@@ -222,26 +255,69 @@ function ProductCustomizer({
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         <div className="space-y-4">
-          <div className="aspect-square bg-muted rounded-lg overflow-hidden">
+          <div className="aspect-square bg-muted rounded-lg overflow-hidden relative">
             <img 
               src={selectedVariant?.image || product.image}
               alt={product.name}
               className="w-full h-full object-cover"
             />
+            {selectedTree && selectedTreeId && (
+              <div className="absolute inset-0 flex items-center justify-center p-4">
+                <div 
+                  className={`bg-white/90 dark:bg-gray-900/90 rounded-lg shadow-lg overflow-hidden ${
+                    product.printArea === 'wrap' ? 'w-3/4 h-1/2' : 
+                    product.printArea === 'front' ? 'w-1/2 h-1/2' : 
+                    'w-3/4 h-3/4'
+                  }`}
+                >
+                  <img 
+                    src={`/api/trees/${selectedTreeId}/export`}
+                    alt="Tree Preview"
+                    className="w-full h-full object-contain p-2"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {selectedTree && (
+              <div className="absolute bottom-2 left-2 right-2">
+                <Badge variant="secondary" className="text-xs">
+                  Print Preview: {selectedTree.name}
+                </Badge>
+              </div>
+            )}
           </div>
           
-          {selectedTree && (
-            <Card className="bg-muted/50">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <TreeDeciduous className="h-4 w-4" />
-                  Preview: {selectedTree.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                Your family tree will be printed on this product. Export your tree first to ensure the best quality.
-              </CardContent>
-            </Card>
+          {selectedTree && product.maxMembers && (
+            <Alert variant={treeMemberCount > product.maxMembers ? "destructive" : "default"}>
+              {treeMemberCount > product.maxMembers ? (
+                <>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Tree may be too large</AlertTitle>
+                  <AlertDescription>
+                    Your tree has {treeMemberCount} members. This product works best with up to {product.maxMembers} members. 
+                    Consider a poster or tote bag for larger trees.
+                  </AlertDescription>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertTitle>Great fit!</AlertTitle>
+                  <AlertDescription>
+                    Your tree ({treeMemberCount} members) fits well on this product (up to {product.maxMembers} members).
+                  </AlertDescription>
+                </>
+              )}
+            </Alert>
+          )}
+          
+          {product.recommendation && (
+            <p className="text-xs text-muted-foreground flex items-start gap-1">
+              <Info className="h-3 w-3 mt-0.5 shrink-0" />
+              {product.recommendation}
+            </p>
           )}
         </div>
 
@@ -647,6 +723,15 @@ export default function MerchandisePage() {
     enabled: !!user,
   });
 
+  const firstTreeId = trees.length > 0 ? trees[0].id : null;
+  
+  const { data: firstTreeMembers = [] } = useQuery<{ id: number }[]>({
+    queryKey: ["/api/trees", firstTreeId, "members"],
+    enabled: !!firstTreeId,
+  });
+
+  const memberCount = firstTreeMembers.length;
+
   const { data: orders = [], refetch: refetchOrders } = useQuery<MerchandiseOrder[]>({
     queryKey: ["/api/merchandise/orders"],
     enabled: !!user,
@@ -733,7 +818,7 @@ export default function MerchandisePage() {
               </CardDescription>
             </CardHeader>
             <CardFooter>
-              <Button onClick={() => navigate("/api/login")} className="w-full" data-testid="button-sign-in">
+              <Button onClick={() => window.location.href = "/api/login"} className="w-full" data-testid="button-sign-in">
                 Sign In to Continue
               </Button>
             </CardFooter>
@@ -793,6 +878,7 @@ export default function MerchandisePage() {
                       key={product.id}
                       product={product}
                       onCustomize={setSelectedProduct}
+                      memberCount={memberCount > 0 ? memberCount : undefined}
                     />
                   ))}
                 </div>

@@ -306,6 +306,9 @@ class PrintfulService {
         category: 'drinkware',
         basePrice: 7.95,
         image: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=400&h=400&fit=crop&q=80',
+        maxMembers: 15,
+        printArea: 'wrap',
+        recommendation: 'Best for small trees (up to 15 members). Tree wraps around the mug.',
       },
       {
         id: 71,
@@ -314,6 +317,9 @@ class PrintfulService {
         category: 'apparel',
         basePrice: 11.69,
         image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop&q=80',
+        maxMembers: 25,
+        printArea: 'front',
+        recommendation: 'Best for medium trees (up to 25 members). Printed on front chest area.',
       },
       {
         id: 1,
@@ -322,6 +328,9 @@ class PrintfulService {
         category: 'home-decor',
         basePrice: 8.00,
         image: 'https://images.unsplash.com/photo-1513519245088-0e12902e35ca?w=400&h=400&fit=crop&q=80',
+        maxMembers: 100,
+        printArea: 'full',
+        recommendation: 'Best for large trees (any size). Full poster shows complete detail.',
       },
       {
         id: 380,
@@ -330,6 +339,9 @@ class PrintfulService {
         category: 'home-decor',
         basePrice: 16.95,
         image: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?w=400&h=400&fit=crop&q=80',
+        maxMembers: 20,
+        printArea: 'front',
+        recommendation: 'Best for small-medium trees (up to 20 members). Printed on pillow face.',
       },
       {
         id: 181,
@@ -338,6 +350,9 @@ class PrintfulService {
         category: 'accessories',
         basePrice: 13.95,
         image: 'https://images.unsplash.com/photo-1597633125097-5a9ae3a9a4f8?w=400&h=400&fit=crop&q=80',
+        maxMembers: 30,
+        printArea: 'full',
+        recommendation: 'Great for medium trees (up to 30 members). All-over print shows detail.',
       },
     ];
   }
