@@ -15,8 +15,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
-  AlertTriangle, Info, Sparkles
+  AlertTriangle, Info, Sparkles, Wallet
 } from "lucide-react";
+import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
 
@@ -867,7 +868,7 @@ export default function MerchandisePage() {
                 </div>
               )}
 
-              <div className="mt-12 grid md:grid-cols-3 gap-6">
+              <div className="mt-12 grid md:grid-cols-4 gap-6">
                 <Card>
                   <CardContent className="pt-6 text-center">
                     <Check className="h-8 w-8 mx-auto text-green-500 mb-3" />
@@ -892,6 +893,19 @@ export default function MerchandisePage() {
                     <h3 className="font-semibold mb-1">Perfect Gift</h3>
                     <p className="text-sm text-muted-foreground">
                       Unique personalized gifts for family members
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <CreditCard className="h-6 w-6 text-primary" />
+                      <SiBitcoin className="h-6 w-6 text-orange-500" />
+                      <SiEthereum className="h-6 w-6 text-purple-500" />
+                    </div>
+                    <h3 className="font-semibold mb-1">Pay Your Way</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Cards, Bitcoin, Ethereum & stablecoins accepted
                     </p>
                   </CardContent>
                 </Card>
@@ -923,8 +937,8 @@ export default function MerchandisePage() {
               <AlertDescription>
                 Sign in to customize products with your family tree and place orders.
                 <Button 
-                  variant="link" 
-                  className="px-1 text-primary"
+                  variant="ghost" 
+                  className="px-1 text-primary underline"
                   onClick={() => window.location.href = "/api/login"}
                   data-testid="button-sign-in"
                 >

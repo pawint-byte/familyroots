@@ -203,6 +203,22 @@ export default function FAQ() {
         {
           question: "Can I order merchandise as a gift for family members?",
           answer: "Definitely! Family tree merchandise makes wonderful gifts for reunions, holidays, or special occasions. During checkout, you can ship to any address - perfect for surprising relatives with a personalized family keepsake."
+        },
+        {
+          question: "What payment methods do you accept?",
+          answer: "We accept all major credit and debit cards (Visa, Mastercard, American Express, Discover) as well as cryptocurrency including Bitcoin, Ethereum, and stablecoins like USDC. All payments are processed securely through Stripe."
+        },
+        {
+          question: "How do crypto payments work?",
+          answer: "When you checkout, you can choose to pay with cryptocurrency. Simply select the crypto option, connect your wallet (like MetaMask), and complete the payment. The crypto is instantly converted to USD - you don't need to worry about price changes. Your order is processed exactly the same as a credit card payment."
+        },
+        {
+          question: "If I pay with crypto, do you receive crypto or dollars?",
+          answer: "We receive US dollars. When you pay with Bitcoin, Ethereum, or any other cryptocurrency, it's instantly converted to USD at the current exchange rate. This means your payment is processed immediately and your order ships right away - no waiting for crypto confirmations."
+        },
+        {
+          question: "Is paying with crypto safe?",
+          answer: "Yes! Crypto payments are processed securely through Stripe, the same trusted payment processor used by millions of businesses worldwide. Your wallet connects directly to Stripe - we never see or store your crypto wallet information."
         }
       ]
     }
