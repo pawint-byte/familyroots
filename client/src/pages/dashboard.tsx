@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2 } from "lucide-react";
+import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
@@ -169,6 +169,18 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/merchandise")} className="hidden sm:flex gap-1" data-testid="link-merchandise">
+              <ShoppingBag className="h-4 w-4" />
+              <span className="hidden md:inline">Shop</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/gifts")} className="hidden sm:flex gap-1" data-testid="link-gifts">
+              <Gift className="h-4 w-4" />
+              <span className="hidden md:inline">Gifts</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/share")} className="hidden sm:flex gap-1" data-testid="link-share">
+              <QrCode className="h-4 w-4" />
+              <span className="hidden md:inline">Share</span>
+            </Button>
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -182,6 +194,31 @@ export default function Dashboard() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 sm:hidden"
+                  onClick={() => navigate("/merchandise")}
+                  data-testid="menu-merchandise"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  <span>Shop Merchandise</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 sm:hidden"
+                  onClick={() => navigate("/gifts")}
+                  data-testid="menu-gifts"
+                >
+                  <Gift className="h-4 w-4" />
+                  <span>Gift Ideas</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 sm:hidden"
+                  onClick={() => navigate("/share")}
+                  data-testid="menu-share"
+                >
+                  <QrCode className="h-4 w-4" />
+                  <span>Share App</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="sm:hidden" />
                 <DropdownMenuItem 
                   className="flex items-center gap-2"
                   onClick={() => navigate("/account/settings")}
