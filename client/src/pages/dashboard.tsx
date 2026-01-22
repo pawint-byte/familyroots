@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode } from "lucide-react";
+import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
@@ -169,6 +169,39 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="sm:hidden" data-testid="button-mobile-menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/merchandise")}
+                  data-testid="mobile-menu-merchandise"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  <span>Shop Merchandise</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/gifts")}
+                  data-testid="mobile-menu-gifts"
+                >
+                  <Gift className="h-4 w-4" />
+                  <span>Gift Ideas</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/share")}
+                  data-testid="mobile-menu-share"
+                >
+                  <QrCode className="h-4 w-4" />
+                  <span>Share App</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="ghost" size="sm" onClick={() => navigate("/merchandise")} className="hidden sm:flex gap-1" data-testid="link-merchandise">
               <ShoppingBag className="h-4 w-4" />
               <span className="hidden md:inline">Shop</span>
