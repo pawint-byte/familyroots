@@ -37,6 +37,7 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
 - **Gifts & Products Page**: Curated list of family tree-related products linking to external marketplaces.
 - **Tree Export**: Users can export their family tree visualization as a high-resolution PNG image with theme-aware backgrounds (white for light mode, dark for dark mode) using html-to-image library.
 - **Custom Merchandise (Print-on-Demand)**: Users can order custom products (mugs, t-shirts, posters, pillows, tote bags) with their family tree printed on them via Printful integration. Features include product catalog, variant selection (size/color), Stripe checkout for payment, and order tracking. Commission is added to orders for revenue.
+- **QR Code Sharing**: A share page (/share) displays a scannable QR code linking to the app, with options to copy the URL, download the QR code as PNG, or use the native share dialog on mobile devices.
 
 ## External Dependencies
 

@@ -18,6 +18,7 @@ import JoinTree from "@/pages/join-tree";
 import AccountSettings from "@/pages/account-settings";
 import FAQ from "@/pages/faq";
 import Merchandise from "@/pages/merchandise";
+import Share from "@/pages/share";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -47,6 +48,7 @@ function Router() {
       <Route path="/account/settings" component={AccountSettings} />
       <Route path="/faq" component={FAQ} />
       <Route path="/merchandise" component={Merchandise} />
+      <Route path="/share" component={Share} />
       <Route component={NotFound} />
     </Switch>
   );
