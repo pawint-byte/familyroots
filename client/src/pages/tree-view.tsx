@@ -36,6 +36,7 @@ import { CareerHistorySection } from "@/components/career-history";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import TimelineView from "@/components/timeline-view";
 import { RelationshipDisplay, FocusMemberSelector } from "@/components/relationship-display";
+import { AddRelationship } from "@/components/add-relationship";
 
 interface TreeData {
   tree: FamilyTree;
@@ -58,6 +59,7 @@ export default function TreeView() {
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [newTreeName, setNewTreeName] = useState("");
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
 
   const treeId = params?.id;
 
@@ -125,6 +127,29 @@ export default function TreeView() {
       toast({
         title: "Error",
         description: "Failed to remove family member",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMemberMutation = useMutation({
+    mutationFn: async (data: { memberId: string; updates: Partial<InsertFamilyMember> }): Promise<FamilyMember> => {
+      const response = await apiRequest("PATCH", `/api/trees/${treeId}/members/${data.memberId}`, data.updates);
+      return response.json();
+    },
+    onSuccess: (updatedMember: FamilyMember) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      setIsEditMemberOpen(false);
+      setSelectedMember(updatedMember);
+      toast({
+        title: "Success",
+        description: "Family member updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update family member",
         variant: "destructive",
       });
     },
@@ -688,6 +713,19 @@ export default function TreeView() {
                   canEdit={canEdit}
                 />
 
+                {/* Add Relationship Button */}
+                {canEdit && treeData && (
+                  <div className="pt-4 border-t border-border">
+                    <AddRelationship
+                      treeId={treeData.tree.id}
+                      currentMember={selectedMember}
+                      allMembers={treeData.members}
+                      existingRelationships={treeData.relationships}
+                      canEdit={canEdit}
+                    />
+                  </div>
+                )}
+
                 <div className="flex gap-2 pt-4 border-t border-border flex-wrap">
                   <Button 
                     variant={focusMemberId === selectedMember.id ? "default" : "outline"} 
@@ -698,7 +736,12 @@ export default function TreeView() {
                     <User className="h-4 w-4" />
                     {focusMemberId === selectedMember.id ? "Focus Set" : "Set as Focus"}
                   </Button>
-                  <Button variant="outline" className="flex-1 gap-2" data-testid="button-edit-member">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 gap-2" 
+                    data-testid="button-edit-member"
+                    onClick={() => setIsEditMemberOpen(true)}
+                  >
                     <Edit className="h-4 w-4" />
                     Edit
                   </Button>
@@ -727,6 +770,40 @@ export default function TreeView() {
           treeName={treeData.tree.name}
         />
       )}
+
+      {/* Edit Member Dialog */}
+      <Dialog open={isEditMemberOpen} onOpenChange={setIsEditMemberOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Family Member</DialogTitle>
+          </DialogHeader>
+          {selectedMember && treeData?.tree && (
+            <MemberForm
+              treeId={treeData.tree.id}
+              initialData={{
+                firstName: selectedMember.firstName,
+                lastName: selectedMember.lastName || undefined,
+                nickname: selectedMember.nickname || undefined,
+                email: selectedMember.email || undefined,
+                gender: selectedMember.gender || undefined,
+                birthDate: selectedMember.birthDate || undefined,
+                birthPlace: selectedMember.birthPlace || undefined,
+                deathDate: selectedMember.deathDate || undefined,
+                isLiving: selectedMember.isLiving ?? true,
+                photoUrl: selectedMember.photoUrl || undefined,
+                notes: selectedMember.notes || undefined,
+              }}
+              onSubmit={(data) => {
+                updateMemberMutation.mutate({
+                  memberId: selectedMember.id,
+                  updates: data,
+                });
+              }}
+              isLoading={updateMemberMutation.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Match Requests Section - visible to tree owner/editors */}
       {treeData?.tree && canEdit && (
