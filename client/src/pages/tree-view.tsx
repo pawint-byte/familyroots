@@ -22,8 +22,9 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
-  ChevronRight, Filter, Download, Upload, Clock, Star
+  ChevronRight, Filter, Download, Upload, Clock, Star, Image
 } from "lucide-react";
+import { toPng } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from "@shared/schema";
 import FamilyTreeVisualization from "@/components/family-tree-visualization";
@@ -61,6 +62,8 @@ export default function TreeView() {
   const [newTreeName, setNewTreeName] = useState("");
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const treeContainerRef = useRef<HTMLDivElement>(null);
 
   const treeId = params?.id;
 
@@ -243,6 +246,49 @@ export default function TreeView() {
     }
   };
 
+  const handleExportImage = async () => {
+    if (!treeContainerRef.current) {
+      toast({
+        title: "Export Error",
+        description: "Tree visualization not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      const backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff';
+      
+      const dataUrl = await toPng(treeContainerRef.current, {
+        backgroundColor,
+        quality: 1.0,
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+
+      const link = document.createElement('a');
+      link.download = `${treeData?.tree.name || 'family-tree'}-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = dataUrl;
+      link.click();
+
+      toast({
+        title: "Success",
+        description: "Family tree exported as image",
+      });
+    } catch (err) {
+      console.error('Export failed:', err);
+      toast({
+        title: "Export Failed",
+        description: "Could not export the family tree. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleMemberClick = (member: FamilyMember) => {
     setSelectedMember(member);
     setIsMemberDetailOpen(true);
@@ -354,6 +400,15 @@ export default function TreeView() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  className="gap-2" 
+                  onClick={handleExportImage}
+                  disabled={isExporting}
+                  data-testid="button-export-image"
+                >
+                  <Image className="h-4 w-4" />
+                  {isExporting ? "Exporting..." : "Export as Image"}
+                </DropdownMenuItem>
                 <DropdownMenuItem className="gap-2">
                   <Download className="h-4 w-4" />
                   Export GEDCOM
@@ -499,13 +554,15 @@ export default function TreeView() {
                     onSelectFocus={(member) => setFocusMemberId(member?.id || null)}
                   />
                 </div>
-                <FamilyTreeVisualization
-                  members={treeData.members}
-                  relationships={treeData.relationships || []}
-                  zoom={zoom}
-                  onMemberClick={handleMemberClick}
-                  focusMemberId={focusMemberId}
-                />
+                <div ref={treeContainerRef} className="w-full h-full">
+                  <FamilyTreeVisualization
+                    members={treeData.members}
+                    relationships={treeData.relationships || []}
+                    zoom={zoom}
+                    onMemberClick={handleMemberClick}
+                    focusMemberId={focusMemberId}
+                  />
+                </div>
                 <div className="absolute bottom-4 right-4 flex flex-col gap-2">
                   <Button 
                     variant="secondary" 
