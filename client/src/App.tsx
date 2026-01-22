@@ -16,6 +16,7 @@ import AdminVideos from "@/pages/admin-videos";
 import VideoPage from "@/pages/video";
 import JoinTree from "@/pages/join-tree";
 import AccountSettings from "@/pages/account-settings";
+import FAQ from "@/pages/faq";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/video/:id" component={VideoPage} />
       <Route path="/join/:inviteCode" component={JoinTree} />
       <Route path="/account/settings" component={AccountSettings} />
+      <Route path="/faq" component={FAQ} />
       <Route component={NotFound} />
     </Switch>
   );

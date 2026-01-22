@@ -30,6 +30,7 @@ export default function Landing() {
             <a href="#testimonials" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-testimonials">{t.nav.testimonials}</a>
             <a href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">{t.nav.pricing}</a>
             <a href="/gifts" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-gifts">{t.nav.gifts}</a>
+            <a href="/faq" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-faq">FAQ</a>
           </nav>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
@@ -465,6 +466,7 @@ export default function Landing() {
               {new Date().getFullYear()} FamilyRoots. All rights reserved.
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <a href="/faq" className="hover:text-foreground transition-colors">FAQ</a>
               <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
               <a href="#" className="hover:text-foreground transition-colors">Terms</a>
               <a href="mailto:pawint@me.com" className="hover:text-foreground transition-colors">Contact</a>
