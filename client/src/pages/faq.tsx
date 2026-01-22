@@ -29,6 +29,32 @@ export default function FAQ() {
 
   const faqCategories: FAQCategory[] = [
     {
+      title: "Getting Started",
+      icon: <TreeDeciduous className="h-5 w-5" />,
+      items: [
+        {
+          question: "How should I start building my family tree?",
+          answer: "Start by adding yourself first! When you create a tree and add yourself as the first person, you automatically become the 'Main Person' that the tree centers around. From there, add your closest relatives: your parents, siblings, spouse/partner, and children. This creates the core structure of your tree, and you can branch out from there to grandparents, aunts, uncles, and cousins."
+        },
+        {
+          question: "What is the 'Main Person' in my tree?",
+          answer: "The Main Person is who the tree focuses on by default when you or anyone else opens it. The first person you add becomes the Main Person automatically. You can change this anytime by clicking on any family member and tapping 'Set as Main'. This is helpful if you're building a tree centered around a grandparent or another relative."
+        },
+        {
+          question: "What order should I add family members?",
+          answer: "We recommend this order: 1) Add yourself first, 2) Add your parents, 3) Add your siblings, 4) Add your spouse/partner and children, 5) Add grandparents, 6) Branch out to aunts, uncles, and cousins. This builds a strong foundation and makes it easier to add relationships correctly."
+        },
+        {
+          question: "How do I add relationships between family members?",
+          answer: "After adding family members, click on any person in the tree, then tap 'Add Relationship'. Choose the relationship type (Parent, Child, Spouse, or Sibling) and select the other person. For example, to connect yourself to your mother: click on yourself, add relationship, select 'Parent', and choose your mother."
+        },
+        {
+          question: "Can I view the tree from a different person's perspective?",
+          answer: "Yes! Click on any family member in the tree and tap 'Set as Focus'. The tree will recenter to show that person's connections. This is temporary - the tree will return to the Main Person next time you open it. To permanently change the center point, use 'Set as Main' instead."
+        }
+      ]
+    },
+    {
       title: "Account & Subscription",
       icon: <CreditCard className="h-5 w-5" />,
       items: [
