@@ -22,7 +22,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
-  ChevronRight, Filter, Download, Upload, Clock, Star, Image
+  ChevronRight, Filter, Download, Upload, Clock, Star, Image,
+  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard
 } from "lucide-react";
 import { toPng } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -432,6 +433,48 @@ export default function TreeView() {
                     </DropdownMenuItem>
                   </>
                 )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" data-testid="button-nav-menu">
+                  <Menu className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  className="gap-2"
+                  onClick={() => navigate("/")}
+                  data-testid="menu-dashboard"
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="gap-2"
+                  onClick={() => navigate("/merchandise")}
+                  data-testid="menu-shop"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  Shop Merchandise
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="gap-2"
+                  onClick={() => navigate("/gifts")}
+                  data-testid="menu-gifts"
+                >
+                  <Gift className="h-4 w-4" />
+                  Gift Ideas
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="gap-2"
+                  onClick={() => navigate("/share")}
+                  data-testid="menu-share-app"
+                >
+                  <QrCode className="h-4 w-4" />
+                  Share App
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <ThemeToggle />
