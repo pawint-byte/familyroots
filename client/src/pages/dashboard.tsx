@@ -182,7 +182,7 @@ export default function Dashboard() {
                   data-testid="mobile-menu-merchandise"
                 >
                   <ShoppingBag className="h-4 w-4" />
-                  <span>Shop Merchandise</span>
+                  <span>Print My Tree on Products</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-center gap-2"
@@ -190,7 +190,7 @@ export default function Dashboard() {
                   data-testid="mobile-menu-gifts"
                 >
                   <Gift className="h-4 w-4" />
-                  <span>Gift Ideas</span>
+                  <span>Browse Gift Ideas</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-center gap-2"

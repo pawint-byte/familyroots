@@ -448,7 +448,7 @@ export default function TreeView() {
                   data-testid="menu-shop"
                 >
                   <ShoppingBag className="h-4 w-4" />
-                  Shop Merchandise
+                  Print My Tree on Products
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="gap-2"
@@ -456,7 +456,7 @@ export default function TreeView() {
                   data-testid="menu-gifts"
                 >
                   <Gift className="h-4 w-4" />
-                  Gift Ideas
+                  Browse Gift Ideas
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="gap-2"

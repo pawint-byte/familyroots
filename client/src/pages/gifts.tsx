@@ -207,6 +207,26 @@ export default function Gifts() {
       </header>
 
       <main className="container mx-auto px-4 py-12">
+        {/* Custom Print Banner */}
+        <Card className="mb-8 border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-4 py-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-full bg-primary/20">
+                <TreeDeciduous className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Want YOUR family tree on a product?</h3>
+                <p className="text-muted-foreground">Print your actual family tree on mugs, t-shirts, posters & more!</p>
+              </div>
+            </div>
+            <Link href="/merchandise">
+              <Button size="lg" data-testid="button-custom-merchandise">
+                Print My Tree
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full mb-4">
             <Gift className="h-5 w-5" />
@@ -217,6 +237,9 @@ export default function Gifts() {
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             {t.gifts.pageDescription}
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Note: These are curated gift ideas from external stores. For custom products with your own family tree, use "Print My Tree" above.
           </p>
         </div>
 
