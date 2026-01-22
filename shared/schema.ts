@@ -27,6 +27,7 @@ export const familyTrees = pgTable("family_trees", {
   description: text("description"),
   ownerId: varchar("owner_id").notNull(),
   privacy: privacyEnum("privacy").default("private").notNull(),
+  rootMemberId: varchar("root_member_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

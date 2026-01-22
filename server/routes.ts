@@ -219,6 +219,15 @@ export async function registerRoutes(
       const data = insertFamilyMemberSchema.parse({ ...sanitizedBody, treeId });
       const member = await storage.createMember(data);
 
+      // If this is the first member in the tree, set them as the root member
+      if (!tree.rootMemberId) {
+        const existingMembers = await storage.getMembers(treeId);
+        if (existingMembers.length === 1) {
+          await storage.updateTree(treeId, { rootMemberId: member.id });
+          console.log(`Auto-set ${member.firstName} as root member for tree "${tree.name}"`);
+        }
+      }
+
       // Check if email was provided and if user doesn't exist - send invitation
       if (member.email) {
         try {

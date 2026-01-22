@@ -22,7 +22,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
-  ChevronRight, Filter, Download, Upload, Clock
+  ChevronRight, Filter, Download, Upload, Clock, Star
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from "@shared/schema";
@@ -74,6 +74,13 @@ export default function TreeView() {
     if (!focusMemberId || !treeData?.members) return null;
     return treeData.members.find(m => m.id === focusMemberId) || null;
   }, [focusMemberId, treeData?.members]);
+
+  // Auto-focus on root member when tree loads (only if not already focused)
+  useEffect(() => {
+    if (treeData?.tree?.rootMemberId && !focusMemberId) {
+      setFocusMemberId(treeData.tree.rootMemberId);
+    }
+  }, [treeData?.tree?.rootMemberId]);
 
   // Query collaborator status
   const { data: collaborators } = useQuery<Array<{userId: string; role: string}>>({
@@ -173,6 +180,26 @@ export default function TreeView() {
       toast({
         title: "Error",
         description: "Failed to rename tree",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const setRootMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      return apiRequest("PATCH", `/api/trees/${treeId}`, { rootMemberId: memberId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      toast({
+        title: "Success",
+        description: "Root member set! This person will be the default focus when opening the tree.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to set root member",
         variant: "destructive",
       });
     },
@@ -746,6 +773,18 @@ export default function TreeView() {
                     <User className="h-4 w-4" />
                     {focusMemberId === selectedMember.id ? "Focus Set" : "Set as Focus"}
                   </Button>
+                  {canEdit && (
+                    <Button 
+                      variant={treeData?.tree?.rootMemberId === selectedMember.id ? "default" : "outline"} 
+                      className="gap-2"
+                      onClick={() => setRootMemberMutation.mutate(selectedMember.id)}
+                      disabled={setRootMemberMutation.isPending || treeData?.tree?.rootMemberId === selectedMember.id}
+                      data-testid="button-set-root"
+                    >
+                      <Star className={`h-4 w-4 ${treeData?.tree?.rootMemberId === selectedMember.id ? "fill-current" : ""}`} />
+                      {treeData?.tree?.rootMemberId === selectedMember.id ? "Main Person" : "Set as Main"}
+                    </Button>
+                  )}
                   <Button 
                     variant="outline" 
                     className="flex-1 gap-2" 
