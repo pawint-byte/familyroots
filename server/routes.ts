@@ -195,7 +195,16 @@ export async function registerRoutes(
         }
       }
 
-      const data = insertFamilyMemberSchema.parse({ ...req.body, treeId });
+      // Sanitize date fields - ensure they are in YYYY-MM-DD format or null
+      const sanitizedBody = { ...req.body };
+      if (sanitizedBody.birthDate === '' || sanitizedBody.birthDate === undefined) {
+        sanitizedBody.birthDate = null;
+      }
+      if (sanitizedBody.deathDate === '' || sanitizedBody.deathDate === undefined) {
+        sanitizedBody.deathDate = null;
+      }
+      
+      const data = insertFamilyMemberSchema.parse({ ...sanitizedBody, treeId });
       const member = await storage.createMember(data);
 
       // Check if email was provided and if user doesn't exist - send invitation
@@ -245,9 +254,27 @@ export async function registerRoutes(
       }
 
       res.status(201).json(member);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding member:", error);
-      res.status(400).json({ message: "Failed to add member" });
+      
+      // Check for Zod validation errors
+      if (error instanceof z.ZodError) {
+        const fieldErrors = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        return res.status(400).json({ message: `Validation error: ${fieldErrors}` });
+      }
+      
+      // Check for database constraint errors
+      if (error?.code === '23505') {
+        return res.status(400).json({ message: "A member with this information already exists" });
+      }
+      if (error?.code === '22007' || error?.code === '22008') {
+        return res.status(400).json({ message: "Invalid date format. Please use a valid date." });
+      }
+      if (error?.code === '22P02') {
+        return res.status(400).json({ message: "Invalid data format provided" });
+      }
+      
+      res.status(400).json({ message: error?.message || "Failed to add member" });
     }
   });
 
@@ -279,7 +306,12 @@ export async function registerRoutes(
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
-          updateData[field] = req.body[field];
+          // Sanitize date fields - convert empty strings to null
+          if ((field === 'birthDate' || field === 'deathDate') && req.body[field] === '') {
+            updateData[field] = null;
+          } else {
+            updateData[field] = req.body[field];
+          }
         }
       }
 
@@ -332,9 +364,27 @@ export async function registerRoutes(
       }
 
       res.json(updated);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating member:", error);
-      res.status(400).json({ message: "Failed to update member" });
+      
+      // Check for Zod validation errors
+      if (error instanceof z.ZodError) {
+        const fieldErrors = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        return res.status(400).json({ message: `Validation error: ${fieldErrors}` });
+      }
+      
+      // Check for database constraint errors
+      if (error?.code === '23505') {
+        return res.status(400).json({ message: "A member with this information already exists" });
+      }
+      if (error?.code === '22007' || error?.code === '22008') {
+        return res.status(400).json({ message: "Invalid date format. Please use a valid date." });
+      }
+      if (error?.code === '22P02') {
+        return res.status(400).json({ message: "Invalid data format provided" });
+      }
+      
+      res.status(400).json({ message: error?.message || "Failed to update member" });
     }
   });
 
