@@ -51,5 +51,6 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
   - Uses `stripe-replit-sync` library for automated webhook management
   - Webhooks are auto-configured at `/api/stripe/webhook` - no manual Stripe Dashboard setup required
   - Stripe data syncs automatically to PostgreSQL database
+  - Accepts both card and crypto payments (Bitcoin, Ethereum, stablecoins) - settles in USD
 - **Print-on-Demand**: Printful API for merchandise fulfillment
 - **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image.

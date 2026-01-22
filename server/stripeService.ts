@@ -15,7 +15,7 @@ export class StripeService {
     const stripe = await getUncachableStripeClient();
     return await stripe.checkout.sessions.create({
       customer: customerId,
-      payment_method_types: ['card'],
+      payment_method_types: ['card', 'crypto'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
       success_url: successUrl,
@@ -43,7 +43,7 @@ export class StripeService {
     return await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'payment',
-      payment_method_types: ['card'],
+      payment_method_types: ['card', 'crypto'],
       line_items: [{
         price_data: {
           currency: 'usd',
