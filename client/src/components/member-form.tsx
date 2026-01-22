@@ -16,6 +16,7 @@ import type { InsertFamilyMember } from "@shared/schema";
 const memberFormSchema = z.object({
   isUnknown: z.boolean().default(false),
   unknownLabel: z.string().optional(),
+  createParentPlaceholders: z.boolean().default(false),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   nickname: z.string().optional(),
@@ -40,7 +41,7 @@ type MemberFormValues = z.infer<typeof memberFormSchema>;
 interface MemberFormProps {
   treeId: string;
   initialData?: Partial<MemberFormValues>;
-  onSubmit: (data: InsertFamilyMember) => void;
+  onSubmit: (data: InsertFamilyMember & { createParentPlaceholders?: boolean }) => void;
   isLoading?: boolean;
 }
 
@@ -60,6 +61,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
     defaultValues: {
       isUnknown: (initialData as any)?.isUnknown ?? false,
       unknownLabel: (initialData as any)?.unknownLabel || "",
+      createParentPlaceholders: false,
       firstName: initialData?.firstName || "",
       lastName: initialData?.lastName || "",
       nickname: (initialData as any)?.nickname || "",
@@ -100,7 +102,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
   };
 
   const handleSubmit = (values: MemberFormValues) => {
-    const data: InsertFamilyMember = {
+    const data: InsertFamilyMember & { createParentPlaceholders?: boolean } = {
       treeId,
       firstName: values.isUnknown ? (values.unknownLabel || "Unknown") : (values.firstName || "Unknown"),
       lastName: values.lastName || null,
@@ -115,6 +117,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
       notes: values.notes || null,
       isUnknown: values.isUnknown,
       unknownLabel: values.unknownLabel || null,
+      createParentPlaceholders: values.createParentPlaceholders,
     };
     onSubmit(data);
   };
@@ -176,34 +179,58 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
             )}
           />
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>First Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="John" {...field} data-testid="input-first-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Last Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Doe" {...field} data-testid="input-last-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="firstName"
+              name="createParentPlaceholders"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>First Name *</FormLabel>
+                <FormItem className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Add Parent Placeholders</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Automatically create Mom and Dad placeholders for this person
+                    </p>
+                  </div>
                   <FormControl>
-                    <Input placeholder="John" {...field} data-testid="input-first-name" />
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      data-testid="switch-create-parent-placeholders"
+                    />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="lastName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Last Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Doe" {...field} data-testid="input-last-name" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          </>
         )}
 
         <div className="grid grid-cols-2 gap-4">

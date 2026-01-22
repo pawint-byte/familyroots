@@ -98,7 +98,7 @@ export default function TreeView() {
   const canEdit = isOwner || isCoOwner || isEditor;
 
   const addMemberMutation = useMutation({
-    mutationFn: async (data: InsertFamilyMember) => {
+    mutationFn: async (data: InsertFamilyMember & { createParentPlaceholders?: boolean }) => {
       return apiRequest("POST", `/api/trees/${treeId}/members`, data);
     },
     onSuccess: () => {
