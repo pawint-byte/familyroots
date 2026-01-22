@@ -5,9 +5,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
 import { useI18n } from "@/lib/i18n";
-import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt } from "lucide-react";
+import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
+import { QRCodeSVG } from "qrcode.react";
 
 export default function Landing() {
   const [, navigate] = useLocation();
@@ -520,6 +521,63 @@ export default function Landing() {
         </section>
       </main>
 
+      {/* QR Code Share Section */}
+      <section className="py-16 bg-muted/30">
+        <div className="container mx-auto px-4">
+          <div className="max-w-4xl mx-auto">
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="grid md:grid-cols-2 gap-0">
+                  <div className="p-8 flex flex-col justify-center">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium w-fit mb-4">
+                      <Smartphone className="h-4 w-4" />
+                      <span>Share Instantly</span>
+                    </div>
+                    <h3 className="font-serif text-2xl font-bold mb-3">
+                      Share FamilyRoots With Your Family
+                    </h3>
+                    <p className="text-muted-foreground mb-6">
+                      Scan this QR code with your phone camera to open the app, or share it with relatives to help them join your family tree.
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      <a href="/share">
+                        <Button variant="outline" className="gap-2" data-testid="button-view-share-page">
+                          <QrCode className="h-4 w-4" />
+                          Download QR Code
+                        </Button>
+                      </a>
+                      <Button 
+                        variant="ghost" 
+                        className="gap-2"
+                        onClick={() => {
+                          navigator.clipboard.writeText(window.location.origin);
+                        }}
+                        data-testid="button-copy-app-link"
+                      >
+                        <Share2 className="h-4 w-4" />
+                        Copy Link
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="bg-white p-8 flex items-center justify-center">
+                    <div className="text-center">
+                      <QRCodeSVG
+                        value={typeof window !== "undefined" ? window.location.origin : "https://familyroots.app"}
+                        size={180}
+                        level="H"
+                        includeMargin
+                        data-testid="qr-code-landing"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">Scan to open FamilyRoots</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -532,6 +590,7 @@ export default function Landing() {
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <a href="/faq" className="hover:text-foreground transition-colors">FAQ</a>
+              <a href="/share" className="hover:text-foreground transition-colors">Share</a>
               <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
               <a href="#" className="hover:text-foreground transition-colors">Terms</a>
               <a href="mailto:pawint@me.com" className="hover:text-foreground transition-colors">Contact</a>

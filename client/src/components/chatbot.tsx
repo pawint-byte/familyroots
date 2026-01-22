@@ -15,7 +15,7 @@ export function Chatbot() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: "Hi! I'm your FamilyRoots assistant. I can help you with your family tree, answer genealogy questions, or guide you through using the app. How can I help you today?",
+      content: "Hi! I'm your FamilyRoots assistant. I can help you with your family tree, answer genealogy questions, or guide you through using the app.\n\nQuick tip: Want to share FamilyRoots with family? Visit the Share page (/share) to get a QR code you can scan with any phone camera, or download it to print and share!\n\nHow can I help you today?",
     },
   ]);
   const [input, setInput] = useState("");
