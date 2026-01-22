@@ -806,24 +806,7 @@ export default function MerchandisePage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {!user ? (
-          <Card className="max-w-md mx-auto">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-primary" />
-                Sign In Required
-              </CardTitle>
-              <CardDescription>
-                Create an account to order custom merchandise with your family tree.
-              </CardDescription>
-            </CardHeader>
-            <CardFooter>
-              <Button onClick={() => window.location.href = "/api/login"} className="w-full" data-testid="button-sign-in">
-                Sign In to Continue
-              </Button>
-            </CardFooter>
-          </Card>
-        ) : (
+        {user ? (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-6">
               <TabsTrigger value="products" data-testid="tab-products">
@@ -925,6 +908,77 @@ export default function MerchandisePage() {
               <OrdersTab orders={orders} />
             </TabsContent>
           </Tabs>
+        ) : (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold mb-2">Print Your Family Tree</h2>
+              <p className="text-muted-foreground">
+                Turn your family tree into beautiful custom products. Perfect for gifts or keeping your heritage close.
+              </p>
+            </div>
+
+            <Alert className="mb-6">
+              <Star className="h-4 w-4" />
+              <AlertTitle>Sign In to Order</AlertTitle>
+              <AlertDescription>
+                Sign in to customize products with your family tree and place orders.
+                <Button 
+                  variant="link" 
+                  className="px-1 text-primary"
+                  onClick={() => window.location.href = "/api/login"}
+                  data-testid="button-sign-in"
+                >
+                  Sign In Now
+                </Button>
+              </AlertDescription>
+            </Alert>
+
+            {loadingProducts ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {products.map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onCustomize={() => window.location.href = "/api/login"}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="mt-12 grid md:grid-cols-3 gap-6">
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <Package className="h-8 w-8 mx-auto mb-2 text-primary" />
+                  <h3 className="font-semibold">Quality Products</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Premium merchandise printed with care
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <Truck className="h-8 w-8 mx-auto mb-2 text-primary" />
+                  <h3 className="font-semibold">Fast Shipping</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Ships directly to your door
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <Star className="h-8 w-8 mx-auto mb-2 text-primary" />
+                  <h3 className="font-semibold">Your Family Story</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Preserve your heritage beautifully
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         )}
       </main>
 
