@@ -443,20 +443,26 @@ export default function TreeView() {
                   Dashboard
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  className="gap-2"
+                  className="flex items-start gap-2"
                   onClick={() => navigate("/merchandise")}
                   data-testid="menu-shop"
                 >
-                  <ShoppingBag className="h-4 w-4" />
-                  Print My Tree on Products
+                  <ShoppingBag className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-medium">Print My Tree</div>
+                    <div className="text-xs text-muted-foreground">Your tree on mugs, shirts, etc.</div>
+                  </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  className="gap-2"
+                  className="flex items-start gap-2"
                   onClick={() => navigate("/gifts")}
                   data-testid="menu-gifts"
                 >
-                  <Gift className="h-4 w-4" />
-                  Browse Gift Ideas
+                  <Gift className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-medium">Browse Gift Ideas</div>
+                    <div className="text-xs text-muted-foreground">Pre-made items from Etsy/Amazon</div>
+                  </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="gap-2"

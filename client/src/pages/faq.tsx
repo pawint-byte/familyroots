@@ -173,6 +173,10 @@ export default function FAQ() {
       icon: <Gift className="h-5 w-5" />,
       items: [
         {
+          question: "What's the difference between 'Print My Tree on Products' and 'Browse Gift Ideas'?",
+          answer: "These are two different features! 'Print My Tree on Products' lets you print YOUR actual family tree (the one you built in FamilyRoots) on custom products like mugs, t-shirts, and posters - we handle everything from printing to shipping. 'Browse Gift Ideas' shows curated family tree-related products from external stores like Etsy and Amazon - these are pre-made items that don't include your specific family tree. If you want your own tree printed, use 'Print My Tree on Products'."
+        },
+        {
           question: "Can I put my family tree on a mug, t-shirt, or poster?",
           answer: "Yes! You can export your family tree as a high-quality image and then order custom merchandise directly through our site. Choose from mugs, t-shirts, posters, and more. Your tree is printed on the product and shipped directly to you - all without leaving FamilyRoots."
         },

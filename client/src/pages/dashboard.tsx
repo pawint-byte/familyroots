@@ -16,6 +16,7 @@ import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import type { FamilyTree } from "@shared/schema";
@@ -177,20 +178,26 @@ export default function Dashboard() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem 
-                  className="flex items-center gap-2"
+                  className="flex items-start gap-2"
                   onClick={() => navigate("/merchandise")}
                   data-testid="mobile-menu-merchandise"
                 >
-                  <ShoppingBag className="h-4 w-4" />
-                  <span>Print My Tree on Products</span>
+                  <ShoppingBag className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-medium">Print My Tree</div>
+                    <div className="text-xs text-muted-foreground">Your tree on mugs, shirts, etc.</div>
+                  </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  className="flex items-center gap-2"
+                  className="flex items-start gap-2"
                   onClick={() => navigate("/gifts")}
                   data-testid="mobile-menu-gifts"
                 >
-                  <Gift className="h-4 w-4" />
-                  <span>Browse Gift Ideas</span>
+                  <Gift className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-medium">Browse Gift Ideas</div>
+                    <div className="text-xs text-muted-foreground">Pre-made items from Etsy/Amazon</div>
+                  </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-center gap-2"
@@ -202,14 +209,28 @@ export default function Dashboard() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/merchandise")} className="hidden md:flex gap-1" data-testid="link-merchandise">
-              <ShoppingBag className="h-4 w-4" />
-              <span className="hidden lg:inline">Shop</span>
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/gifts")} className="hidden md:flex gap-1" data-testid="link-gifts">
-              <Gift className="h-4 w-4" />
-              <span className="hidden lg:inline">Gifts</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/merchandise")} className="hidden md:flex gap-1" data-testid="link-merchandise">
+                  <ShoppingBag className="h-4 w-4" />
+                  <span className="hidden lg:inline">Print Tree</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Print YOUR family tree on mugs, shirts, posters & more</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/gifts")} className="hidden md:flex gap-1" data-testid="link-gifts">
+                  <Gift className="h-4 w-4" />
+                  <span className="hidden lg:inline">Gift Ideas</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Browse pre-made gift ideas from Etsy & Amazon</p>
+              </TooltipContent>
+            </Tooltip>
             <Button variant="ghost" size="sm" onClick={() => navigate("/share")} className="hidden md:flex gap-1" data-testid="link-share">
               <QrCode className="h-4 w-4" />
               <span className="hidden lg:inline">Share</span>
