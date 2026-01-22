@@ -202,6 +202,13 @@ Preferred communication style: Simple, everyday language.
 - JSON-LD structured data for Organization schema
 - Component: `client/src/components/seo.tsx`
 
+### FAQ Page
+- Comprehensive FAQ page with expandable accordion sections
+- Categories: Account & Subscription, Family Trees & Members, Sharing & Collaboration, Privacy & Security, Special Features
+- Accessible from landing page header navigation and footer
+- Route: `/faq`
+- Page: `client/src/pages/faq.tsx`
+
 ### Email Service
 - Resend integration for transactional emails
 - Templates include: welcome emails, collaboration invites, event notifications, tree update notifications
