@@ -47,6 +47,8 @@ export const familyMembers = pgTable("family_members", {
   isLiving: boolean("is_living").default(true),
   photoUrl: text("photo_url"),
   notes: text("notes"),
+  isUnknown: boolean("is_unknown").default(false),
+  unknownLabel: text("unknown_label"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { HelpCircle } from "lucide-react";
 import type { FamilyMember, Relationship } from "@shared/schema";
 
 interface FamilyTreeVisualizationProps {
@@ -573,7 +574,11 @@ export default function FamilyTreeVisualization({
               data-testid={`node-member-${pos.member.id}`}
             >
               <div 
-                className={`relative bg-card rounded-md border ${styles.border} p-3 shadow-md hover-elevate transition-all duration-300 ${
+                className={`relative rounded-md p-3 shadow-md hover-elevate transition-all duration-300 ${
+                  pos.member.isUnknown 
+                    ? 'bg-muted/50 border-2 border-dashed border-muted-foreground/40' 
+                    : `bg-card border ${styles.border}`
+                } ${
                   isFocusPerson ? 'ring-4 ring-primary/50 shadow-lg' : ''
                 }`}
               >
@@ -582,20 +587,28 @@ export default function FamilyTreeVisualization({
                 />
                 
                 <div className="flex flex-col items-center text-center pt-2">
-                  <Avatar className={`h-14 w-14 mb-2 ring-2 ${styles.ring} shadow-md`}>
-                    <AvatarImage src={pos.member.photoUrl || undefined} />
-                    <AvatarFallback className="font-serif text-lg bg-muted text-foreground">
-                      {pos.member.firstName[0]}
-                      {pos.member.lastName?.[0] || ""}
-                    </AvatarFallback>
-                  </Avatar>
-                  <h3 className="font-semibold text-sm truncate w-full text-foreground">
-                    {pos.member.firstName}
+                  {pos.member.isUnknown ? (
+                    <div className="h-14 w-14 mb-2 rounded-full bg-muted/70 flex items-center justify-center ring-2 ring-muted-foreground/30">
+                      <HelpCircle className="h-8 w-8 text-muted-foreground/60" />
+                    </div>
+                  ) : (
+                    <Avatar className={`h-14 w-14 mb-2 ring-2 ${styles.ring} shadow-md`}>
+                      <AvatarImage src={pos.member.photoUrl || undefined} />
+                      <AvatarFallback className="font-serif text-lg bg-muted text-foreground">
+                        {pos.member.firstName[0]}
+                        {pos.member.lastName?.[0] || ""}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <h3 className={`font-semibold text-sm truncate w-full ${pos.member.isUnknown ? 'text-muted-foreground italic' : 'text-foreground'}`}>
+                    {pos.member.isUnknown ? (pos.member.unknownLabel || 'Unknown') : pos.member.firstName}
                   </h3>
-                  <p className="text-xs text-muted-foreground truncate w-full">
-                    {pos.member.lastName || ""}
-                  </p>
-                  {pos.member.birthDate && (
+                  {!pos.member.isUnknown && (
+                    <p className="text-xs text-muted-foreground truncate w-full">
+                      {pos.member.lastName || ""}
+                    </p>
+                  )}
+                  {pos.member.birthDate && !pos.member.isUnknown && (
                     <p className="text-[10px] text-muted-foreground mt-1 opacity-70">
                       {new Date(pos.member.birthDate).getFullYear()}
                       {pos.member.deathDate && ` - ${new Date(pos.member.deathDate).getFullYear()}`}
@@ -604,13 +617,14 @@ export default function FamilyTreeVisualization({
                   
                   <div 
                     className={`mt-2 px-2 py-0.5 rounded-full text-[9px] font-medium uppercase tracking-wider ${
+                      pos.member.isUnknown ? 'bg-muted text-muted-foreground/70' :
                       pos.branchType === 'focus' ? 'bg-primary/20 text-primary' :
                       pos.branchType === 'spouse' ? 'bg-destructive/20 text-destructive' :
                       pos.branchType === 'child' || pos.branchType === 'grandchild' ? 'bg-primary/20 text-primary' :
                       'bg-muted text-muted-foreground'
                     }`}
                   >
-                    {pos.branchType === 'focus' ? 'You' : pos.branchType}
+                    {pos.member.isUnknown ? 'placeholder' : (pos.branchType === 'focus' ? 'You' : pos.branchType)}
                   </div>
                 </div>
               </div>
