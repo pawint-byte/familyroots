@@ -62,7 +62,19 @@ export async function registerRoutes(
       
       // Combine and deduplicate
       const allTrees = [...ownedTrees, ...collaboratedTrees];
-      res.json(allTrees);
+      
+      // Add member counts to each tree
+      const treesWithCounts = await Promise.all(
+        allTrees.map(async (tree) => {
+          const members = await storage.getMembers(tree.id);
+          return {
+            ...tree,
+            memberCount: members.length,
+          };
+        })
+      );
+      
+      res.json(treesWithCounts);
     } catch (error) {
       console.error("Error fetching trees:", error);
       res.status(500).json({ message: "Failed to fetch trees" });

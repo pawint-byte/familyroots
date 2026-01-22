@@ -160,6 +160,24 @@ export default function FamilyTreeVisualization({
     setPositions(calculatePositions());
   }, [calculatePositions]);
 
+  // Auto-center on focused member when focus changes
+  useEffect(() => {
+    if (!focusMemberId || positions.length === 0 || !containerRef.current) return;
+    
+    const focusedPosition = positions.find(p => p.member.id === focusMemberId);
+    if (!focusedPosition) return;
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const nodeWidth = 160;
+    const nodeHeight = 120;
+    
+    // Calculate offset to center the focused member in the viewport
+    const targetX = containerRect.width / 2 - (focusedPosition.x + nodeWidth / 2) * zoom;
+    const targetY = containerRect.height / 2 - (focusedPosition.y + nodeHeight / 2) * zoom;
+    
+    setOffset({ x: targetX, y: targetY });
+  }, [focusMemberId, positions, zoom]);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-member-node]")) return;
     setIsDragging(true);

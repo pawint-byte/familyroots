@@ -20,6 +20,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import type { FamilyTree } from "@shared/schema";
 
+// Extended tree type with member count from API
+type FamilyTreeWithCount = FamilyTree & { memberCount?: number };
+
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const { user, logout } = useAuth();
@@ -35,7 +38,7 @@ export default function Dashboard() {
   const [shareTreeId, setShareTreeId] = useState<string | null>(null);
   const [shareTreeName, setShareTreeName] = useState("");
 
-  const { data: trees, isLoading } = useQuery<FamilyTree[]>({
+  const { data: trees, isLoading } = useQuery<FamilyTreeWithCount[]>({
     queryKey: ["/api/trees"],
   });
 
@@ -351,7 +354,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Users className="h-4 w-4" />
-                      <span>0 members</span>
+                      <span>{tree.memberCount ?? 0} {(tree.memberCount ?? 0) === 1 ? 'member' : 'members'}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
