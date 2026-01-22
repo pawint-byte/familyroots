@@ -39,6 +39,7 @@ import {
 import { postToBluesky, testBlueskyConnection } from "./bluesky";
 import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation } from "./lib/email";
 import { insertAccountHeirSchema } from "@shared/schema";
+import { printfulService } from "./printful";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -2552,6 +2553,403 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error fetching account settings:", error);
       res.status(500).json({ message: "Failed to fetch account settings" });
+    }
+  });
+
+  // ============== MERCHANDISE / PRINTFUL ROUTES ==============
+  
+  // Get recommended products for merchandise
+  app.get("/api/merchandise/products", async (req, res) => {
+    try {
+      const products = printfulService.getRecommendedProducts();
+      res.json(products);
+    } catch (error: any) {
+      console.error("Error fetching products:", error);
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  // Get product variants
+  app.get("/api/merchandise/products/:productId/variants", async (req, res) => {
+    try {
+      const productId = parseInt(req.params.productId);
+      if (isNaN(productId)) {
+        return res.status(400).json({ message: "Invalid product ID" });
+      }
+      
+      const variants = await printfulService.getProductVariants(productId);
+      res.json(variants);
+    } catch (error: any) {
+      console.error("Error fetching variants:", error);
+      res.status(500).json({ message: "Failed to fetch product variants" });
+    }
+  });
+
+  // Calculate shipping rates
+  app.post("/api/merchandise/shipping", isAuthenticated, async (req: any, res) => {
+    try {
+      const { address, items } = req.body;
+      
+      if (!address || !items || !Array.isArray(items)) {
+        return res.status(400).json({ message: "Address and items are required" });
+      }
+      
+      const rates = await printfulService.calculateShipping(address, items);
+      res.json(rates);
+    } catch (error: any) {
+      console.error("Error calculating shipping:", error);
+      res.status(500).json({ message: "Failed to calculate shipping" });
+    }
+  });
+
+  // Create merchandise order (with Stripe payment)
+  app.post("/api/merchandise/orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { 
+        treeId, productId, variantId, productName, variantName,
+        quantity, treeImageUrl, shippingAddress
+      } = req.body;
+
+      // Validate required fields
+      if (!treeId || !productId || !variantId || !productName || !treeImageUrl) {
+        return res.status(400).json({ message: "Missing required order fields" });
+      }
+
+      // SECURITY: Validate tree ownership/access
+      const tree = await storage.getFamilyTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Family tree not found" });
+      }
+      
+      // Check if user owns the tree or is a collaborator with access
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getTreeCollaborator(treeId, userId);
+      if (!isOwner && !collaborator) {
+        return res.status(403).json({ message: "You don't have access to this family tree" });
+      }
+
+      // Validate shipping address
+      if (!shippingAddress) {
+        return res.status(400).json({ message: "Shipping address is required" });
+      }
+
+      // Validate shipping address format
+      const { shippingAddressSchema } = await import("@shared/schema");
+      const addressValidation = shippingAddressSchema.safeParse(shippingAddress);
+      if (!addressValidation.success) {
+        return res.status(400).json({ 
+          message: "Invalid shipping address", 
+          errors: addressValidation.error.errors 
+        });
+      }
+
+      const orderQuantity = quantity || 1;
+
+      // SERVER-SIDE PRICE VALIDATION: Get variant price from Printful API
+      const variantPrice = await printfulService.getVariantPrice(productId, variantId);
+      if (variantPrice === null) {
+        return res.status(400).json({ message: "Invalid product variant or unable to fetch price" });
+      }
+
+      // Calculate subtotal from verified Printful price
+      const subtotal = variantPrice * orderQuantity;
+
+      // Get shipping cost from Printful (use standard shipping)
+      const printfulAddress = {
+        name: shippingAddress.name,
+        address1: shippingAddress.address1,
+        address2: shippingAddress.address2 || '',
+        city: shippingAddress.city,
+        state_code: shippingAddress.stateCode,
+        country_code: shippingAddress.countryCode,
+        zip: shippingAddress.zip,
+      };
+
+      const shippingRates = await printfulService.calculateShipping(
+        printfulAddress,
+        [{ variant_id: variantId, quantity: orderQuantity }]
+      );
+
+      // Use MINIMUM (cheapest) available shipping rate for deterministic pricing
+      // Sort rates by cost and pick the cheapest to prevent manipulation
+      let shippingCost = 599; // Default $5.99 if no rates available
+      if (shippingRates.length > 0) {
+        const sortedRates = [...shippingRates].sort((a, b) => 
+          parseFloat(a.rate) - parseFloat(b.rate)
+        );
+        shippingCost = Math.round(parseFloat(sortedRates[0].rate) * 100);
+      }
+
+      // Calculate commission (10% markup on subtotal)
+      const commission = Math.round(subtotal * 0.10);
+
+      // Calculate total: subtotal + shipping + commission
+      const totalAmount = subtotal + shippingCost + commission;
+
+      // Create the order in pending state
+      const order = await storage.createMerchandiseOrder({
+        userId,
+        treeId,
+        productId,
+        variantId,
+        productName,
+        variantName: variantName || null,
+        quantity: orderQuantity,
+        treeImageUrl,
+        subtotal,
+        shippingCost,
+        totalAmount,
+        commission,
+        shippingAddress: addressValidation.data,
+        status: "pending",
+      });
+
+      res.status(201).json(order);
+    } catch (error: any) {
+      console.error("Error creating order:", error);
+      res.status(500).json({ message: "Failed to create order" });
+    }
+  });
+
+  // Get user's merchandise orders
+  app.get("/api/merchandise/orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const orders = await storage.getMerchandiseOrders(userId);
+      res.json(orders);
+    } catch (error: any) {
+      console.error("Error fetching orders:", error);
+      res.status(500).json({ message: "Failed to fetch orders" });
+    }
+  });
+
+  // Get single order
+  app.get("/api/merchandise/orders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const order = await storage.getMerchandiseOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      if (order.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      res.json(order);
+    } catch (error: any) {
+      console.error("Error fetching order:", error);
+      res.status(500).json({ message: "Failed to fetch order" });
+    }
+  });
+
+  // Submit order to Printful after payment
+  app.post("/api/merchandise/orders/:id/submit", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const order = await storage.getMerchandiseOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      if (order.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (order.status !== "paid") {
+        return res.status(400).json({ message: "Order must be paid before submission" });
+      }
+
+      const { shippingAddress } = req.body;
+      if (!shippingAddress) {
+        return res.status(400).json({ message: "Shipping address is required" });
+      }
+
+      // Create order in Printful
+      const printfulOrder = await printfulService.createOrder(
+        shippingAddress,
+        [{
+          variant_id: order.variantId,
+          quantity: order.quantity,
+          files: [{
+            type: "default",
+            url: order.treeImageUrl,
+          }],
+        }],
+        true // confirm the order
+      );
+
+      if (!printfulOrder) {
+        return res.status(500).json({ message: "Failed to submit order to Printful" });
+      }
+
+      // Update order with Printful details
+      const updated = await storage.updateMerchandiseOrder(order.id, {
+        printfulOrderId: printfulOrder.orderId.toString(),
+        status: "submitted",
+        shippingAddress,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error submitting order:", error);
+      res.status(500).json({ message: "Failed to submit order" });
+    }
+  });
+
+  // Test Printful connection
+  app.get("/api/merchandise/test-connection", isAuthenticated, async (req, res) => {
+    try {
+      const connected = await printfulService.testConnection();
+      res.json({ connected });
+    } catch (error: any) {
+      console.error("Error testing Printful connection:", error);
+      res.status(500).json({ connected: false, error: error.message });
+    }
+  });
+
+  // Create checkout session for merchandise order
+  app.post("/api/merchandise/orders/:id/checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const userId = req.user.claims.sub;
+      const order = await storage.getMerchandiseOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      if (order.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (order.status !== "pending") {
+        return res.status(400).json({ message: "Order is not in pending state" });
+      }
+
+      const user = await storage.getUser(userId);
+      let customerId = user?.stripeCustomerId;
+
+      if (!customerId) {
+        const customer = await stripeService.createCustomer(
+          user?.email || `user-${userId}@familyroots.app`,
+          userId
+        );
+        await storage.updateUserStripeInfo(userId, { stripeCustomerId: customer.id });
+        customerId = customer.id;
+      }
+
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      
+      // Create a checkout session for one-time payment
+      const session = await stripeService.createMerchandiseCheckoutSession(
+        customerId,
+        order.productName,
+        `Custom ${order.productName} with your family tree`,
+        order.totalAmount,
+        order.quantity,
+        `${baseUrl}/merchandise?checkout=success&order=${order.id}`,
+        `${baseUrl}/merchandise?checkout=cancel`,
+        { orderId: order.id, type: 'merchandise' }
+      );
+
+      // Update order with Stripe session ID
+      await storage.updateMerchandiseOrder(order.id, {
+        stripePaymentIntentId: session.id,
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating merchandise checkout:", error);
+      res.status(500).json({ message: "Failed to create checkout session" });
+    }
+  });
+
+  // Handle successful merchandise payment (called after Stripe redirect)
+  app.post("/api/merchandise/orders/:id/confirm-payment", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const order = await storage.getMerchandiseOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      if (order.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Prevent duplicate submissions - only process if order is pending
+      if (order.status !== 'pending') {
+        // Order already processed - return current status
+        return res.json({ success: true, status: order.status, message: "Order already processed" });
+      }
+
+      // Verify payment with Stripe
+      if (order.stripePaymentIntentId) {
+        try {
+          const session = await stripeService.retrieveCheckoutSession(order.stripePaymentIntentId);
+          if (session.payment_status === 'paid') {
+            // Mark as paid first to prevent race conditions
+            await storage.updateMerchandiseOrder(order.id, { status: "paid" });
+
+            // AUTO-SUBMIT TO PRINTFUL after successful payment
+            if (order.shippingAddress) {
+              const shippingAddr = order.shippingAddress as any;
+              const printfulAddress = {
+                name: shippingAddr.name,
+                address1: shippingAddr.address1,
+                address2: shippingAddr.address2 || '',
+                city: shippingAddr.city,
+                state_code: shippingAddr.stateCode,
+                country_code: shippingAddr.countryCode,
+                zip: shippingAddr.zip,
+                email: shippingAddr.email,
+                phone: shippingAddr.phone,
+              };
+
+              const printfulResult = await printfulService.createOrder(
+                printfulAddress,
+                [{
+                  variant_id: order.variantId,
+                  quantity: order.quantity,
+                  files: [{
+                    type: 'default',
+                    url: order.treeImageUrl,
+                  }],
+                }],
+                true // confirm order immediately
+              );
+
+              if (printfulResult) {
+                await storage.updateMerchandiseOrder(order.id, {
+                  status: "submitted",
+                  printfulOrderId: String(printfulResult.orderId),
+                });
+                return res.json({ success: true, status: "submitted", printfulOrderId: printfulResult.orderId });
+              } else {
+                console.error("Failed to submit order to Printful, keeping as paid");
+                return res.json({ success: true, status: "paid", printfulError: true });
+              }
+            }
+
+            return res.json({ success: true, status: "paid" });
+          }
+        } catch (e) {
+          console.error("Error verifying payment:", e);
+        }
+      }
+
+      res.json({ success: false, status: order.status });
+    } catch (error: any) {
+      console.error("Error confirming payment:", error);
+      res.status(500).json({ message: "Failed to confirm payment" });
     }
   });
 

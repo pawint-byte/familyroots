@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, date, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, date, pgEnum, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -19,6 +19,7 @@ export const nameChangeReasonEnum = pgEnum("name_change_reason", ["birth", "marr
 export const heirStatusEnum = pgEnum("heir_status", ["pending", "notified", "transferred", "cancelled"]);
 export const matchRequestStatusEnum = pgEnum("match_request_status", ["pending", "accepted", "declined", "expired"]);
 export const memberInvitationStatusEnum = pgEnum("member_invitation_status", ["pending", "clicked", "registered"]);
+export const merchandiseOrderStatusEnum = pgEnum("merchandise_order_status", ["pending", "paid", "submitted", "processing", "shipped", "delivered", "cancelled", "failed"]);
 
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
@@ -460,6 +461,52 @@ export const insertMemberInvitationSchema = createInsertSchema(memberInvitations
   sentAt: true,
 });
 
+// Merchandise Orders table (for Printful print-on-demand products)
+// Shipping address type for merchandise orders
+export const shippingAddressSchema = z.object({
+  name: z.string().min(1),
+  address1: z.string().min(1),
+  address2: z.string().optional(),
+  city: z.string().min(1),
+  stateCode: z.string().min(1),
+  countryCode: z.string().length(2),
+  zip: z.string().min(1),
+  phone: z.string().optional(),
+  email: z.string().email().optional(),
+});
+
+export type ShippingAddress = z.infer<typeof shippingAddressSchema>;
+
+export const merchandiseOrders = pgTable("merchandise_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  treeId: varchar("tree_id").notNull(),
+  status: merchandiseOrderStatusEnum("status").default("pending").notNull(),
+  printfulOrderId: text("printful_order_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  productId: integer("product_id").notNull(),
+  variantId: integer("variant_id").notNull(),
+  productName: text("product_name").notNull(),
+  variantName: text("variant_name"),
+  quantity: integer("quantity").default(1).notNull(),
+  treeImageUrl: text("tree_image_url").notNull(),
+  shippingAddress: jsonb("shipping_address").$type<ShippingAddress>(),
+  subtotal: integer("subtotal").notNull(),
+  shippingCost: integer("shipping_cost").default(0),
+  totalAmount: integer("total_amount").notNull(),
+  commission: integer("commission").default(0),
+  trackingNumber: text("tracking_number"),
+  trackingUrl: text("tracking_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertMerchandiseOrderSchema = createInsertSchema(merchandiseOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type FamilyTree = typeof familyTrees.$inferSelect;
 export type InsertFamilyTree = z.infer<typeof insertFamilyTreeSchema>;
@@ -505,3 +552,6 @@ export type InsertMatchRequest = z.infer<typeof insertMatchRequestSchema>;
 
 export type MemberInvitation = typeof memberInvitations.$inferSelect;
 export type InsertMemberInvitation = z.infer<typeof insertMemberInvitationSchema>;
+
+export type MerchandiseOrder = typeof merchandiseOrders.$inferSelect;
+export type InsertMerchandiseOrder = z.infer<typeof insertMerchandiseOrderSchema>;

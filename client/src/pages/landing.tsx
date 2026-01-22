@@ -1,3 +1,4 @@
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -9,6 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 
 export default function Landing() {
+  const [, navigate] = useLocation();
   const { t } = useI18n();
   return (
     <div className="min-h-screen bg-background">
@@ -362,7 +364,11 @@ export default function Landing() {
                   </p>
                 </CardContent>
               </Card>
-              <Card className="hover-elevate group">
+              <Card 
+                className="hover-elevate group cursor-pointer" 
+                onClick={() => navigate("/merchandise")}
+                data-testid="card-feature-merchandise"
+              >
                 <CardContent className="p-6 space-y-4">
                   <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Shirt className="h-6 w-6 text-primary" />
@@ -371,6 +377,9 @@ export default function Landing() {
                   <p className="text-muted-foreground">
                     Turn your family tree into keepsakes. Order custom mugs, t-shirts, posters, and more with your tree printed on them - shipped directly to you.
                   </p>
+                  <Button variant="outline" size="sm" className="mt-2" data-testid="button-shop-merchandise">
+                    Shop Now
+                  </Button>
                 </CardContent>
               </Card>
             </div>

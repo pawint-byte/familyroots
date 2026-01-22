@@ -35,6 +35,8 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
 - **Email Service**: Uses Resend for transactional emails (welcome, invites, notifications) with invitation status tracking for family members.
 - **Photo Uploads**: Secure photo uploads leveraging Replit Object Storage with a presigned URL flow.
 - **Gifts & Products Page**: Curated list of family tree-related products linking to external marketplaces.
+- **Tree Export**: Users can export their family tree visualization as a high-resolution PNG image with theme-aware backgrounds (white for light mode, dark for dark mode) using html-to-image library.
+- **Custom Merchandise (Print-on-Demand)**: Users can order custom products (mugs, t-shirts, posters, pillows, tote bags) with their family tree printed on them via Printful integration. Features include product catalog, variant selection (size/color), Stripe checkout for payment, and order tracking. Commission is added to orders for revenue.
 
 ## External Dependencies
 
@@ -44,5 +46,6 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
 - **Email**: Resend
 - **Video Generation**: HeyGen API
 - **Social Media**: Bluesky
-- **Payments**: Stripe (for future subscription management)
-- **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple.
+- **Payments**: Stripe (for subscription management and merchandise checkout)
+- **Print-on-Demand**: Printful API for merchandise fulfillment
+- **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image.

@@ -1,0 +1,865 @@
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { 
+  ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
+  Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle
+} from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
+
+interface Product {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  basePrice: number;
+  image: string;
+}
+
+interface Variant {
+  id: number;
+  product_id: number;
+  name: string;
+  size: string;
+  color: string;
+  color_code: string;
+  image: string;
+  price: string;
+  in_stock: boolean;
+}
+
+function getCategoryIcon(category: string) {
+  switch (category) {
+    case "apparel":
+      return <Shirt className="h-5 w-5" />;
+    case "drinkware":
+      return <Coffee className="h-5 w-5" />;
+    case "home-decor":
+      return <Image className="h-5 w-5" />;
+    default:
+      return <Package className="h-5 w-5" />;
+  }
+}
+
+function ProductCard({ 
+  product, 
+  onCustomize 
+}: { 
+  product: Product; 
+  onCustomize: (product: Product) => void;
+}) {
+  return (
+    <Card className="overflow-hidden hover-elevate" data-testid={`card-product-${product.id}`}>
+      <div className="aspect-square bg-muted relative overflow-hidden">
+        <img 
+          src={product.image} 
+          alt={product.name}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
+        <Badge 
+          className="absolute top-2 right-2" 
+          variant="secondary"
+        >
+          {product.category}
+        </Badge>
+      </div>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          {getCategoryIcon(product.category)}
+          <CardTitle className="text-lg">{product.name}</CardTitle>
+        </div>
+        <CardDescription className="line-clamp-2">
+          {product.description}
+        </CardDescription>
+      </CardHeader>
+      <CardFooter className="flex justify-between items-center">
+        <div className="text-lg font-semibold">
+          From ${product.basePrice.toFixed(2)}
+        </div>
+        <Button 
+          onClick={() => onCustomize(product)}
+          data-testid={`button-customize-${product.id}`}
+        >
+          Customize
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+interface ShippingAddressForm {
+  name: string;
+  address1: string;
+  address2: string;
+  city: string;
+  stateCode: string;
+  countryCode: string;
+  zip: string;
+  phone: string;
+  email: string;
+}
+
+function ProductCustomizer({
+  product,
+  trees,
+  onClose,
+  onOrderCreated,
+}: {
+  product: Product;
+  trees: FamilyTree[];
+  onClose: () => void;
+  onOrderCreated: () => void;
+}) {
+  const [selectedTreeId, setSelectedTreeId] = useState<string>("");
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [showShipping, setShowShipping] = useState(false);
+  const [shippingAddress, setShippingAddress] = useState<ShippingAddressForm>({
+    name: "",
+    address1: "",
+    address2: "",
+    city: "",
+    stateCode: "",
+    countryCode: "US",
+    zip: "",
+    phone: "",
+    email: "",
+  });
+  const { toast } = useToast();
+
+  const { data: variants = [], isLoading: loadingVariants } = useQuery<Variant[]>({
+    queryKey: ["/api/merchandise/products", product.id, "variants"],
+    enabled: !!product.id,
+  });
+
+  const selectedVariant = variants.find(v => v.id === selectedVariantId);
+  const selectedTree = trees.find(t => t.id === selectedTreeId);
+
+  const subtotal = selectedVariant 
+    ? parseFloat(selectedVariant.price) * quantity * 100 
+    : product.basePrice * quantity * 100;
+
+  const isShippingValid = () => {
+    return (
+      shippingAddress.name.trim() !== "" &&
+      shippingAddress.address1.trim() !== "" &&
+      shippingAddress.city.trim() !== "" &&
+      shippingAddress.stateCode.trim() !== "" &&
+      shippingAddress.countryCode.length === 2 &&
+      shippingAddress.zip.trim() !== ""
+    );
+  };
+
+  const createOrderMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTreeId || !selectedVariantId || !selectedVariant) {
+        throw new Error("Please select a tree and product variant");
+      }
+
+      if (!isShippingValid()) {
+        throw new Error("Please complete all required shipping fields");
+      }
+
+      const treeImageUrl = `${window.location.origin}/api/trees/${selectedTreeId}/export`;
+
+      return apiRequest("POST", "/api/merchandise/orders", {
+        treeId: selectedTreeId,
+        productId: product.id,
+        variantId: selectedVariantId,
+        productName: product.name,
+        variantName: selectedVariant.name,
+        quantity,
+        treeImageUrl,
+        shippingAddress: {
+          name: shippingAddress.name.trim(),
+          address1: shippingAddress.address1.trim(),
+          address2: shippingAddress.address2.trim() || undefined,
+          city: shippingAddress.city.trim(),
+          stateCode: shippingAddress.stateCode.trim().toUpperCase(),
+          countryCode: shippingAddress.countryCode.toUpperCase(),
+          zip: shippingAddress.zip.trim(),
+          phone: shippingAddress.phone.trim() || undefined,
+          email: shippingAddress.email.trim() || undefined,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Order Created",
+        description: "Your merchandise order has been created. Proceed to checkout to complete your purchase.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
+      onOrderCreated();
+      onClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create order",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const inStockVariants = variants.filter(v => v.in_stock);
+  const uniqueColors = Array.from(new Set(inStockVariants.map(v => v.color)));
+  const uniqueSizes = Array.from(new Set(inStockVariants.map(v => v.size)));
+
+  return (
+    <div className="space-y-6">
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <div className="aspect-square bg-muted rounded-lg overflow-hidden">
+            <img 
+              src={selectedVariant?.image || product.image}
+              alt={product.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          
+          {selectedTree && (
+            <Card className="bg-muted/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <TreeDeciduous className="h-4 w-4" />
+                  Preview: {selectedTree.name}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">
+                Your family tree will be printed on this product. Export your tree first to ensure the best quality.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <h3 className="font-semibold text-xl">{product.name}</h3>
+            <p className="text-muted-foreground">{product.description}</p>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="tree-select">Select Family Tree</Label>
+              <Select value={selectedTreeId} onValueChange={setSelectedTreeId}>
+                <SelectTrigger id="tree-select" data-testid="select-tree">
+                  <SelectValue placeholder="Choose a family tree" />
+                </SelectTrigger>
+                <SelectContent>
+                  {trees.map(tree => (
+                    <SelectItem key={tree.id} value={tree.id}>
+                      {tree.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {loadingVariants ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading options...
+              </div>
+            ) : (
+              <>
+                {uniqueColors.length > 0 && (
+                  <div>
+                    <Label>Color</Label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {uniqueColors.slice(0, 8).map(color => {
+                        const colorVariant = inStockVariants.find(v => v.color === color);
+                        const isSelected = selectedVariant?.color === color;
+                        return (
+                          <button
+                            key={color}
+                            onClick={() => {
+                              if (colorVariant) setSelectedVariantId(colorVariant.id);
+                            }}
+                            className={`w-8 h-8 rounded-full border-2 transition-all ${
+                              isSelected ? "border-primary ring-2 ring-primary/30" : "border-border"
+                            }`}
+                            style={{ backgroundColor: colorVariant?.color_code || "#ccc" }}
+                            title={color}
+                            data-testid={`button-color-${color.toLowerCase().replace(/\s+/g, '-')}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {uniqueSizes.length > 1 && (
+                  <div>
+                    <Label>Size</Label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {uniqueSizes.map(size => {
+                        const sizeVariant = inStockVariants.find(
+                          v => v.size === size && (!selectedVariant || v.color === selectedVariant.color)
+                        );
+                        const isSelected = selectedVariant?.size === size;
+                        return (
+                          <Button
+                            key={size}
+                            variant={isSelected ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => {
+                              if (sizeVariant) setSelectedVariantId(sizeVariant.id);
+                            }}
+                            disabled={!sizeVariant?.in_stock}
+                            data-testid={`button-size-${size.toLowerCase()}`}
+                          >
+                            {size}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div>
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min={1}
+                max={10}
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                className="w-24"
+                data-testid="input-quantity"
+              />
+            </div>
+          </div>
+
+          {!showShipping ? (
+            <>
+              <div className="border-t pt-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal</span>
+                  <span>${(subtotal / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Shipping + Commission</span>
+                  <span>Calculated at checkout</span>
+                </div>
+              </div>
+
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={() => setShowShipping(true)}
+                disabled={!selectedTreeId || !selectedVariantId}
+                data-testid="button-continue-shipping"
+              >
+                Continue to Shipping
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="border-t pt-4 space-y-3">
+                <h4 className="font-semibold">Shipping Address</h4>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <Label htmlFor="shipping-name">Full Name *</Label>
+                    <Input
+                      id="shipping-name"
+                      value={shippingAddress.name}
+                      onChange={(e) => setShippingAddress(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="John Smith"
+                      data-testid="input-shipping-name"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="shipping-address1">Address Line 1 *</Label>
+                    <Input
+                      id="shipping-address1"
+                      value={shippingAddress.address1}
+                      onChange={(e) => setShippingAddress(prev => ({ ...prev, address1: e.target.value }))}
+                      placeholder="123 Main St"
+                      data-testid="input-shipping-address1"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="shipping-address2">Address Line 2</Label>
+                    <Input
+                      id="shipping-address2"
+                      value={shippingAddress.address2}
+                      onChange={(e) => setShippingAddress(prev => ({ ...prev, address2: e.target.value }))}
+                      placeholder="Apt 4B (optional)"
+                      data-testid="input-shipping-address2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shipping-city">City *</Label>
+                    <Input
+                      id="shipping-city"
+                      value={shippingAddress.city}
+                      onChange={(e) => setShippingAddress(prev => ({ ...prev, city: e.target.value }))}
+                      placeholder="New York"
+                      data-testid="input-shipping-city"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shipping-state">State Code *</Label>
+                    <Input
+                      id="shipping-state"
+                      value={shippingAddress.stateCode}
+                      onChange={(e) => setShippingAddress(prev => ({ ...prev, stateCode: e.target.value.toUpperCase().slice(0, 2) }))}
+                      placeholder="NY"
+                      maxLength={2}
+                      data-testid="input-shipping-state"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shipping-zip">ZIP Code *</Label>
+                    <Input
+                      id="shipping-zip"
+                      value={shippingAddress.zip}
+                      onChange={(e) => setShippingAddress(prev => ({ ...prev, zip: e.target.value }))}
+                      placeholder="10001"
+                      data-testid="input-shipping-zip"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shipping-country">Country *</Label>
+                    <Select 
+                      value={shippingAddress.countryCode} 
+                      onValueChange={(value) => setShippingAddress(prev => ({ ...prev, countryCode: value }))}
+                    >
+                      <SelectTrigger id="shipping-country" data-testid="select-shipping-country">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="US">United States</SelectItem>
+                        <SelectItem value="CA">Canada</SelectItem>
+                        <SelectItem value="GB">United Kingdom</SelectItem>
+                        <SelectItem value="AU">Australia</SelectItem>
+                        <SelectItem value="DE">Germany</SelectItem>
+                        <SelectItem value="FR">France</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="shipping-phone">Phone</Label>
+                    <Input
+                      id="shipping-phone"
+                      value={shippingAddress.phone}
+                      onChange={(e) => setShippingAddress(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="+1 555-123-4567"
+                      data-testid="input-shipping-phone"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shipping-email">Email</Label>
+                    <Input
+                      id="shipping-email"
+                      type="email"
+                      value={shippingAddress.email}
+                      onChange={(e) => setShippingAddress(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="john@example.com"
+                      data-testid="input-shipping-email"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowShipping(false)}
+                  data-testid="button-back-to-product"
+                >
+                  Back
+                </Button>
+                <Button
+                  className="flex-1"
+                  size="lg"
+                  onClick={() => createOrderMutation.mutate()}
+                  disabled={!isShippingValid() || createOrderMutation.isPending}
+                  data-testid="button-place-order"
+                >
+                  {createOrderMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating Order...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Place Order
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrderCard({ order }: { order: MerchandiseOrder }) {
+  const { toast } = useToast();
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+  const handleCheckout = async () => {
+    setIsCheckingOut(true);
+    try {
+      const response = await apiRequest("POST", `/api/merchandise/orders/${order.id}/checkout`);
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error: any) {
+      toast({
+        title: "Checkout Error",
+        description: error.message || "Failed to start checkout",
+        variant: "destructive",
+      });
+      setIsCheckingOut(false);
+    }
+  };
+
+  return (
+    <Card data-testid={`card-order-${order.id}`}>
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-start gap-2 flex-wrap">
+          <div>
+            <CardTitle className="text-lg">{order.productName}</CardTitle>
+            {order.variantName && (
+              <CardDescription>{order.variantName}</CardDescription>
+            )}
+          </div>
+          <Badge variant={
+            order.status === "delivered" ? "default" :
+            order.status === "shipped" ? "secondary" :
+            order.status === "paid" || order.status === "submitted" ? "default" :
+            order.status === "failed" || order.status === "cancelled" ? "destructive" :
+            "outline"
+          }>
+            {order.status === "pending" ? "Awaiting Payment" : order.status}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="pb-2 space-y-3">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Quantity: {order.quantity}</span>
+          <span className="font-medium">${(order.totalAmount / 100).toFixed(2)}</span>
+        </div>
+        
+        {order.status === "pending" && (
+          <Button 
+            onClick={handleCheckout} 
+            disabled={isCheckingOut}
+            className="w-full"
+            data-testid={`button-checkout-${order.id}`}
+          >
+            {isCheckingOut ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              "Complete Checkout"
+            )}
+          </Button>
+        )}
+        
+        {order.trackingNumber && (
+          <div className="flex items-center gap-2 text-sm">
+            <Truck className="h-4 w-4" />
+            <a 
+              href={order.trackingUrl || "#"} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Track Package: {order.trackingNumber}
+            </a>
+          </div>
+        )}
+      </CardContent>
+      <CardFooter className="text-xs text-muted-foreground">
+        Ordered {new Date(order.createdAt).toLocaleDateString()}
+      </CardFooter>
+    </Card>
+  );
+}
+
+function OrdersTab({ orders }: { orders: MerchandiseOrder[] }) {
+  if (orders.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="font-semibold text-lg mb-2">No Orders Yet</h3>
+          <p className="text-muted-foreground">
+            When you order custom merchandise, your orders will appear here.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {orders.map(order => (
+        <OrderCard key={order.id} order={order} />
+      ))}
+    </div>
+  );
+}
+
+export default function MerchandisePage() {
+  const [, navigate] = useLocation();
+  const { user, isLoading: authLoading } = useAuth();
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [activeTab, setActiveTab] = useState("products");
+  const { toast } = useToast();
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const checkoutStatus = urlParams.get("checkout");
+  const orderId = urlParams.get("order");
+
+  const { data: products = [], isLoading: loadingProducts } = useQuery<Product[]>({
+    queryKey: ["/api/merchandise/products"],
+  });
+
+  const { data: trees = [] } = useQuery<FamilyTree[]>({
+    queryKey: ["/api/trees"],
+    enabled: !!user,
+  });
+
+  const { data: orders = [], refetch: refetchOrders } = useQuery<MerchandiseOrder[]>({
+    queryKey: ["/api/merchandise/orders"],
+    enabled: !!user,
+  });
+
+  const confirmPaymentMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      return apiRequest("POST", `/api/merchandise/orders/${orderId}/confirm-payment`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
+      toast({
+        title: "Payment Confirmed",
+        description: "Your order has been paid and will be processed soon.",
+      });
+      window.history.replaceState({}, '', '/merchandise');
+    },
+  });
+
+  useEffect(() => {
+    if (checkoutStatus === "success" && orderId) {
+      setActiveTab("orders");
+      confirmPaymentMutation.mutate(orderId);
+    } else if (checkoutStatus === "cancel") {
+      toast({
+        title: "Checkout Cancelled",
+        description: "Your checkout was cancelled. You can complete it later from your orders.",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, '', '/merchandise');
+    }
+  }, [checkoutStatus, orderId]);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b sticky top-0 bg-background z-10">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(user ? "/dashboard" : "/")}
+              data-testid="button-back"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="h-6 w-6 text-primary" />
+              <h1 className="text-xl font-semibold">Custom Merchandise</h1>
+            </div>
+          </div>
+          
+          {user && orders.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => setActiveTab("orders")}
+              data-testid="button-view-orders"
+            >
+              <Package className="h-4 w-4 mr-2" />
+              My Orders ({orders.length})
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
+        {!user ? (
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Star className="h-5 w-5 text-primary" />
+                Sign In Required
+              </CardTitle>
+              <CardDescription>
+                Create an account to order custom merchandise with your family tree.
+              </CardDescription>
+            </CardHeader>
+            <CardFooter>
+              <Button onClick={() => navigate("/api/login")} className="w-full" data-testid="button-sign-in">
+                Sign In to Continue
+              </Button>
+            </CardFooter>
+          </Card>
+        ) : (
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-6">
+              <TabsTrigger value="products" data-testid="tab-products">
+                <ShoppingBag className="h-4 w-4 mr-2" />
+                Products
+              </TabsTrigger>
+              <TabsTrigger value="orders" data-testid="tab-orders">
+                <Package className="h-4 w-4 mr-2" />
+                My Orders
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="products">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold mb-2">Print Your Family Tree</h2>
+                <p className="text-muted-foreground">
+                  Turn your family tree into beautiful custom products. Perfect for gifts or keeping your heritage close.
+                </p>
+              </div>
+
+              {trees.length === 0 && (
+                <Card className="mb-6 border-primary/50 bg-primary/5">
+                  <CardContent className="py-4">
+                    <div className="flex items-start gap-3">
+                      <TreeDeciduous className="h-5 w-5 text-primary mt-0.5" />
+                      <div>
+                        <p className="font-medium">Create a Family Tree First</p>
+                        <p className="text-sm text-muted-foreground">
+                          You need at least one family tree to create custom merchandise.
+                        </p>
+                        <Button 
+                          variant="ghost" 
+                          className="px-0 mt-1 text-primary hover:text-primary/80"
+                          onClick={() => navigate("/dashboard")}
+                        >
+                          Go to Dashboard
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {loadingProducts ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {products.map(product => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onCustomize={setSelectedProduct}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-12 grid md:grid-cols-3 gap-6">
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <Check className="h-8 w-8 mx-auto text-green-500 mb-3" />
+                    <h3 className="font-semibold mb-1">Premium Quality</h3>
+                    <p className="text-sm text-muted-foreground">
+                      All products are made with high-quality materials
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <Truck className="h-8 w-8 mx-auto text-blue-500 mb-3" />
+                    <h3 className="font-semibold mb-1">Global Shipping</h3>
+                    <p className="text-sm text-muted-foreground">
+                      We ship to most countries worldwide
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <Star className="h-8 w-8 mx-auto text-yellow-500 mb-3" />
+                    <h3 className="font-semibold mb-1">Perfect Gift</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Unique personalized gifts for family members
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="orders">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold mb-2">My Orders</h2>
+                <p className="text-muted-foreground">
+                  Track your merchandise orders and view order history.
+                </p>
+              </div>
+              <OrdersTab orders={orders} />
+            </TabsContent>
+          </Tabs>
+        )}
+      </main>
+
+      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Customize Your Product</DialogTitle>
+            <DialogDescription>
+              Select your family tree and product options
+            </DialogDescription>
+          </DialogHeader>
+          {selectedProduct && (
+            <ProductCustomizer
+              product={selectedProduct}
+              trees={trees}
+              onClose={() => setSelectedProduct(null)}
+              onOrderCreated={() => setActiveTab("orders")}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -1,7 +1,7 @@
 import { 
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
   treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
-  discoverableMembers, matchRequests, memberInvitations,
+  discoverableMembers, matchRequests, memberInvitations, merchandiseOrders,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -16,6 +16,7 @@ import {
   type DiscoverableMember, type InsertDiscoverableMember,
   type MatchRequest, type InsertMatchRequest,
   type MemberInvitation, type InsertMemberInvitation,
+  type MerchandiseOrder, type InsertMerchandiseOrder,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -123,6 +124,12 @@ export interface IStorage {
   getMemberInvitationsByTree(treeId: string): Promise<MemberInvitation[]>;
   createMemberInvitation(invitation: InsertMemberInvitation): Promise<MemberInvitation>;
   updateMemberInvitationStatus(id: string, status: 'clicked' | 'registered'): Promise<MemberInvitation | undefined>;
+
+  // Merchandise Orders
+  getMerchandiseOrders(userId: string): Promise<MerchandiseOrder[]>;
+  getMerchandiseOrder(id: string): Promise<MerchandiseOrder | undefined>;
+  createMerchandiseOrder(order: InsertMerchandiseOrder): Promise<MerchandiseOrder>;
+  updateMerchandiseOrder(id: string, data: Partial<InsertMerchandiseOrder>): Promise<MerchandiseOrder | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -674,6 +681,32 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(memberInvitations)
       .set(updateData)
       .where(eq(memberInvitations.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Merchandise Orders
+  async getMerchandiseOrders(userId: string): Promise<MerchandiseOrder[]> {
+    return db.select().from(merchandiseOrders)
+      .where(eq(merchandiseOrders.userId, userId))
+      .orderBy(desc(merchandiseOrders.createdAt));
+  }
+
+  async getMerchandiseOrder(id: string): Promise<MerchandiseOrder | undefined> {
+    const [order] = await db.select().from(merchandiseOrders)
+      .where(eq(merchandiseOrders.id, id));
+    return order;
+  }
+
+  async createMerchandiseOrder(order: InsertMerchandiseOrder): Promise<MerchandiseOrder> {
+    const [created] = await db.insert(merchandiseOrders).values(order).returning();
+    return created;
+  }
+
+  async updateMerchandiseOrder(id: string, data: Partial<InsertMerchandiseOrder>): Promise<MerchandiseOrder | undefined> {
+    const [updated] = await db.update(merchandiseOrders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(merchandiseOrders.id, id))
       .returning();
     return updated;
   }
