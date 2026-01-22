@@ -433,15 +433,7 @@ export default function TreeView() {
                     </DropdownMenuItem>
                   </>
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" data-testid="button-nav-menu">
-                  <Menu className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+                <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="gap-2"
                   onClick={() => navigate("/")}
@@ -450,7 +442,6 @@ export default function TreeView() {
                   <LayoutDashboard className="h-4 w-4" />
                   Dashboard
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="gap-2"
                   onClick={() => navigate("/merchandise")}
