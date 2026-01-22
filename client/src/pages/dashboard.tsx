@@ -171,7 +171,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="sm:hidden" data-testid="button-mobile-menu">
+                <Button variant="ghost" size="icon" className="md:hidden" data-testid="button-mobile-menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -202,17 +202,17 @@ export default function Dashboard() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/merchandise")} className="hidden sm:flex gap-1" data-testid="link-merchandise">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/merchandise")} className="hidden md:flex gap-1" data-testid="link-merchandise">
               <ShoppingBag className="h-4 w-4" />
-              <span className="hidden md:inline">Shop</span>
+              <span className="hidden lg:inline">Shop</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/gifts")} className="hidden sm:flex gap-1" data-testid="link-gifts">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/gifts")} className="hidden md:flex gap-1" data-testid="link-gifts">
               <Gift className="h-4 w-4" />
-              <span className="hidden md:inline">Gifts</span>
+              <span className="hidden lg:inline">Gifts</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/share")} className="hidden sm:flex gap-1" data-testid="link-share">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/share")} className="hidden md:flex gap-1" data-testid="link-share">
               <QrCode className="h-4 w-4" />
-              <span className="hidden md:inline">Share</span>
+              <span className="hidden lg:inline">Share</span>
             </Button>
             <ThemeToggle />
             <DropdownMenu>

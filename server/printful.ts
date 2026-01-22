@@ -305,7 +305,7 @@ class PrintfulService {
         description: 'Start every morning with your family tree on a high-quality ceramic mug.',
         category: 'drinkware',
         basePrice: 7.95,
-        image: 'https://files.cdn.printful.com/products/19/product_1554459091.jpg',
+        image: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=400&h=400&fit=crop&q=80',
       },
       {
         id: 71,
@@ -313,7 +313,7 @@ class PrintfulService {
         description: 'Wear your family heritage with pride on a comfortable cotton t-shirt.',
         category: 'apparel',
         basePrice: 11.69,
-        image: 'https://files.cdn.printful.com/products/71/4011_1752236284.jpg',
+        image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop&q=80',
       },
       {
         id: 1,
@@ -321,7 +321,7 @@ class PrintfulService {
         description: 'Display your family tree beautifully with a museum-quality poster.',
         category: 'home-decor',
         basePrice: 8.00,
-        image: 'https://files.cdn.printful.com/products/1/product_1.jpg',
+        image: 'https://images.unsplash.com/photo-1513519245088-0e12902e35ca?w=400&h=400&fit=crop&q=80',
       },
       {
         id: 380,
@@ -329,7 +329,7 @@ class PrintfulService {
         description: 'A cozy pillow featuring your family tree for home comfort.',
         category: 'home-decor',
         basePrice: 16.95,
-        image: 'https://files.cdn.printful.com/products/380/product_1553157149.jpg',
+        image: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?w=400&h=400&fit=crop&q=80',
       },
       {
         id: 181,
@@ -337,7 +337,7 @@ class PrintfulService {
         description: 'Carry your family pride everywhere with a stylish tote bag.',
         category: 'accessories',
         basePrice: 13.95,
-        image: 'https://files.cdn.printful.com/products/181/product_1.jpg',
+        image: 'https://images.unsplash.com/photo-1597633125097-5a9ae3a9a4f8?w=400&h=400&fit=crop&q=80',
       },
     ];
   }
