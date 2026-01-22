@@ -6,6 +6,7 @@ import { SEO, defaultStructuredData } from "@/components/seo";
 import { useI18n } from "@/lib/i18n";
 import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DemoFamilyTree } from "@/components/demo-family-tree";
 
 export default function Landing() {
   const { t } = useI18n();
@@ -234,6 +235,50 @@ export default function Landing() {
               <a href="/api/login">
                 <Button size="lg" className="gap-2" data-testid="button-how-cta">
                   {t.landing.startTree}
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* Demo Family Tree Section */}
+        <section id="demo-tree" className="py-24">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+              <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4" data-testid="text-demo-tree-title">See Your Family Tree Come to Life</h2>
+              <p className="text-muted-foreground text-lg max-w-2xl mx-auto" data-testid="text-demo-tree-subtitle">
+                Build beautiful, interactive family trees spanning generations. From grandparents to grandchildren, every branch tells a story.
+              </p>
+            </div>
+            <div className="max-w-3xl mx-auto">
+              <Card className="overflow-visible" data-testid="card-demo-tree">
+                <CardContent className="p-6 md:p-8">
+                  <div className="mb-6 flex flex-wrap items-center justify-center gap-4 text-sm" data-testid="demo-tree-legend">
+                    <div className="flex items-center gap-2" data-testid="legend-you">
+                      <div className="w-3 h-3 rounded-full bg-primary" data-testid="legend-you-dot" />
+                      <span className="text-muted-foreground" data-testid="legend-you-text">You (Focus)</span>
+                    </div>
+                    <div className="flex items-center gap-2" data-testid="legend-family">
+                      <div className="w-3 h-3 rounded-full bg-muted border border-border" data-testid="legend-family-dot" />
+                      <span className="text-muted-foreground" data-testid="legend-family-text">Family Members</span>
+                    </div>
+                    <div className="flex items-center gap-2" data-testid="legend-unknown">
+                      <div className="w-3 h-3 rounded-full border-2 border-dashed border-muted-foreground/50" data-testid="legend-unknown-dot" />
+                      <span className="text-muted-foreground" data-testid="legend-unknown-text">Unknown (Placeholder)</span>
+                    </div>
+                  </div>
+                  <DemoFamilyTree />
+                  <div className="mt-6 text-center text-sm text-muted-foreground" data-testid="text-demo-tree-caption">
+                    <p data-testid="text-demo-tree-generations">4 generations: Grandparents, Parents, You & Siblings, and Your Children</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="text-center mt-8">
+              <a href="/api/login">
+                <Button size="lg" className="gap-2" data-testid="button-demo-cta">
+                  Start Building Your Tree
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </a>
