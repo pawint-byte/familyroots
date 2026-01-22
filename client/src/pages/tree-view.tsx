@@ -141,6 +141,7 @@ export default function TreeView() {
       queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
       setIsEditMemberOpen(false);
       setSelectedMember(updatedMember);
+      setTimeout(() => setIsMemberDetailOpen(true), 100);
       toast({
         title: "Success",
         description: "Family member updated",
@@ -740,7 +741,10 @@ export default function TreeView() {
                     variant="outline" 
                     className="flex-1 gap-2" 
                     data-testid="button-edit-member"
-                    onClick={() => setIsEditMemberOpen(true)}
+                    onClick={() => {
+                      setIsMemberDetailOpen(false);
+                      setTimeout(() => setIsEditMemberOpen(true), 100);
+                    }}
                   >
                     <Edit className="h-4 w-4" />
                     Edit
