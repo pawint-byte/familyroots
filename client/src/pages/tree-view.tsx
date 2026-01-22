@@ -476,6 +476,7 @@ export default function TreeView() {
                   relationships={treeData.relationships || []}
                   zoom={zoom}
                   onMemberClick={handleMemberClick}
+                  focusMemberId={focusMemberId}
                 />
                 <div className="absolute bottom-4 right-4 flex flex-col gap-2">
                   <Button 
