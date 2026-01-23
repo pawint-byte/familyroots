@@ -806,6 +806,8 @@ export const userConnectionRequests = pgTable("user_connection_requests", {
   message: text("message"), // Optional message with the request
   status: connectionRequestStatusEnum("status").default("pending").notNull(),
   respondedAt: timestamp("responded_at"),
+  approverRelationshipType: userRelationshipTypeEnum("approver_relationship_type"), // How the approver says they're related
+  approverCustomLabel: text("approver_custom_label"), // If approver chose "other"
   sourceType: text("source_type").default("qr_scan"), // How they connected: qr_scan, manual, invite
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

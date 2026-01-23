@@ -4032,11 +4032,12 @@ export async function registerRoutes(
     }
   });
 
-  // Approve a user connection request
+  // Approve a user connection request with approver's relationship selection
   app.post("/api/user-connection-requests/:id/approve", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { id } = req.params;
+      const { relationshipType: approverRelationshipType, customLabel: approverCustomLabel } = req.body;
 
       const request = await storage.getUserConnectionRequest(id);
       if (!request) {
@@ -4051,20 +4052,36 @@ export async function registerRoutes(
         return res.status(400).json({ message: "This request has already been responded to" });
       }
 
-      // Approve the request
-      const approved = await storage.approveUserConnectionRequest(id);
+      // Validate approver's relationship type if provided
+      if (approverRelationshipType && !VALID_RELATIONSHIP_TYPES.includes(approverRelationshipType)) {
+        return res.status(400).json({ message: "Invalid relationship type" });
+      }
+      if (approverCustomLabel && approverCustomLabel.length > 100) {
+        return res.status(400).json({ message: "Custom label must be 100 characters or less" });
+      }
+
+      // Approve the request with the approver's relationship perspective
+      const approved = await storage.approveUserConnectionRequest(id, approverRelationshipType, approverCustomLabel);
 
       // Create the connection record (store users in consistent order for easier querying)
       const [userId1, userId2] = [request.fromUserId, request.toUserId].sort();
       
-      // Determine relationship perspectives
+      // Determine relationship perspectives - each user has their own view
       const isUser1Requester = userId1 === request.fromUserId;
+      
+      // Requester's perspective is stored from original request
+      // Approver's perspective is from the approval body (defaults to null if not provided)
+      const requesterRelationship = request.relationshipType;
+      const requesterCustomLabel = request.customLabel;
       
       await storage.createUserConnection({
         userId1,
         userId2,
-        relationshipFromUser1: isUser1Requester ? request.relationshipType : null,
-        relationshipFromUser2: isUser1Requester ? null : request.relationshipType,
+        // Set each user's relationship perspective based on who is user1 vs user2
+        relationshipFromUser1: isUser1Requester ? requesterRelationship : approverRelationshipType,
+        customLabelFromUser1: isUser1Requester ? requesterCustomLabel : approverCustomLabel,
+        relationshipFromUser2: isUser1Requester ? approverRelationshipType : requesterRelationship,
+        customLabelFromUser2: isUser1Requester ? approverCustomLabel : requesterCustomLabel,
         sourceRequestId: request.id,
       });
 

@@ -224,7 +224,7 @@ export interface IStorage {
   getPendingUserConnectionRequestsForUser(toUserId: string): Promise<UserConnectionRequest[]>;
   getSentUserConnectionRequests(fromUserId: string): Promise<UserConnectionRequest[]>;
   getExistingUserConnectionRequest(fromUserId: string, toUserId: string): Promise<UserConnectionRequest | undefined>;
-  approveUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined>;
+  approveUserConnectionRequest(id: string, approverRelationshipType?: string, approverCustomLabel?: string): Promise<UserConnectionRequest | undefined>;
   denyUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined>;
 
   // User Connections (approved connections)
@@ -1419,9 +1419,18 @@ export class DatabaseStorage implements IStorage {
     return request;
   }
 
-  async approveUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined> {
+  async approveUserConnectionRequest(id: string, approverRelationshipType?: string, approverCustomLabel?: string): Promise<UserConnectionRequest | undefined> {
+    // Update the request with the approver's relationship type
+    const updateData: any = { status: "approved", respondedAt: new Date() };
+    if (approverRelationshipType) {
+      updateData.approverRelationshipType = approverRelationshipType;
+      if (approverRelationshipType === "other" && approverCustomLabel) {
+        updateData.approverCustomLabel = approverCustomLabel;
+      }
+    }
+    
     const [updated] = await db.update(userConnectionRequests)
-      .set({ status: "approved", respondedAt: new Date() })
+      .set(updateData)
       .where(eq(userConnectionRequests.id, id))
       .returning();
     return updated;
