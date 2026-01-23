@@ -375,6 +375,18 @@ export default function FAQ() {
           answer: "Definitely! Family tree merchandise makes wonderful gifts for reunions, holidays, or special occasions. During checkout, you can ship to any address - perfect for surprising relatives with a personalized family keepsake."
         },
         {
+          question: "What are Gift Registries?",
+          answer: "Gift Registries let you create wishlists for family events like birthdays, baby showers, weddings, graduations, and more. You can add items from any store (we support Amazon and Etsy links), and family members can see what's needed and mark items as purchased to avoid duplicates."
+        },
+        {
+          question: "How do I create a Gift Registry?",
+          answer: "Open any family tree, click the menu button, and select 'Gift Registries'. From there, you can create a registry for any family member and any occasion. Add items with links, prices, and quantities - then share with family so they know exactly what to get."
+        },
+        {
+          question: "Can multiple people mark items as purchased?",
+          answer: "Yes! Any family member with access to the tree can mark registry items as purchased. This prevents duplicate gifts and shows real-time progress on how many items have been fulfilled. Perfect for coordinating gifts across the whole family."
+        },
+        {
           question: "What payment methods do you accept?",
           answer: "We accept all major credit and debit cards (Visa, Mastercard, American Express, Discover) as well as cryptocurrency including Bitcoin, Ethereum, and stablecoins like USDC. All payments are processed securely through Stripe."
         },
