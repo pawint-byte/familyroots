@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, Crown, TrendingUp, Sparkles, UserCircle } from "lucide-react";
+import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, Crown, TrendingUp, Sparkles, UserCircle, HelpCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -284,6 +284,14 @@ export default function Dashboard() {
                   <QrCode className="h-4 w-4" />
                   <span>Share App</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/faq")}
+                  data-testid="mobile-menu-faq"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                  <span>Help & FAQ</span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Tooltip>
@@ -376,6 +384,14 @@ export default function Dashboard() {
                 >
                   <Settings className="h-4 w-4" />
                   <span>Account Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/faq")}
+                  data-testid="menu-faq"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                  <span>Help & FAQ</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
