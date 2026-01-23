@@ -12,6 +12,16 @@ import { sendCustodianshipApproval, sendCustodianshipReminder } from './lib/emai
 const app = express();
 const httpServer = createServer(app);
 
+// Health check endpoint - responds immediately before any other initialization
+// This is critical for Cloud Run deployment health checks
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/_health', (_req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
