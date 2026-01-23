@@ -4,25 +4,33 @@ import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Copy, Check, Download, Share2, QrCode } from "lucide-react";
+import { ArrowLeft, Copy, Check, Download, Share2, QrCode, UserCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function SharePage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { user, isLoading } = useAuth();
   const [copied, setCopied] = useState(false);
 
-  const appUrl = typeof window !== "undefined" 
+  const baseUrl = typeof window !== "undefined" 
     ? `${window.location.protocol}//${window.location.host}` 
     : "";
 
+  // If logged in, share personal profile URL; otherwise share app URL
+  const isPersonalShare = !!user;
+  const shareUrl = isPersonalShare 
+    ? `${baseUrl}/profile/${user.id}` 
+    : baseUrl;
+
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(appUrl);
+      await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       toast({
         title: "Link Copied",
-        description: "App link copied to clipboard",
+        description: isPersonalShare ? "Your profile link copied to clipboard" : "App link copied to clipboard",
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -54,7 +62,9 @@ export default function SharePage() {
         const pngUrl = canvas.toDataURL("image/png");
         const downloadLink = document.createElement("a");
         downloadLink.href = pngUrl;
-        downloadLink.download = "familyroots-qr-code.png";
+        downloadLink.download = isPersonalShare 
+          ? `${user?.firstName || "my"}-profile-qr.png`
+          : "familyroots-qr-code.png";
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
@@ -68,15 +78,17 @@ export default function SharePage() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "FamilyRoots",
-          text: "Create and manage your family tree with FamilyRoots",
-          url: appUrl,
+          title: isPersonalShare ? `Connect with ${user?.firstName} on FamilyRoots` : "FamilyRoots",
+          text: isPersonalShare 
+            ? `Scan to connect with ${user?.firstName} ${user?.lastName || ""} on FamilyRoots`
+            : "Create and manage your family tree with FamilyRoots",
+          url: shareUrl,
         });
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
           toast({
             title: "Share Failed",
-            description: "Could not share the app",
+            description: "Could not share",
             variant: "destructive",
           });
         }
@@ -86,6 +98,17 @@ export default function SharePage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-center">
+          <QrCode className="h-12 w-12 mx-auto mb-4 text-primary/50" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b sticky top-0 bg-background z-10">
@@ -93,14 +116,20 @@ export default function SharePage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/")}
+            onClick={() => navigate(user ? "/dashboard" : "/")}
             data-testid="button-back"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-2">
-            <QrCode className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-semibold">Share FamilyRoots</h1>
+            {isPersonalShare ? (
+              <UserCircle className="h-6 w-6 text-primary" />
+            ) : (
+              <QrCode className="h-6 w-6 text-primary" />
+            )}
+            <h1 className="text-xl font-semibold">
+              {isPersonalShare ? "Share Your Profile" : "Share FamilyRoots"}
+            </h1>
           </div>
         </div>
       </header>
@@ -109,18 +138,43 @@ export default function SharePage() {
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="flex items-center justify-center gap-2">
-              <Share2 className="h-5 w-5" />
-              Share This App
+              {isPersonalShare ? (
+                <>
+                  <UserCircle className="h-5 w-5" />
+                  Your Personal QR Code
+                </>
+              ) : (
+                <>
+                  <Share2 className="h-5 w-5" />
+                  Share This App
+                </>
+              )}
             </CardTitle>
             <CardDescription>
-              Scan this QR code or share the link to invite others to FamilyRoots
+              {isPersonalShare ? (
+                <>
+                  Family members can scan this to connect with you on FamilyRoots.
+                  <span className="block mt-1 font-medium text-foreground">
+                    Perfect for family reunions!
+                  </span>
+                </>
+              ) : (
+                "Scan this QR code or share the link to invite others to FamilyRoots"
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {isPersonalShare && (
+              <div className="text-center pb-2">
+                <p className="text-lg font-medium">{user?.firstName} {user?.lastName}</p>
+                <p className="text-sm text-muted-foreground">{user?.email}</p>
+              </div>
+            )}
+
             <div className="flex justify-center p-4 bg-white rounded-lg">
               <QRCodeSVG
                 id="qr-code-svg"
-                value={appUrl}
+                value={shareUrl}
                 size={256}
                 level="H"
                 includeMargin
@@ -131,10 +185,10 @@ export default function SharePage() {
             <div className="space-y-3">
               <div className="flex gap-2">
                 <Input 
-                  value={appUrl} 
+                  value={shareUrl} 
                   readOnly 
                   className="font-mono text-sm"
-                  data-testid="input-app-url"
+                  data-testid="input-share-url"
                 />
                 <Button
                   variant="outline"
@@ -168,7 +222,10 @@ export default function SharePage() {
             </div>
 
             <p className="text-xs text-muted-foreground text-center">
-              Point your phone camera at the QR code to open the app
+              {isPersonalShare 
+                ? "When scanned, they'll be prompted to connect with you"
+                : "Point your phone camera at the QR code to open the app"
+              }
             </p>
           </CardContent>
         </Card>
