@@ -10,6 +10,7 @@ This document contains reference information for all external accounts and integ
 - **Dashboard URL**: https://dashboard.stripe.com
 - **Account Email**: pawint@me.com
 - **Business Name**: Wint Ent
+- **Payout Bank**: Navy Federal Credit Union
 - **Account Type**: [x] Standard  [ ] Express  [ ] Custom
 - **Current Mode**: Sandbox/Test Mode (development)
 - **Live Mode Setup**: Required before publishing for real payments
