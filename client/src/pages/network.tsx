@@ -11,7 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SEO } from "@/components/seo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
-import { ArrowLeft, MapPin, Users, Search, Link, Globe } from "lucide-react";
+import { ArrowLeft, MapPin, Users, Search, Link, Globe, List, Map } from "lucide-react";
+import { NetworkMap } from "@/components/network-map";
 import type { FamilyMember, FamilyTree } from "@shared/schema";
 
 interface NetworkMember {
@@ -50,6 +51,7 @@ export default function NetworkPage() {
   const [searchRegion, setSearchRegion] = useState("");
   const [searchCountry, setSearchCountry] = useState("");
   const [activeSearch, setActiveSearch] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   const { data: trees = [] } = useQuery<FamilyTree[]>({
     queryKey: ["/api/trees"],
@@ -170,10 +172,30 @@ export default function NetworkPage() {
           {activeSearch && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5" />
-                  Search Results
-                </CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    Search Results
+                  </CardTitle>
+                  <div className="flex items-center gap-1 rounded-md border p-1">
+                    <Button
+                      variant={viewMode === "list" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setViewMode("list")}
+                      data-testid="button-view-list"
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === "map" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setViewMode("map")}
+                      data-testid="button-view-map"
+                    >
+                      <Map className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {searchLoading ? (
@@ -196,6 +218,11 @@ export default function NetworkPage() {
                       No family members have shared their location matching your search.
                     </p>
                   </div>
+                ) : viewMode === "map" ? (
+                  <NetworkMap 
+                    members={locationResults} 
+                    onViewTree={(treeId) => navigate(`/tree/${treeId}`)} 
+                  />
                 ) : (
                   <div className="space-y-3">
                     {locationResults.map((result) => (
