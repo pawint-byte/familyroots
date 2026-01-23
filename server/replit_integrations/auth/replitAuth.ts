@@ -51,13 +51,24 @@ function updateUserSession(
 }
 
 async function upsertUser(claims: any) {
-  await authStorage.upsertUser({
+  const userData: any = {
     id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
-  });
+  };
+  
+  if (claims["email"]) {
+    userData.email = claims["email"];
+  }
+  if (claims["first_name"]) {
+    userData.firstName = claims["first_name"];
+  }
+  if (claims["last_name"]) {
+    userData.lastName = claims["last_name"];
+  }
+  if (claims["profile_image_url"]) {
+    userData.profileImageUrl = claims["profile_image_url"];
+  }
+  
+  await authStorage.upsertUser(userData);
 }
 
 export async function setupAuth(app: Express) {
