@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -51,6 +51,40 @@ export default function FAQ() {
         {
           question: "Can I view the tree from a different person's perspective?",
           answer: "Yes! Click on any family member in the tree and tap 'Set as Focus'. The tree will recenter to show that person's connections. This is temporary - the tree will return to the Main Person next time you open it. To permanently change the center point, use 'Set as Main' instead."
+        }
+      ]
+    },
+    {
+      title: "FamilyRoots vs Ancestry",
+      icon: <Scale className="h-5 w-5" />,
+      items: [
+        {
+          question: "How is FamilyRoots different from Ancestry?",
+          answer: "FamilyRoots focuses on living family connections and collaboration, while Ancestry focuses on historical research and DNA testing. We help families collaborate on trees together, claim their own profiles, and connect with living relatives. Visit our Comparison page at /comparison for a detailed feature matrix."
+        },
+        {
+          question: "What unique features does FamilyRoots offer?",
+          answer: "FamilyRoots offers features designed for connecting living families: Export tree as image, Education & career history tracking, Profile claiming, Custodianship for deceased members, Three-tier privacy visibility, Account heir (deadman switch), Special connections (godparents, friends), Location sharing, Cross-tree connections, Network discovery, AI video generation, QR code sharing, Tiered subscription discounts (FREE at 100+ members), and Custom merchandise. See /comparison for the full feature matrix."
+        },
+        {
+          question: "What does Ancestry offer that FamilyRoots doesn't?",
+          answer: "Ancestry focuses on historical research and DNA: DNA testing & matching, Ethnicity estimates, Cemetery records, and Newspaper archives. FamilyRoots focuses on connecting living families. Both platforms share core tree-building features. See our Comparison page for details."
+        },
+        {
+          question: "How does FamilyRoots pricing work?",
+          answer: "FamilyRoots offers family-size discounts: $9.99/month base price, 25% off at 25 members ($7.49/month), 50% off at 50 members ($4.99/month), 75% off at 75 members ($2.50/month), and completely FREE at 100+ members. The more family you add, the less you pay!"
+        },
+        {
+          question: "Should I use FamilyRoots or Ancestry?",
+          answer: "It depends on your goals. FamilyRoots is ideal for: living family connections, collaboration, privacy controls, profile ownership, growing discounts, special connections, location sharing, and custom merchandise. Ancestry is ideal for: DNA testing and historical records. Many families use both platforms together."
+        },
+        {
+          question: "Where can I see the full comparison?",
+          answer: "Visit our Comparison page at /comparison for a complete side-by-side feature matrix covering: Tree Building, Collaboration, Privacy & Security, Connections, AI & Technology, and Monetization. You can also click 'Compare to Ancestry' from our home page."
+        },
+        {
+          question: "Is FamilySearch integration coming to FamilyRoots?",
+          answer: "Yes! We're working on integrating with FamilySearch to bring historical records search to FamilyRoots. This will let you search billions of birth, marriage, death, census, immigration, and military records directly from your family tree. You'll be able to attach verified historical sources to your family members, adding depth and documentation to your family history. Stay tuned for this exciting feature!"
         }
       ]
     },
