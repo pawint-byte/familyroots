@@ -32,6 +32,15 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
   - Limited: Name and relationship only
   - Immediate family (parents, children, spouse, siblings) always has full access
   - Tree owners set the default visibility tier; per-member overrides can be set
+- **Special Connections System**: Enables adding non-blood relationships between family members including:
+  - Godparents/godchildren, boyfriends/girlfriends, fiances, best friends, family friends
+  - Mentors/mentees, guardians/wards, and custom "other" connections
+  - Cross-tree connection requests with approval workflow
+  - Network discovery to see connections of connections with limited privacy info
+- **Location Sharing**: Optional location fields (city, region, country) on member profiles:
+  - Opt-in visibility toggle to share location with connections
+  - Network page with location-based search for finding family when traveling
+  - Limited info display for privacy (last name initial only for non-connections)
 - **Deadman Switch (Account Heir)**: Allows users to designate an heir to inherit their family trees after a configurable period of inactivity, ensuring the preservation of genealogical data.
 - **Smart Family Member Matching**: A privacy-focused, opt-in feature that enables cross-tree matching to discover shared family connections based on user-controlled data points. Matching uses a weighted scoring algorithm.
 - **Dynamic Relationship Calculator**: Utilizes a BFS algorithm to determine the genealogical relationship between any two family members within a tree, providing accurate terminology (e.g., cousins "once removed").

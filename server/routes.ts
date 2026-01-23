@@ -30,6 +30,33 @@ const createTreeConnectionSchema = z.object({
   connector2MemberId: z.string().optional(),
   connectionType: z.enum(["marriage", "adoption", "other"]).optional(),
 });
+
+// Special connection validation schemas
+const specialConnectionTypeValues = [
+  "godparent", "godchild", "boyfriend", "girlfriend", "fiance", "fiancee",
+  "best_friend", "family_friend", "mentor", "mentee", "guardian", "ward", "other"
+] as const;
+
+const createSpecialConnectionSchema = z.object({
+  fromMemberId: z.string().min(1),
+  fromTreeId: z.string().min(1),
+  toMemberId: z.string().min(1),
+  toTreeId: z.string().min(1),
+  connectionType: z.enum(specialConnectionTypeValues),
+  customLabel: z.string().max(100).optional(),
+  notes: z.string().max(500).optional(),
+});
+
+const createConnectionRequestSchema = z.object({
+  fromMemberId: z.string().min(1),
+  fromTreeId: z.string().min(1),
+  toMemberId: z.string().min(1),
+  toTreeId: z.string().min(1),
+  connectionType: z.enum(specialConnectionTypeValues),
+  customLabel: z.string().max(100).optional(),
+  message: z.string().max(500).optional(),
+});
+
 import { stripeService } from "./stripeService";
 import { getStripePublishableKey, isStripeConfigured } from "./stripeClient";
 import { streamChatResponse } from "./chatbot";
@@ -3656,6 +3683,397 @@ export async function registerRoutes(
       console.error("Error confirming payment:", error);
       res.status(500).json({ message: "Failed to confirm payment" });
     }
+  });
+
+  // ==================== SPECIAL CONNECTIONS ROUTES ====================
+
+  // Get special connections for a member
+  app.get("/api/members/:memberId/connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId } = req.params;
+
+      // Verify user has access to view this member's connections
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Check if user can access this tree
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+      const hasAccess = isOwner || !!collaborator;
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const connections = await storage.getSpecialConnectionsByMember(memberId);
+      
+      // Enrich with member details
+      const enrichedConnections = await Promise.all(
+        connections.map(async (conn) => {
+          const fromMember = await storage.getMember(conn.fromMemberId);
+          const toMember = await storage.getMember(conn.toMemberId);
+          return {
+            ...conn,
+            fromMember: fromMember ? { id: fromMember.id, firstName: fromMember.firstName, lastName: fromMember.lastName, photoUrl: fromMember.photoUrl } : null,
+            toMember: toMember ? { id: toMember.id, firstName: toMember.firstName, lastName: toMember.lastName, photoUrl: toMember.photoUrl } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedConnections);
+    } catch (error) {
+      console.error("Error fetching special connections:", error);
+      res.status(500).json({ message: "Failed to fetch connections" });
+    }
+  });
+
+  // Get special connections for a tree
+  app.get("/api/trees/:treeId/connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId } = req.params;
+
+      // Verify user has access to this tree
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
+      const hasAccess = isOwner || !!collaborator;
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const connections = await storage.getSpecialConnectionsByTree(treeId);
+      res.json(connections);
+    } catch (error) {
+      console.error("Error fetching tree connections:", error);
+      res.status(500).json({ message: "Failed to fetch connections" });
+    }
+  });
+
+  // Create a special connection directly (for tree owners/editors)
+  app.post("/api/connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body
+      const parseResult = createSpecialConnectionSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid request data", errors: parseResult.error.errors });
+      }
+      const { fromMemberId, fromTreeId, toMemberId, toTreeId, connectionType, customLabel, notes } = parseResult.data;
+
+      // Verify user has permission to create connection (must own or edit fromTree)
+      const fromTree = await storage.getTree(fromTreeId);
+      if (!fromTree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, fromTreeId);
+      const canEdit = fromTree.ownerId === userId || collaborator?.canEdit;
+
+      if (!canEdit) {
+        return res.status(403).json({ message: "You don't have permission to create connections" });
+      }
+
+      // Verify fromMember exists and belongs to fromTree
+      const fromMember = await storage.getMember(fromMemberId);
+      if (!fromMember || fromMember.treeId !== fromTreeId) {
+        return res.status(400).json({ message: "Invalid from member" });
+      }
+
+      // Verify toMember exists
+      const toMember = await storage.getMember(toMemberId);
+      if (!toMember) {
+        return res.status(400).json({ message: "Invalid to member" });
+      }
+
+      const connection = await storage.createSpecialConnection({
+        fromMemberId,
+        fromTreeId,
+        toMemberId,
+        toTreeId: toMember.treeId, // Use actual treeId from member
+        connectionType,
+        customLabel,
+        notes,
+        isReciprocal: true,
+        createdBy: userId,
+      });
+
+      res.json(connection);
+    } catch (error: any) {
+      console.error("Error creating connection:", error);
+      res.status(500).json({ message: error?.message || "Failed to create connection" });
+    }
+  });
+
+  // Delete a special connection
+  app.delete("/api/connections/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const connection = await storage.getSpecialConnection(id);
+      if (!connection) {
+        return res.status(404).json({ message: "Connection not found" });
+      }
+
+      // Verify user has permission (must own or edit fromTree)
+      const fromTree = await storage.getTree(connection.fromTreeId);
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, connection.fromTreeId);
+      const canEdit = fromTree?.ownerId === userId || collaborator?.canEdit;
+
+      if (!canEdit) {
+        return res.status(403).json({ message: "You don't have permission to delete this connection" });
+      }
+
+      await storage.deleteSpecialConnection(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting connection:", error);
+      res.status(500).json({ message: "Failed to delete connection" });
+    }
+  });
+
+  // ==================== CONNECTION REQUESTS ROUTES ====================
+
+  // Get pending connection requests for a tree (for tree owners)
+  app.get("/api/trees/:treeId/connection-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId } = req.params;
+
+      // Verify user owns or manages the tree
+      const tree = await storage.getTree(treeId);
+      if (!tree || tree.ownerId !== userId) {
+        const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collaborator) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const requests = await storage.getPendingConnectionRequestsForTree(treeId);
+      
+      // Enrich with member details
+      const enrichedRequests = await Promise.all(
+        requests.map(async (req) => {
+          const fromMember = await storage.getMember(req.fromMemberId);
+          const toMember = await storage.getMember(req.toMemberId);
+          return {
+            ...req,
+            fromMember: fromMember ? { id: fromMember.id, firstName: fromMember.firstName, lastName: fromMember.lastName, photoUrl: fromMember.photoUrl } : null,
+            toMember: toMember ? { id: toMember.id, firstName: toMember.firstName, lastName: toMember.lastName, photoUrl: toMember.photoUrl } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedRequests);
+    } catch (error) {
+      console.error("Error fetching connection requests:", error);
+      res.status(500).json({ message: "Failed to fetch connection requests" });
+    }
+  });
+
+  // Create a connection request
+  app.post("/api/connection-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body
+      const parseResult = createConnectionRequestSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid request data", errors: parseResult.error.errors });
+      }
+      const { fromMemberId, fromTreeId, toMemberId, toTreeId, connectionType, customLabel, message } = parseResult.data;
+
+      // Verify user has permission on fromTree (must own or be collaborator)
+      const fromTree = await storage.getTree(fromTreeId);
+      if (!fromTree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const isOwner = fromTree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, fromTreeId);
+      const hasAccess = isOwner || !!collaborator;
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "You don't have permission to create connection requests from this tree" });
+      }
+
+      // Verify fromMember exists and belongs to fromTree
+      const fromMember = await storage.getMember(fromMemberId);
+      if (!fromMember || fromMember.treeId !== fromTreeId) {
+        return res.status(400).json({ message: "Invalid from member" });
+      }
+
+      // Verify toMember exists
+      const toMember = await storage.getMember(toMemberId);
+      if (!toMember) {
+        return res.status(400).json({ message: "Invalid to member" });
+      }
+
+      // Create the request
+      const request = await storage.createConnectionRequest({
+        fromMemberId,
+        fromTreeId,
+        toMemberId,
+        toTreeId: toMember.treeId, // Use actual treeId
+        requesterId: userId,
+        connectionType,
+        customLabel,
+        message,
+        status: 'pending',
+      });
+
+      res.json(request);
+    } catch (error: any) {
+      console.error("Error creating connection request:", error);
+      res.status(500).json({ message: error?.message || "Failed to create connection request" });
+    }
+  });
+
+  // Approve a connection request
+  app.post("/api/connection-requests/:id/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const request = await storage.getConnectionRequest(id);
+      if (!request) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      // Verify user owns the target tree
+      const tree = await storage.getTree(request.toTreeId);
+      if (!tree || tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only tree owner can approve connection requests" });
+      }
+
+      const approved = await storage.approveConnectionRequest(id, userId);
+      res.json(approved);
+    } catch (error: any) {
+      console.error("Error approving connection request:", error);
+      res.status(500).json({ message: error?.message || "Failed to approve request" });
+    }
+  });
+
+  // Deny a connection request
+  app.post("/api/connection-requests/:id/deny", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const request = await storage.getConnectionRequest(id);
+      if (!request) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      // Verify user owns the target tree
+      const tree = await storage.getTree(request.toTreeId);
+      if (!tree || tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only tree owner can deny connection requests" });
+      }
+
+      const denied = await storage.denyConnectionRequest(id, userId);
+      res.json(denied);
+    } catch (error: any) {
+      console.error("Error denying connection request:", error);
+      res.status(500).json({ message: error?.message || "Failed to deny request" });
+    }
+  });
+
+  // ==================== NETWORK DISCOVERY ROUTES ====================
+
+  // Get network connections (connections of connections)
+  app.get("/api/members/:memberId/network", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const network = await storage.getNetworkConnections(memberId);
+      
+      // Filter to only return visible information
+      const filtered = network.map(({ member, connectionType, connectedVia }) => ({
+        member: {
+          id: member.id,
+          firstName: member.firstName,
+          lastName: member.lastName?.charAt(0) + '.', // Only show initial for privacy
+          photoUrl: member.photoUrl,
+          currentCity: member.currentCity,
+          currentRegion: member.currentRegion,
+          currentCountry: member.currentCountry,
+        },
+        connectionType,
+        connectedVia: {
+          id: connectedVia.id,
+          firstName: connectedVia.firstName,
+          lastName: connectedVia.lastName,
+        },
+      }));
+      
+      res.json(filtered);
+    } catch (error) {
+      console.error("Error fetching network:", error);
+      res.status(500).json({ message: "Failed to fetch network" });
+    }
+  });
+
+  // Search members by location
+  app.get("/api/members/search/location", isAuthenticated, async (req: any, res) => {
+    try {
+      const { city, region, country } = req.query;
+      const members = await storage.getMembersByLocation(
+        city as string | undefined,
+        region as string | undefined,
+        country as string | undefined
+      );
+      
+      // Return limited info for privacy
+      const filtered = members.map(m => ({
+        id: m.id,
+        firstName: m.firstName,
+        lastName: m.lastName?.charAt(0) + '.', // Only initial for privacy
+        photoUrl: m.photoUrl,
+        currentCity: m.currentCity,
+        currentRegion: m.currentRegion,
+        currentCountry: m.currentCountry,
+        treeId: m.treeId,
+      }));
+      
+      res.json(filtered);
+    } catch (error) {
+      console.error("Error searching by location:", error);
+      res.status(500).json({ message: "Failed to search by location" });
+    }
+  });
+
+  // Get connection types list (for dropdown options)
+  app.get("/api/connection-types", async (_req, res) => {
+    res.json([
+      { value: "godparent", label: "Godparent" },
+      { value: "godchild", label: "Godchild" },
+      { value: "boyfriend", label: "Boyfriend" },
+      { value: "girlfriend", label: "Girlfriend" },
+      { value: "fiance", label: "Fiance" },
+      { value: "fiancee", label: "Fiancee" },
+      { value: "best_friend", label: "Best Friend" },
+      { value: "family_friend", label: "Family Friend" },
+      { value: "mentor", label: "Mentor" },
+      { value: "mentee", label: "Mentee" },
+      { value: "guardian", label: "Guardian" },
+      { value: "ward", label: "Ward" },
+      { value: "other", label: "Other" },
+    ]);
   });
 
   return httpServer;

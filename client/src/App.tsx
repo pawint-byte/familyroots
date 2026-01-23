@@ -19,6 +19,7 @@ import AccountSettings from "@/pages/account-settings";
 import FAQ from "@/pages/faq";
 import Merchandise from "@/pages/merchandise";
 import Share from "@/pages/share";
+import Network from "@/pages/network";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -49,6 +50,7 @@ function Router() {
       <Route path="/faq" component={FAQ} />
       <Route path="/merchandise" component={Merchandise} />
       <Route path="/share" component={Share} />
+      <Route path="/network" component={Network} />
       <Route component={NotFound} />
     </Switch>
   );

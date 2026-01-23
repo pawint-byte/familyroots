@@ -28,6 +28,15 @@ export const profileClaimStatusEnum = pgEnum("profile_claim_status", ["pending",
 // limited: Name and relationship only (distant relatives/public)
 export const visibilityTierEnum = pgEnum("visibility_tier", ["full", "extended", "limited"]);
 
+// Special connection types (non-blood relationships)
+export const specialConnectionTypeEnum = pgEnum("special_connection_type", [
+  "godparent", "godchild", "boyfriend", "girlfriend", "fiance", "fiancee",
+  "best_friend", "family_friend", "mentor", "mentee", "guardian", "ward", "other"
+]);
+
+// Connection request status
+export const connectionRequestStatusEnum = pgEnum("connection_request_status", ["pending", "approved", "denied", "expired"]);
+
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -65,6 +74,11 @@ export const familyMembers = pgTable("family_members", {
   custodianAssignedAt: timestamp("custodian_assigned_at"),
   // Privacy visibility override (null = use tree default)
   visibilityOverride: visibilityTierEnum("visibility_override"),
+  // Location for connecting with family members (city/region)
+  currentCity: text("current_city"),
+  currentRegion: text("current_region"), // state/province
+  currentCountry: text("current_country"),
+  locationVisible: boolean("location_visible").default(false), // Whether to share location with connections
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -313,6 +327,49 @@ export const insertCustodianshipRequestSchema = createInsertSchema(custodianship
   createdAt: true,
 });
 
+// Special Connections table (for non-blood relationships like godparents, friends, etc.)
+export const specialConnections = pgTable("special_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromMemberId: varchar("from_member_id").notNull(), // The member in the tree
+  fromTreeId: varchar("from_tree_id").notNull(),
+  toMemberId: varchar("to_member_id").notNull(), // The connected person (can be in different tree)
+  toTreeId: varchar("to_tree_id").notNull(),
+  connectionType: specialConnectionTypeEnum("connection_type").notNull(),
+  customLabel: text("custom_label"), // For "other" type or custom description
+  notes: text("notes"),
+  isReciprocal: boolean("is_reciprocal").default(true), // Whether both sides see the connection
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertSpecialConnectionSchema = createInsertSchema(specialConnections).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Connection Requests table (for requesting to connect with someone)
+export const connectionRequests = pgTable("connection_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromMemberId: varchar("from_member_id").notNull(), // Who is requesting
+  fromTreeId: varchar("from_tree_id").notNull(),
+  toMemberId: varchar("to_member_id").notNull(), // Who they want to connect with
+  toTreeId: varchar("to_tree_id").notNull(),
+  requesterId: varchar("requester_id").notNull(), // User who initiated the request
+  connectionType: specialConnectionTypeEnum("connection_type").notNull(),
+  customLabel: text("custom_label"),
+  message: text("message"), // Reason for connecting
+  status: connectionRequestStatusEnum("status").default("pending").notNull(),
+  respondedBy: varchar("responded_by"),
+  respondedAt: timestamp("responded_at"),
+  expiresAt: timestamp("expires_at"), // Optional expiration
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertConnectionRequestSchema = createInsertSchema(connectionRequests).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Relations
 export const familyTreesRelations = relations(familyTrees, ({ many }) => ({
   members: many(familyMembers),
@@ -393,6 +450,44 @@ export const profileClaimRequestsRelations = relations(profileClaimRequests, ({ 
   }),
   tree: one(familyTrees, {
     fields: [profileClaimRequests.treeId],
+    references: [familyTrees.id],
+  }),
+}));
+
+export const specialConnectionsRelations = relations(specialConnections, ({ one }) => ({
+  fromMember: one(familyMembers, {
+    fields: [specialConnections.fromMemberId],
+    references: [familyMembers.id],
+  }),
+  toMember: one(familyMembers, {
+    fields: [specialConnections.toMemberId],
+    references: [familyMembers.id],
+  }),
+  fromTree: one(familyTrees, {
+    fields: [specialConnections.fromTreeId],
+    references: [familyTrees.id],
+  }),
+  toTree: one(familyTrees, {
+    fields: [specialConnections.toTreeId],
+    references: [familyTrees.id],
+  }),
+}));
+
+export const connectionRequestsRelations = relations(connectionRequests, ({ one }) => ({
+  fromMember: one(familyMembers, {
+    fields: [connectionRequests.fromMemberId],
+    references: [familyMembers.id],
+  }),
+  toMember: one(familyMembers, {
+    fields: [connectionRequests.toMemberId],
+    references: [familyMembers.id],
+  }),
+  fromTree: one(familyTrees, {
+    fields: [connectionRequests.fromTreeId],
+    references: [familyTrees.id],
+  }),
+  toTree: one(familyTrees, {
+    fields: [connectionRequests.toTreeId],
     references: [familyTrees.id],
   }),
 }));
@@ -645,3 +740,9 @@ export type InsertMerchandiseOrder = z.infer<typeof insertMerchandiseOrderSchema
 
 export type CustodianshipRequest = typeof custodianshipRequests.$inferSelect;
 export type InsertCustodianshipRequest = z.infer<typeof insertCustodianshipRequestSchema>;
+
+export type SpecialConnection = typeof specialConnections.$inferSelect;
+export type InsertSpecialConnection = z.infer<typeof insertSpecialConnectionSchema>;
+
+export type ConnectionRequest = typeof connectionRequests.$inferSelect;
+export type InsertConnectionRequest = z.infer<typeof insertConnectionRequestSchema>;

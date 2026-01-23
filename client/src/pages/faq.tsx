@@ -253,6 +253,26 @@ export default function FAQ() {
         {
           question: "Is there an AI assistant to help me?",
           answer: "Yes! Look for the Help button at the bottom of any page. Our AI assistant can answer questions about genealogy, help you understand relationship terms, give tips on researching your family history, and guide you through using FamilyRoots features."
+        },
+        {
+          question: "What are Special Connections?",
+          answer: "Special Connections let you add non-blood relationships to your family tree, like godparents, best friends, mentors, significant others (boyfriend/girlfriend/fiance), and family friends. These connections show up on each person's profile and help capture the complete picture of who's important in your family's life."
+        },
+        {
+          question: "How do I add a godparent, best friend, or boyfriend/girlfriend?",
+          answer: "Open the family member's profile by clicking on them in the tree, then scroll down to 'Special Connections'. Click 'Add' and choose the connection type (godparent, best friend, mentor, boyfriend, girlfriend, etc.), then select the person you want to connect them to. Both sides will see the connection."
+        },
+        {
+          question: "Can I connect with people in other family trees?",
+          answer: "Yes! You can send connection requests to people in other family trees. They'll receive a notification and can approve or decline the request. Once approved, both trees can see the connection. This is great for connecting family friends across different families."
+        },
+        {
+          question: "How does location sharing work?",
+          answer: "You can optionally add your current city, state/province, and country to your profile. If you enable 'Share location with connections', family members can find you when they're traveling to your area. This is completely optional - only share if you want to be discoverable."
+        },
+        {
+          question: "Can I find family members when I travel?",
+          answer: "Yes! Visit the Network page from your dashboard and search by city, state, or country. You'll see family members who have chosen to share their location. This makes it easy to meet up with relatives when you're traveling."
         }
       ]
     },

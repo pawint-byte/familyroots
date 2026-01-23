@@ -2,7 +2,7 @@ import {
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
   treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
-  custodianshipRequests,
+  custodianshipRequests, specialConnections, connectionRequests,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -20,6 +20,8 @@ import {
   type ProfileClaimRequest, type InsertProfileClaimRequest,
   type MerchandiseOrder, type InsertMerchandiseOrder,
   type CustodianshipRequest, type InsertCustodianshipRequest,
+  type SpecialConnection, type InsertSpecialConnection,
+  type ConnectionRequest, type InsertConnectionRequest,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -168,6 +170,29 @@ export interface IStorage {
   
   // Get tree collaborators and owners with their notification preferences
   getTreeMembersWithNotificationPrefs(treeId: string): Promise<User[]>;
+
+  // Special Connections
+  getSpecialConnectionsByMember(memberId: string): Promise<SpecialConnection[]>;
+  getSpecialConnectionsByTree(treeId: string): Promise<SpecialConnection[]>;
+  getSpecialConnection(id: string): Promise<SpecialConnection | undefined>;
+  createSpecialConnection(connection: InsertSpecialConnection): Promise<SpecialConnection>;
+  deleteSpecialConnection(id: string): Promise<boolean>;
+
+  // Connection Requests
+  getConnectionRequestsByMember(memberId: string): Promise<ConnectionRequest[]>;
+  getConnectionRequestsByTree(treeId: string): Promise<ConnectionRequest[]>;
+  getPendingConnectionRequestsForTree(treeId: string): Promise<ConnectionRequest[]>;
+  getConnectionRequest(id: string): Promise<ConnectionRequest | undefined>;
+  createConnectionRequest(request: InsertConnectionRequest): Promise<ConnectionRequest>;
+  updateConnectionRequest(id: string, data: Partial<InsertConnectionRequest>): Promise<ConnectionRequest | undefined>;
+  approveConnectionRequest(requestId: string, responderId: string): Promise<ConnectionRequest | undefined>;
+  denyConnectionRequest(requestId: string, responderId: string): Promise<ConnectionRequest | undefined>;
+
+  // Network discovery - get members connected to connections (second-degree)
+  getNetworkConnections(memberId: string): Promise<{ member: FamilyMember; connectionType: string; connectedVia: FamilyMember }[]>;
+  
+  // Location-based search
+  getMembersByLocation(city?: string, region?: string, country?: string): Promise<FamilyMember[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -987,6 +1012,189 @@ export class DatabaseStorage implements IStorage {
       .where(inArray(users.id, userIds));
     
     return userList;
+  }
+
+  // Special Connections
+  async getSpecialConnectionsByMember(memberId: string): Promise<SpecialConnection[]> {
+    return db.select().from(specialConnections)
+      .where(or(
+        eq(specialConnections.fromMemberId, memberId),
+        and(
+          eq(specialConnections.toMemberId, memberId),
+          eq(specialConnections.isReciprocal, true)
+        )
+      ))
+      .orderBy(desc(specialConnections.createdAt));
+  }
+
+  async getSpecialConnectionsByTree(treeId: string): Promise<SpecialConnection[]> {
+    return db.select().from(specialConnections)
+      .where(or(
+        eq(specialConnections.fromTreeId, treeId),
+        eq(specialConnections.toTreeId, treeId)
+      ))
+      .orderBy(desc(specialConnections.createdAt));
+  }
+
+  async getSpecialConnection(id: string): Promise<SpecialConnection | undefined> {
+    const [connection] = await db.select().from(specialConnections)
+      .where(eq(specialConnections.id, id));
+    return connection;
+  }
+
+  async createSpecialConnection(connection: InsertSpecialConnection): Promise<SpecialConnection> {
+    const [created] = await db.insert(specialConnections)
+      .values(connection)
+      .returning();
+    return created;
+  }
+
+  async deleteSpecialConnection(id: string): Promise<boolean> {
+    const result = await db.delete(specialConnections)
+      .where(eq(specialConnections.id, id));
+    return true;
+  }
+
+  // Connection Requests
+  async getConnectionRequestsByMember(memberId: string): Promise<ConnectionRequest[]> {
+    return db.select().from(connectionRequests)
+      .where(or(
+        eq(connectionRequests.fromMemberId, memberId),
+        eq(connectionRequests.toMemberId, memberId)
+      ))
+      .orderBy(desc(connectionRequests.createdAt));
+  }
+
+  async getConnectionRequestsByTree(treeId: string): Promise<ConnectionRequest[]> {
+    return db.select().from(connectionRequests)
+      .where(or(
+        eq(connectionRequests.fromTreeId, treeId),
+        eq(connectionRequests.toTreeId, treeId)
+      ))
+      .orderBy(desc(connectionRequests.createdAt));
+  }
+
+  async getPendingConnectionRequestsForTree(treeId: string): Promise<ConnectionRequest[]> {
+    return db.select().from(connectionRequests)
+      .where(and(
+        eq(connectionRequests.toTreeId, treeId),
+        eq(connectionRequests.status, 'pending')
+      ))
+      .orderBy(desc(connectionRequests.createdAt));
+  }
+
+  async getConnectionRequest(id: string): Promise<ConnectionRequest | undefined> {
+    const [request] = await db.select().from(connectionRequests)
+      .where(eq(connectionRequests.id, id));
+    return request;
+  }
+
+  async createConnectionRequest(request: InsertConnectionRequest): Promise<ConnectionRequest> {
+    const [created] = await db.insert(connectionRequests)
+      .values(request)
+      .returning();
+    return created;
+  }
+
+  async updateConnectionRequest(id: string, data: Partial<InsertConnectionRequest>): Promise<ConnectionRequest | undefined> {
+    const [updated] = await db.update(connectionRequests)
+      .set(data)
+      .where(eq(connectionRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async approveConnectionRequest(requestId: string, responderId: string): Promise<ConnectionRequest | undefined> {
+    const request = await this.getConnectionRequest(requestId);
+    if (!request) return undefined;
+
+    // Update the request status
+    const [updated] = await db.update(connectionRequests)
+      .set({
+        status: 'approved',
+        respondedBy: responderId,
+        respondedAt: new Date(),
+      })
+      .where(eq(connectionRequests.id, requestId))
+      .returning();
+
+    // Create the special connection
+    await this.createSpecialConnection({
+      fromMemberId: request.fromMemberId,
+      fromTreeId: request.fromTreeId,
+      toMemberId: request.toMemberId,
+      toTreeId: request.toTreeId,
+      connectionType: request.connectionType,
+      customLabel: request.customLabel,
+      isReciprocal: true,
+      createdBy: responderId,
+    });
+
+    return updated;
+  }
+
+  async denyConnectionRequest(requestId: string, responderId: string): Promise<ConnectionRequest | undefined> {
+    const [updated] = await db.update(connectionRequests)
+      .set({
+        status: 'denied',
+        respondedBy: responderId,
+        respondedAt: new Date(),
+      })
+      .where(eq(connectionRequests.id, requestId))
+      .returning();
+    return updated;
+  }
+
+  // Network discovery - get members connected to your connections (second-degree)
+  async getNetworkConnections(memberId: string): Promise<{ member: FamilyMember; connectionType: string; connectedVia: FamilyMember }[]> {
+    // Get all direct connections for this member
+    const directConnections = await this.getSpecialConnectionsByMember(memberId);
+    const results: { member: FamilyMember; connectionType: string; connectedVia: FamilyMember }[] = [];
+    
+    for (const conn of directConnections) {
+      // Determine which side is the "other" person
+      const connectedMemberId = conn.fromMemberId === memberId ? conn.toMemberId : conn.fromMemberId;
+      const connectedMember = await this.getMember(connectedMemberId);
+      if (!connectedMember) continue;
+
+      // Get connections of that connected member
+      const secondDegree = await this.getSpecialConnectionsByMember(connectedMemberId);
+      
+      for (const sc of secondDegree) {
+        const thirdPartyId = sc.fromMemberId === connectedMemberId ? sc.toMemberId : sc.fromMemberId;
+        // Skip if it's the original member
+        if (thirdPartyId === memberId) continue;
+        
+        const thirdParty = await this.getMember(thirdPartyId);
+        if (thirdParty && thirdParty.locationVisible) {
+          results.push({
+            member: thirdParty,
+            connectionType: sc.connectionType,
+            connectedVia: connectedMember,
+          });
+        }
+      }
+    }
+    
+    return results;
+  }
+
+  // Location-based search
+  async getMembersByLocation(city?: string, region?: string, country?: string): Promise<FamilyMember[]> {
+    const conditions = [eq(familyMembers.locationVisible, true)];
+    
+    if (city) {
+      conditions.push(ilike(familyMembers.currentCity, `%${city}%`));
+    }
+    if (region) {
+      conditions.push(ilike(familyMembers.currentRegion, `%${region}%`));
+    }
+    if (country) {
+      conditions.push(ilike(familyMembers.currentCountry, `%${country}%`));
+    }
+    
+    return db.select().from(familyMembers)
+      .where(and(...conditions));
   }
 }
 

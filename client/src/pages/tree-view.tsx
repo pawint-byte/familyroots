@@ -43,6 +43,7 @@ import { AddRelationship } from "@/components/add-relationship";
 import { ProfileClaimSection } from "@/components/profile-claim-section";
 import { LifeEventsSection } from "@/components/life-events-section";
 import { CustodianshipSection } from "@/components/custodianship-section";
+import { SpecialConnectionsSection, LocationSection } from "@/components/special-connections";
 
 interface TreeData {
   tree: FamilyTree;
@@ -881,6 +882,27 @@ export default function TreeView() {
                     member={selectedMember}
                     currentUserId={user.id}
                     isTreeOwner={treeData.tree.ownerId === user.id}
+                  />
+                )}
+
+                {/* Special Connections Section */}
+                {treeData && (
+                  <SpecialConnectionsSection
+                    memberId={selectedMember.id}
+                    treeId={treeData.tree.id}
+                    canEdit={canEdit}
+                    allMembers={treeData.members}
+                  />
+                )}
+
+                {/* Location Section */}
+                {treeData && (
+                  <LocationSection
+                    member={selectedMember}
+                    canEdit={canEdit}
+                    onUpdate={async (updates) => {
+                      await updateMemberMutation.mutateAsync({ memberId: selectedMember.id, updates });
+                    }}
                   />
                 )}
 
