@@ -105,7 +105,10 @@ export default function MyQRPage() {
     }
   };
 
-  const initials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || '?';
+  const initials = `${user.firstName?.[0] || user.email?.[0]?.toUpperCase() || ''}${user.lastName?.[0] || ''}`.toUpperCase() || '?';
+  const displayName = user.firstName 
+    ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`
+    : user.email?.split('@')[0] || 'Your Profile';
 
   return (
     <div className="min-h-screen bg-background">
@@ -151,7 +154,7 @@ export default function MyQRPage() {
               </Avatar>
             </div>
             <CardTitle className="flex items-center justify-center gap-2">
-              {user.firstName} {user.lastName}
+              {displayName}
             </CardTitle>
             <CardDescription>
               Scan this code to view my profile and connect on FamilyRoots

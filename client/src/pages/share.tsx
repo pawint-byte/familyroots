@@ -4,7 +4,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Copy, Check, Download, Share2, QrCode, UserCircle } from "lucide-react";
+import { ArrowLeft, Copy, Check, Download, Share2, QrCode, UserCircle, Sparkles } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -166,7 +167,19 @@ export default function SharePage() {
           <CardContent className="space-y-6">
             {isPersonalShare && (
               <div className="text-center pb-2">
-                <p className="text-lg font-medium">{user?.firstName} {user?.lastName}</p>
+                <div className="flex justify-center mb-3">
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage src={user?.profileImageUrl || undefined} />
+                    <AvatarFallback className="text-xl bg-primary/10">
+                      {user?.firstName?.[0] || user?.email?.[0]?.toUpperCase() || '?'}
+                      {user?.lastName?.[0] || ''}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <p className="text-lg font-medium">
+                  {user?.firstName || user?.email?.split('@')[0] || 'Your Profile'}
+                  {user?.lastName ? ` ${user.lastName}` : ''}
+                </p>
                 <p className="text-sm text-muted-foreground">{user?.email}</p>
               </div>
             )}
