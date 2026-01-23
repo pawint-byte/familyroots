@@ -26,6 +26,12 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
 - **Profile Claiming**: Family members can claim their own profiles within trees they don't own. Once approved by the tree owner, claimed users can edit their personal details (name, photo, bio, dates) directly without needing tree-level edit permissions. Tree owners see pending claims on their dashboard and can approve or deny requests.
 - **Life Events Recording**: Record significant life events for family members including births, deaths, marriages, divorces, graduations, achievements, and milestones. Events support dates, descriptions, locations, and media attachments (photos/videos). Opt-in email notifications notify tree collaborators when events are recorded based on their notification preferences.
 - **Custodianship System**: Direct relatives (parent, child, spouse, sibling) can request custodianship of deceased family members' profiles. Requests have a 30-day approval window with email reminders at days 7, 14, 21, and 28. If no action is taken, requests are auto-approved. Custodians have limited edit permissions (name, death date, notes, photo) to maintain the member's memorial profile.
+- **Privacy Visibility Controls**: Three-tier privacy system controlling how much information is visible to non-immediate family members:
+  - Full Access: All details visible (dates, locations, photos, notes, life events)
+  - Extended Family View: Name, relationship, birth year, and photo only
+  - Limited: Name and relationship only
+  - Immediate family (parents, children, spouse, siblings) always has full access
+  - Tree owners set the default visibility tier; per-member overrides can be set
 - **Deadman Switch (Account Heir)**: Allows users to designate an heir to inherit their family trees after a configurable period of inactivity, ensuring the preservation of genealogical data.
 - **Smart Family Member Matching**: A privacy-focused, opt-in feature that enables cross-tree matching to discover shared family connections based on user-controlled data points. Matching uses a weighted scoring algorithm.
 - **Dynamic Relationship Calculator**: Utilizes a BFS algorithm to determine the genealogical relationship between any two family members within a tree, providing accurate terminology (e.g., cousins "once removed").

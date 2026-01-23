@@ -63,6 +63,9 @@ export default function Dashboard() {
   const [renameTreeName, setRenameTreeName] = useState("");
   const [shareTreeId, setShareTreeId] = useState<string | null>(null);
   const [shareTreeName, setShareTreeName] = useState("");
+  const [settingsTreeId, setSettingsTreeId] = useState<string | null>(null);
+  const [settingsTree, setSettingsTree] = useState<FamilyTreeWithCount | null>(null);
+  const [settingsVisibility, setSettingsVisibility] = useState<"full" | "extended" | "limited">("extended");
 
   const { data: trees, isLoading } = useQuery<FamilyTreeWithCount[]>({
     queryKey: ["/api/trees"],
@@ -151,6 +154,41 @@ export default function Dashboard() {
       });
     },
   });
+
+  const updateTreeSettingsMutation = useMutation({
+    mutationFn: async ({ id, visibilityDefault }: { id: string; visibilityDefault: string }) => {
+      return apiRequest("PATCH", `/api/trees/${id}`, { visibilityDefault });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      setSettingsTreeId(null);
+      setSettingsTree(null);
+      toast({
+        title: "Success",
+        description: "Privacy settings updated successfully!",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update privacy settings",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSettingsClick = (e: React.MouseEvent, tree: FamilyTreeWithCount) => {
+    e.stopPropagation();
+    setSettingsTreeId(tree.id);
+    setSettingsTree(tree);
+    setSettingsVisibility((tree.visibilityDefault as "full" | "extended" | "limited") || "extended");
+  };
+
+  const handleSettingsSubmit = () => {
+    if (settingsTreeId) {
+      updateTreeSettingsMutation.mutate({ id: settingsTreeId, visibilityDefault: settingsVisibility });
+    }
+  };
 
   const handleRenameClick = (e: React.MouseEvent, tree: FamilyTree) => {
     e.stopPropagation();
@@ -518,6 +556,14 @@ export default function Dashboard() {
                         <Share2 className="h-4 w-4" />
                         Share
                       </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="gap-2"
+                        onClick={(e) => handleSettingsClick(e, tree)}
+                        data-testid={`button-settings-tree-${tree.id}`}
+                      >
+                        <Settings className="h-4 w-4" />
+                        Privacy Settings
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem 
                         className="gap-2 text-destructive"
@@ -625,6 +671,97 @@ export default function Dashboard() {
         treeId={shareTreeId || ""}
         treeName={shareTreeName}
       />
+
+      <Dialog open={!!settingsTreeId} onOpenChange={(open) => {
+        if (!open) {
+          setSettingsTreeId(null);
+          setSettingsTree(null);
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Privacy Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 pt-4">
+            <div className="space-y-2">
+              <Label className="text-base font-medium">Default Visibility for Non-Immediate Family</Label>
+              <p className="text-sm text-muted-foreground">
+                Control how much information is visible to people outside immediate family (parents, siblings, children, spouse).
+              </p>
+            </div>
+            
+            <div className="space-y-3">
+              <div 
+                className={`p-4 rounded-lg border cursor-pointer transition-colors ${settingsVisibility === "full" ? "border-primary bg-primary/5" : "border-border hover-elevate"}`}
+                onClick={() => setSettingsVisibility("full")}
+                data-testid="option-visibility-full"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center ${settingsVisibility === "full" ? "border-primary" : "border-muted-foreground"}`}>
+                    {settingsVisibility === "full" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                  <div>
+                    <div className="font-medium">Full Access</div>
+                    <p className="text-sm text-muted-foreground">All details visible including dates, locations, photos, notes, and life events</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div 
+                className={`p-4 rounded-lg border cursor-pointer transition-colors ${settingsVisibility === "extended" ? "border-primary bg-primary/5" : "border-border hover-elevate"}`}
+                onClick={() => setSettingsVisibility("extended")}
+                data-testid="option-visibility-extended"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center ${settingsVisibility === "extended" ? "border-primary" : "border-muted-foreground"}`}>
+                    {settingsVisibility === "extended" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                  <div>
+                    <div className="font-medium">Extended Family View</div>
+                    <p className="text-sm text-muted-foreground">Name, relationship, birth year, and photo only. No contact info or detailed events.</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div 
+                className={`p-4 rounded-lg border cursor-pointer transition-colors ${settingsVisibility === "limited" ? "border-primary bg-primary/5" : "border-border hover-elevate"}`}
+                onClick={() => setSettingsVisibility("limited")}
+                data-testid="option-visibility-limited"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center ${settingsVisibility === "limited" ? "border-primary" : "border-muted-foreground"}`}>
+                    {settingsVisibility === "limited" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                  <div>
+                    <div className="font-medium">Limited View</div>
+                    <p className="text-sm text-muted-foreground">Name and relationship only. Best for distant relatives or public trees.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setSettingsTreeId(null);
+                  setSettingsTree(null);
+                }}
+                data-testid="button-cancel-settings"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSettingsSubmit}
+                disabled={updateTreeSettingsMutation.isPending}
+                data-testid="button-save-settings"
+              >
+                {updateTreeSettingsMutation.isPending ? "Saving..." : "Save Settings"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

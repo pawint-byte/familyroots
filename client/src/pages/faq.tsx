@@ -219,6 +219,18 @@ export default function FAQ() {
         {
           question: "How do I make a family member discoverable for Smart Matching?",
           answer: "Open the member's profile and look for the 'Family Matching' section. Toggle 'Make discoverable' to on, then select which information can be used for matching. You control whether others can find matches using the member's email, name, birthdate, or birthplace."
+        },
+        {
+          question: "What are the privacy visibility tiers and how do they work?",
+          answer: "Privacy visibility tiers control how much information is visible to different family members. There are three tiers: 'Full Access' shows everything (dates, locations, photos, notes, life events), 'Extended Family View' shows only name, birth year, relationship, and photo, and 'Limited' shows just name and relationship. Immediate family (parents, children, spouse, siblings) always have full access regardless of the tier setting."
+        },
+        {
+          question: "How do I set the default privacy level for my family tree?",
+          answer: "Go to your Dashboard and click the three dots menu on any tree you own. Select 'Privacy Settings' to choose the default visibility tier. This setting affects how much information non-immediate family members can see about people in your tree."
+        },
+        {
+          question: "Can I set different privacy levels for specific family members?",
+          answer: "Yes! Tree owners and people who have claimed their own profiles can set visibility overrides on individual members. When editing a family member, look for the 'Privacy Visibility Override' option. This lets you make specific members more or less visible than the tree's default."
         }
       ]
     },

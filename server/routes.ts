@@ -43,6 +43,83 @@ import { insertAccountHeirSchema } from "@shared/schema";
 import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG } from "./subscriptionService";
 
+// Privacy visibility filtering for family members
+type VisibilityTier = "full" | "extended" | "limited";
+
+// Fields visible at each tier
+const VISIBILITY_FIELDS: Record<VisibilityTier, string[]> = {
+  full: ["id", "treeId", "firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes", "isUnknown", "unknownLabel", "claimedByUserId", "claimedAt", "custodianUserId", "custodianAssignedAt", "visibilityOverride", "createdAt", "updatedAt"],
+  extended: ["id", "treeId", "firstName", "lastName", "gender", "birthDate", "photoUrl", "isLiving", "isUnknown", "unknownLabel", "visibilityOverride"],
+  limited: ["id", "treeId", "firstName", "lastName", "isLiving", "isUnknown", "unknownLabel", "visibilityOverride"],
+};
+
+// Filter member data based on visibility tier
+function filterMemberByVisibility(member: any, tier: VisibilityTier): any {
+  const allowedFields = VISIBILITY_FIELDS[tier];
+  const filtered: any = {};
+  
+  for (const field of allowedFields) {
+    if (member[field] !== undefined) {
+      // For extended tier, only show birth year not full date
+      if (tier === "extended" && field === "birthDate" && member.birthDate) {
+        const date = new Date(member.birthDate);
+        filtered.birthYear = date.getFullYear();
+        filtered.birthDate = null;
+      } else {
+        filtered[field] = member[field];
+      }
+    }
+  }
+  
+  return filtered;
+}
+
+// Determine visibility tier for a viewer relative to a member
+async function getVisibilityTierForViewer(
+  viewerUserId: string,
+  memberId: string,
+  treeId: string,
+  treeVisibilityDefault: VisibilityTier,
+  memberVisibilityOverride: VisibilityTier | null
+): Promise<VisibilityTier> {
+  // Get the tree and check if viewer is owner
+  const tree = await storage.getTree(treeId);
+  if (tree?.ownerId === viewerUserId) {
+    return "full"; // Tree owners always have full access
+  }
+  
+  // Check if viewer is a co-owner
+  const collab = await storage.getCollaboratorByUserAndTree(viewerUserId, treeId);
+  if (collab?.role === "co_owner") {
+    return "full"; // Co-owners have full access
+  }
+  
+  // Check if member claimed this profile (they can see their own info)
+  const member = await storage.getMember(memberId);
+  if (member?.claimedByUserId === viewerUserId) {
+    return "full"; // Users can always see their own claimed profile
+  }
+  
+  // Check if viewer is immediate family of this member
+  const relationships = await storage.getRelationships(treeId);
+  const viewerMember = await storage.getMemberByClaimedUserId(viewerUserId, treeId);
+  
+  if (viewerMember) {
+    // Check for direct relationships (parent, child, spouse, sibling)
+    const isImmediate = relationships.some(rel => 
+      (rel.fromMemberId === viewerMember.id && rel.toMemberId === memberId) ||
+      (rel.toMemberId === viewerMember.id && rel.fromMemberId === memberId)
+    );
+    
+    if (isImmediate) {
+      return "full"; // Immediate family always has full access
+    }
+  }
+  
+  // Use member's visibility override or tree default
+  return memberVisibilityOverride || treeVisibilityDefault || "extended";
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -147,7 +224,7 @@ export async function registerRoutes(
       }
 
       // Validate update data - only allow specific fields
-      const allowedFields = ["name", "description", "privacy"];
+      const allowedFields = ["name", "description", "privacy", "visibilityDefault"];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
@@ -419,7 +496,7 @@ export async function registerRoutes(
       }
       
       // Determine which fields are allowed based on role
-      const fullAllowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes"];
+      const fullAllowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes", "visibilityOverride"];
       const custodianAllowedFields = ["firstName", "lastName", "deathDate", "notes", "photoUrl"];
       
       // Custodians can only edit limited fields (unless they're also the tree owner)
@@ -1593,7 +1670,7 @@ export async function registerRoutes(
                 memberName,
                 event.eventType,
                 event.title,
-                event.eventDate?.toISOString() || new Date().toISOString(),
+                event.eventDate ? String(event.eventDate) : new Date().toISOString(),
                 tree.name,
                 treeId
               );
@@ -3245,14 +3322,14 @@ export async function registerRoutes(
       }
 
       // SECURITY: Validate tree ownership/access
-      const tree = await storage.getFamilyTree(treeId);
+      const tree = await storage.getTree(treeId);
       if (!tree) {
         return res.status(404).json({ message: "Family tree not found" });
       }
       
       // Check if user owns the tree or is a collaborator with access
       const isOwner = tree.ownerId === userId;
-      const collaborator = await storage.getTreeCollaborator(treeId, userId);
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
       if (!isOwner && !collaborator) {
         return res.status(403).json({ message: "You don't have access to this family tree" });
       }

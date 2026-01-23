@@ -28,6 +28,7 @@ const memberFormSchema = z.object({
   isLiving: z.boolean().default(true),
   photoUrl: z.string().url().optional().or(z.literal("")),
   notes: z.string().optional(),
+  visibilityOverride: z.enum(["full", "extended", "limited"]).optional().nullable(),
 }).refine((data) => {
   if (data.isUnknown) return true;
   return data.firstName && data.firstName.length > 0;
@@ -41,11 +42,12 @@ type MemberFormValues = z.infer<typeof memberFormSchema>;
 interface MemberFormProps {
   treeId: string;
   initialData?: Partial<MemberFormValues>;
-  onSubmit: (data: InsertFamilyMember & { createParentPlaceholders?: boolean }) => void;
+  onSubmit: (data: InsertFamilyMember & { createParentPlaceholders?: boolean; visibilityOverride?: string | null }) => void;
   isLoading?: boolean;
+  showVisibilityControl?: boolean;
 }
 
-export default function MemberForm({ treeId, initialData, onSubmit, isLoading }: MemberFormProps) {
+export default function MemberForm({ treeId, initialData, onSubmit, isLoading, showVisibilityControl }: MemberFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(initialData?.photoUrl || null);
   
@@ -73,6 +75,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
       isLiving: initialData?.isLiving ?? true,
       photoUrl: initialData?.photoUrl || "",
       notes: initialData?.notes || "",
+      visibilityOverride: (initialData as any)?.visibilityOverride || null,
     },
   });
 
@@ -102,7 +105,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
   };
 
   const handleSubmit = (values: MemberFormValues) => {
-    const data: InsertFamilyMember & { createParentPlaceholders?: boolean } = {
+    const data: InsertFamilyMember & { createParentPlaceholders?: boolean; visibilityOverride?: string | null } = {
       treeId,
       firstName: values.isUnknown ? (values.unknownLabel || "Unknown") : (values.firstName || "Unknown"),
       lastName: values.lastName || null,
@@ -118,6 +121,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
       isUnknown: values.isUnknown,
       unknownLabel: values.unknownLabel || null,
       createParentPlaceholders: values.createParentPlaceholders,
+      visibilityOverride: values.visibilityOverride || null,
     };
     onSubmit(data);
   };
@@ -436,6 +440,38 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading }:
             </FormItem>
           )}
         />
+
+        {showVisibilityControl && (
+          <FormField
+            control={form.control}
+            name="visibilityOverride"
+            render={({ field }) => (
+              <FormItem className="rounded-lg border border-border p-4 bg-muted/30">
+                <FormLabel className="text-base font-medium">Privacy Visibility Override</FormLabel>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Override the tree's default visibility for this member. Leave as "Use tree default" to follow the tree's privacy settings.
+                </p>
+                <FormControl>
+                  <Select
+                    value={field.value || "default"}
+                    onValueChange={(value) => field.onChange(value === "default" ? null : value)}
+                  >
+                    <SelectTrigger data-testid="select-visibility-override">
+                      <SelectValue placeholder="Select visibility level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Use tree default</SelectItem>
+                      <SelectItem value="full">Full Access - All details visible</SelectItem>
+                      <SelectItem value="extended">Extended Family - Name, year, photo only</SelectItem>
+                      <SelectItem value="limited">Limited - Name and relationship only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-submit-member">
           {isLoading ? "Saving..." : "Save Member"}

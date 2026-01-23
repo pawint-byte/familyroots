@@ -37,6 +37,7 @@ export interface IStorage {
   // Family Members
   getMembers(treeId: string): Promise<FamilyMember[]>;
   getMember(id: string): Promise<FamilyMember | undefined>;
+  getMemberByClaimedUserId(userId: string, treeId: string): Promise<FamilyMember | undefined>;
   createMember(member: InsertFamilyMember): Promise<FamilyMember>;
   updateMember(id: string, member: Partial<InsertFamilyMember>): Promise<FamilyMember | undefined>;
   deleteMember(id: string): Promise<boolean>;
@@ -224,6 +225,16 @@ export class DatabaseStorage implements IStorage {
 
   async getMember(id: string): Promise<FamilyMember | undefined> {
     const [member] = await db.select().from(familyMembers).where(eq(familyMembers.id, id));
+    return member;
+  }
+
+  async getMemberByClaimedUserId(userId: string, treeId: string): Promise<FamilyMember | undefined> {
+    const [member] = await db.select().from(familyMembers).where(
+      and(
+        eq(familyMembers.claimedByUserId, userId),
+        eq(familyMembers.treeId, treeId)
+      )
+    );
     return member;
   }
 

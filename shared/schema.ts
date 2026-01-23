@@ -22,6 +22,12 @@ export const memberInvitationStatusEnum = pgEnum("member_invitation_status", ["p
 export const merchandiseOrderStatusEnum = pgEnum("merchandise_order_status", ["pending", "paid", "submitted", "processing", "shipped", "delivered", "cancelled", "failed"]);
 export const profileClaimStatusEnum = pgEnum("profile_claim_status", ["pending", "approved", "denied"]);
 
+// Visibility tier enum for privacy controls
+// full: All details visible (immediate family default)
+// extended: Name, relationship, birth year, photo only (extended family)
+// limited: Name and relationship only (distant relatives/public)
+export const visibilityTierEnum = pgEnum("visibility_tier", ["full", "extended", "limited"]);
+
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -30,6 +36,8 @@ export const familyTrees = pgTable("family_trees", {
   ownerId: varchar("owner_id").notNull(),
   privacy: privacyEnum("privacy").default("private").notNull(),
   rootMemberId: varchar("root_member_id"),
+  // Privacy visibility default for non-immediate family members
+  visibilityDefault: visibilityTierEnum("visibility_default").default("extended"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -55,6 +63,8 @@ export const familyMembers = pgTable("family_members", {
   claimedAt: timestamp("claimed_at"),
   custodianUserId: varchar("custodian_user_id"), // For deceased members - who has custodianship
   custodianAssignedAt: timestamp("custodian_assigned_at"),
+  // Privacy visibility override (null = use tree default)
+  visibilityOverride: visibilityTierEnum("visibility_override"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
