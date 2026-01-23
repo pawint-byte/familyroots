@@ -33,7 +33,7 @@ This document contains reference information for all external accounts and integ
 ### Amazon Associates
 - **Dashboard URL**: https://affiliate-program.amazon.com
 - **Associate ID**: `pawint-20`
-- **Account Email**: ___________________
+- **Account Email**: pawint@me.com
 - **Store ID**: ___________________
 
 **How to verify:**
@@ -46,7 +46,7 @@ This document contains reference information for all external accounts and integ
 - **Awin Dashboard**: https://www.awin.com/us
 - **Publisher ID**: `2735710`
 - **Merchant ID (Etsy)**: `6220`
-- **Account Email**: ___________________
+- **Account Email**: pawint@me.com
 
 **How to verify:**
 1. Go to https://www.awin.com/us
@@ -60,7 +60,7 @@ This document contains reference information for all external accounts and integ
 
 ### Resend
 - **Dashboard URL**: https://resend.com/overview
-- **Account Email**: ___________________
+- **Account Email**: pawint@me.com
 - **API Key**: Stored as secret in Replit
 
 **How to verify:**
@@ -75,7 +75,7 @@ This document contains reference information for all external accounts and integ
 
 ### HeyGen
 - **Dashboard URL**: https://www.heygen.com
-- **Account Email**: ___________________
+- **Account Email**: pawint@me.com
 - **API Key**: Stored as `HEYGEN_API_KEY` secret
 
 **How to verify:**
@@ -104,7 +104,7 @@ This document contains reference information for all external accounts and integ
 
 ### Printful
 - **Dashboard URL**: https://www.printful.com/dashboard
-- **Account Email**: ___________________
+- **Account Email**: pawint@me.com
 - **API Key**: Stored as `PRINTFUL_API_KEY` secret
 
 **How to verify:**
@@ -120,7 +120,7 @@ This document contains reference information for all external accounts and integ
 ### Google Analytics
 - **Dashboard URL**: https://analytics.google.com
 - **Measurement ID**: `G-WHS17V1WFW`
-- **Account Email**: ___________________
+- **Account Email**: pawint@me.com
 - **Property Name**: ___________________
 
 **How to verify:**
@@ -164,7 +164,7 @@ This document contains reference information for all external accounts and integ
 ### FamilySearch
 - **Developer Portal**: https://developers.familysearch.org
 - **App Key**: Not yet configured (requires `FAMILYSEARCH_APP_KEY`)
-- **Account Email**: ___________________
+- **Account Email**: pawint@me.com
 
 **To set up:**
 1. Go to https://developers.familysearch.org
