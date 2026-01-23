@@ -159,6 +159,11 @@ export async function registerRoutes(
   // Setup object storage for photo uploads
   registerObjectStorageRoutes(app);
 
+  // Health check endpoint (no auth required)
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // Get all trees for the current user (owned and collaborated)
   app.get("/api/trees", isAuthenticated, async (req: any, res) => {
     try {

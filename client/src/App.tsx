@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/lib/theme-provider";
 import { I18nProvider } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { Chatbot } from "@/components/chatbot";
+import { MaintenanceMode } from "@/components/maintenance-mode";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import Landing from "@/pages/landing";
@@ -81,11 +82,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <I18nProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-            <Chatbot />
-          </TooltipProvider>
+          <MaintenanceMode>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+              <Chatbot />
+            </TooltipProvider>
+          </MaintenanceMode>
         </I18nProvider>
       </ThemeProvider>
     </QueryClientProvider>
