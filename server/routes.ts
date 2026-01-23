@@ -4404,5 +4404,433 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== GIFT REGISTRY ROUTES ====================
+
+  // Helper function to transform product URLs with affiliate IDs
+  function addAffiliateTracking(url: string | null | undefined): string | null {
+    if (!url) return null;
+    
+    try {
+      const urlObj = new URL(url);
+      
+      // Amazon affiliate tracking
+      if (urlObj.hostname.includes('amazon.com') || urlObj.hostname.includes('amzn.to')) {
+        urlObj.searchParams.set('tag', 'pawint-20');
+        return urlObj.toString();
+      }
+      
+      // Return unchanged for other URLs (can add more affiliate programs later)
+      return url;
+    } catch {
+      return url;
+    }
+  }
+
+  // Get all registries for a tree
+  app.get("/api/trees/:treeId/registries", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId } = req.params;
+
+      // Verify user has access to tree
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
+      
+      if (!isOwner && !collaborator) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const registries = await storage.getGiftRegistriesByTree(treeId);
+      
+      // Enrich with member names and item counts
+      const enrichedRegistries = await Promise.all(
+        registries.map(async (registry) => {
+          const member = await storage.getMember(registry.memberId);
+          const items = await storage.getGiftRegistryItems(registry.id);
+          const purchasedCount = items.filter(i => i.status === 'purchased').length;
+          
+          return {
+            ...registry,
+            memberName: member ? `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}` : 'Unknown',
+            memberPhoto: member?.photoUrl,
+            itemCount: items.length,
+            purchasedCount,
+            progress: items.length > 0 ? Math.round((purchasedCount / items.length) * 100) : 0,
+          };
+        })
+      );
+
+      res.json(enrichedRegistries);
+    } catch (error) {
+      console.error("Error fetching registries:", error);
+      res.status(500).json({ message: "Failed to fetch registries" });
+    }
+  });
+
+  // Get a specific registry with items
+  app.get("/api/registries/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const registry = await storage.getGiftRegistry(id);
+      if (!registry) {
+        return res.status(404).json({ message: "Registry not found" });
+      }
+
+      // Verify user has access to tree
+      const tree = await storage.getTree(registry.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, registry.treeId);
+      
+      if (!isOwner && !collaborator) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Get member info
+      const member = await storage.getMember(registry.memberId);
+      
+      // Get items with affiliate links
+      const items = await storage.getGiftRegistryItems(id);
+      const itemsWithAffiliateLinks = items.map(item => ({
+        ...item,
+        affiliateUrl: addAffiliateTracking(item.productUrl),
+      }));
+
+      res.json({
+        ...registry,
+        memberName: member ? `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}` : 'Unknown',
+        memberPhoto: member?.photoUrl,
+        items: itemsWithAffiliateLinks,
+        isOwner: registry.createdByUserId === userId,
+      });
+    } catch (error) {
+      console.error("Error fetching registry:", error);
+      res.status(500).json({ message: "Failed to fetch registry" });
+    }
+  });
+
+  // Create a new registry
+  app.post("/api/registries", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId, treeId, title, eventType, eventDate, description, isPublic } = req.body;
+
+      if (!memberId || !treeId || !title || !eventType) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      // Verify user has edit access to tree
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
+      const canEdit = isOwner || collaborator?.canEdit;
+      
+      if (!canEdit) {
+        return res.status(403).json({ message: "You don't have permission to create registries in this tree" });
+      }
+
+      // Verify member exists in tree
+      const member = await storage.getMember(memberId);
+      if (!member || member.treeId !== treeId) {
+        return res.status(400).json({ message: "Invalid member" });
+      }
+
+      const registry = await storage.createGiftRegistry({
+        memberId,
+        treeId,
+        createdByUserId: userId,
+        title,
+        eventType,
+        eventDate: eventDate || null,
+        description: description || null,
+        isPublic: isPublic !== false,
+        isActive: true,
+      });
+
+      res.json(registry);
+    } catch (error) {
+      console.error("Error creating registry:", error);
+      res.status(500).json({ message: "Failed to create registry" });
+    }
+  });
+
+  // Update a registry
+  app.patch("/api/registries/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { title, eventType, eventDate, description, isPublic, isActive } = req.body;
+
+      const registry = await storage.getGiftRegistry(id);
+      if (!registry) {
+        return res.status(404).json({ message: "Registry not found" });
+      }
+
+      // Only registry creator can update
+      if (registry.createdByUserId !== userId) {
+        return res.status(403).json({ message: "Only the registry creator can update it" });
+      }
+
+      const updated = await storage.updateGiftRegistry(id, {
+        title,
+        eventType,
+        eventDate,
+        description,
+        isPublic,
+        isActive,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating registry:", error);
+      res.status(500).json({ message: "Failed to update registry" });
+    }
+  });
+
+  // Delete a registry
+  app.delete("/api/registries/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const registry = await storage.getGiftRegistry(id);
+      if (!registry) {
+        return res.status(404).json({ message: "Registry not found" });
+      }
+
+      // Only registry creator or tree owner can delete
+      const tree = await storage.getTree(registry.treeId);
+      if (registry.createdByUserId !== userId && tree?.ownerId !== userId) {
+        return res.status(403).json({ message: "You don't have permission to delete this registry" });
+      }
+
+      await storage.deleteGiftRegistry(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting registry:", error);
+      res.status(500).json({ message: "Failed to delete registry" });
+    }
+  });
+
+  // Add item to registry
+  app.post("/api/registries/:registryId/items", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { registryId } = req.params;
+      const { name, description, productUrl, imageUrl, price, quantity, priority, notes } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ message: "Item name is required" });
+      }
+
+      const registry = await storage.getGiftRegistry(registryId);
+      if (!registry) {
+        return res.status(404).json({ message: "Registry not found" });
+      }
+
+      // Only registry creator can add items
+      if (registry.createdByUserId !== userId) {
+        return res.status(403).json({ message: "Only the registry creator can add items" });
+      }
+
+      const item = await storage.createGiftRegistryItem({
+        registryId,
+        name,
+        description: description || null,
+        productUrl: productUrl || null,
+        imageUrl: imageUrl || null,
+        price: price ? Math.round(price * 100) : null, // Convert to cents
+        quantity: quantity || 1,
+        priority: priority || 0,
+        notes: notes || null,
+        status: 'available',
+        quantityPurchased: 0,
+      });
+
+      res.json({
+        ...item,
+        affiliateUrl: addAffiliateTracking(item.productUrl),
+      });
+    } catch (error) {
+      console.error("Error adding registry item:", error);
+      res.status(500).json({ message: "Failed to add item" });
+    }
+  });
+
+  // Update registry item
+  app.patch("/api/registry-items/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { name, description, productUrl, imageUrl, price, quantity, priority, notes } = req.body;
+
+      const item = await storage.getGiftRegistryItem(id);
+      if (!item) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+
+      const registry = await storage.getGiftRegistry(item.registryId);
+      if (!registry || registry.createdByUserId !== userId) {
+        return res.status(403).json({ message: "Only the registry creator can update items" });
+      }
+
+      const updated = await storage.updateGiftRegistryItem(id, {
+        name,
+        description,
+        productUrl,
+        imageUrl,
+        price: price !== undefined ? Math.round(price * 100) : undefined,
+        quantity,
+        priority,
+        notes,
+      });
+
+      res.json({
+        ...updated,
+        affiliateUrl: addAffiliateTracking(updated?.productUrl),
+      });
+    } catch (error) {
+      console.error("Error updating registry item:", error);
+      res.status(500).json({ message: "Failed to update item" });
+    }
+  });
+
+  // Delete registry item
+  app.delete("/api/registry-items/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const item = await storage.getGiftRegistryItem(id);
+      if (!item) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+
+      const registry = await storage.getGiftRegistry(item.registryId);
+      if (!registry || registry.createdByUserId !== userId) {
+        return res.status(403).json({ message: "Only the registry creator can delete items" });
+      }
+
+      await storage.deleteGiftRegistryItem(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting registry item:", error);
+      res.status(500).json({ message: "Failed to delete item" });
+    }
+  });
+
+  // Mark item as purchased (by family member)
+  app.post("/api/registry-items/:id/purchase", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { quantity } = req.body;
+
+      const item = await storage.getGiftRegistryItem(id);
+      if (!item) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+
+      // Verify registry is active
+      const registry = await storage.getGiftRegistry(item.registryId);
+      if (!registry || !registry.isActive) {
+        return res.status(400).json({ message: "Registry is not active" });
+      }
+
+      // Verify user has access to tree
+      const tree = await storage.getTree(registry.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, registry.treeId);
+      
+      if (!isOwner && !collaborator) {
+        return res.status(403).json({ message: "You don't have access to this registry" });
+      }
+
+      // Check quantity available
+      const remaining = item.quantity - (item.quantityPurchased || 0);
+      const purchaseQty = Math.min(quantity || 1, remaining);
+      
+      if (purchaseQty <= 0) {
+        return res.status(400).json({ message: "Item is already fully purchased" });
+      }
+
+      const updated = await storage.markItemPurchased(id, userId, purchaseQty);
+
+      res.json({
+        ...updated,
+        affiliateUrl: addAffiliateTracking(updated?.productUrl),
+      });
+    } catch (error) {
+      console.error("Error marking item as purchased:", error);
+      res.status(500).json({ message: "Failed to mark item as purchased" });
+    }
+  });
+
+  // Get registries for a specific member
+  app.get("/api/members/:memberId/registries", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId } = req.params;
+
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Verify user has access to tree
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+      
+      if (!isOwner && !collaborator) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const registries = await storage.getGiftRegistriesByMember(memberId);
+      
+      // Enrich with item counts
+      const enrichedRegistries = await Promise.all(
+        registries.map(async (registry) => {
+          const items = await storage.getGiftRegistryItems(registry.id);
+          const purchasedCount = items.filter(i => i.status === 'purchased').length;
+          
+          return {
+            ...registry,
+            itemCount: items.length,
+            purchasedCount,
+            progress: items.length > 0 ? Math.round((purchasedCount / items.length) * 100) : 0,
+          };
+        })
+      );
+
+      res.json(enrichedRegistries);
+    } catch (error) {
+      console.error("Error fetching member registries:", error);
+      res.status(500).json({ message: "Failed to fetch registries" });
+    }
+  });
+
   return httpServer;
 }
