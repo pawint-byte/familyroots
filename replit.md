@@ -23,6 +23,7 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
 
 - **Authentication**: Replit Auth with OpenID Connect for secure login, sessions stored in PostgreSQL.
 - **Collaboration System**: Users can share family trees with defined roles (Viewer, Editor, Co-owner) via invitation links with optional expiration and usage limits. Tree connections allow linking co-owned trees.
+- **Profile Claiming**: Family members can claim their own profiles within trees they don't own. Once approved by the tree owner, claimed users can edit their personal details (name, photo, bio, dates) directly without needing tree-level edit permissions. Tree owners see pending claims on their dashboard and can approve or deny requests.
 - **Deadman Switch (Account Heir)**: Allows users to designate an heir to inherit their family trees after a configurable period of inactivity, ensuring the preservation of genealogical data.
 - **Smart Family Member Matching**: A privacy-focused, opt-in feature that enables cross-tree matching to discover shared family connections based on user-controlled data points. Matching uses a weighted scoring algorithm.
 - **Dynamic Relationship Calculator**: Utilizes a BFS algorithm to determine the genealogical relationship between any two family members within a tree, providing accurate terminology (e.g., cousins "once removed").
