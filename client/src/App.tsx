@@ -27,6 +27,8 @@ import PublicProfile from "@/pages/public-profile";
 import Network from "@/pages/network";
 import Comparison from "@/pages/comparison";
 import Records from "@/pages/records";
+import GiftRegistry from "@/pages/gift-registry";
+import RegistryDetail from "@/pages/registry-detail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -63,6 +65,8 @@ function Router() {
       <Route path="/network" component={Network} />
       <Route path="/comparison" component={Comparison} />
       <Route path="/records" component={Records} />
+      <Route path="/tree/:treeId/registries" component={GiftRegistry} />
+      <Route path="/registry/:registryId" component={RegistryDetail} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -23,7 +23,7 @@ import {
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, Filter, Download, Upload, Clock, Star, Image,
-  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard
+  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList
 } from "lucide-react";
 import { toPng } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -475,6 +475,17 @@ export default function TreeView() {
                   <div>
                     <div className="font-medium">Browse Gift Ideas</div>
                     <div className="text-xs text-muted-foreground">Pre-made items from Etsy/Amazon</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-start gap-2"
+                  onClick={() => navigate(`/tree/${treeId}/registries`)}
+                  data-testid="menu-gift-registries"
+                >
+                  <ClipboardList className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-medium">Gift Registries</div>
+                    <div className="text-xs text-muted-foreground">Create wishlists for birthdays, showers</div>
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
