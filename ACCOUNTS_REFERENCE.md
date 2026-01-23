@@ -34,7 +34,7 @@ This document contains reference information for all external accounts and integ
 - **Dashboard URL**: https://affiliate-program.amazon.com
 - **Associate ID**: `pawint-20`
 - **Account Email**: pawint@me.com
-- **Store ID**: ___________________
+- **Store ID**: Pawint-20
 
 **How to verify:**
 1. Go to https://affiliate-program.amazon.com
