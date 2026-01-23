@@ -20,6 +20,7 @@ export const heirStatusEnum = pgEnum("heir_status", ["pending", "notified", "tra
 export const matchRequestStatusEnum = pgEnum("match_request_status", ["pending", "accepted", "declined", "expired"]);
 export const memberInvitationStatusEnum = pgEnum("member_invitation_status", ["pending", "clicked", "registered"]);
 export const merchandiseOrderStatusEnum = pgEnum("merchandise_order_status", ["pending", "paid", "submitted", "processing", "shipped", "delivered", "cancelled", "failed"]);
+export const profileClaimStatusEnum = pgEnum("profile_claim_status", ["pending", "approved", "denied"]);
 
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
@@ -50,6 +51,8 @@ export const familyMembers = pgTable("family_members", {
   notes: text("notes"),
   isUnknown: boolean("is_unknown").default(false),
   unknownLabel: text("unknown_label"),
+  claimedByUserId: varchar("claimed_by_user_id"),
+  claimedAt: timestamp("claimed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -245,6 +248,21 @@ export const memberInvitations = pgTable("member_invitations", {
   registeredAt: timestamp("registered_at"),
 });
 
+// Profile Claim Requests table (for users to claim their own profiles)
+export const profileClaimRequests = pgTable("profile_claim_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(),
+  treeId: varchar("tree_id").notNull(),
+  requesterId: varchar("requester_id").notNull(),
+  requesterEmail: text("requester_email"),
+  status: profileClaimStatusEnum("status").default("pending").notNull(),
+  message: text("message"),
+  denialReason: text("denial_reason"),
+  reviewedBy: varchar("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const familyTreesRelations = relations(familyTrees, ({ many }) => ({
   members: many(familyMembers),
@@ -314,6 +332,17 @@ export const memberInvitationsRelations = relations(memberInvitations, ({ one })
   }),
   tree: one(familyTrees, {
     fields: [memberInvitations.treeId],
+    references: [familyTrees.id],
+  }),
+}));
+
+export const profileClaimRequestsRelations = relations(profileClaimRequests, ({ one }) => ({
+  member: one(familyMembers, {
+    fields: [profileClaimRequests.memberId],
+    references: [familyMembers.id],
+  }),
+  tree: one(familyTrees, {
+    fields: [profileClaimRequests.treeId],
     references: [familyTrees.id],
   }),
 }));
@@ -461,6 +490,11 @@ export const insertMemberInvitationSchema = createInsertSchema(memberInvitations
   sentAt: true,
 });
 
+export const insertProfileClaimRequestSchema = createInsertSchema(profileClaimRequests).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Merchandise Orders table (for Printful print-on-demand products)
 // Shipping address type for merchandise orders
 export const shippingAddressSchema = z.object({
@@ -552,6 +586,9 @@ export type InsertMatchRequest = z.infer<typeof insertMatchRequestSchema>;
 
 export type MemberInvitation = typeof memberInvitations.$inferSelect;
 export type InsertMemberInvitation = z.infer<typeof insertMemberInvitationSchema>;
+
+export type ProfileClaimRequest = typeof profileClaimRequests.$inferSelect;
+export type InsertProfileClaimRequest = z.infer<typeof insertProfileClaimRequestSchema>;
 
 export type MerchandiseOrder = typeof merchandiseOrders.$inferSelect;
 export type InsertMerchandiseOrder = z.infer<typeof insertMerchandiseOrderSchema>;

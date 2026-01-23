@@ -1,7 +1,7 @@
 import { 
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
   treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
-  discoverableMembers, matchRequests, memberInvitations, merchandiseOrders,
+  discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -16,6 +16,7 @@ import {
   type DiscoverableMember, type InsertDiscoverableMember,
   type MatchRequest, type InsertMatchRequest,
   type MemberInvitation, type InsertMemberInvitation,
+  type ProfileClaimRequest, type InsertProfileClaimRequest,
   type MerchandiseOrder, type InsertMerchandiseOrder,
   type User
 } from "@shared/schema";
@@ -124,6 +125,17 @@ export interface IStorage {
   getMemberInvitationsByTree(treeId: string): Promise<MemberInvitation[]>;
   createMemberInvitation(invitation: InsertMemberInvitation): Promise<MemberInvitation>;
   updateMemberInvitationStatus(id: string, status: 'clicked' | 'registered'): Promise<MemberInvitation | undefined>;
+
+  // Profile Claim Requests
+  getProfileClaimRequest(id: string): Promise<ProfileClaimRequest | undefined>;
+  getProfileClaimRequestsByTree(treeId: string): Promise<ProfileClaimRequest[]>;
+  getProfileClaimRequestsByMember(memberId: string): Promise<ProfileClaimRequest[]>;
+  getProfileClaimRequestByRequester(requesterId: string, memberId: string): Promise<ProfileClaimRequest | undefined>;
+  getClaimedProfilesByUser(userId: string): Promise<FamilyMember[]>;
+  createProfileClaimRequest(request: InsertProfileClaimRequest): Promise<ProfileClaimRequest>;
+  updateProfileClaimRequest(id: string, data: Partial<InsertProfileClaimRequest>): Promise<ProfileClaimRequest | undefined>;
+  approveProfileClaim(claimId: string, reviewerId: string): Promise<ProfileClaimRequest | undefined>;
+  denyProfileClaim(claimId: string, reviewerId: string, reason?: string): Promise<ProfileClaimRequest | undefined>;
 
   // Merchandise Orders
   getMerchandiseOrders(userId: string): Promise<MerchandiseOrder[]>;
@@ -681,6 +693,91 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(memberInvitations)
       .set(updateData)
       .where(eq(memberInvitations.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Profile Claim Requests
+  async getProfileClaimRequest(id: string): Promise<ProfileClaimRequest | undefined> {
+    const [request] = await db.select().from(profileClaimRequests)
+      .where(eq(profileClaimRequests.id, id));
+    return request;
+  }
+
+  async getProfileClaimRequestsByTree(treeId: string): Promise<ProfileClaimRequest[]> {
+    return db.select().from(profileClaimRequests)
+      .where(eq(profileClaimRequests.treeId, treeId))
+      .orderBy(desc(profileClaimRequests.createdAt));
+  }
+
+  async getProfileClaimRequestsByMember(memberId: string): Promise<ProfileClaimRequest[]> {
+    return db.select().from(profileClaimRequests)
+      .where(eq(profileClaimRequests.memberId, memberId))
+      .orderBy(desc(profileClaimRequests.createdAt));
+  }
+
+  async getProfileClaimRequestByRequester(requesterId: string, memberId: string): Promise<ProfileClaimRequest | undefined> {
+    const [request] = await db.select().from(profileClaimRequests)
+      .where(and(
+        eq(profileClaimRequests.requesterId, requesterId),
+        eq(profileClaimRequests.memberId, memberId)
+      ));
+    return request;
+  }
+
+  async getClaimedProfilesByUser(userId: string): Promise<FamilyMember[]> {
+    return db.select().from(familyMembers)
+      .where(eq(familyMembers.claimedByUserId, userId));
+  }
+
+  async createProfileClaimRequest(request: InsertProfileClaimRequest): Promise<ProfileClaimRequest> {
+    const [created] = await db.insert(profileClaimRequests).values(request).returning();
+    return created;
+  }
+
+  async updateProfileClaimRequest(id: string, data: Partial<InsertProfileClaimRequest>): Promise<ProfileClaimRequest | undefined> {
+    const [updated] = await db.update(profileClaimRequests)
+      .set(data)
+      .where(eq(profileClaimRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async approveProfileClaim(claimId: string, reviewerId: string): Promise<ProfileClaimRequest | undefined> {
+    const claim = await this.getProfileClaimRequest(claimId);
+    if (!claim) return undefined;
+
+    // Update the claim status
+    const [updatedClaim] = await db.update(profileClaimRequests)
+      .set({
+        status: 'approved',
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+      })
+      .where(eq(profileClaimRequests.id, claimId))
+      .returning();
+
+    // Update the family member to mark them as claimed
+    await db.update(familyMembers)
+      .set({
+        claimedByUserId: claim.requesterId,
+        claimedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(familyMembers.id, claim.memberId));
+
+    return updatedClaim;
+  }
+
+  async denyProfileClaim(claimId: string, reviewerId: string, reason?: string): Promise<ProfileClaimRequest | undefined> {
+    const [updated] = await db.update(profileClaimRequests)
+      .set({
+        status: 'denied',
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+        denialReason: reason,
+      })
+      .where(eq(profileClaimRequests.id, claimId))
       .returning();
     return updated;
   }

@@ -1096,6 +1096,207 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== PROFILE CLAIM ROUTES ====================
+
+  // Get pending claim requests for trees owned by the current user
+  app.get("/api/profile-claims/pending", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get all trees owned by this user
+      const userTrees = await storage.getTrees(userId);
+      
+      // Get all pending claims for these trees
+      const allPendingClaims = [];
+      for (const tree of userTrees) {
+        const claims = await storage.getProfileClaimRequestsByTree(tree.id);
+        const pendingClaims = claims.filter(c => c.status === 'pending');
+        for (const claim of pendingClaims) {
+          const member = await storage.getMember(claim.memberId);
+          allPendingClaims.push({
+            ...claim,
+            memberName: member ? `${member.firstName} ${member.lastName || ''}`.trim() : 'Unknown',
+            treeName: tree.name,
+          });
+        }
+      }
+      
+      res.json(allPendingClaims);
+    } catch (error: any) {
+      console.error("Error fetching pending claims:", error);
+      res.status(500).json({ message: error?.message || "Failed to fetch pending claims" });
+    }
+  });
+
+  // Get profiles claimed by the current user
+  app.get("/api/profile-claims/my-profiles", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const claimedProfiles = await storage.getClaimedProfilesByUser(userId);
+      
+      // Enrich with tree info
+      const enrichedProfiles = await Promise.all(claimedProfiles.map(async (member) => {
+        const tree = await storage.getTree(member.treeId);
+        return {
+          ...member,
+          treeName: tree?.name || 'Unknown Tree',
+        };
+      }));
+      
+      res.json(enrichedProfiles);
+    } catch (error: any) {
+      console.error("Error fetching claimed profiles:", error);
+      res.status(500).json({ message: error?.message || "Failed to fetch claimed profiles" });
+    }
+  });
+
+  // Submit a claim request for a family member profile
+  app.post("/api/members/:memberId/claim", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      const { message } = req.body;
+      
+      // Get the member
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      // Check if member is already claimed
+      if (member.claimedByUserId) {
+        return res.status(400).json({ message: "This profile has already been claimed" });
+      }
+      
+      // Check if member is marked as deceased
+      if (!member.isLiving) {
+        return res.status(400).json({ message: "Cannot claim profiles of deceased family members" });
+      }
+      
+      // Check if user already has a pending claim for this member
+      const existingClaim = await storage.getProfileClaimRequestByRequester(userId, memberId);
+      if (existingClaim && existingClaim.status === 'pending') {
+        return res.status(400).json({ message: "You already have a pending claim for this profile" });
+      }
+      
+      // Get the current user's email
+      const currentUser = await storage.getUser(userId);
+      
+      // Create the claim request
+      const claimRequest = await storage.createProfileClaimRequest({
+        memberId,
+        treeId: member.treeId,
+        requesterId: userId,
+        requesterEmail: currentUser?.email || undefined,
+        message: message || undefined,
+        status: 'pending',
+      });
+      
+      res.status(201).json(claimRequest);
+    } catch (error: any) {
+      console.error("Error creating claim request:", error);
+      res.status(500).json({ message: error?.message || "Failed to submit claim request" });
+    }
+  });
+
+  // Get claim status for a member
+  app.get("/api/members/:memberId/claim-status", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      // Check if already claimed by this user
+      if (member.claimedByUserId === userId) {
+        return res.json({ status: 'owned', claimedAt: member.claimedAt });
+      }
+      
+      // Check if claimed by someone else
+      if (member.claimedByUserId) {
+        return res.json({ status: 'claimed_by_other' });
+      }
+      
+      // Check for pending claim by this user
+      const existingClaim = await storage.getProfileClaimRequestByRequester(userId, memberId);
+      if (existingClaim) {
+        return res.json({ 
+          status: existingClaim.status === 'pending' ? 'pending' : existingClaim.status,
+          claimId: existingClaim.id,
+          denialReason: existingClaim.denialReason,
+        });
+      }
+      
+      // Not claimed and no pending request
+      res.json({ status: 'available' });
+    } catch (error: any) {
+      console.error("Error fetching claim status:", error);
+      res.status(500).json({ message: error?.message || "Failed to fetch claim status" });
+    }
+  });
+
+  // Approve a claim request (tree owner only)
+  app.post("/api/profile-claims/:claimId/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const { claimId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const claim = await storage.getProfileClaimRequest(claimId);
+      if (!claim) {
+        return res.status(404).json({ message: "Claim request not found" });
+      }
+      
+      // Verify the current user owns the tree
+      const tree = await storage.getTree(claim.treeId);
+      if (!tree || tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only the tree owner can approve claims" });
+      }
+      
+      if (claim.status !== 'pending') {
+        return res.status(400).json({ message: "This claim has already been processed" });
+      }
+      
+      const approvedClaim = await storage.approveProfileClaim(claimId, userId);
+      res.json(approvedClaim);
+    } catch (error: any) {
+      console.error("Error approving claim:", error);
+      res.status(500).json({ message: error?.message || "Failed to approve claim" });
+    }
+  });
+
+  // Deny a claim request (tree owner only)
+  app.post("/api/profile-claims/:claimId/deny", isAuthenticated, async (req: any, res) => {
+    try {
+      const { claimId } = req.params;
+      const userId = req.user.claims.sub;
+      const { reason } = req.body;
+      
+      const claim = await storage.getProfileClaimRequest(claimId);
+      if (!claim) {
+        return res.status(404).json({ message: "Claim request not found" });
+      }
+      
+      // Verify the current user owns the tree
+      const tree = await storage.getTree(claim.treeId);
+      if (!tree || tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only the tree owner can deny claims" });
+      }
+      
+      if (claim.status !== 'pending') {
+        return res.status(400).json({ message: "This claim has already been processed" });
+      }
+      
+      const deniedClaim = await storage.denyProfileClaim(claimId, userId, reason);
+      res.json(deniedClaim);
+    } catch (error: any) {
+      console.error("Error denying claim:", error);
+      res.status(500).json({ message: error?.message || "Failed to deny claim" });
+    }
+  });
+
   // ==================== NAME HISTORY ROUTES ====================
 
   // Get name history for a member
