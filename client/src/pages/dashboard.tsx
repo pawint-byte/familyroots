@@ -22,6 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import { PendingClaimsSection } from "@/components/pending-claims";
+import { PendingCustodianshipSection } from "@/components/pending-custodianship";
 import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
@@ -447,6 +448,11 @@ export default function Dashboard() {
         {/* Pending Profile Claims Section */}
         <div className="mb-8">
           <PendingClaimsSection />
+        </div>
+
+        {/* Pending Custodianship Requests Section */}
+        <div className="mb-8">
+          <PendingCustodianshipSection />
         </div>
 
         {isLoading ? (

@@ -2,6 +2,7 @@ import {
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
   treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
+  custodianshipRequests,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -18,10 +19,11 @@ import {
   type MemberInvitation, type InsertMemberInvitation,
   type ProfileClaimRequest, type InsertProfileClaimRequest,
   type MerchandiseOrder, type InsertMerchandiseOrder,
+  type CustodianshipRequest, type InsertCustodianshipRequest,
   type User
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, ilike, desc } from "drizzle-orm";
+import { eq, and, or, ilike, desc, lt, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Family Trees
@@ -142,6 +144,29 @@ export interface IStorage {
   getMerchandiseOrder(id: string): Promise<MerchandiseOrder | undefined>;
   createMerchandiseOrder(order: InsertMerchandiseOrder): Promise<MerchandiseOrder>;
   updateMerchandiseOrder(id: string, data: Partial<InsertMerchandiseOrder>): Promise<MerchandiseOrder | undefined>;
+
+  // Custodianship Requests
+  getCustodianshipRequest(id: string): Promise<CustodianshipRequest | undefined>;
+  getCustodianshipRequestsByTree(treeId: string): Promise<CustodianshipRequest[]>;
+  getCustodianshipRequestsByMember(memberId: string): Promise<CustodianshipRequest[]>;
+  getCustodianshipRequestByRequester(requesterId: string, memberId: string): Promise<CustodianshipRequest | undefined>;
+  createCustodianshipRequest(request: InsertCustodianshipRequest): Promise<CustodianshipRequest>;
+  updateCustodianshipRequest(id: string, data: Partial<InsertCustodianshipRequest>): Promise<CustodianshipRequest | undefined>;
+  approveCustodianship(requestId: string, reviewerId: string): Promise<CustodianshipRequest | undefined>;
+  denyCustodianship(requestId: string, reviewerId: string, reason?: string): Promise<CustodianshipRequest | undefined>;
+  getPendingCustodianshipRequests(): Promise<CustodianshipRequest[]>;
+  getExpiredCustodianshipRequests(): Promise<CustodianshipRequest[]>;
+
+  // Events (extended)
+  getEvent(id: string): Promise<FamilyEvent | undefined>;
+  updateEvent(id: string, data: Partial<InsertFamilyEvent>): Promise<FamilyEvent | undefined>;
+  getEventsByMember(memberId: string): Promise<FamilyEvent[]>;
+
+  // User notification preferences
+  updateUserNotificationPreferences(userId: string, preferences: any): Promise<User | undefined>;
+  
+  // Get tree collaborators and owners with their notification preferences
+  getTreeMembersWithNotificationPrefs(treeId: string): Promise<User[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -806,6 +831,151 @@ export class DatabaseStorage implements IStorage {
       .where(eq(merchandiseOrders.id, id))
       .returning();
     return updated;
+  }
+
+  // Custodianship Requests
+  async getCustodianshipRequest(id: string): Promise<CustodianshipRequest | undefined> {
+    const [request] = await db.select().from(custodianshipRequests)
+      .where(eq(custodianshipRequests.id, id));
+    return request;
+  }
+
+  async getCustodianshipRequestsByTree(treeId: string): Promise<CustodianshipRequest[]> {
+    return db.select().from(custodianshipRequests)
+      .where(eq(custodianshipRequests.treeId, treeId))
+      .orderBy(desc(custodianshipRequests.createdAt));
+  }
+
+  async getCustodianshipRequestsByMember(memberId: string): Promise<CustodianshipRequest[]> {
+    return db.select().from(custodianshipRequests)
+      .where(eq(custodianshipRequests.memberId, memberId))
+      .orderBy(desc(custodianshipRequests.createdAt));
+  }
+
+  async getCustodianshipRequestByRequester(requesterId: string, memberId: string): Promise<CustodianshipRequest | undefined> {
+    const [request] = await db.select().from(custodianshipRequests)
+      .where(and(
+        eq(custodianshipRequests.requesterId, requesterId),
+        eq(custodianshipRequests.memberId, memberId),
+        eq(custodianshipRequests.status, 'pending')
+      ));
+    return request;
+  }
+
+  async createCustodianshipRequest(request: InsertCustodianshipRequest): Promise<CustodianshipRequest> {
+    const [created] = await db.insert(custodianshipRequests).values(request).returning();
+    return created;
+  }
+
+  async updateCustodianshipRequest(id: string, data: Partial<InsertCustodianshipRequest>): Promise<CustodianshipRequest | undefined> {
+    const [updated] = await db.update(custodianshipRequests)
+      .set(data)
+      .where(eq(custodianshipRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async approveCustodianship(requestId: string, reviewerId: string): Promise<CustodianshipRequest | undefined> {
+    const request = await this.getCustodianshipRequest(requestId);
+    if (!request) return undefined;
+
+    const [updatedRequest] = await db.update(custodianshipRequests)
+      .set({
+        status: 'approved',
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+      })
+      .where(eq(custodianshipRequests.id, requestId))
+      .returning();
+
+    // Update the family member to assign custodianship
+    await db.update(familyMembers)
+      .set({
+        custodianUserId: request.requesterId,
+        custodianAssignedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(familyMembers.id, request.memberId));
+
+    return updatedRequest;
+  }
+
+  async denyCustodianship(requestId: string, reviewerId: string, reason?: string): Promise<CustodianshipRequest | undefined> {
+    const [updated] = await db.update(custodianshipRequests)
+      .set({
+        status: 'denied',
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+        denialReason: reason,
+      })
+      .where(eq(custodianshipRequests.id, requestId))
+      .returning();
+    return updated;
+  }
+
+  async getPendingCustodianshipRequests(): Promise<CustodianshipRequest[]> {
+    return db.select().from(custodianshipRequests)
+      .where(eq(custodianshipRequests.status, 'pending'))
+      .orderBy(desc(custodianshipRequests.createdAt));
+  }
+
+  async getExpiredCustodianshipRequests(): Promise<CustodianshipRequest[]> {
+    const now = new Date();
+    return db.select().from(custodianshipRequests)
+      .where(and(
+        eq(custodianshipRequests.status, 'pending'),
+        lt(custodianshipRequests.expiresAt, now)
+      ));
+  }
+
+  // Events (extended)
+  async getEvent(id: string): Promise<FamilyEvent | undefined> {
+    const [event] = await db.select().from(familyEvents)
+      .where(eq(familyEvents.id, id));
+    return event;
+  }
+
+  async updateEvent(id: string, data: Partial<InsertFamilyEvent>): Promise<FamilyEvent | undefined> {
+    const [updated] = await db.update(familyEvents)
+      .set(data)
+      .where(eq(familyEvents.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getEventsByMember(memberId: string): Promise<FamilyEvent[]> {
+    return db.select().from(familyEvents)
+      .where(eq(familyEvents.memberId, memberId))
+      .orderBy(desc(familyEvents.eventDate));
+  }
+
+  // User notification preferences
+  async updateUserNotificationPreferences(userId: string, preferences: any): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({
+        notificationPreferences: preferences,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+  
+  // Get tree collaborators and owners with their notification preferences
+  async getTreeMembersWithNotificationPrefs(treeId: string): Promise<User[]> {
+    // Get the tree to find the owner
+    const tree = await this.getTree(treeId);
+    if (!tree) return [];
+    
+    // Get all collaborators for this tree
+    const collabs = await this.getCollaborators(treeId);
+    const userIds = [tree.ownerId, ...collabs.map(c => c.userId)];
+    
+    // Fetch all users with their notification preferences
+    const userList = await db.select().from(users)
+      .where(inArray(users.id, userIds));
+    
+    return userList;
   }
 }
 

@@ -6,7 +6,8 @@ import { registerObjectStorageRoutes } from "./replit_integrations/object_storag
 import { 
   insertFamilyTreeSchema, insertFamilyMemberSchema, 
   insertRelationshipSchema, insertFamilyEventSchema,
-  insertNameHistorySchema, insertTreeConnectionSchema
+  insertNameHistorySchema, insertTreeConnectionSchema,
+  insertCustodianshipRequestSchema
 } from "@shared/schema";
 import { z } from "zod";
 import crypto from "crypto";
@@ -37,7 +38,7 @@ import {
   getAllVideos, getVideoById, deleteVideo 
 } from "./heygen";
 import { postToBluesky, testBlueskyConnection } from "./bluesky";
-import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation } from "./lib/email";
+import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification } from "./lib/email";
 import { insertAccountHeirSchema } from "@shared/schema";
 import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG } from "./subscriptionService";
@@ -395,12 +396,18 @@ export async function registerRoutes(
       // Check if user is the claimed owner of this profile
       const isClaimedOwner = existingMember.claimedByUserId === userId;
       
+      // Check if user is the custodian of this deceased member
+      const isCustodian = existingMember.custodianUserId === userId;
+      
       // Check edit permissions
       let canEdit = false;
       if (tree.ownerId === userId) {
         canEdit = true;
       } else if (isClaimedOwner) {
         // Claimed users can edit their own profile
+        canEdit = true;
+      } else if (isCustodian) {
+        // Custodians can edit deceased member's profiles (limited fields)
         canEdit = true;
       } else {
         const collaborators = await storage.getCollaborators(treeId);
@@ -410,9 +417,16 @@ export async function registerRoutes(
       if (!canEdit) {
         return res.status(403).json({ message: "Access denied" });
       }
-
-      // Validate update data - only allow specific fields
-      const allowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes"];
+      
+      // Determine which fields are allowed based on role
+      const fullAllowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes"];
+      const custodianAllowedFields = ["firstName", "lastName", "deathDate", "notes", "photoUrl"];
+      
+      // Custodians can only edit limited fields (unless they're also the tree owner)
+      const allowedFields = (isCustodian && tree.ownerId !== userId) 
+        ? custodianAllowedFields 
+        : fullAllowedFields;
+        
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
@@ -1308,6 +1322,325 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error denying claim:", error);
       res.status(500).json({ message: error?.message || "Failed to deny claim" });
+    }
+  });
+
+  // ==================== CUSTODIANSHIP ROUTES ====================
+
+  // Get pending custodianship requests for trees owned by the current user (including co-owned)
+  app.get("/api/custodianship/pending", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get all trees owned by this user
+      const ownedTrees = await storage.getTrees(userId);
+      
+      // Get pending custodianship requests for all owned trees
+      const ownedTreeRequests = await Promise.all(
+        ownedTrees.map(async (tree) => {
+          const requests = await storage.getCustodianshipRequestsByTree(tree.id);
+          return requests.filter(r => r.status === 'pending');
+        })
+      );
+      
+      res.json(ownedTreeRequests.flat());
+    } catch (error) {
+      console.error("Error fetching pending custodianship requests:", error);
+      res.status(500).json({ message: "Failed to fetch pending requests" });
+    }
+  });
+
+  // Request custodianship of a deceased member
+  app.post("/api/members/:memberId/custodianship", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      const userEmail = req.user.claims.email;
+
+      // Get the member
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      // Check if member is deceased
+      if (!member.deathDate) {
+        return res.status(400).json({ message: "Custodianship can only be requested for deceased members" });
+      }
+
+      // Check if someone already has custodianship
+      if (member.custodianUserId) {
+        return res.status(400).json({ message: "This member already has a custodian assigned" });
+      }
+
+      // Check for existing pending request from this user
+      const existingRequest = await storage.getCustodianshipRequestByRequester(userId, memberId);
+      if (existingRequest) {
+        return res.status(400).json({ message: "You already have a pending custodianship request for this member" });
+      }
+
+      // Calculate 30 days from now for expiration
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      const data = insertCustodianshipRequestSchema.parse({
+        memberId,
+        treeId: member.treeId,
+        requesterId: userId,
+        requesterEmail: userEmail,
+        relationshipToMember: req.body.relationshipToMember,
+        reason: req.body.reason,
+        expiresAt,
+      });
+
+      const request = await storage.createCustodianshipRequest(data);
+      res.status(201).json(request);
+    } catch (error: any) {
+      console.error("Error creating custodianship request:", error);
+      res.status(400).json({ message: error?.message || "Failed to create custodianship request" });
+    }
+  });
+
+  // Get custodianship requests for a specific member
+  app.get("/api/members/:memberId/custodianship", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const requests = await storage.getCustodianshipRequestsByMember(memberId);
+      res.json(requests);
+    } catch (error) {
+      console.error("Error fetching custodianship requests:", error);
+      res.status(500).json({ message: "Failed to fetch custodianship requests" });
+    }
+  });
+
+  // Approve a custodianship request (tree owner only)
+  app.post("/api/custodianship/:requestId/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const request = await storage.getCustodianshipRequest(requestId);
+      if (!request) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      // Verify user is tree owner
+      const tree = await storage.getTree(request.treeId);
+      if (!tree || tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only tree owner can approve custodianship requests" });
+      }
+
+      const approved = await storage.approveCustodianship(requestId, userId);
+      res.json(approved);
+    } catch (error: any) {
+      console.error("Error approving custodianship:", error);
+      res.status(500).json({ message: error?.message || "Failed to approve custodianship" });
+    }
+  });
+
+  // Deny a custodianship request (tree owner only)
+  app.post("/api/custodianship/:requestId/deny", isAuthenticated, async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      const userId = req.user.claims.sub;
+      const { reason } = req.body;
+
+      const request = await storage.getCustodianshipRequest(requestId);
+      if (!request) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      // Verify user is tree owner
+      const tree = await storage.getTree(request.treeId);
+      if (!tree || tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only tree owner can deny custodianship requests" });
+      }
+
+      const denied = await storage.denyCustodianship(requestId, userId, reason);
+      res.json(denied);
+    } catch (error: any) {
+      console.error("Error denying custodianship:", error);
+      res.status(500).json({ message: error?.message || "Failed to deny custodianship" });
+    }
+  });
+
+  // ==================== NOTIFICATION PREFERENCES ROUTES ====================
+
+  // Get notification preferences
+  app.get("/api/user/notification-preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      // Return default preferences if none set
+      const defaults = {
+        births: false,
+        deaths: false,
+        marriages: false,
+        divorces: false,
+        milestones: false,
+        emailEnabled: false,
+      };
+      
+      res.json(user?.notificationPreferences || defaults);
+    } catch (error) {
+      console.error("Error fetching notification preferences:", error);
+      res.status(500).json({ message: "Failed to fetch notification preferences" });
+    }
+  });
+
+  // Update notification preferences
+  app.put("/api/user/notification-preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const preferences = req.body;
+      
+      const updated = await storage.updateUserNotificationPreferences(userId, preferences);
+      res.json(updated?.notificationPreferences);
+    } catch (error) {
+      console.error("Error updating notification preferences:", error);
+      res.status(500).json({ message: "Failed to update notification preferences" });
+    }
+  });
+
+  // ==================== LIFE EVENTS ROUTES ====================
+
+  // Get event by ID
+  app.get("/api/events/:eventId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { eventId } = req.params;
+      const event = await storage.getEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      res.json(event);
+    } catch (error) {
+      console.error("Error fetching event:", error);
+      res.status(500).json({ message: "Failed to fetch event" });
+    }
+  });
+
+  // Get events for a specific member
+  app.get("/api/members/:memberId/events", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const events = await storage.getEventsByMember(memberId);
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching member events:", error);
+      res.status(500).json({ message: "Failed to fetch member events" });
+    }
+  });
+
+  // Create a life event with optional media attachments
+  app.post("/api/trees/:treeId/events", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      // Check tree access
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      // Check if user can edit (owner or collaborator with edit access)
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const data = insertFamilyEventSchema.parse({
+        ...req.body,
+        treeId,
+        createdBy: userId,
+      });
+
+      const event = await storage.createEvent(data);
+      
+      // Send notifications to users with opt-in preferences for this event type
+      try {
+        const eventTypeToPreference: Record<string, keyof import("@shared/models/auth").NotificationPreferences> = {
+          'birth': 'births',
+          'death': 'deaths',
+          'marriage': 'marriages',
+          'divorce': 'divorces',
+          'milestone': 'milestones',
+          'graduation': 'milestones',
+          'achievement': 'milestones',
+        };
+        
+        const prefKey = eventTypeToPreference[event.eventType];
+        if (prefKey) {
+          const treeUsers = await storage.getTreeMembersWithNotificationPrefs(treeId);
+          
+          // Get member name for the notification
+          const member = event.memberId ? await storage.getMember(event.memberId) : null;
+          const memberName = member ? `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}` : 'A family member';
+          
+          for (const treeUser of treeUsers) {
+            // Skip the user who created the event (they already know about it)
+            if (treeUser.id === userId) continue;
+            
+            // Check if user has email and has opted in to this event type notification
+            const prefs = treeUser.notificationPreferences;
+            if (treeUser.email && prefs?.emailEnabled && prefs[prefKey]) {
+              await sendLifeEventNotification(
+                treeUser.email,
+                treeUser.firstName || 'Family member',
+                memberName,
+                event.eventType,
+                event.title,
+                event.eventDate?.toISOString() || new Date().toISOString(),
+                tree.name,
+                treeId
+              );
+            }
+          }
+        }
+      } catch (notificationError) {
+        console.error("Error sending life event notifications:", notificationError);
+        // Don't fail the request if notifications fail
+      }
+      
+      res.status(201).json(event);
+    } catch (error: any) {
+      console.error("Error creating event:", error);
+      res.status(400).json({ message: error?.message || "Failed to create event" });
+    }
+  });
+
+  // Update an event (for adding media attachments)
+  app.put("/api/events/:eventId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { eventId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const event = await storage.getEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Check tree access
+      const tree = await storage.getTree(event.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, event.treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const updated = await storage.updateEvent(eventId, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating event:", error);
+      res.status(400).json({ message: error?.message || "Failed to update event" });
     }
   });
 

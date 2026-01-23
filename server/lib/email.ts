@@ -440,3 +440,246 @@ export async function sendTreeUpdateNotification(
   `;
   return sendEmail(to, subject, html);
 }
+
+// Life event notification email
+export async function sendLifeEventNotification(
+  to: string,
+  userName: string,
+  memberName: string,
+  eventType: string,
+  eventTitle: string,
+  eventDate: string,
+  treeName: string,
+  treeId: string
+) {
+  const eventTypeColors: Record<string, string> = {
+    birth: '#22c55e',
+    death: '#6b7280',
+    marriage: '#ec4899',
+    divorce: '#f97316',
+    milestone: '#3b82f6',
+    graduation: '#8b5cf6',
+    achievement: '#eab308',
+  };
+  
+  const eventColor = eventTypeColors[eventType] || '#4F46E5';
+  const formattedDate = new Date(eventDate).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const subject = `${eventType.charAt(0).toUpperCase() + eventType.slice(1)}: ${eventTitle} - ${memberName}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: ${eventColor}; padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .event-card { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid ${eventColor}; }
+        .event-type { text-transform: uppercase; font-size: 12px; color: ${eventColor}; font-weight: bold; letter-spacing: 1px; }
+        .event-title { font-size: 18px; font-weight: bold; color: #1f2937; margin-top: 8px; }
+        .event-date { color: #6b7280; margin-top: 4px; }
+        .member-name { color: #4b5563; margin-top: 8px; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Family Event</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${userName},</p>
+        <p>A new life event has been recorded in the <strong>${treeName}</strong> family tree:</p>
+        <div class="event-card">
+          <div class="event-type">${eventType}</div>
+          <div class="event-title">${eventTitle}</div>
+          <div class="event-date">${formattedDate}</div>
+          <div class="member-name">For: ${memberName}</div>
+        </div>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/tree/${treeId}" class="button">View Family Tree</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>© FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this because you opted in to event notifications.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
+// Custodianship request notification email
+export async function sendCustodianshipRequestNotification(
+  to: string,
+  ownerName: string,
+  requesterEmail: string,
+  memberName: string,
+  relationship: string,
+  treeName: string,
+  expiresAt: Date
+) {
+  const formattedExpiry = expiresAt.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const subject = `Custodianship Request for ${memberName}'s Profile`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .request-card { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border: 1px solid #e5e7eb; }
+        .requester { font-weight: bold; color: #1f2937; }
+        .relationship { color: #6b7280; margin-top: 4px; }
+        .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 15px; margin: 20px 0; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 10px 5px; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Custodianship Request</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${ownerName},</p>
+        <p>Someone has requested custodianship of <strong>${memberName}'s</strong> profile in your <strong>${treeName}</strong> family tree:</p>
+        <div class="request-card">
+          <div class="requester">${requesterEmail}</div>
+          <div class="relationship">Relationship: ${relationship}</div>
+        </div>
+        <div class="warning">
+          <strong>Action Required by ${formattedExpiry}</strong>
+          <p style="margin: 5px 0 0 0; font-size: 14px;">If no action is taken within 30 days, this request will be automatically approved.</p>
+        </div>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/dashboard" class="button">Review Request</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>© FamilyRoots - Preserve Your Family's Legacy</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
+// Custodianship reminder email
+export async function sendCustodianshipReminder(
+  to: string,
+  ownerName: string,
+  memberName: string,
+  daysRemaining: number,
+  treeName: string
+) {
+  const subject = `Reminder: ${daysRemaining} days left to review custodianship request`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: #f59e0b; padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .countdown { font-size: 48px; font-weight: bold; text-align: center; color: #f59e0b; margin: 20px 0; }
+        .countdown-label { text-align: center; color: #6b7280; margin-bottom: 20px; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Reminder</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${ownerName},</p>
+        <p>You have a pending custodianship request for <strong>${memberName}'s</strong> profile in your <strong>${treeName}</strong> family tree.</p>
+        <div class="countdown">${daysRemaining}</div>
+        <div class="countdown-label">days remaining to review</div>
+        <p>If no action is taken, this request will be <strong>automatically approved</strong>.</p>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/dashboard" class="button">Review Now</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>© FamilyRoots - Preserve Your Family's Legacy</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
+// Custodianship approval notification email
+export async function sendCustodianshipApproval(
+  to: string,
+  custodianName: string,
+  memberName: string,
+  treeName: string,
+  autoApproved: boolean = false
+) {
+  const subject = `Custodianship ${autoApproved ? 'Auto-Approved' : 'Approved'}: You are now custodian of ${memberName}'s profile`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: #22c55e; padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .approval-badge { background: #dcfce7; border: 2px solid #22c55e; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+        .approval-badge h2 { color: #166534; margin: 0; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .permissions { background: white; border-radius: 8px; padding: 15px; margin: 20px 0; }
+        .permissions h3 { margin-top: 0; color: #1f2937; }
+        .permissions ul { margin: 0; padding-left: 20px; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Custodianship Approved</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${custodianName},</p>
+        <div class="approval-badge">
+          <h2>Request ${autoApproved ? 'Auto-Approved' : 'Approved'}</h2>
+        </div>
+        <p>You are now the custodian of <strong>${memberName}'s</strong> profile in the <strong>${treeName}</strong> family tree.</p>
+        ${autoApproved ? '<p><em>This request was automatically approved after 30 days without a response from the tree owner.</em></p>' : ''}
+        <div class="permissions">
+          <h3>Your Custodian Permissions:</h3>
+          <ul>
+            <li>Update name and basic information</li>
+            <li>Add or update death date</li>
+            <li>Update notes and memorial information</li>
+            <li>Change profile photo</li>
+          </ul>
+        </div>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/dashboard" class="button">Go to Dashboard</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>© FamilyRoots - Preserve Your Family's Legacy</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}

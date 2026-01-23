@@ -41,6 +41,8 @@ import TimelineView from "@/components/timeline-view";
 import { RelationshipDisplay, FocusMemberSelector } from "@/components/relationship-display";
 import { AddRelationship } from "@/components/add-relationship";
 import { ProfileClaimSection } from "@/components/profile-claim-section";
+import { LifeEventsSection } from "@/components/life-events-section";
+import { CustodianshipSection } from "@/components/custodianship-section";
 
 interface TreeData {
   tree: FamilyTree;
@@ -105,8 +107,11 @@ export default function TreeView() {
   // Check if user has claimed the selected member (can edit their own profile)
   const isClaimedOwnerOfSelectedMember = selectedMember?.claimedByUserId === userId;
   
-  // Combined edit permission - tree editors OR profile owner
-  const canEdit = canEditTree || isClaimedOwnerOfSelectedMember;
+  // Check if user is custodian of the selected member (can edit deceased member's profile)
+  const isCustodianOfSelectedMember = selectedMember?.custodianUserId === userId;
+  
+  // Combined edit permission - tree editors OR profile owner OR custodian
+  const canEdit = canEditTree || isClaimedOwnerOfSelectedMember || isCustodianOfSelectedMember;
 
   const addMemberMutation = useMutation({
     mutationFn: async (data: InsertFamilyMember & { createParentPlaceholders?: boolean }) => {
@@ -859,6 +864,25 @@ export default function TreeView() {
                   member={selectedMember}
                   isOwner={treeData?.tree.ownerId === user?.id}
                 />
+
+                {/* Life Events Section */}
+                {treeData && (
+                  <LifeEventsSection
+                    memberId={selectedMember.id}
+                    treeId={treeData.tree.id}
+                    canEdit={canEdit}
+                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '')}
+                  />
+                )}
+
+                {/* Custodianship Section (for deceased members) */}
+                {user && treeData && selectedMember.deathDate && (
+                  <CustodianshipSection
+                    member={selectedMember}
+                    currentUserId={user.id}
+                    isTreeOwner={treeData.tree.ownerId === user.id}
+                  />
+                )}
 
                 {/* Add Relationship Button */}
                 {canEditTree && treeData && (

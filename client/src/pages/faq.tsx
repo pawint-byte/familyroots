@@ -159,6 +159,44 @@ export default function FAQ() {
         {
           question: "If I claim my profile in one tree, does it apply to other trees?",
           answer: "Currently, profile claims are per-tree. If you appear in multiple family trees, you'll need to claim your profile in each one separately. The tree owners of each tree manage their own approval process."
+        },
+        {
+          question: "What is profile custodianship for deceased family members?",
+          answer: "When a family member passes away, their profile may need ongoing management. Custodianship allows a direct relative (parent, child, spouse, or sibling) to request permission to manage that person's profile - updating death dates, memorial information, and keeping their legacy accurate."
+        },
+        {
+          question: "How do I request custodianship of a deceased relative's profile?",
+          answer: "Open the profile of the deceased family member and look for the 'Request Custodianship' button. Select your relationship to them and explain why you'd like to be their custodian. The tree owner has 30 days to approve or deny your request."
+        },
+        {
+          question: "What happens if the tree owner doesn't respond to my custodianship request?",
+          answer: "If the tree owner takes no action within 30 days, your custodianship request is automatically approved. They'll receive reminder emails at regular intervals, but this 'right of first refusal' window ensures profiles aren't left unmanaged indefinitely."
+        },
+        {
+          question: "What can a profile custodian edit?",
+          answer: "As a custodian, you can update the deceased member's death date, memorial information, biography, and basic profile details. You cannot add or remove family relationships or change the family tree structure - that remains with the tree owner."
+        }
+      ]
+    },
+    {
+      title: "Life Events & Notifications",
+      icon: <Sparkles className="h-5 w-5" />,
+      items: [
+        {
+          question: "What are life events and how do I record them?",
+          answer: "Life events are important moments in a family member's life - births, deaths, marriages, divorces, graduations, achievements, and other milestones. To record one, click on a family member's profile and look for the 'Life Events' section. Add the event type, date, description, and even attach photos or videos."
+        },
+        {
+          question: "Can I attach photos and videos to life events?",
+          answer: "Yes! Each life event can have multiple photo and video attachments. This is a great way to preserve memories alongside the historical record - wedding photos, graduation pictures, and other cherished moments."
+        },
+        {
+          question: "How do I get notified when family events are recorded?",
+          answer: "Go to Account Settings and find the 'Notification Preferences' section. Enable email notifications, then choose which event types you want to receive updates about - births, deaths, marriages, divorces, or milestones. All notifications are opt-in, so you only receive what you want."
+        },
+        {
+          question: "Who can see the life events I record?",
+          answer: "Life events are visible to everyone who has access to the family tree where the event was recorded. If you're a collaborator with view-only access, you can see events but not create new ones. Editors and tree owners can add and manage events."
         }
       ]
     },

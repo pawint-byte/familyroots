@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Shield, User, Clock, AlertTriangle, Save, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { NotificationPreferences } from "@/components/notification-preferences";
 import type { AccountHeir } from "@shared/schema";
 
 export default function AccountSettings() {
@@ -320,6 +321,9 @@ export default function AccountSettings() {
               )}
             </CardContent>
           </Card>
+
+          {/* Notification Preferences */}
+          <NotificationPreferences />
         </div>
       </main>
     </div>

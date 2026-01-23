@@ -6,6 +6,8 @@ import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
 import { getVideoById } from './heygen';
+import { storage } from './storage';
+import { sendCustodianshipApproval, sendCustodianshipReminder } from './lib/email';
 
 const app = express();
 const httpServer = createServer(app);
@@ -230,13 +232,130 @@ app.use((req, res, next) => {
       host: "0.0.0.0",
       reusePort: true,
     },
-    () => {
+    async () => {
       log(`serving on port ${port}`);
       
       // Initialize Stripe after server is listening (non-blocking)
       initStripe().catch(err => {
         console.error('Stripe initialization error:', err);
       });
+      
+      // Start scheduled tasks for custodianship auto-approval and reminders
+      startCustodianshipScheduler();
     },
   );
 })();
+
+// Scheduled task for processing custodianship requests
+function startCustodianshipScheduler() {
+  const HOUR_IN_MS = 60 * 60 * 1000;
+  
+  async function processCustodianshipRequests() {
+    try {
+      log('Processing custodianship requests...', 'scheduler');
+      
+      // Get all pending custodianship requests
+      const pendingRequests = await storage.getPendingCustodianshipRequests();
+      const now = new Date();
+      
+      for (const request of pendingRequests) {
+        const daysSinceRequest = Math.floor((now.getTime() - request.createdAt.getTime()) / (24 * 60 * 60 * 1000));
+        const daysRemaining = 30 - daysSinceRequest;
+        
+        // Auto-approve if 30 days have passed
+        if (daysRemaining <= 0) {
+          log(`Auto-approving custodianship request ${request.id}`, 'scheduler');
+          
+          // Get related data for the approval
+          const member = await storage.getMember(request.memberId);
+          const tree = member ? await storage.getTree(member.treeId) : null;
+          const requester = await storage.getUser(request.requesterId);
+          
+          if (member && tree && requester) {
+            // Approve the request with auto_approved status
+            await storage.updateCustodianshipRequest(request.id, {
+              status: 'auto_approved',
+              reviewedAt: new Date(),
+            });
+            
+            // Update the member's custodian
+            await storage.updateMember(request.memberId, {
+              custodianUserId: request.requesterId,
+            });
+            
+            // Send approval email to the custodian
+            if (requester.email) {
+              const memberName = `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}`;
+              await sendCustodianshipApproval(
+                requester.email,
+                requester.firstName || 'Family member',
+                memberName,
+                tree.name,
+                true // auto-approved
+              );
+            }
+          }
+        }
+        // Send reminder emails at specific intervals (days 7, 14, 21, 28)
+        // Only send if we haven't already sent this reminder (track by reminderCount)
+        else {
+          const reminderMilestones = [7, 14, 21, 28];
+          const currentReminderCount = request.reminderCount || 0;
+          const expectedReminderCount = reminderMilestones.filter(d => daysSinceRequest >= d).length;
+          
+          // Only send if we need to catch up on reminders
+          if (expectedReminderCount > currentReminderCount) {
+            log(`Sending reminder #${expectedReminderCount} for custodianship request ${request.id}`, 'scheduler');
+            
+            const member = await storage.getMember(request.memberId);
+            const tree = member ? await storage.getTree(member.treeId) : null;
+            const owner = tree ? await storage.getUser(tree.ownerId) : null;
+            const requester = await storage.getUser(request.requesterId);
+            
+            if (member && tree) {
+              const memberName = `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}`;
+              
+              // Send reminder to tree owner
+              if (owner?.email) {
+                await sendCustodianshipReminder(
+                  owner.email,
+                  owner.firstName || 'Tree owner',
+                  memberName,
+                  daysRemaining,
+                  tree.name
+                );
+              }
+              
+              // Send status update to requester
+              if (requester?.email) {
+                await sendCustodianshipReminder(
+                  requester.email,
+                  requester.firstName || 'Family member',
+                  memberName,
+                  daysRemaining,
+                  tree.name
+                );
+              }
+              
+              // Update reminder count to prevent duplicate sends
+              await storage.updateCustodianshipRequest(request.id, {
+                reminderCount: expectedReminderCount,
+                lastReminderSentAt: new Date(),
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing custodianship requests:', error);
+    }
+  }
+  
+  // Run immediately on startup
+  processCustodianshipRequests();
+  
+  // Run every hour
+  setInterval(processCustodianshipRequests, HOUR_IN_MS);
+  
+  log('Custodianship scheduler started', 'scheduler');
+}
