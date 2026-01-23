@@ -15,7 +15,7 @@ import { SEO } from "@/components/seo";
 
 interface FAQItem {
   question: string;
-  answer: string;
+  answer: React.ReactNode;
 }
 
 interface FAQCategory {
@@ -60,19 +60,19 @@ export default function FAQ() {
       items: [
         {
           question: "How is FamilyRoots different from Ancestry?",
-          answer: "FamilyRoots focuses on living family connections and collaboration, while Ancestry focuses on historical research and DNA testing. We help families collaborate on trees together, claim their own profiles, and connect with living relatives. Visit our Comparison page at /comparison for a detailed feature matrix."
+          answer: <>FamilyRoots focuses on living family connections and collaboration, while Ancestry focuses on historical research and DNA testing. We help families collaborate on trees together, claim their own profiles, and connect with living relatives. Visit our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for a detailed feature matrix.</>
         },
         {
           question: "What unique features does FamilyRoots offer?",
-          answer: "FamilyRoots offers features designed for connecting living families: Export tree as image, Education & career history tracking, Profile claiming, Custodianship for deceased members, Three-tier privacy visibility, Account heir (deadman switch), Special connections (godparents, friends), Location sharing, Cross-tree connections, Network discovery, AI video generation, QR code sharing, Tiered subscription discounts (FREE at 100+ members), and Custom merchandise. See /comparison for the full feature matrix."
+          answer: <>FamilyRoots offers features designed for connecting living families: Export tree as image, Education & career history tracking, Profile claiming, Custodianship for deceased members, Three-tier privacy visibility, Account heir (deadman switch), Special connections (godparents, friends), Location sharing, Cross-tree connections, Network discovery, AI video generation, QR code sharing, Tiered subscription discounts (FREE at 100+ members), and Custom merchandise. See our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for the full feature matrix.</>
         },
         {
           question: "What does Ancestry offer that FamilyRoots doesn't?",
-          answer: "Ancestry focuses on historical research and DNA: DNA testing & matching, Ethnicity estimates, Cemetery records, and Newspaper archives. FamilyRoots focuses on connecting living families. Both platforms share core tree-building features. See our Comparison page for details."
+          answer: <>Ancestry focuses on historical research and DNA: DNA testing & matching, Ethnicity estimates, Cemetery records, and Newspaper archives. FamilyRoots focuses on connecting living families. Both platforms share core tree-building features. See our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for details.</>
         },
         {
           question: "How does FamilyRoots pricing work?",
-          answer: "FamilyRoots offers family-size discounts: $9.99/month base price, 25% off at 25 members ($7.49/month), 50% off at 50 members ($4.99/month), 75% off at 75 members ($2.50/month), and completely FREE at 100+ members. The more family you add, the less you pay!"
+          answer: <>FamilyRoots offers family-size discounts: $9.99/month base price, 25% off at 25 members ($7.49/month), 50% off at 50 members ($4.99/month), 75% off at 75 members ($2.50/month), and completely FREE at 100+ members. The more family you add, the less you pay! See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for details.</>
         },
         {
           question: "Should I use FamilyRoots or Ancestry?",
@@ -80,7 +80,7 @@ export default function FAQ() {
         },
         {
           question: "Where can I see the full comparison?",
-          answer: "Visit our Comparison page at /comparison for a complete side-by-side feature matrix covering: Tree Building, Collaboration, Privacy & Security, Connections, AI & Technology, and Monetization. You can also click 'Compare to Ancestry' from our home page."
+          answer: <>Visit our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for a complete side-by-side feature matrix covering: Tree Building, Collaboration, Privacy & Security, Connections, AI & Technology, and Monetization. You can also click 'Compare to Ancestry' from our <Link href="/" className="text-primary hover:underline font-medium">home page</Link>.</>
         },
         {
           question: "Is FamilySearch integration coming to FamilyRoots?",
@@ -94,7 +94,7 @@ export default function FAQ() {
       items: [
         {
           question: "How does the discount system work?",
-          answer: "The more family members you add, the bigger your discount! At 25 members you get 25% off ($7.49/month), at 50 members you get 50% off ($4.99/month), at 75 members you get 75% off ($2.50/month), and at 100+ members your subscription is FREE! Your discount tier updates automatically as your family tree grows."
+          answer: <>The more family members you add, the bigger your discount! At 25 members you get 25% off ($7.49/month), at 50 members you get 50% off ($4.99/month), at 75 members you get 75% off ($2.50/month), and at 100+ members your subscription is FREE! Your discount tier updates automatically as your family tree grows. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for all tiers.</>
         },
         {
           question: "What happens when I reach 100+ members?",
@@ -150,7 +150,7 @@ export default function FAQ() {
       items: [
         {
           question: "How do I share my family tree with relatives?",
-          answer: "Click the 'Share' button on your tree and create an invitation link. You can set permission levels: Viewer (can only view), Editor (can add and edit members), or Co-owner (full access including sharing). You can also set expiration dates and usage limits on invitation links."
+          answer: <>From your <Link href="/dashboard" className="text-primary hover:underline font-medium">Dashboard</Link>, click the 'Share' button on your tree and create an invitation link. You can set permission levels: Viewer (can only view), Editor (can add and edit members), or Co-owner (full access including sharing). You can also set expiration dates and usage limits on invitation links.</>
         },
         {
           question: "What are the different permission levels for collaborators?",
@@ -188,7 +188,7 @@ export default function FAQ() {
         },
         {
           question: "As a tree owner, how do I manage profile claims?",
-          answer: "You'll see pending claims on your Dashboard. Review each request - you can see who's asking to claim which profile and any message they included. Approve legitimate claims so family members can manage their own information, or deny requests that seem incorrect or suspicious."
+          answer: <>You'll see pending claims on your <Link href="/dashboard" className="text-primary hover:underline font-medium">Dashboard</Link>. Review each request - you can see who's asking to claim which profile and any message they included. Approve legitimate claims so family members can manage their own information, or deny requests that seem incorrect or suspicious.</>
         },
         {
           question: "If I claim my profile in one tree, does it apply to other trees?",
@@ -226,7 +226,7 @@ export default function FAQ() {
         },
         {
           question: "How do I get notified when family events are recorded?",
-          answer: "Go to Account Settings and find the 'Notification Preferences' section. Enable email notifications, then choose which event types you want to receive updates about - births, deaths, marriages, divorces, or milestones. All notifications are opt-in, so you only receive what you want."
+          answer: <>Go to <Link href="/account/settings" className="text-primary hover:underline font-medium">Account Settings</Link> and find the 'Notification Preferences' section. Enable email notifications, then choose which event types you want to receive updates about - births, deaths, marriages, divorces, or milestones. All notifications are opt-in, so you only receive what you want.</>
         },
         {
           question: "Who can see the life events I record?",
@@ -260,7 +260,7 @@ export default function FAQ() {
         },
         {
           question: "How do I set the default privacy level for my family tree?",
-          answer: "Go to your Dashboard and click the three dots menu on any tree you own. Select 'Privacy Settings' to choose the default visibility tier. This setting affects how much information non-immediate family members can see about people in your tree."
+          answer: <>Go to your <Link href="/dashboard" className="text-primary hover:underline font-medium">Dashboard</Link> and click the three dots menu on any tree you own. Select 'Privacy Settings' to choose the default visibility tier. This setting affects how much information non-immediate family members can see about people in your tree.</>
         },
         {
           question: "Can I set different privacy levels for specific family members?",
@@ -274,7 +274,7 @@ export default function FAQ() {
       items: [
         {
           question: "What is the Deadman Switch (Account Heir) feature?",
-          answer: "The Deadman Switch ensures your family trees aren't lost if something happens to you. You can designate an heir who will inherit your trees after a period of inactivity (6-24 months, you choose). If you become inactive, you'll receive a reminder email with 30 days to respond. If there's no response, ownership transfers to your designated heir."
+          answer: <>The Deadman Switch ensures your family trees aren't lost if something happens to you. You can designate an heir who will inherit your trees after a period of inactivity (6-24 months, you choose). Configure this in your <Link href="/account/settings" className="text-primary hover:underline font-medium">Account Settings</Link>. If you become inactive, you'll receive a reminder email with 30 days to respond. If there's no response, ownership transfers to your designated heir.</>
         },
         {
           question: "How does the Relationship Calculator work?",
@@ -306,7 +306,7 @@ export default function FAQ() {
         },
         {
           question: "Can I find family members when I travel?",
-          answer: "Yes! Visit the Network page from your dashboard and search by city, state, or country. You'll see family members who have chosen to share their location. This makes it easy to meet up with relatives when you're traveling."
+          answer: <>Yes! Visit the <Link href="/network" className="text-primary hover:underline font-medium">Network page</Link> and search by city, state, or country. You'll see family members who have chosen to share their location. This makes it easy to meet up with relatives when you're traveling.</>
         }
       ]
     },
@@ -316,7 +316,7 @@ export default function FAQ() {
       items: [
         {
           question: "What's the difference between 'Print My Tree on Products' and 'Browse Gift Ideas'?",
-          answer: "These are two different features! 'Print My Tree on Products' lets you print YOUR actual family tree (the one you built in FamilyRoots) on custom products like mugs, t-shirts, and posters - we handle everything from printing to shipping. 'Browse Gift Ideas' shows curated family tree-related products from external stores like Etsy and Amazon - these are pre-made items that don't include your specific family tree. If you want your own tree printed, use 'Print My Tree on Products'."
+          answer: <>These are two different features! 'Print My Tree on Products' (on the <Link href="/merchandise" className="text-primary hover:underline font-medium">Merchandise page</Link>) lets you print YOUR actual family tree on custom products like mugs, t-shirts, and posters - we handle everything from printing to shipping. 'Browse Gift Ideas' (on the <Link href="/gifts" className="text-primary hover:underline font-medium">Gifts page</Link>) shows curated family tree-related products from external stores like Etsy and Amazon - these are pre-made items that don't include your specific family tree. If you want your own tree printed, use the Merchandise page.</>
         },
         {
           question: "Can I put my family tree on a mug, t-shirt, or poster?",
