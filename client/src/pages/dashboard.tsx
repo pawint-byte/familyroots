@@ -24,6 +24,7 @@ import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import { PendingClaimsSection } from "@/components/pending-claims";
 import { PendingCustodianshipSection } from "@/components/pending-custodianship";
 import { PendingConnectionsSection } from "@/components/pending-connections";
+import { MyConnectionsSection } from "@/components/my-connections";
 import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
@@ -560,6 +561,11 @@ export default function Dashboard() {
         {/* Pending Family Connection Requests Section */}
         <div className="mb-8">
           <PendingConnectionsSection />
+        </div>
+
+        {/* My Family Connections Section */}
+        <div className="mb-8">
+          <MyConnectionsSection />
         </div>
 
         {/* Pending Profile Claims Section */}
