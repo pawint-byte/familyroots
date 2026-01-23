@@ -53,6 +53,8 @@ export const familyMembers = pgTable("family_members", {
   unknownLabel: text("unknown_label"),
   claimedByUserId: varchar("claimed_by_user_id"),
   claimedAt: timestamp("claimed_at"),
+  custodianUserId: varchar("custodian_user_id"), // For deceased members - who has custodianship
+  custodianAssignedAt: timestamp("custodian_assigned_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -120,15 +122,26 @@ export const nameHistory = pgTable("name_history", {
 });
 
 // Family Events (for timeline)
+// Media attachment type for events
+export interface EventMediaAttachment {
+  url: string;
+  type: 'image' | 'video';
+  caption?: string;
+  uploadedAt: string;
+}
+
 export const familyEvents = pgTable("family_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   treeId: varchar("tree_id").notNull(),
   memberId: varchar("member_id"),
-  eventType: text("event_type").notNull(),
+  eventType: text("event_type").notNull(), // birth, death, marriage, divorce, milestone
   eventDate: date("event_date").notNull(),
   title: text("title").notNull(),
   description: text("description"),
   location: text("location"),
+  mediaAttachments: jsonb("media_attachments").$type<EventMediaAttachment[]>(),
+  createdBy: varchar("created_by"),
+  notificationsSent: boolean("notifications_sent").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -261,6 +274,33 @@ export const profileClaimRequests = pgTable("profile_claim_requests", {
   reviewedBy: varchar("reviewed_by"),
   reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Custodianship status enum
+export const custodianshipStatusEnum = pgEnum("custodianship_status", ["pending", "approved", "denied", "auto_approved", "expired"]);
+
+// Profile Custodianship Requests table (for relatives to take over deceased member profiles)
+export const custodianshipRequests = pgTable("custodianship_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(), // The deceased member's profile
+  treeId: varchar("tree_id").notNull(),
+  requesterId: varchar("requester_id").notNull(), // Direct relative requesting custodianship
+  requesterEmail: text("requester_email"),
+  relationshipToMember: text("relationship_to_member").notNull(), // parent, child, spouse, sibling
+  reason: text("reason"), // Why they're requesting custodianship
+  status: custodianshipStatusEnum("status").default("pending").notNull(),
+  denialReason: text("denial_reason"),
+  reviewedBy: varchar("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  expiresAt: timestamp("expires_at").notNull(), // 30 days from creation for auto-approval
+  lastReminderSentAt: timestamp("last_reminder_sent_at"),
+  reminderCount: integer("reminder_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCustodianshipRequestSchema = createInsertSchema(custodianshipRequests).omit({
+  id: true,
+  createdAt: true,
 });
 
 // Relations
@@ -592,3 +632,6 @@ export type InsertProfileClaimRequest = z.infer<typeof insertProfileClaimRequest
 
 export type MerchandiseOrder = typeof merchandiseOrders.$inferSelect;
 export type InsertMerchandiseOrder = z.infer<typeof insertMerchandiseOrderSchema>;
+
+export type CustodianshipRequest = typeof custodianshipRequests.$inferSelect;
+export type InsertCustodianshipRequest = z.infer<typeof insertCustodianshipRequestSchema>;

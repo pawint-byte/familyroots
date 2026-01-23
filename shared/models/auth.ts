@@ -16,6 +16,16 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)]
 );
 
+// Notification preferences type
+export interface NotificationPreferences {
+  births: boolean;
+  deaths: boolean;
+  marriages: boolean;
+  divorces: boolean;
+  milestones: boolean;
+  emailEnabled: boolean;
+}
+
 // User storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const users = pgTable("users", {
@@ -32,6 +42,7 @@ export const users = pgTable("users", {
   isSubscriptionActive: boolean("is_subscription_active").default(false),
   lastActivityAt: timestamp("last_activity_at").defaultNow(),
   inactivityReminderSentAt: timestamp("inactivity_reminder_sent_at"),
+  notificationPreferences: jsonb("notification_preferences").$type<NotificationPreferences>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
