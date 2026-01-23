@@ -816,12 +816,15 @@ export const insertUserConnectionRequestSchema = createInsertSchema(userConnecti
 });
 
 // User Connections table (approved connections between users)
+// Each user can have their own perspective on the relationship (bidirectional)
 export const userConnections = pgTable("user_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId1: varchar("user_id_1").notNull(), // One user (stored in consistent order)
   userId2: varchar("user_id_2").notNull(), // Other user
-  relationshipFromUser1: userRelationshipTypeEnum("relationship_from_user_1"), // How user1 is related to user2
-  relationshipFromUser2: userRelationshipTypeEnum("relationship_from_user_2"), // How user2 is related to user1
+  relationshipFromUser1: userRelationshipTypeEnum("relationship_from_user_1"), // How user1 describes their relationship to user2
+  customLabelFromUser1: text("custom_label_from_user_1"), // Custom label if user1 chose "other"
+  relationshipFromUser2: userRelationshipTypeEnum("relationship_from_user_2"), // How user2 describes their relationship to user1
+  customLabelFromUser2: text("custom_label_from_user_2"), // Custom label if user2 chose "other"
   connectedAt: timestamp("connected_at").defaultNow().notNull(),
   sourceRequestId: varchar("source_request_id"), // The request that created this connection
 });
