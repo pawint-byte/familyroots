@@ -38,6 +38,15 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
 - **Tree Export**: Users can export their family tree visualization as a high-resolution PNG image with theme-aware backgrounds (white for light mode, dark for dark mode) using html-to-image library.
 - **Custom Merchandise (Print-on-Demand)**: Users can order custom products (mugs, t-shirts, posters, pillows, tote bags) with their family tree printed on them via Printful integration. Features include product catalog, variant selection (size/color), Stripe checkout for payment, and order tracking. Commission is added to orders for revenue.
 - **QR Code Sharing**: A share page (/share) displays a scannable QR code linking to the app, with options to copy the URL, download the QR code as PNG, or use the native share dialog on mobile devices.
+- **Tiered Subscription Discounts**: Subscription pricing with automatic discounts based on total family members across all trees:
+  - 0-24 members: $9.99/month (base price)
+  - 25-49 members: $7.49/month (25% off)
+  - 50-74 members: $4.99/month (50% off)
+  - 75-99 members: $2.50/month (75% off)
+  - 100+ members: FREE subscription
+  - For users at 100+ members, each additional 25 members requires a $2.99 one-time payment (milestone payment)
+  - Dashboard shows progress bar toward next discount tier
+  - Pricing page displays all tiers with current tier highlighted
 
 ## External Dependencies
 

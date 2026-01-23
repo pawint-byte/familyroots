@@ -40,6 +40,7 @@ import { postToBluesky, testBlueskyConnection } from "./bluesky";
 import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation } from "./lib/email";
 import { insertAccountHeirSchema } from "@shared/schema";
 import { printfulService } from "./printful";
+import { subscriptionService, SUBSCRIPTION_CONFIG } from "./subscriptionService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -2073,30 +2074,32 @@ export async function registerRoutes(
     }
   });
 
-  // Get user subscription status
+  // Get user subscription status with tiered pricing info
   app.get("/api/subscription", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const subscriptionInfo = await subscriptionService.getUserSubscriptionInfo(userId);
       const user = await storage.getUser(userId);
       
-      if (!user?.stripeCustomerId) {
-        return res.json({ subscription: null, tier: "free" });
-      }
-
-      const subscription = await stripeService.getCustomerSubscription(user.stripeCustomerId) as { id: string; status: string } | null;
-      
-      if (subscription && subscription.status === "active") {
-        if (user.stripeSubscriptionId !== subscription.id) {
-          await storage.updateUserStripeInfo(userId, { stripeSubscriptionId: subscription.id });
-        }
-        return res.json({ subscription, tier: "premium" });
+      let stripeSubscription = null;
+      if (user?.stripeCustomerId) {
+        stripeSubscription = await stripeService.getCustomerSubscription(user.stripeCustomerId) as { id: string; status: string } | null;
       }
       
-      res.json({ subscription: null, tier: "free" });
+      res.json({
+        subscription: stripeSubscription,
+        ...subscriptionInfo,
+        config: SUBSCRIPTION_CONFIG,
+      });
     } catch (error) {
       console.error("Subscription check error:", error);
-      res.json({ subscription: null, tier: "free" });
+      res.status(500).json({ message: "Failed to get subscription info" });
     }
+  });
+
+  // Get subscription pricing config
+  app.get("/api/subscription/config", async (req, res) => {
+    res.json(SUBSCRIPTION_CONFIG);
   });
 
   // Create checkout session
@@ -2163,6 +2166,83 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating portal session:", error);
       res.status(500).json({ message: "Failed to create portal session" });
+    }
+  });
+
+  // Create tiered subscription checkout
+  app.post("/api/subscription/checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const userId = req.user.claims.sub;
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      
+      const session = await subscriptionService.createSubscriptionCheckout(
+        userId,
+        `${baseUrl}/pricing?checkout=success`,
+        `${baseUrl}/pricing?checkout=cancel`
+      );
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating subscription checkout:", error);
+      res.status(500).json({ message: error.message || "Failed to create checkout session" });
+    }
+  });
+
+  // Create milestone payment checkout (for 100+ member users)
+  app.post("/api/subscription/milestone-payment", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const userId = req.user.claims.sub;
+      const { milestone } = req.body;
+
+      if (!milestone || typeof milestone !== 'number' || milestone <= 100) {
+        return res.status(400).json({ message: "Invalid milestone value" });
+      }
+
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      
+      const session = await subscriptionService.createMilestonePaymentCheckout(
+        userId,
+        milestone,
+        `${baseUrl}/pricing?milestone=success`,
+        `${baseUrl}/pricing?milestone=cancel`
+      );
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating milestone payment checkout:", error);
+      res.status(500).json({ message: error.message || "Failed to create checkout session" });
+    }
+  });
+
+  // Refresh user member count (updates tier)
+  app.post("/api/subscription/refresh", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscriptionInfo = await subscriptionService.updateUserMemberCount(userId);
+      res.json(subscriptionInfo);
+    } catch (error) {
+      console.error("Error refreshing subscription:", error);
+      res.status(500).json({ message: "Failed to refresh subscription info" });
+    }
+  });
+
+  // Get milestone payment history
+  app.get("/api/subscription/milestones", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const milestones = await subscriptionService.getUserMilestonePayments(userId);
+      res.json(milestones);
+    } catch (error) {
+      console.error("Error getting milestones:", error);
+      res.status(500).json({ message: "Failed to get milestone history" });
     }
   });
 

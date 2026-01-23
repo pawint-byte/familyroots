@@ -59,24 +59,28 @@ export default function FAQ() {
       icon: <CreditCard className="h-5 w-5" />,
       items: [
         {
+          question: "How does the discount system work?",
+          answer: "The more family members you add, the bigger your discount! At 25 members you get 25% off ($7.49/month), at 50 members you get 50% off ($4.99/month), at 75 members you get 75% off ($2.50/month), and at 100+ members your subscription is FREE! Your discount tier updates automatically as your family tree grows."
+        },
+        {
+          question: "What happens when I reach 100+ members?",
+          answer: "Congratulations! Your subscription becomes free when you reach 100 family members. For every additional 25 members you add beyond 100, there's a small one-time payment of $2.99 to unlock that milestone. This helps us maintain quality service while rewarding your dedication to preserving family history."
+        },
+        {
+          question: "Does my discount apply across all my trees?",
+          answer: "Yes! Your total member count includes all family members across all your trees combined. Whether you have one large tree or several smaller ones, every member counts toward your discount tier."
+        },
+        {
           question: "What happens if I stop paying my monthly subscription?",
-          answer: "Your family tree data is never deleted when you stop paying. You'll be moved to our Free plan, which allows you to view 1 tree with up to 20 members. All your connections, relationships, and family history remain intact and preserved. You simply won't be able to add new members or trees beyond the free limits until you resubscribe. If another family member has Premium access and you're part of their tree, they can still see and maintain your connection from their account."
+          answer: "Your family tree data is never deleted when you stop paying. You'll be moved to our Free plan, which allows you to view 1 tree with up to 20 members. All your connections, relationships, and family history remain intact and preserved. You simply won't be able to add new members or trees beyond the free limits until you resubscribe."
         },
         {
           question: "Can my family access our shared tree if I cancel my subscription?",
-          answer: "Yes! Family connections persist regardless of subscription status. If you've shared your tree with family members who have their own accounts, they retain access based on their own subscription level. Collaborators with Premium accounts can continue to edit and expand the tree. The family network you've built remains connected."
-        },
-        {
-          question: "What's included in the Free plan?",
-          answer: "The Free plan includes 1 family tree with up to 20 family members, basic tree visualization, the ability to add photos and notes, and access to the relationship calculator. It's perfect for getting started with your immediate family."
-        },
-        {
-          question: "What does Premium ($9.99/month) include?",
-          answer: "Premium gives you unlimited family trees and unlimited family members. You also get Smart Family Matching to discover connections with other users' trees, priority support, advanced collaboration features, and access to all future premium features we release."
+          answer: "Yes! Family connections persist regardless of subscription status. If you've shared your tree with family members who have their own accounts, they retain access based on their own subscription level. Collaborators with Premium accounts can continue to edit and expand the tree."
         },
         {
           question: "Can I cancel my subscription anytime?",
-          answer: "Absolutely! You can cancel your Premium subscription at any time. You'll continue to have Premium access until the end of your current billing period. After that, you'll be moved to the Free plan but your data stays safe and accessible within Free plan limits."
+          answer: "Absolutely! You can cancel your subscription at any time. You'll continue to have access until the end of your current billing period. After that, you'll be moved to the Free plan but your data stays safe and accessible within Free plan limits."
         }
       ]
     },

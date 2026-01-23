@@ -9,12 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu } from "lucide-react";
+import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, Crown, TrendingUp, Sparkles } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,6 +25,27 @@ import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
 type FamilyTreeWithCount = FamilyTree & { memberCount?: number };
+
+// Subscription info type
+interface SubscriptionInfo {
+  totalMemberCount: number;
+  currentTier: string;
+  discountPercent: number;
+  monthlyPrice: number;
+  nextTier: { name: string; membersNeeded: number; discountPercent: number; progressPercent: number } | null;
+  isSubscriptionActive: boolean;
+}
+
+const getTierDisplayName = (tier: string) => {
+  const names: Record<string, string> = {
+    'free': 'Starter',
+    'tier_25': 'Growing Family',
+    'tier_50': 'Extended Family',
+    'tier_75': 'Family Reunion',
+    'tier_100': 'Heritage',
+  };
+  return names[tier] || tier;
+};
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
@@ -41,6 +64,10 @@ export default function Dashboard() {
 
   const { data: trees, isLoading } = useQuery<FamilyTreeWithCount[]>({
     queryKey: ["/api/trees"],
+  });
+
+  const { data: subscriptionData } = useQuery<SubscriptionInfo>({
+    queryKey: ["/api/subscription"],
   });
 
   const createTreeMutation = useMutation({
@@ -297,7 +324,7 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold mb-1">
               Welcome back, {user?.firstName || "there"}!
@@ -362,6 +389,59 @@ export default function Dashboard() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {subscriptionData && (
+          <Card 
+            className="mb-8 cursor-pointer hover-elevate" 
+            onClick={() => navigate("/pricing")}
+            data-testid="card-subscription-progress"
+          >
+            <CardContent className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4">
+              <div className="flex items-center gap-3">
+                {subscriptionData.currentTier === 'tier_100' ? (
+                  <Crown className="h-8 w-8 text-yellow-500" />
+                ) : subscriptionData.discountPercent >= 50 ? (
+                  <Sparkles className="h-8 w-8 text-primary" />
+                ) : (
+                  <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                )}
+                <div>
+                  <p className="font-semibold">
+                    {getTierDisplayName(subscriptionData.currentTier)} Tier
+                    {subscriptionData.discountPercent > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {subscriptionData.discountPercent}% off
+                      </Badge>
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {subscriptionData.totalMemberCount} family members across all trees
+                  </p>
+                </div>
+              </div>
+              
+              {subscriptionData.nextTier && (
+                <div className="flex-1 max-w-xs">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span>Next: {getTierDisplayName(subscriptionData.nextTier.name)}</span>
+                    <span>{subscriptionData.nextTier.membersNeeded - subscriptionData.totalMemberCount} more members</span>
+                  </div>
+                  <Progress 
+                    value={subscriptionData.nextTier.progressPercent} 
+                    className="h-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Unlock {subscriptionData.nextTier.discountPercent}% discount
+                  </p>
+                </div>
+              )}
+              
+              <Button variant="outline" size="sm" data-testid="button-view-pricing">
+                View Pricing
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {isLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
