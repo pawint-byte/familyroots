@@ -91,6 +91,16 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
   - Automatic page view tracking on route changes
   - Custom event tracking for user actions
   - Requires VITE_GA_MEASUREMENT_ID environment variable (Google Analytics 4 Measurement ID)
+- **Automatic Maintenance Mode**: User-friendly maintenance page shown when server is unavailable:
+  - Detects server unavailability via /api/health endpoint
+  - Displays friendly "We're Making Improvements" message with wrench icon
+  - Auto-retries every 10 seconds to check if server is back
+  - Automatically reloads page when server recovers
+  - Manual "Check Again" button for immediate retry
+- **My Family Connections**: Dashboard section showing approved user-to-user connections:
+  - Displays connected family members with relationship badges
+  - Shows both perspectives (e.g., "Your Son" / "You're their Parent")
+  - Links to connected user's public profile
 
 ## External Dependencies
 
