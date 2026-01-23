@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, Crown, TrendingUp, Sparkles } from "lucide-react";
+import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, Crown, TrendingUp, Sparkles, UserCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -298,6 +298,17 @@ export default function Dashboard() {
                 <p>Browse pre-made gift ideas from Etsy & Amazon</p>
               </TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/my-qr")} className="hidden md:flex gap-1" data-testid="link-my-qr">
+                  <UserCircle className="h-4 w-4" />
+                  <span className="hidden lg:inline">My QR</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Share your profile QR code at family reunions</p>
+              </TooltipContent>
+            </Tooltip>
             <Button variant="ghost" size="sm" onClick={() => navigate("/share")} className="hidden md:flex gap-1" data-testid="link-share">
               <QrCode className="h-4 w-4" />
               <span className="hidden lg:inline">Share</span>
@@ -330,6 +341,14 @@ export default function Dashboard() {
                 >
                   <Gift className="h-4 w-4" />
                   <span>Gift Ideas</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 sm:hidden"
+                  onClick={() => navigate("/my-qr")}
+                  data-testid="menu-my-qr"
+                >
+                  <UserCircle className="h-4 w-4" />
+                  <span>My QR Code</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-center gap-2 sm:hidden"

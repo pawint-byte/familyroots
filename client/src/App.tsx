@@ -22,6 +22,8 @@ import AccountSettings from "@/pages/account-settings";
 import FAQ from "@/pages/faq";
 import Merchandise from "@/pages/merchandise";
 import Share from "@/pages/share";
+import MyQR from "@/pages/my-qr";
+import PublicProfile from "@/pages/public-profile";
 import Network from "@/pages/network";
 import Comparison from "@/pages/comparison";
 import Records from "@/pages/records";
@@ -56,6 +58,8 @@ function Router() {
       <Route path="/faq" component={FAQ} />
       <Route path="/merchandise" component={Merchandise} />
       <Route path="/share" component={Share} />
+      <Route path="/my-qr" component={MyQR} />
+      <Route path="/profile/:userId" component={PublicProfile} />
       <Route path="/network" component={Network} />
       <Route path="/comparison" component={Comparison} />
       <Route path="/records" component={Records} />

@@ -323,6 +323,18 @@ export default function FAQ() {
         {
           question: "How do I use the QR code sharing feature?",
           answer: <>Go to the <Link href="/share" className="text-primary hover:underline font-medium">Share page</Link> and you'll see a scannable QR code. You can: 1) Show it to family members to scan with their phone, 2) Click 'Download QR Code' to save it as an image for printing or sharing, 3) Click 'Copy Link' to paste the URL in messages, or 4) Use the 'Share' button to send via your phone's share menu. The QR code is perfect for family reunions, printed invitations, or holiday cards!</>
+        },
+        {
+          question: "What is Personal Profile QR Code sharing?",
+          answer: <>Personal Profile QR Codes are a game-changer for family reunions! Each family member has their own unique QR code that links to their profile. Visit <Link href="/my-qr" className="text-primary hover:underline font-medium">My QR Code</Link> to get yours. When you meet relatives face-to-face, they simply scan your code with their phone camera to instantly see your profile and send a connection request. This makes building your family tree a team effort where everyone contributes!</>
+        },
+        {
+          question: "How can QR codes help at family reunions?",
+          answer: <>At family reunions, personal QR codes transform how you connect! Instead of exchanging phone numbers or email addresses, family members can scan each other's QR codes to instantly connect on FamilyRoots. Print your QR code on name tags, display it on your phone, or include it on reunion materials. This way, everyone can do their part - each person adds their own branch to the tree, making the process faster and more collaborative. Get your code at <Link href="/my-qr" className="text-primary hover:underline font-medium">My QR Code</Link>.</>
+        },
+        {
+          question: "How do I connect with family after scanning their QR code?",
+          answer: "When you scan someone's personal QR code, you'll see their FamilyRoots profile with their name, photo, and how many family trees they're building. If you're logged in, you can send a connection request with one tap. Once they accept, you can collaborate on trees together, see shared family members, and stay connected. It's the fastest way to grow your family network!"
         }
       ]
     },

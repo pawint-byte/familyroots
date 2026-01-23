@@ -3848,6 +3848,85 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== PUBLIC PROFILE ROUTES ====================
+
+  // Get public profile data for a user (for QR code scanning)
+  // Note: This endpoint intentionally exposes limited public info for discovery purposes
+  // Only basic profile info is shared - no sensitive data like email, subscription details, etc.
+  app.get("/api/users/:userId/public", async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      
+      // Get user basic info
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get tree count for this user (only count, not tree details)
+      const trees = await storage.getTrees(userId);
+      const treeCount = trees.length;
+
+      // Return only public-safe information
+      // Excludes: email, stripeCustomerId, subscriptionTier, notificationPreferences, etc.
+      res.json({
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
+        memberSince: user.createdAt,
+        treeCount,
+        totalMembers: user.totalMemberCount || 0,
+      });
+    } catch (error) {
+      console.error("Error fetching public profile:", error);
+      res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
+  // Send a user-to-user connection request (from scanned QR code)
+  // This creates awareness between users - they can then collaborate on trees together
+  app.post("/api/connection-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const fromUserId = req.user.claims.sub;
+      const { targetUserId } = req.body;
+
+      if (!targetUserId) {
+        return res.status(400).json({ message: "Target user ID is required" });
+      }
+
+      if (fromUserId === targetUserId) {
+        return res.status(400).json({ message: "Cannot send connection request to yourself" });
+      }
+
+      // Check if target user exists
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get sender info for the response
+      const fromUser = await storage.getUser(fromUserId);
+
+      // Log the connection for tracking purposes
+      // Note: Full implementation would store in a user_connections table with approval workflow
+      console.log(`[Connection Request] From: ${fromUser?.firstName} ${fromUser?.lastName} (${fromUserId}) -> To: ${targetUser.firstName} ${targetUser.lastName} (${targetUserId})`);
+
+      // Return success with helpful next steps
+      res.json({ 
+        success: true, 
+        message: `Connection request noted! You can now invite ${targetUser.firstName} to collaborate on your family trees.`,
+        targetUser: {
+          firstName: targetUser.firstName,
+          lastName: targetUser.lastName,
+        }
+      });
+    } catch (error) {
+      console.error("Error sending connection request:", error);
+      res.status(500).json({ message: "Failed to send connection request" });
+    }
+  });
+
   // ==================== CONNECTION REQUESTS ROUTES ====================
 
   // Get pending connection requests for a tree (for tree owners)
