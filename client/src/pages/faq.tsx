@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -125,6 +125,40 @@ export default function FAQ() {
         {
           question: "Can I remove someone's access to my tree?",
           answer: "Yes, as the tree owner or co-owner, you can remove any collaborator's access at any time. Go to your tree settings and manage collaborators to revoke access."
+        }
+      ]
+    },
+    {
+      title: "Profile Ownership",
+      icon: <User className="h-5 w-5" />,
+      items: [
+        {
+          question: "What is profile claiming and why would I want to claim my profile?",
+          answer: "Profile claiming lets you take ownership of your own entry in a family tree. Once you claim your profile, you can update your own personal information (name, photo, bio, dates) directly, without needing to ask the tree owner to make changes for you. It's a way to keep your own information accurate and up-to-date."
+        },
+        {
+          question: "How do I claim my profile in a family tree?",
+          answer: "Open the family tree where you appear, click on your entry to view the member details, and look for the 'Claim This Profile' button. Submit a request with an optional message explaining who you are. The tree owner will review and approve your request."
+        },
+        {
+          question: "What happens after I claim my profile?",
+          answer: "Once approved, you'll have edit access to your own personal details in that tree - things like your name, photo, bio, birth date, and contact information. You won't be able to add or remove family members or change relationships - that stays with the tree owner and editors."
+        },
+        {
+          question: "Can I claim someone else's profile?",
+          answer: "No, you can only claim your own profile. Only living family members can claim profiles, and each person can only claim one profile. The tree owner reviews all claim requests to verify they're legitimate before approving."
+        },
+        {
+          question: "What if my claim is denied?",
+          answer: "If a tree owner denies your claim, you'll see the status update in the member profile. The owner may include a reason for the denial. You can reach out to the tree owner directly to discuss or clarify your identity."
+        },
+        {
+          question: "As a tree owner, how do I manage profile claims?",
+          answer: "You'll see pending claims on your Dashboard. Review each request - you can see who's asking to claim which profile and any message they included. Approve legitimate claims so family members can manage their own information, or deny requests that seem incorrect or suspicious."
+        },
+        {
+          question: "If I claim my profile in one tree, does it apply to other trees?",
+          answer: "Currently, profile claims are per-tree. If you appear in multiple family trees, you'll need to claim your profile in each one separately. The tree owners of each tree manage their own approval process."
         }
       ]
     },
