@@ -8,8 +8,9 @@ This document contains reference information for all external accounts and integ
 
 ### Stripe
 - **Dashboard URL**: https://dashboard.stripe.com
-- **Account Email**: ___________________ (fill in after checking dashboard)
-- **Account Type**: [ ] Standard  [ ] Express  [ ] Custom
+- **Account Email**: pawint@me.com
+- **Business Name**: Wint Ent
+- **Account Type**: [x] Standard  [ ] Express  [ ] Custom
 - **Current Mode**: Sandbox/Test Mode (development)
 - **Live Mode Setup**: Required before publishing for real payments
 
