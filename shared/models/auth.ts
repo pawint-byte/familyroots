@@ -1,8 +1,11 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar, integer, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, timestamp, varchar, integer, boolean, pgEnum, date, text } from "drizzle-orm/pg-core";
 
 // Subscription tier enum
 export const subscriptionTierEnum = pgEnum("subscription_tier", ["free", "tier_25", "tier_50", "tier_75", "tier_100"]);
+
+// Gender enum for user profile
+export const userGenderEnum = pgEnum("user_gender", ["male", "female", "other"]);
 
 // Session storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
@@ -34,6 +37,20 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  
+  // Personal profile fields (single source of truth for claimed profiles)
+  nickname: text("nickname"),
+  gender: userGenderEnum("gender"),
+  birthDate: date("birth_date"),
+  birthPlace: text("birth_place"),
+  bio: text("bio"),
+  // Location fields for connecting with family
+  currentCity: text("current_city"),
+  currentRegion: text("current_region"),
+  currentCountry: text("current_country"),
+  locationVisible: boolean("location_visible").default(false),
+  
+  // Subscription and payment fields
   stripeCustomerId: varchar("stripe_customer_id"),
   stripeSubscriptionId: varchar("stripe_subscription_id"),
   subscriptionTier: subscriptionTierEnum("subscription_tier").default("free"),

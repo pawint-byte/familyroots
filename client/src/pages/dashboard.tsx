@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, Crown, TrendingUp, Sparkles, UserCircle, HelpCircle } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, Crown, TrendingUp, Sparkles, UserCircle, HelpCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -386,6 +386,14 @@ export default function Dashboard() {
                   <span>Share App</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="sm:hidden" />
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/my-profile")}
+                  data-testid="menu-my-profile"
+                >
+                  <User className="h-4 w-4" />
+                  <span>My Profile</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-center gap-2"
                   onClick={() => navigate("/account/settings")}

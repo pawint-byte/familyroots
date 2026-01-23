@@ -23,8 +23,9 @@ import {
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, Filter, Download, Upload, Clock, Star, Image,
-  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList
+  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toPng } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from "@shared/schema";
@@ -782,7 +783,7 @@ export default function TreeView() {
                     <SheetTitle className="font-serif text-xl mb-1">
                       {selectedMember.firstName} {selectedMember.lastName || ""}
                     </SheetTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {selectedMember.gender && (
                         <Badge variant="secondary" className="capitalize">
                           {selectedMember.gender}
@@ -790,6 +791,24 @@ export default function TreeView() {
                       )}
                       {selectedMember.isLiving === false && (
                         <Badge variant="outline">Deceased</Badge>
+                      )}
+                      {selectedMember.claimedByUserId && (selectedMember as any)._profileSourceInfo && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="text-primary border-primary/50 gap-1" data-testid="badge-profile-synced">
+                              <RefreshCw className="h-3 w-3" />
+                              Synced
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Personal data synced from claimed user's profile</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                      {selectedMember.claimedByUserId && !(selectedMember as any)._profileSourceInfo && (
+                        <Badge variant="outline" className="text-green-600 border-green-600/50" data-testid="badge-profile-claimed">
+                          Claimed
+                        </Badge>
                       )}
                     </div>
                   </div>

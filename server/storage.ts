@@ -97,6 +97,20 @@ export interface IStorage {
   getInactiveUsers(inactivityMonths: number): Promise<User[]>;
   updateUserInactivityReminder(userId: string): Promise<void>;
   
+  // User Profile (single source of truth for claimed profiles)
+  getAllClaimedProfilesForUser(userId: string): Promise<FamilyMember[]>;
+  updateUserProfile(userId: string, profile: {
+    nickname?: string;
+    gender?: "male" | "female" | "other";
+    birthDate?: string;
+    birthPlace?: string;
+    bio?: string;
+    currentCity?: string;
+    currentRegion?: string;
+    currentCountry?: string;
+    locationVisible?: boolean;
+  }): Promise<User | undefined>;
+  
   // Account Heirs
   getAccountHeir(userId: string): Promise<AccountHeir | undefined>;
   createAccountHeir(heir: InsertAccountHeir): Promise<AccountHeir>;
@@ -535,6 +549,32 @@ export class DatabaseStorage implements IStorage {
     await db.update(users)
       .set({ inactivityReminderSentAt: new Date(), updatedAt: new Date() })
       .where(eq(users.id, userId));
+  }
+
+  // User Profile (single source of truth for claimed profiles)
+  async getAllClaimedProfilesForUser(userId: string): Promise<FamilyMember[]> {
+    const members = await db.select().from(familyMembers).where(
+      eq(familyMembers.claimedByUserId, userId)
+    );
+    return members;
+  }
+
+  async updateUserProfile(userId: string, profile: {
+    nickname?: string;
+    gender?: "male" | "female" | "other";
+    birthDate?: string;
+    birthPlace?: string;
+    bio?: string;
+    currentCity?: string;
+    currentRegion?: string;
+    currentCountry?: string;
+    locationVisible?: boolean;
+  }): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({ ...profile, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
   }
 
   // Account Heirs

@@ -101,6 +101,16 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
   - Displays connected family members with relationship badges
   - Shows both perspectives (e.g., "Your Son" / "You're their Parent")
   - Links to connected user's public profile
+- **Single Source of Truth (Profile Sync)**: Claimed users own their personal data across all family trees:
+  - Users manage their canonical profile at /my-profile with personal data (nickname, gender, birthDate, birthPlace, bio, location)
+  - When a user claims their profile in a tree, their personal data automatically syncs to that tree
+  - Data merge logic: User's non-empty fields override tree data; tree owner's data fills gaps for empty fields
+  - Import feature: Users can pull existing data from claimed profiles into their canonical profile
+  - Visual sync indicator: Tree view shows "Synced" badge when member data comes from claimed user's profile
+  - Philosophy: "Let them accept their truth" - relationship agreement is required, but personal data is controlled by the profile owner
+  - Only the relationship connection ("we are connected and this is our relationship") requires mutual agreement
+  - Tree structure (who is connected to whom) remains controlled by tree owner
+  - No cascade effects: personal data changes sync only to claimed profiles, not to tree relationships
 
 ## External Dependencies
 

@@ -9,6 +9,7 @@ import {
   insertNameHistorySchema, insertTreeConnectionSchema,
   insertCustodianshipRequestSchema
 } from "@shared/schema";
+import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
 import { z } from "zod";
 import crypto from "crypto";
 import { calculateRelationship, getSubtreeBetweenMembers } from "./lib/relationship-calculator";
@@ -18,6 +19,18 @@ const createInvitationSchema = z.object({
   role: z.enum(["viewer", "editor", "co_owner"]),
   expiresInDays: z.number().int().min(1).max(365).optional(),
   maxUses: z.number().int().min(1).max(1000).optional(),
+});
+
+const updateUserProfileSchema = z.object({
+  nickname: z.string().max(100).optional().nullable(),
+  gender: z.enum(["male", "female", "other"]).optional().nullable(),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format").optional().nullable(),
+  birthPlace: z.string().max(200).optional().nullable(),
+  bio: z.string().max(2000).optional().nullable(),
+  currentCity: z.string().max(100).optional().nullable(),
+  currentRegion: z.string().max(100).optional().nullable(),
+  currentCountry: z.string().max(100).optional().nullable(),
+  locationVisible: z.boolean().optional(),
 });
 
 const updateCollaboratorRoleSchema = z.object({
@@ -217,7 +230,37 @@ export async function registerRoutes(
       const members = await storage.getMembers(id);
       const relationships = await storage.getRelationships(id);
 
-      res.json({ tree, members, relationships });
+      // Merge claimed member data with user profiles (single source of truth)
+      const mergedMembers = await Promise.all(
+        members.map(async (member) => {
+          if (member.claimedByUserId) {
+            const claimedUser = await storage.getUser(member.claimedByUserId);
+            const mergedProfile = mergeMemberWithUserProfile(member, claimedUser);
+            return {
+              ...member,
+              // Apply merged personal data fields
+              firstName: mergedProfile.firstName ?? member.firstName,
+              lastName: mergedProfile.lastName ?? member.lastName,
+              nickname: mergedProfile.nickname ?? member.nickname,
+              email: mergedProfile.email ?? member.email,
+              gender: mergedProfile.gender ?? member.gender,
+              birthDate: mergedProfile.birthDate ?? member.birthDate,
+              birthPlace: mergedProfile.birthPlace ?? member.birthPlace,
+              photoUrl: mergedProfile.photoUrl ?? member.photoUrl,
+              notes: mergedProfile.notes ?? member.notes,
+              currentCity: mergedProfile.currentCity ?? member.currentCity,
+              currentRegion: mergedProfile.currentRegion ?? member.currentRegion,
+              currentCountry: mergedProfile.currentCountry ?? member.currentCountry,
+              locationVisible: mergedProfile.locationVisible,
+              // Include source info for UI to show sync indicators
+              _profileSourceInfo: mergedProfile._sourceInfo,
+            };
+          }
+          return member;
+        })
+      );
+
+      res.json({ tree, members: mergedMembers, relationships });
     } catch (error) {
       console.error("Error fetching tree:", error);
       res.status(500).json({ message: "Failed to fetch tree" });
@@ -1610,6 +1653,180 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating notification preferences:", error);
       res.status(500).json({ message: "Failed to update notification preferences" });
+    }
+  });
+
+  // ==================== USER PROFILE ROUTES (Single Source of Truth) ====================
+
+  // Get current user's profile
+  app.get("/api/user/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Return profile data (excluding sensitive fields)
+      res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
+        nickname: user.nickname,
+        gender: user.gender,
+        birthDate: user.birthDate,
+        birthPlace: user.birthPlace,
+        bio: user.bio,
+        currentCity: user.currentCity,
+        currentRegion: user.currentRegion,
+        currentCountry: user.currentCountry,
+        locationVisible: user.locationVisible,
+      });
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      res.status(500).json({ message: "Failed to fetch user profile" });
+    }
+  });
+
+  // Update current user's profile
+  app.put("/api/user/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body
+      const validatedData = updateUserProfileSchema.parse(req.body);
+      
+      // Filter out null/undefined values for update
+      const updateData: Record<string, any> = {};
+      for (const [key, value] of Object.entries(validatedData)) {
+        if (value !== undefined) {
+          updateData[key] = value === null ? undefined : value;
+        }
+      }
+      
+      const updated = await storage.updateUserProfile(userId, updateData);
+      
+      if (!updated) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json({
+        id: updated.id,
+        email: updated.email,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        profileImageUrl: updated.profileImageUrl,
+        nickname: updated.nickname,
+        gender: updated.gender,
+        birthDate: updated.birthDate,
+        birthPlace: updated.birthPlace,
+        bio: updated.bio,
+        currentCity: updated.currentCity,
+        currentRegion: updated.currentRegion,
+        currentCountry: updated.currentCountry,
+        locationVisible: updated.locationVisible,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid profile data", 
+          errors: error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
+        });
+      }
+      console.error("Error updating user profile:", error);
+      res.status(500).json({ message: "Failed to update user profile" });
+    }
+  });
+
+  // Get all profiles claimed by the current user across all trees
+  app.get("/api/user/claimed-profiles", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const claimedProfiles = await storage.getAllClaimedProfilesForUser(userId);
+      
+      // Include tree info for each claimed profile
+      const profilesWithTreeInfo = await Promise.all(
+        claimedProfiles.map(async (profile) => {
+          const tree = await storage.getTree(profile.treeId);
+          return {
+            ...profile,
+            treeName: tree?.name || "Unknown Tree",
+            treeOwnerId: tree?.ownerId,
+          };
+        })
+      );
+      
+      res.json(profilesWithTreeInfo);
+    } catch (error) {
+      console.error("Error fetching claimed profiles:", error);
+      res.status(500).json({ message: "Failed to fetch claimed profiles" });
+    }
+  });
+
+  // Import data from a claimed profile into user's canonical profile
+  // Only imports non-empty fields from the claimed profile if user's field is empty
+  app.post("/api/user/import-profile-data/:memberId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId } = req.params;
+      
+      // Verify the member is claimed by this user
+      const member = await storage.getMember(memberId);
+      if (!member || member.claimedByUserId !== userId) {
+        return res.status(403).json({ message: "You can only import data from profiles you have claimed" });
+      }
+      
+      // Get current user profile
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Build update object - only import fields where user's field is empty
+      const importData: any = {};
+      
+      if (!user.nickname && member.nickname) importData.nickname = member.nickname;
+      if (!user.gender && member.gender) importData.gender = member.gender;
+      if (!user.birthDate && member.birthDate) importData.birthDate = member.birthDate;
+      if (!user.birthPlace && member.birthPlace) importData.birthPlace = member.birthPlace;
+      if (!user.bio && member.notes) importData.bio = member.notes;
+      if (!user.currentCity && member.currentCity) importData.currentCity = member.currentCity;
+      if (!user.currentRegion && member.currentRegion) importData.currentRegion = member.currentRegion;
+      if (!user.currentCountry && member.currentCountry) importData.currentCountry = member.currentCountry;
+      
+      // Check if there's anything to import
+      if (Object.keys(importData).length === 0) {
+        return res.json({ 
+          message: "No new data to import - your profile already has all available information",
+          imported: false,
+          fieldsImported: []
+        });
+      }
+      
+      // Update user profile
+      const updated = await storage.updateUserProfile(userId, importData);
+      
+      res.json({
+        message: "Profile data imported successfully",
+        imported: true,
+        fieldsImported: Object.keys(importData),
+        profile: {
+          id: updated?.id,
+          nickname: updated?.nickname,
+          gender: updated?.gender,
+          birthDate: updated?.birthDate,
+          birthPlace: updated?.birthPlace,
+          bio: updated?.bio,
+          currentCity: updated?.currentCity,
+          currentRegion: updated?.currentRegion,
+          currentCountry: updated?.currentCountry,
+        }
+      });
+    } catch (error) {
+      console.error("Error importing profile data:", error);
+      res.status(500).json({ message: "Failed to import profile data" });
     }
   });
 
