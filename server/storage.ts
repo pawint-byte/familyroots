@@ -3,6 +3,7 @@ import {
   treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
+  giftRegistries, giftRegistryItems,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -24,6 +25,8 @@ import {
   type ConnectionRequest, type InsertConnectionRequest,
   type FamilySearchConnection, type InsertFamilySearchConnection,
   type FamilySearchSource, type InsertFamilySearchSource,
+  type GiftRegistry, type InsertGiftRegistry,
+  type GiftRegistryItem, type InsertGiftRegistryItem,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -195,6 +198,23 @@ export interface IStorage {
   
   // Location-based search
   getMembersByLocation(city?: string, region?: string, country?: string): Promise<FamilyMember[]>;
+
+  // Gift Registries
+  getGiftRegistry(id: string): Promise<GiftRegistry | undefined>;
+  getGiftRegistriesByMember(memberId: string): Promise<GiftRegistry[]>;
+  getGiftRegistriesByTree(treeId: string): Promise<GiftRegistry[]>;
+  getGiftRegistriesByUser(userId: string): Promise<GiftRegistry[]>;
+  createGiftRegistry(registry: InsertGiftRegistry): Promise<GiftRegistry>;
+  updateGiftRegistry(id: string, data: Partial<InsertGiftRegistry>): Promise<GiftRegistry | undefined>;
+  deleteGiftRegistry(id: string): Promise<boolean>;
+
+  // Gift Registry Items
+  getGiftRegistryItems(registryId: string): Promise<GiftRegistryItem[]>;
+  getGiftRegistryItem(id: string): Promise<GiftRegistryItem | undefined>;
+  createGiftRegistryItem(item: InsertGiftRegistryItem): Promise<GiftRegistryItem>;
+  updateGiftRegistryItem(id: string, data: Partial<InsertGiftRegistryItem>): Promise<GiftRegistryItem | undefined>;
+  deleteGiftRegistryItem(id: string): Promise<boolean>;
+  markItemPurchased(itemId: string, userId: string, quantity: number): Promise<GiftRegistryItem | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1252,6 +1272,99 @@ export class DatabaseStorage implements IStorage {
   async deleteFamilySearchSource(id: string): Promise<boolean> {
     await db.delete(familySearchSources).where(eq(familySearchSources.id, id));
     return true;
+  }
+
+  // Gift Registries
+  async getGiftRegistry(id: string): Promise<GiftRegistry | undefined> {
+    const [registry] = await db.select().from(giftRegistries).where(eq(giftRegistries.id, id));
+    return registry;
+  }
+
+  async getGiftRegistriesByMember(memberId: string): Promise<GiftRegistry[]> {
+    return db.select().from(giftRegistries)
+      .where(eq(giftRegistries.memberId, memberId))
+      .orderBy(desc(giftRegistries.eventDate));
+  }
+
+  async getGiftRegistriesByTree(treeId: string): Promise<GiftRegistry[]> {
+    return db.select().from(giftRegistries)
+      .where(eq(giftRegistries.treeId, treeId))
+      .orderBy(desc(giftRegistries.eventDate));
+  }
+
+  async getGiftRegistriesByUser(userId: string): Promise<GiftRegistry[]> {
+    return db.select().from(giftRegistries)
+      .where(eq(giftRegistries.createdByUserId, userId))
+      .orderBy(desc(giftRegistries.eventDate));
+  }
+
+  async createGiftRegistry(registry: InsertGiftRegistry): Promise<GiftRegistry> {
+    const [created] = await db.insert(giftRegistries).values(registry).returning();
+    return created;
+  }
+
+  async updateGiftRegistry(id: string, data: Partial<InsertGiftRegistry>): Promise<GiftRegistry | undefined> {
+    const [updated] = await db.update(giftRegistries)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(giftRegistries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteGiftRegistry(id: string): Promise<boolean> {
+    await db.delete(giftRegistryItems).where(eq(giftRegistryItems.registryId, id));
+    await db.delete(giftRegistries).where(eq(giftRegistries.id, id));
+    return true;
+  }
+
+  // Gift Registry Items
+  async getGiftRegistryItems(registryId: string): Promise<GiftRegistryItem[]> {
+    return db.select().from(giftRegistryItems)
+      .where(eq(giftRegistryItems.registryId, registryId))
+      .orderBy(desc(giftRegistryItems.priority));
+  }
+
+  async getGiftRegistryItem(id: string): Promise<GiftRegistryItem | undefined> {
+    const [item] = await db.select().from(giftRegistryItems).where(eq(giftRegistryItems.id, id));
+    return item;
+  }
+
+  async createGiftRegistryItem(item: InsertGiftRegistryItem): Promise<GiftRegistryItem> {
+    const [created] = await db.insert(giftRegistryItems).values(item).returning();
+    return created;
+  }
+
+  async updateGiftRegistryItem(id: string, data: Partial<InsertGiftRegistryItem>): Promise<GiftRegistryItem | undefined> {
+    const [updated] = await db.update(giftRegistryItems)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(giftRegistryItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteGiftRegistryItem(id: string): Promise<boolean> {
+    await db.delete(giftRegistryItems).where(eq(giftRegistryItems.id, id));
+    return true;
+  }
+
+  async markItemPurchased(itemId: string, userId: string, quantity: number): Promise<GiftRegistryItem | undefined> {
+    const item = await this.getGiftRegistryItem(itemId);
+    if (!item) return undefined;
+
+    const newQuantityPurchased = (item.quantityPurchased || 0) + quantity;
+    const isFullyPurchased = newQuantityPurchased >= item.quantity;
+
+    const [updated] = await db.update(giftRegistryItems)
+      .set({
+        quantityPurchased: newQuantityPurchased,
+        status: isFullyPurchased ? 'purchased' : (newQuantityPurchased > 0 ? 'reserved' : 'available'),
+        purchasedByUserId: isFullyPurchased ? userId : item.purchasedByUserId,
+        purchasedAt: isFullyPurchased ? new Date() : item.purchasedAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(giftRegistryItems.id, itemId))
+      .returning();
+    return updated;
   }
 }
 

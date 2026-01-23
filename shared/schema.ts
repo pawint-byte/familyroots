@@ -730,6 +730,64 @@ export const insertMerchandiseOrderSchema = createInsertSchema(merchandiseOrders
   updatedAt: true,
 });
 
+// Gift Registry enums
+export const registryEventTypeEnum = pgEnum("registry_event_type", [
+  "birthday", "baby_shower", "wedding", "anniversary", "graduation", 
+  "holiday", "housewarming", "retirement", "other"
+]);
+
+export const registryItemStatusEnum = pgEnum("registry_item_status", [
+  "available", "reserved", "purchased"
+]);
+
+// Gift Registries table
+export const giftRegistries = pgTable("gift_registries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(), // The family member this registry is for
+  treeId: varchar("tree_id").notNull(), // Which tree this belongs to
+  createdByUserId: varchar("created_by_user_id").notNull(), // Who created the registry
+  title: text("title").notNull(), // e.g., "John's 5th Birthday"
+  eventType: registryEventTypeEnum("event_type").notNull(),
+  eventDate: date("event_date"), // When the event is
+  description: text("description"), // Optional details about the event
+  isPublic: boolean("is_public").default(true).notNull(), // Visible to all tree collaborators
+  isActive: boolean("is_active").default(true).notNull(), // Whether registry is accepting items
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertGiftRegistrySchema = createInsertSchema(giftRegistries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Gift Registry Items table
+export const giftRegistryItems = pgTable("gift_registry_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  registryId: varchar("registry_id").notNull(),
+  name: text("name").notNull(), // Product name
+  description: text("description"), // Optional details
+  productUrl: text("product_url"), // Link to product (Amazon, Etsy, etc.)
+  imageUrl: text("image_url"), // Product image
+  price: integer("price"), // Price in cents
+  quantity: integer("quantity").default(1).notNull(), // How many needed
+  quantityPurchased: integer("quantity_purchased").default(0).notNull(), // How many bought
+  status: registryItemStatusEnum("status").default("available").notNull(),
+  priority: integer("priority").default(0), // Higher = more wanted
+  purchasedByUserId: varchar("purchased_by_user_id"), // Who bought it (if fully purchased)
+  purchasedAt: timestamp("purchased_at"), // When it was purchased
+  notes: text("notes"), // Additional notes from registry owner
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertGiftRegistryItemSchema = createInsertSchema(giftRegistryItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type FamilyTree = typeof familyTrees.$inferSelect;
 export type InsertFamilyTree = z.infer<typeof insertFamilyTreeSchema>;
@@ -790,3 +848,9 @@ export type InsertSpecialConnection = z.infer<typeof insertSpecialConnectionSche
 
 export type ConnectionRequest = typeof connectionRequests.$inferSelect;
 export type InsertConnectionRequest = z.infer<typeof insertConnectionRequestSchema>;
+
+export type GiftRegistry = typeof giftRegistries.$inferSelect;
+export type InsertGiftRegistry = z.infer<typeof insertGiftRegistrySchema>;
+
+export type GiftRegistryItem = typeof giftRegistryItems.$inferSelect;
+export type InsertGiftRegistryItem = z.infer<typeof insertGiftRegistryItemSchema>;
