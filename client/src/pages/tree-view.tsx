@@ -100,7 +100,13 @@ export default function TreeView() {
   const userCollaboration = collaborators?.find(c => c.userId === userId);
   const isCoOwner = userCollaboration?.role === "co_owner";
   const isEditor = userCollaboration?.role === "editor";
-  const canEdit = isOwner || isCoOwner || isEditor;
+  const canEditTree = isOwner || isCoOwner || isEditor;
+  
+  // Check if user has claimed the selected member (can edit their own profile)
+  const isClaimedOwnerOfSelectedMember = selectedMember?.claimedByUserId === userId;
+  
+  // Combined edit permission - tree editors OR profile owner
+  const canEdit = canEditTree || isClaimedOwnerOfSelectedMember;
 
   const addMemberMutation = useMutation({
     mutationFn: async (data: InsertFamilyMember & { createParentPlaceholders?: boolean }) => {
@@ -415,7 +421,7 @@ export default function TreeView() {
                   <Download className="h-4 w-4" />
                   Export GEDCOM
                 </DropdownMenuItem>
-                {canEdit && (
+                {canEditTree && (
                   <DropdownMenuItem className="gap-2">
                     <Upload className="h-4 w-4" />
                     Import GEDCOM
@@ -476,7 +482,7 @@ export default function TreeView() {
               </DropdownMenuContent>
             </DropdownMenu>
             <ThemeToggle />
-            {canEdit && (
+            {canEditTree && (
               <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
                 <DialogTrigger asChild>
                   <Button className="gap-2" data-testid="button-add-member">
@@ -726,7 +732,7 @@ export default function TreeView() {
               )}
 
               {/* Email Invitation Status - visible to tree owner/editors */}
-              {treeData?.tree && canEdit && (
+              {treeData?.tree && canEditTree && (
                 <div className="mt-6" data-testid="invitation-status-panel">
                   <InvitationStatus treeId={treeData.tree.id} />
                 </div>
@@ -855,14 +861,14 @@ export default function TreeView() {
                 />
 
                 {/* Add Relationship Button */}
-                {canEdit && treeData && (
+                {canEditTree && treeData && (
                   <div className="pt-4 border-t border-border">
                     <AddRelationship
                       treeId={treeData.tree.id}
                       currentMember={selectedMember}
                       allMembers={treeData.members}
                       existingRelationships={treeData.relationships}
-                      canEdit={canEdit}
+                      canEdit={canEditTree}
                     />
                   </div>
                 )}
@@ -877,7 +883,7 @@ export default function TreeView() {
                     <User className="h-4 w-4" />
                     {focusMemberId === selectedMember.id ? "Focus Set" : "Set as Focus"}
                   </Button>
-                  {canEdit && (
+                  {canEditTree && (
                     <Button 
                       variant={treeData?.tree?.rootMemberId === selectedMember.id ? "default" : "outline"} 
                       className="gap-2"
@@ -962,9 +968,9 @@ export default function TreeView() {
       </Dialog>
 
       {/* Match Requests Section - visible to tree owner/editors */}
-      {treeData?.tree && canEdit && (
+      {treeData?.tree && canEditTree && (
         <div className="fixed bottom-4 right-4 z-40 w-80" data-testid="match-requests-panel">
-          <MatchRequests treeId={treeData.tree.id} canEdit={canEdit} />
+          <MatchRequests treeId={treeData.tree.id} canEdit={canEditTree} />
         </div>
       )}
     </div>

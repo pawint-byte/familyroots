@@ -385,17 +385,31 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Tree not found" });
       }
       
-      if (tree.ownerId !== userId) {
-        const collaborators = await storage.getCollaborators(treeId);
-        const canEdit = collaborators.some(c => c.userId === userId && c.canEdit);
-        if (!canEdit) {
-          return res.status(403).json({ message: "Access denied" });
-        }
-      }
-
-      // Get existing member to check if email is being added
+      // Get existing member to check ownership and email
       const existingMember = await storage.getMember(memberId);
+      if (!existingMember) {
+        return res.status(404).json({ message: "Member not found" });
+      }
       const oldEmail = existingMember?.email;
+      
+      // Check if user is the claimed owner of this profile
+      const isClaimedOwner = existingMember.claimedByUserId === userId;
+      
+      // Check edit permissions
+      let canEdit = false;
+      if (tree.ownerId === userId) {
+        canEdit = true;
+      } else if (isClaimedOwner) {
+        // Claimed users can edit their own profile
+        canEdit = true;
+      } else {
+        const collaborators = await storage.getCollaborators(treeId);
+        canEdit = collaborators.some(c => c.userId === userId && c.canEdit);
+      }
+      
+      if (!canEdit) {
+        return res.status(403).json({ message: "Access denied" });
+      }
 
       // Validate update data - only allow specific fields
       const allowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes"];
