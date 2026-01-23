@@ -121,7 +121,7 @@ This document contains reference information for all external accounts and integ
 - **Dashboard URL**: https://analytics.google.com
 - **Measurement ID**: `G-WHS17V1WFW`
 - **Account Email**: pawint@me.com
-- **Property Name**: ___________________
+- **Property Name**: FamilyRoots
 
 **How to verify:**
 1. Go to https://analytics.google.com
