@@ -2,7 +2,7 @@ import {
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
   treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
-  custodianshipRequests, specialConnections, connectionRequests,
+  custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -22,6 +22,8 @@ import {
   type CustodianshipRequest, type InsertCustodianshipRequest,
   type SpecialConnection, type InsertSpecialConnection,
   type ConnectionRequest, type InsertConnectionRequest,
+  type FamilySearchConnection, type InsertFamilySearchConnection,
+  type FamilySearchSource, type InsertFamilySearchSource,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -1195,6 +1197,61 @@ export class DatabaseStorage implements IStorage {
     
     return db.select().from(familyMembers)
       .where(and(...conditions));
+  }
+
+  // FamilySearch connections
+  async getFamilySearchConnection(userId: string): Promise<FamilySearchConnection | undefined> {
+    const [connection] = await db.select().from(familySearchConnections)
+      .where(eq(familySearchConnections.userId, userId));
+    return connection;
+  }
+
+  async createFamilySearchConnection(data: InsertFamilySearchConnection): Promise<FamilySearchConnection> {
+    const [connection] = await db.insert(familySearchConnections).values(data).returning();
+    return connection;
+  }
+
+  async updateFamilySearchConnection(userId: string, data: Partial<InsertFamilySearchConnection>): Promise<FamilySearchConnection | undefined> {
+    const [connection] = await db.update(familySearchConnections)
+      .set(data)
+      .where(eq(familySearchConnections.userId, userId))
+      .returning();
+    return connection;
+  }
+
+  async deleteFamilySearchConnection(userId: string): Promise<boolean> {
+    const result = await db.delete(familySearchConnections)
+      .where(eq(familySearchConnections.userId, userId));
+    return true;
+  }
+
+  // FamilySearch sources (attached records)
+  async getFamilySearchSources(memberId: string): Promise<FamilySearchSource[]> {
+    return db.select().from(familySearchSources)
+      .where(eq(familySearchSources.memberId, memberId))
+      .orderBy(desc(familySearchSources.createdAt));
+  }
+
+  async getFamilySearchSourceById(id: string): Promise<FamilySearchSource | undefined> {
+    const [source] = await db.select().from(familySearchSources)
+      .where(eq(familySearchSources.id, id));
+    return source;
+  }
+
+  async getFamilySearchSourcesByTree(treeId: string): Promise<FamilySearchSource[]> {
+    return db.select().from(familySearchSources)
+      .where(eq(familySearchSources.treeId, treeId))
+      .orderBy(desc(familySearchSources.createdAt));
+  }
+
+  async createFamilySearchSource(data: InsertFamilySearchSource): Promise<FamilySearchSource> {
+    const [source] = await db.insert(familySearchSources).values(data).returning();
+    return source;
+  }
+
+  async deleteFamilySearchSource(id: string): Promise<boolean> {
+    await db.delete(familySearchSources).where(eq(familySearchSources.id, id));
+    return true;
   }
 }
 

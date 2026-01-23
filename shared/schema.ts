@@ -370,6 +370,50 @@ export const insertConnectionRequestSchema = createInsertSchema(connectionReques
   createdAt: true,
 });
 
+// FamilySearch User Connections table
+export const familySearchConnections = pgTable("family_search_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(), // Our user's ID
+  familySearchId: varchar("family_search_id"), // FamilySearch person ID
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  displayName: text("display_name"), // Name from FamilySearch
+  connectedAt: timestamp("connected_at").defaultNow().notNull(),
+  lastSyncAt: timestamp("last_sync_at"),
+});
+
+export const insertFamilySearchConnectionSchema = createInsertSchema(familySearchConnections).omit({
+  id: true,
+  connectedAt: true,
+});
+
+export type FamilySearchConnection = typeof familySearchConnections.$inferSelect;
+export type InsertFamilySearchConnection = z.infer<typeof insertFamilySearchConnectionSchema>;
+
+// FamilySearch Record Sources table (attached records to family members)
+export const familySearchSources = pgTable("family_search_sources", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(), // Family member this source is attached to
+  treeId: varchar("tree_id").notNull(),
+  recordId: varchar("record_id").notNull(), // FamilySearch record ID
+  recordTitle: text("record_title").notNull(),
+  recordType: text("record_type"), // birth, death, marriage, census, etc.
+  recordUrl: text("record_url"),
+  recordData: jsonb("record_data"), // Cached record data
+  notes: text("notes"),
+  addedBy: varchar("added_by").notNull(), // User who attached this source
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFamilySearchSourceSchema = createInsertSchema(familySearchSources).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type FamilySearchSource = typeof familySearchSources.$inferSelect;
+export type InsertFamilySearchSource = z.infer<typeof insertFamilySearchSourceSchema>;
+
 // Relations
 export const familyTreesRelations = relations(familyTrees, ({ many }) => ({
   members: many(familyMembers),

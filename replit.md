@@ -65,6 +65,17 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
   - For users at 100+ members, each additional 25 members requires a $2.99 one-time payment (milestone payment)
   - Dashboard shows progress bar toward next discount tier
   - Pricing page displays all tiers with current tier highlighted
+- **FamilySearch Integration**: Historical records search via FamilySearch API integration:
+  - OAuth flow for connecting FamilySearch accounts (requires FAMILYSEARCH_APP_KEY environment variable)
+  - Search billions of historical records (birth, marriage, death, census, immigration, military)
+  - Attach record sources to family members for documentation
+  - Demo mode with mock data when API credentials not configured
+  - Database tables: familySearchConnections (OAuth tokens), familySearchSources (attached records)
+- **Comparison Page**: Feature comparison page (/comparison) showing FamilyRoots vs Ancestry with:
+  - Categorized feature matrix (Core, Research, Collaboration, Privacy, Monetization, Community)
+  - Visual checkmarks and crosses for feature availability
+  - Unique FamilyRoots features highlighted
+  - Linked from landing page for marketing
 
 ## External Dependencies
 
@@ -80,4 +91,5 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
   - Stripe data syncs automatically to PostgreSQL database
   - Accepts both card and crypto payments (Bitcoin, Ethereum, stablecoins) - settles in USD
 - **Print-on-Demand**: Printful API for merchandise fulfillment
-- **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image.
+- **Genealogy Research**: FamilySearch API for historical records (optional - requires registration at developers.familysearch.org)
+- **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image, react-leaflet.

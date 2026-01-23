@@ -69,6 +69,7 @@ import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemb
 import { insertAccountHeirSchema } from "@shared/schema";
 import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG } from "./subscriptionService";
+import * as familySearchService from "./familySearch";
 
 // Privacy visibility filtering for family members
 type VisibilityTier = "full" | "extended" | "limited";
@@ -4074,6 +4075,254 @@ export async function registerRoutes(
       { value: "ward", label: "Ward" },
       { value: "other", label: "Other" },
     ]);
+  });
+
+  // ==================== FAMILYSEARCH INTEGRATION ROUTES ====================
+
+  // Get FamilySearch connection status
+  app.get("/api/familysearch/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const connection = await storage.getFamilySearchConnection(userId);
+      const configured = familySearchService.isConfigured();
+      
+      res.json({
+        configured,
+        connected: !!connection,
+        displayName: connection?.displayName || null,
+        connectedAt: connection?.connectedAt || null,
+      });
+    } catch (error) {
+      console.error("Error getting FamilySearch status:", error);
+      res.status(500).json({ message: "Failed to get FamilySearch status" });
+    }
+  });
+
+  // Initiate FamilySearch OAuth
+  app.get("/api/familysearch/auth", isAuthenticated, async (req: any, res) => {
+    try {
+      const state = familySearchService.generateState();
+      
+      // Store state in session for verification
+      if (req.session) {
+        req.session.familySearchState = state;
+      }
+      
+      const authUrl = familySearchService.getAuthorizationUrl(state);
+      res.json({ authUrl });
+    } catch (error) {
+      console.error("Error initiating FamilySearch auth:", error);
+      res.status(500).json({ message: "Failed to initiate FamilySearch authentication" });
+    }
+  });
+
+  // FamilySearch OAuth callback
+  app.get("/api/familysearch/callback", isAuthenticated, async (req: any, res) => {
+    try {
+      const { code, state } = req.query;
+      const userId = req.user.claims.sub;
+      
+      // Verify state - require it exists and matches
+      const storedState = req.session?.familySearchState;
+      if (!storedState || storedState !== state) {
+        return res.redirect("/records?error=invalid_state");
+      }
+      // Clear state after use to prevent reuse
+      delete req.session.familySearchState;
+      
+      // Exchange code for token
+      const tokenResponse = await familySearchService.exchangeCodeForToken(code as string);
+      if (!tokenResponse) {
+        return res.redirect("/records?error=token_exchange_failed");
+      }
+      
+      // Get user info
+      const fsUser = await familySearchService.getCurrentUser(tokenResponse.access_token);
+      
+      // Store or update connection
+      const existing = await storage.getFamilySearchConnection(userId);
+      const expiresAt = tokenResponse.expires_in 
+        ? new Date(Date.now() + tokenResponse.expires_in * 1000)
+        : null;
+      
+      if (existing) {
+        await storage.updateFamilySearchConnection(userId, {
+          accessToken: tokenResponse.access_token,
+          tokenExpiresAt: expiresAt,
+          familySearchId: fsUser?.id,
+          displayName: fsUser?.display?.name,
+          lastSyncAt: new Date(),
+        });
+      } else {
+        await storage.createFamilySearchConnection({
+          userId,
+          accessToken: tokenResponse.access_token,
+          tokenExpiresAt: expiresAt,
+          familySearchId: fsUser?.id,
+          displayName: fsUser?.display?.name,
+        });
+      }
+      
+      res.redirect("/records?connected=true");
+    } catch (error) {
+      console.error("Error in FamilySearch callback:", error);
+      res.redirect("/records?error=callback_failed");
+    }
+  });
+
+  // Disconnect FamilySearch
+  app.delete("/api/familysearch/connection", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await storage.deleteFamilySearchConnection(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error disconnecting FamilySearch:", error);
+      res.status(500).json({ message: "Failed to disconnect FamilySearch" });
+    }
+  });
+
+  // Search FamilySearch records
+  app.get("/api/familysearch/search", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { givenName, surname, birthYear, birthPlace, deathYear, deathPlace } = req.query;
+      
+      const connection = await storage.getFamilySearchConnection(userId);
+      
+      // If connected and configured, use real API
+      if (connection?.accessToken && familySearchService.isConfigured()) {
+        const results = await familySearchService.searchRecords(connection.accessToken, {
+          givenName: givenName as string,
+          surname: surname as string,
+          birthYear: birthYear ? parseInt(birthYear as string) : undefined,
+          birthPlace: birthPlace as string,
+          deathYear: deathYear ? parseInt(deathYear as string) : undefined,
+          deathPlace: deathPlace as string,
+        });
+        return res.json(results);
+      }
+      
+      // Otherwise use mock data for demonstration
+      const mockResults = familySearchService.getMockSearchResults({
+        givenName: givenName as string,
+        surname: surname as string,
+        birthYear: birthYear ? parseInt(birthYear as string) : undefined,
+      });
+      
+      res.json(mockResults);
+    } catch (error) {
+      console.error("Error searching FamilySearch:", error);
+      res.status(500).json({ message: "Failed to search records" });
+    }
+  });
+
+  // Attach a source to a family member
+  app.post("/api/members/:memberId/sources", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId } = req.params;
+      const { recordId, recordTitle, recordType, recordUrl, recordData, notes } = req.body;
+      
+      // Verify member exists and user has access
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+      const canEdit = tree.ownerId === userId || collaborator?.canEdit;
+      
+      if (!canEdit) {
+        return res.status(403).json({ message: "Permission denied" });
+      }
+      
+      const source = await storage.createFamilySearchSource({
+        memberId,
+        treeId: member.treeId,
+        recordId,
+        recordTitle,
+        recordType,
+        recordUrl,
+        recordData,
+        notes,
+        addedBy: userId,
+      });
+      
+      res.json(source);
+    } catch (error) {
+      console.error("Error attaching source:", error);
+      res.status(500).json({ message: "Failed to attach source" });
+    }
+  });
+
+  // Get sources for a member
+  app.get("/api/members/:memberId/sources", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId } = req.params;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      // Verify access to tree
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+      
+      if (!isOwner && !collaborator) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const sources = await storage.getFamilySearchSources(memberId);
+      res.json(sources);
+    } catch (error) {
+      console.error("Error fetching sources:", error);
+      res.status(500).json({ message: "Failed to fetch sources" });
+    }
+  });
+
+  // Delete a source
+  app.delete("/api/sources/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      
+      // Verify user has access to the source's tree
+      const source = await storage.getFamilySearchSourceById(id);
+      if (!source) {
+        return res.status(404).json({ message: "Source not found" });
+      }
+      
+      const tree = await storage.getTree(source.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, source.treeId);
+      const canEdit = tree.ownerId === userId || collaborator?.canEdit;
+      
+      if (!canEdit) {
+        return res.status(403).json({ message: "Permission denied" });
+      }
+      
+      await storage.deleteFamilySearchSource(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting source:", error);
+      res.status(500).json({ message: "Failed to delete source" });
+    }
   });
 
   return httpServer;
