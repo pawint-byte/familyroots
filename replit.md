@@ -76,6 +76,16 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
   - Visual checkmarks and crosses for feature availability
   - Unique FamilyRoots features highlighted
   - Linked from landing page for marketing
+- **Progressive Web App (PWA)**: Full PWA support for mobile installation:
+  - Web app manifest for home screen installation
+  - Service worker for offline caching and faster loads
+  - Custom app icons (192x192 and 512x512)
+  - Apple touch icon support for iOS devices
+  - Standalone display mode for native-like experience
+- **Google Analytics**: Optional analytics integration for tracking user engagement:
+  - Automatic page view tracking on route changes
+  - Custom event tracking for user actions
+  - Requires VITE_GA_MEASUREMENT_ID environment variable (Google Analytics 4 Measurement ID)
 
 ## External Dependencies
 
