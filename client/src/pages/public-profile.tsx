@@ -56,12 +56,31 @@ export default function PublicProfilePage() {
   const [customLabel, setCustomLabel] = useState("");
   const [message, setMessage] = useState("");
 
-  // Store this profile URL for redirect after login
+  // Store pending connection data for redirect after login (includes target user info)
   useEffect(() => {
     if (userId && !currentUser && !authLoading) {
+      // Store both the redirect URL and the target user ID for the connection
       localStorage.setItem("pendingProfileRedirect", `/profile/${userId}`);
+      localStorage.setItem("pendingConnectionUserId", userId);
     }
   }, [userId, currentUser, authLoading]);
+
+  // Auto-open connection dialog if returning from signup flow
+  useEffect(() => {
+    if (currentUser && userId && !authLoading) {
+      const pendingConnectionUserId = localStorage.getItem("pendingConnectionUserId");
+      // Check if this is the profile we were trying to connect with
+      if (pendingConnectionUserId === userId && currentUser.id !== userId) {
+        // Clear the stored data and auto-open the dialog
+        localStorage.removeItem("pendingConnectionUserId");
+        localStorage.removeItem("pendingProfileRedirect");
+        // Small delay to ensure page is fully rendered
+        setTimeout(() => {
+          setShowConnectionDialog(true);
+        }, 500);
+      }
+    }
+  }, [currentUser, userId, authLoading]);
 
   const { data: profile, isLoading, error } = useQuery<PublicProfile>({
     queryKey: ['/api/users', userId, 'public'],

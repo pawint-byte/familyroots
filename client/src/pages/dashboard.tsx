@@ -67,12 +67,20 @@ export default function Dashboard() {
   const [settingsTreeId, setSettingsTreeId] = useState<string | null>(null);
   const [settingsTree, setSettingsTree] = useState<FamilyTreeWithCount | null>(null);
   const [settingsVisibility, setSettingsVisibility] = useState<"full" | "extended" | "limited">("extended");
+  const [pendingConnectionInfo, setPendingConnectionInfo] = useState<{ userId: string; redirectUrl: string } | null>(null);
 
   // Check for pending profile redirect (from QR code scan before login)
+  // Improved: Immediately redirect to complete the connection flow
   useEffect(() => {
+    if (!user) return;
+    
     const pendingRedirect = localStorage.getItem("pendingProfileRedirect");
-    if (pendingRedirect && user) {
-      localStorage.removeItem("pendingProfileRedirect");
+    const pendingConnectionUserId = localStorage.getItem("pendingConnectionUserId");
+    
+    if (pendingRedirect && pendingConnectionUserId) {
+      // Store info for banner display as fallback
+      setPendingConnectionInfo({ userId: pendingConnectionUserId, redirectUrl: pendingRedirect });
+      // Redirect immediately to complete connection
       navigate(pendingRedirect);
     }
   }, [user, navigate]);
@@ -409,6 +417,27 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {/* Pending connection banner - shows if user has a pending connection to complete */}
+        {pendingConnectionInfo && (
+          <div className="mb-6 p-4 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <UserCircle className="h-6 w-6 text-primary" />
+              <div>
+                <p className="font-medium">Complete your connection!</p>
+                <p className="text-sm text-muted-foreground">
+                  You scanned someone's QR code - tap the button to connect with them.
+                </p>
+              </div>
+            </div>
+            <Button 
+              onClick={() => navigate(pendingConnectionInfo.redirectUrl)}
+              data-testid="button-complete-connection"
+            >
+              Connect Now
+            </Button>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold mb-1">
