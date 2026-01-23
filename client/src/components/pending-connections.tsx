@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,24 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { UserPlus, Check, X, Loader2, Users, Heart } from "lucide-react";
+import { Check, X, Loader2, Heart } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface PendingConnectionRequest {
   id: string;
@@ -44,17 +62,41 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   other: "Related to You",
 };
 
+const APPROVER_RELATIONSHIP_OPTIONS = [
+  { value: "parent", label: "Their Parent" },
+  { value: "son", label: "Their Son" },
+  { value: "daughter", label: "Their Daughter" },
+  { value: "spouse", label: "Their Spouse" },
+  { value: "sibling", label: "Their Sibling" },
+  { value: "grandparent", label: "Their Grandparent" },
+  { value: "grandchild", label: "Their Grandchild" },
+  { value: "aunt", label: "Their Aunt" },
+  { value: "uncle", label: "Their Uncle" },
+  { value: "niece", label: "Their Niece" },
+  { value: "nephew", label: "Their Nephew" },
+  { value: "cousin", label: "Their Cousin" },
+  { value: "in_law", label: "Their In-Law" },
+  { value: "step_relative", label: "Their Step-Relative" },
+  { value: "other", label: "Other (specify)" },
+];
+
 export function PendingConnectionsSection() {
   const { toast } = useToast();
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<PendingConnectionRequest | null>(null);
+  const [approverRelationship, setApproverRelationship] = useState("");
+  const [approverCustomLabel, setApproverCustomLabel] = useState("");
 
   const { data: pendingRequests = [], isLoading } = useQuery<PendingConnectionRequest[]>({
     queryKey: ["/api/user-connection-requests/pending"],
   });
 
   const approveMutation = useMutation({
-    mutationFn: async (requestId: string) => {
+    mutationFn: async ({ requestId, relationshipType, customLabel }: { requestId: string; relationshipType?: string; customLabel?: string }) => {
       const res = await fetch(`/api/user-connection-requests/${requestId}/approve`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ relationshipType, customLabel }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -69,6 +111,10 @@ export function PendingConnectionsSection() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user-connection-requests/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user-connections"] });
+      setApprovalDialogOpen(false);
+      setSelectedRequest(null);
+      setApproverRelationship("");
+      setApproverCustomLabel("");
     },
     onError: (error: Error) => {
       toast({
@@ -106,6 +152,21 @@ export function PendingConnectionsSection() {
     },
   });
 
+  const handleApproveClick = (request: PendingConnectionRequest) => {
+    setSelectedRequest(request);
+    setApprovalDialogOpen(true);
+  };
+
+  const handleConfirmApproval = () => {
+    if (!selectedRequest) return;
+    
+    approveMutation.mutate({
+      requestId: selectedRequest.id,
+      relationshipType: approverRelationship || undefined,
+      customLabel: approverRelationship === "other" ? approverCustomLabel : undefined,
+    });
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -136,89 +197,164 @@ export function PendingConnectionsSection() {
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <Heart className="h-5 w-5 text-primary" />
-          <CardTitle className="text-lg">Family Connection Requests</CardTitle>
-        </div>
-        <CardDescription>
-          People who want to connect with you as family
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {pendingRequests.map((request) => {
-            const initials = `${request.fromUser?.firstName?.[0] || ''}${request.fromUser?.lastName?.[0] || ''}`.toUpperCase() || '?';
-            const relationshipLabel = request.customLabel || RELATIONSHIP_LABELS[request.relationshipType] || request.relationshipType;
-            const isPending = approveMutation.isPending || denyMutation.isPending;
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Heart className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Family Connection Requests</CardTitle>
+          </div>
+          <CardDescription>
+            People who want to connect with you as family
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {pendingRequests.map((request) => {
+              const initials = `${request.fromUser?.firstName?.[0] || ''}${request.fromUser?.lastName?.[0] || ''}`.toUpperCase() || '?';
+              const relationshipLabel = request.customLabel || RELATIONSHIP_LABELS[request.relationshipType] || request.relationshipType;
+              const isPending = approveMutation.isPending || denyMutation.isPending;
 
-            return (
-              <div
-                key={request.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg border bg-card"
-                data-testid={`connection-request-${request.id}`}
-              >
-                <Avatar className="h-12 w-12 shrink-0">
-                  <AvatarImage src={request.fromUser?.profileImageUrl || undefined} />
-                  <AvatarFallback className="bg-primary/10">{initials}</AvatarFallback>
-                </Avatar>
+              return (
+                <div
+                  key={request.id}
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg border bg-card"
+                  data-testid={`connection-request-${request.id}`}
+                >
+                  <Avatar className="h-12 w-12 shrink-0">
+                    <AvatarImage src={request.fromUser?.profileImageUrl || undefined} />
+                    <AvatarFallback className="bg-primary/10">{initials}</AvatarFallback>
+                  </Avatar>
 
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium">
-                    {request.fromUser?.firstName} {request.fromUser?.lastName}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="secondary" className="text-xs">
-                      {relationshipLabel}
-                    </Badge>
-                    {request.sourceType === "qr_scan" && (
-                      <Badge variant="outline" className="text-xs">
-                        QR Scan
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium">
+                      {request.fromUser?.firstName} {request.fromUser?.lastName}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <Badge variant="secondary" className="text-xs">
+                        Says they're {relationshipLabel}
                       </Badge>
+                      {request.sourceType === "qr_scan" && (
+                        <Badge variant="outline" className="text-xs">
+                          QR Scan
+                        </Badge>
+                      )}
+                    </div>
+                    {request.message && (
+                      <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                        "{request.message}"
+                      </p>
                     )}
                   </div>
-                  {request.message && (
-                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                      "{request.message}"
-                    </p>
-                  )}
-                </div>
 
-                <div className="flex items-center gap-2 sm:shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => denyMutation.mutate(request.id)}
-                    disabled={isPending}
-                    data-testid={`button-deny-${request.id}`}
-                  >
-                    {denyMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <X className="h-4 w-4" />
-                    )}
-                    <span className="sr-only sm:not-sr-only sm:ml-1">Decline</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => approveMutation.mutate(request.id)}
-                    disabled={isPending}
-                    data-testid={`button-approve-${request.id}`}
-                  >
-                    {approveMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Check className="h-4 w-4" />
-                    )}
-                    <span className="sr-only sm:not-sr-only sm:ml-1">Accept</span>
-                  </Button>
+                  <div className="flex items-center gap-2 sm:shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => denyMutation.mutate(request.id)}
+                      disabled={isPending}
+                      data-testid={`button-deny-${request.id}`}
+                    >
+                      {denyMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <X className="h-4 w-4" />
+                      )}
+                      <span className="sr-only sm:not-sr-only sm:ml-1">Decline</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleApproveClick(request)}
+                      disabled={isPending}
+                      data-testid={`button-approve-${request.id}`}
+                    >
+                      {approveMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                      <span className="sr-only sm:not-sr-only sm:ml-1">Accept</span>
+                    </Button>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Accept Connection</DialogTitle>
+            <DialogDescription>
+              {selectedRequest?.fromUser?.firstName} says they're{" "}
+              <span className="font-medium text-foreground">
+                {selectedRequest?.customLabel || RELATIONSHIP_LABELS[selectedRequest?.relationshipType || ""] || selectedRequest?.relationshipType}
+              </span>
+              . How would you describe your relationship to them?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="approver-relationship">I am their...</Label>
+              <Select
+                value={approverRelationship}
+                onValueChange={setApproverRelationship}
+              >
+                <SelectTrigger id="approver-relationship" data-testid="select-approver-relationship">
+                  <SelectValue placeholder="Select your relationship (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {APPROVER_RELATIONSHIP_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                You can have a different perspective on the relationship than they do.
+              </p>
+            </div>
+
+            {approverRelationship === "other" && (
+              <div className="space-y-2">
+                <Label htmlFor="approver-custom-label">Describe your relationship</Label>
+                <Input
+                  id="approver-custom-label"
+                  value={approverCustomLabel}
+                  onChange={(e) => setApproverCustomLabel(e.target.value)}
+                  placeholder="e.g., Family Friend, Godparent"
+                  maxLength={100}
+                  data-testid="input-approver-custom-label"
+                />
               </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setApprovalDialogOpen(false)}
+              data-testid="button-cancel-approval"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmApproval}
+              disabled={approveMutation.isPending}
+              data-testid="button-confirm-approval"
+            >
+              {approveMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Accept Connection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
