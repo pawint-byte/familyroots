@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import { PendingClaimsSection } from "@/components/pending-claims";
 import { PendingCustodianshipSection } from "@/components/pending-custodianship";
+import { PendingConnectionsSection } from "@/components/pending-connections";
 import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
@@ -66,6 +67,15 @@ export default function Dashboard() {
   const [settingsTreeId, setSettingsTreeId] = useState<string | null>(null);
   const [settingsTree, setSettingsTree] = useState<FamilyTreeWithCount | null>(null);
   const [settingsVisibility, setSettingsVisibility] = useState<"full" | "extended" | "limited">("extended");
+
+  // Check for pending profile redirect (from QR code scan before login)
+  useEffect(() => {
+    const pendingRedirect = localStorage.getItem("pendingProfileRedirect");
+    if (pendingRedirect && user) {
+      localStorage.removeItem("pendingProfileRedirect");
+      navigate(pendingRedirect);
+    }
+  }, [user, navigate]);
 
   const { data: trees, isLoading } = useQuery<FamilyTreeWithCount[]>({
     queryKey: ["/api/trees"],
@@ -501,6 +511,11 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Pending Family Connection Requests Section */}
+        <div className="mb-8">
+          <PendingConnectionsSection />
+        </div>
 
         {/* Pending Profile Claims Section */}
         <div className="mb-8">

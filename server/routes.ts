@@ -3884,15 +3884,41 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== USER-TO-USER CONNECTION REQUESTS (QR Code) ====================
+
   // Send a user-to-user connection request (from scanned QR code)
-  // This creates awareness between users - they can then collaborate on trees together
-  app.post("/api/connection-requests", isAuthenticated, async (req: any, res) => {
+  // Valid relationship types for user connections
+  const VALID_RELATIONSHIP_TYPES = [
+    "son", "daughter", "parent", "spouse", "sibling", 
+    "grandparent", "grandchild", "aunt", "uncle", "niece", "nephew",
+    "cousin", "in_law", "step_relative", "other"
+  ] as const;
+
+  // Now properly stores the request with relationship type
+  app.post("/api/user-connection-requests", isAuthenticated, async (req: any, res) => {
     try {
       const fromUserId = req.user.claims.sub;
-      const { targetUserId } = req.body;
+      const { targetUserId, relationshipType, customLabel, message } = req.body;
 
       if (!targetUserId) {
         return res.status(400).json({ message: "Target user ID is required" });
+      }
+
+      if (!relationshipType) {
+        return res.status(400).json({ message: "Relationship type is required" });
+      }
+
+      // Validate relationship type is one of the allowed values
+      if (!VALID_RELATIONSHIP_TYPES.includes(relationshipType)) {
+        return res.status(400).json({ message: "Invalid relationship type" });
+      }
+
+      // Validate custom label and message length
+      if (customLabel && customLabel.length > 100) {
+        return res.status(400).json({ message: "Custom label must be 100 characters or less" });
+      }
+      if (message && message.length > 500) {
+        return res.status(400).json({ message: "Message must be 500 characters or less" });
       }
 
       if (fromUserId === targetUserId) {
@@ -3905,26 +3931,229 @@ export async function registerRoutes(
         return res.status(404).json({ message: "User not found" });
       }
 
-      // Get sender info for the response
+      // Check if already connected
+      const existingConnection = await storage.getExistingUserConnection(fromUserId, targetUserId);
+      if (existingConnection) {
+        return res.status(400).json({ message: "You are already connected with this user" });
+      }
+
+      // Check if there's already a pending request
+      const existingRequest = await storage.getExistingUserConnectionRequest(fromUserId, targetUserId);
+      if (existingRequest) {
+        return res.status(400).json({ message: "You already have a pending connection request with this user" });
+      }
+
+      // Check if the other person has sent a request to this user
+      const reverseRequest = await storage.getExistingUserConnectionRequest(targetUserId, fromUserId);
+      if (reverseRequest) {
+        return res.status(400).json({ message: "This user has already sent you a connection request. Check your pending requests." });
+      }
+
+      // Create the connection request
+      const request = await storage.createUserConnectionRequest({
+        fromUserId,
+        toUserId: targetUserId,
+        relationshipType,
+        customLabel: relationshipType === "other" ? customLabel : null,
+        message,
+        sourceType: "qr_scan",
+      });
+
       const fromUser = await storage.getUser(fromUserId);
 
-      // Log the connection for tracking purposes
-      // Note: Full implementation would store in a user_connections table with approval workflow
-      console.log(`[Connection Request] From: ${fromUser?.firstName} ${fromUser?.lastName} (${fromUserId}) -> To: ${targetUser.firstName} ${targetUser.lastName} (${targetUserId})`);
+      console.log(`[User Connection Request] From: ${fromUser?.firstName} ${fromUser?.lastName} (${fromUserId}) -> To: ${targetUser.firstName} ${targetUser.lastName} (${targetUserId}) as "${relationshipType}"`);
 
-      // Return success with helpful next steps
       res.json({ 
         success: true, 
-        message: `Connection request noted! You can now invite ${targetUser.firstName} to collaborate on your family trees.`,
-        targetUser: {
-          firstName: targetUser.firstName,
-          lastName: targetUser.lastName,
-        }
+        request,
+        message: `Connection request sent to ${targetUser.firstName}! They will be notified to approve your connection.`,
       });
     } catch (error) {
-      console.error("Error sending connection request:", error);
+      console.error("Error sending user connection request:", error);
       res.status(500).json({ message: "Failed to send connection request" });
     }
+  });
+
+  // Get pending connection requests for the current user (requests they need to respond to)
+  app.get("/api/user-connection-requests/pending", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const requests = await storage.getPendingUserConnectionRequestsForUser(userId);
+
+      // Enrich with user info
+      const enrichedRequests = await Promise.all(
+        requests.map(async (request) => {
+          const fromUser = await storage.getUser(request.fromUserId);
+          return {
+            ...request,
+            fromUser: fromUser ? {
+              id: fromUser.id,
+              firstName: fromUser.firstName,
+              lastName: fromUser.lastName,
+              profileImageUrl: fromUser.profileImageUrl,
+            } : null,
+          };
+        })
+      );
+
+      res.json(enrichedRequests);
+    } catch (error) {
+      console.error("Error fetching pending connection requests:", error);
+      res.status(500).json({ message: "Failed to fetch pending requests" });
+    }
+  });
+
+  // Get sent connection requests for the current user
+  app.get("/api/user-connection-requests/sent", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const requests = await storage.getSentUserConnectionRequests(userId);
+
+      // Enrich with user info
+      const enrichedRequests = await Promise.all(
+        requests.map(async (request) => {
+          const toUser = await storage.getUser(request.toUserId);
+          return {
+            ...request,
+            toUser: toUser ? {
+              id: toUser.id,
+              firstName: toUser.firstName,
+              lastName: toUser.lastName,
+              profileImageUrl: toUser.profileImageUrl,
+            } : null,
+          };
+        })
+      );
+
+      res.json(enrichedRequests);
+    } catch (error) {
+      console.error("Error fetching sent connection requests:", error);
+      res.status(500).json({ message: "Failed to fetch sent requests" });
+    }
+  });
+
+  // Approve a user connection request
+  app.post("/api/user-connection-requests/:id/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const request = await storage.getUserConnectionRequest(id);
+      if (!request) {
+        return res.status(404).json({ message: "Connection request not found" });
+      }
+
+      if (request.toUserId !== userId) {
+        return res.status(403).json({ message: "You can only approve requests sent to you" });
+      }
+
+      if (request.status !== "pending") {
+        return res.status(400).json({ message: "This request has already been responded to" });
+      }
+
+      // Approve the request
+      const approved = await storage.approveUserConnectionRequest(id);
+
+      // Create the connection record (store users in consistent order for easier querying)
+      const [userId1, userId2] = [request.fromUserId, request.toUserId].sort();
+      
+      // Determine relationship perspectives
+      const isUser1Requester = userId1 === request.fromUserId;
+      
+      await storage.createUserConnection({
+        userId1,
+        userId2,
+        relationshipFromUser1: isUser1Requester ? request.relationshipType : null,
+        relationshipFromUser2: isUser1Requester ? null : request.relationshipType,
+        sourceRequestId: request.id,
+      });
+
+      const fromUser = await storage.getUser(request.fromUserId);
+
+      res.json({ 
+        success: true, 
+        request: approved,
+        message: `You are now connected with ${fromUser?.firstName}!`,
+      });
+    } catch (error) {
+      console.error("Error approving connection request:", error);
+      res.status(500).json({ message: "Failed to approve request" });
+    }
+  });
+
+  // Deny a user connection request
+  app.post("/api/user-connection-requests/:id/deny", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const request = await storage.getUserConnectionRequest(id);
+      if (!request) {
+        return res.status(404).json({ message: "Connection request not found" });
+      }
+
+      if (request.toUserId !== userId) {
+        return res.status(403).json({ message: "You can only deny requests sent to you" });
+      }
+
+      if (request.status !== "pending") {
+        return res.status(400).json({ message: "This request has already been responded to" });
+      }
+
+      const denied = await storage.denyUserConnectionRequest(id);
+
+      res.json({ 
+        success: true, 
+        request: denied,
+        message: "Connection request denied",
+      });
+    } catch (error) {
+      console.error("Error denying connection request:", error);
+      res.status(500).json({ message: "Failed to deny request" });
+    }
+  });
+
+  // Get user's connections
+  app.get("/api/user-connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const connections = await storage.getUserConnections(userId);
+
+      // Enrich with user info for the "other" user
+      const enrichedConnections = await Promise.all(
+        connections.map(async (conn) => {
+          const otherUserId = conn.userId1 === userId ? conn.userId2 : conn.userId1;
+          const otherUser = await storage.getUser(otherUserId);
+          const myRelationship = conn.userId1 === userId ? conn.relationshipFromUser1 : conn.relationshipFromUser2;
+          const theirRelationship = conn.userId1 === userId ? conn.relationshipFromUser2 : conn.relationshipFromUser1;
+          
+          return {
+            ...conn,
+            otherUser: otherUser ? {
+              id: otherUser.id,
+              firstName: otherUser.firstName,
+              lastName: otherUser.lastName,
+              profileImageUrl: otherUser.profileImageUrl,
+            } : null,
+            myRelationshipToThem: myRelationship,
+            theirRelationshipToMe: theirRelationship,
+          };
+        })
+      );
+
+      res.json(enrichedConnections);
+    } catch (error) {
+      console.error("Error fetching user connections:", error);
+      res.status(500).json({ message: "Failed to fetch connections" });
+    }
+  });
+
+  // Legacy endpoint - redirect to new endpoint
+  app.post("/api/connection-requests", isAuthenticated, async (req: any, res) => {
+    res.status(400).json({ 
+      message: "This endpoint has moved. Please use /api/user-connection-requests with relationshipType parameter.",
+      newEndpoint: "/api/user-connection-requests"
+    });
   });
 
   // ==================== CONNECTION REQUESTS ROUTES ====================

@@ -3,7 +3,7 @@ import {
   treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
-  giftRegistries, giftRegistryItems,
+  giftRegistries, giftRegistryItems, userConnectionRequests, userConnections,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -27,6 +27,8 @@ import {
   type FamilySearchSource, type InsertFamilySearchSource,
   type GiftRegistry, type InsertGiftRegistry,
   type GiftRegistryItem, type InsertGiftRegistryItem,
+  type UserConnectionRequest, type InsertUserConnectionRequest,
+  type UserConnection, type InsertUserConnection,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -215,6 +217,20 @@ export interface IStorage {
   updateGiftRegistryItem(id: string, data: Partial<InsertGiftRegistryItem>): Promise<GiftRegistryItem | undefined>;
   deleteGiftRegistryItem(id: string): Promise<boolean>;
   markItemPurchased(itemId: string, userId: string, quantity: number): Promise<GiftRegistryItem | undefined>;
+
+  // User Connection Requests (QR code connections)
+  createUserConnectionRequest(request: InsertUserConnectionRequest): Promise<UserConnectionRequest>;
+  getUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined>;
+  getPendingUserConnectionRequestsForUser(toUserId: string): Promise<UserConnectionRequest[]>;
+  getSentUserConnectionRequests(fromUserId: string): Promise<UserConnectionRequest[]>;
+  getExistingUserConnectionRequest(fromUserId: string, toUserId: string): Promise<UserConnectionRequest | undefined>;
+  approveUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined>;
+  denyUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined>;
+
+  // User Connections (approved connections)
+  getUserConnections(userId: string): Promise<UserConnection[]>;
+  getExistingUserConnection(userId1: string, userId2: string): Promise<UserConnection | undefined>;
+  createUserConnection(connection: InsertUserConnection): Promise<UserConnection>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1365,6 +1381,83 @@ export class DatabaseStorage implements IStorage {
       .where(eq(giftRegistryItems.id, itemId))
       .returning();
     return updated;
+  }
+
+  // User Connection Requests (QR code connections)
+  async createUserConnectionRequest(request: InsertUserConnectionRequest): Promise<UserConnectionRequest> {
+    const [created] = await db.insert(userConnectionRequests).values(request).returning();
+    return created;
+  }
+
+  async getUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined> {
+    const [request] = await db.select().from(userConnectionRequests).where(eq(userConnectionRequests.id, id));
+    return request;
+  }
+
+  async getPendingUserConnectionRequestsForUser(toUserId: string): Promise<UserConnectionRequest[]> {
+    return db.select().from(userConnectionRequests)
+      .where(and(
+        eq(userConnectionRequests.toUserId, toUserId),
+        eq(userConnectionRequests.status, "pending")
+      ))
+      .orderBy(desc(userConnectionRequests.createdAt));
+  }
+
+  async getSentUserConnectionRequests(fromUserId: string): Promise<UserConnectionRequest[]> {
+    return db.select().from(userConnectionRequests)
+      .where(eq(userConnectionRequests.fromUserId, fromUserId))
+      .orderBy(desc(userConnectionRequests.createdAt));
+  }
+
+  async getExistingUserConnectionRequest(fromUserId: string, toUserId: string): Promise<UserConnectionRequest | undefined> {
+    const [request] = await db.select().from(userConnectionRequests)
+      .where(and(
+        eq(userConnectionRequests.fromUserId, fromUserId),
+        eq(userConnectionRequests.toUserId, toUserId),
+        eq(userConnectionRequests.status, "pending")
+      ));
+    return request;
+  }
+
+  async approveUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined> {
+    const [updated] = await db.update(userConnectionRequests)
+      .set({ status: "approved", respondedAt: new Date() })
+      .where(eq(userConnectionRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async denyUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined> {
+    const [updated] = await db.update(userConnectionRequests)
+      .set({ status: "denied", respondedAt: new Date() })
+      .where(eq(userConnectionRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  // User Connections (approved connections)
+  async getUserConnections(userId: string): Promise<UserConnection[]> {
+    return db.select().from(userConnections)
+      .where(or(
+        eq(userConnections.userId1, userId),
+        eq(userConnections.userId2, userId)
+      ))
+      .orderBy(desc(userConnections.connectedAt));
+  }
+
+  async getExistingUserConnection(userId1: string, userId2: string): Promise<UserConnection | undefined> {
+    // Check both directions since connection is bidirectional
+    const [connection] = await db.select().from(userConnections)
+      .where(or(
+        and(eq(userConnections.userId1, userId1), eq(userConnections.userId2, userId2)),
+        and(eq(userConnections.userId1, userId2), eq(userConnections.userId2, userId1))
+      ));
+    return connection;
+  }
+
+  async createUserConnection(connection: InsertUserConnection): Promise<UserConnection> {
+    const [created] = await db.insert(userConnections).values(connection).returning();
+    return created;
   }
 }
 

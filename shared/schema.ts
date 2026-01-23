@@ -37,6 +37,13 @@ export const specialConnectionTypeEnum = pgEnum("special_connection_type", [
 // Connection request status
 export const connectionRequestStatusEnum = pgEnum("connection_request_status", ["pending", "approved", "denied", "expired"]);
 
+// User relationship type enum (for QR code connections - how the requester is related to the target)
+export const userRelationshipTypeEnum = pgEnum("user_relationship_type", [
+  "son", "daughter", "parent", "spouse", "sibling", 
+  "grandparent", "grandchild", "aunt", "uncle", "niece", "nephew",
+  "cousin", "in_law", "step_relative", "other"
+]);
+
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -788,6 +795,42 @@ export const insertGiftRegistryItemSchema = createInsertSchema(giftRegistryItems
   updatedAt: true,
 });
 
+// User-to-User Connection Requests table (for QR code scans and direct user connections)
+// Separate from cross-tree special connections - this connects user accounts
+export const userConnectionRequests = pgTable("user_connection_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromUserId: varchar("from_user_id").notNull(), // User sending the request
+  toUserId: varchar("to_user_id").notNull(), // User receiving the request
+  relationshipType: userRelationshipTypeEnum("relationship_type").notNull(), // How requester is related to target
+  customLabel: text("custom_label"), // If "other" is selected, custom description
+  message: text("message"), // Optional message with the request
+  status: connectionRequestStatusEnum("status").default("pending").notNull(),
+  respondedAt: timestamp("responded_at"),
+  sourceType: text("source_type").default("qr_scan"), // How they connected: qr_scan, manual, invite
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserConnectionRequestSchema = createInsertSchema(userConnectionRequests).omit({
+  id: true,
+  createdAt: true,
+});
+
+// User Connections table (approved connections between users)
+export const userConnections = pgTable("user_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId1: varchar("user_id_1").notNull(), // One user (stored in consistent order)
+  userId2: varchar("user_id_2").notNull(), // Other user
+  relationshipFromUser1: userRelationshipTypeEnum("relationship_from_user_1"), // How user1 is related to user2
+  relationshipFromUser2: userRelationshipTypeEnum("relationship_from_user_2"), // How user2 is related to user1
+  connectedAt: timestamp("connected_at").defaultNow().notNull(),
+  sourceRequestId: varchar("source_request_id"), // The request that created this connection
+});
+
+export const insertUserConnectionSchema = createInsertSchema(userConnections).omit({
+  id: true,
+  connectedAt: true,
+});
+
 // Types
 export type FamilyTree = typeof familyTrees.$inferSelect;
 export type InsertFamilyTree = z.infer<typeof insertFamilyTreeSchema>;
@@ -854,3 +897,9 @@ export type InsertGiftRegistry = z.infer<typeof insertGiftRegistrySchema>;
 
 export type GiftRegistryItem = typeof giftRegistryItems.$inferSelect;
 export type InsertGiftRegistryItem = z.infer<typeof insertGiftRegistryItemSchema>;
+
+export type UserConnectionRequest = typeof userConnectionRequests.$inferSelect;
+export type InsertUserConnectionRequest = z.infer<typeof insertUserConnectionRequestSchema>;
+
+export type UserConnection = typeof userConnections.$inferSelect;
+export type InsertUserConnection = z.infer<typeof insertUserConnectionSchema>;

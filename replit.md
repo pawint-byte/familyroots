@@ -56,7 +56,11 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
 - **Tree Export**: Users can export their family tree visualization as a high-resolution PNG image with theme-aware backgrounds (white for light mode, dark for dark mode) using html-to-image library.
 - **Custom Merchandise (Print-on-Demand)**: Users can order custom products (mugs, t-shirts, posters, pillows, tote bags) with their family tree printed on them via Printful integration. Features include product catalog, variant selection (size/color), Stripe checkout for payment, and order tracking. Commission is added to orders for revenue.
 - **QR Code Sharing**: A share page (/share) displays a scannable QR code linking to the app, with options to copy the URL, download the QR code as PNG, or use the native share dialog on mobile devices.
-- **Personal Profile QR Codes**: Each user has a unique QR code (/my-qr) linking to their public profile (/profile/:userId). Designed for family reunions and face-to-face meetings where family members can scan each other's codes to quickly connect and collaborate on family trees. Features include: download QR as PNG, share via native share dialog, copy profile link, and send connection requests from scanned profiles.
+- **Personal Profile QR Codes**: Each user has a unique QR code (/my-qr) linking to their public profile (/profile/:userId). Designed for family reunions and face-to-face meetings where family members can scan each other's codes to quickly connect and collaborate on family trees. Features include: download QR as PNG, share via native share dialog, copy profile link. Enhanced connection flow:
+  - When scanning a QR code, users specify their relationship (son, daughter, parent, spouse, sibling, grandparent, grandchild, aunt, uncle, niece, nephew, cousin, in-law, step-relative)
+  - If not logged in, users are automatically redirected back to the scanned profile after signing up
+  - Connection requests appear on the target user's dashboard with relationship information for approval
+  - Database tables: userConnectionRequests (pending requests with relationship), userConnections (approved connections)
 - **Tiered Subscription Discounts**: Subscription pricing with automatic discounts based on total family members across all trees:
   - 0-24 members: $9.99/month (base price)
   - 25-49 members: $7.49/month (25% off)

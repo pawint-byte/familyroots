@@ -1,10 +1,16 @@
+import { useState, useEffect } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, TreeDeciduous, UserPlus, Users, Mail, Calendar, Loader2, QrCode, ExternalLink } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, TreeDeciduous, UserPlus, Users, Calendar, Loader2, QrCode, Heart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
@@ -20,12 +26,42 @@ interface PublicProfile {
   totalMembers: number;
 }
 
+const RELATIONSHIP_OPTIONS = [
+  { value: "son", label: "Their Son" },
+  { value: "daughter", label: "Their Daughter" },
+  { value: "parent", label: "Their Parent" },
+  { value: "spouse", label: "Their Spouse" },
+  { value: "sibling", label: "Their Sibling" },
+  { value: "grandparent", label: "Their Grandparent" },
+  { value: "grandchild", label: "Their Grandchild" },
+  { value: "aunt", label: "Their Aunt" },
+  { value: "uncle", label: "Their Uncle" },
+  { value: "niece", label: "Their Niece" },
+  { value: "nephew", label: "Their Nephew" },
+  { value: "cousin", label: "Their Cousin" },
+  { value: "in_law", label: "Their In-Law" },
+  { value: "step_relative", label: "Their Step-Relative" },
+  { value: "other", label: "Other Relationship" },
+];
+
 export default function PublicProfilePage() {
   const [, params] = useRoute("/profile/:userId");
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { user: currentUser, isLoading: authLoading } = useAuth();
   const userId = params?.userId;
+
+  const [showConnectionDialog, setShowConnectionDialog] = useState(false);
+  const [relationshipType, setRelationshipType] = useState("");
+  const [customLabel, setCustomLabel] = useState("");
+  const [message, setMessage] = useState("");
+
+  // Store this profile URL for redirect after login
+  useEffect(() => {
+    if (userId && !currentUser && !authLoading) {
+      localStorage.setItem("pendingProfileRedirect", `/profile/${userId}`);
+    }
+  }, [userId, currentUser, authLoading]);
 
   const { data: profile, isLoading, error } = useQuery<PublicProfile>({
     queryKey: ['/api/users', userId, 'public'],
@@ -38,11 +74,16 @@ export default function PublicProfilePage() {
   });
 
   const sendConnectionRequest = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/connection-requests', {
+    mutationFn: async (data: { relationshipType: string; customLabel?: string; message?: string }) => {
+      const res = await fetch('/api/user-connection-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId: userId }),
+        body: JSON.stringify({ 
+          targetUserId: userId,
+          relationshipType: data.relationshipType,
+          customLabel: data.customLabel,
+          message: data.message,
+        }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -53,9 +94,13 @@ export default function PublicProfilePage() {
     onSuccess: () => {
       toast({
         title: "Connection Request Sent!",
-        description: `Your request to connect with ${profile?.firstName} has been sent.`,
+        description: `Your request to connect with ${profile?.firstName} has been sent. They'll be notified to approve it.`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/connection-requests'] });
+      setShowConnectionDialog(false);
+      setRelationshipType("");
+      setCustomLabel("");
+      setMessage("");
+      queryClient.invalidateQueries({ queryKey: ['/api/user-connection-requests'] });
     },
     onError: (error: Error) => {
       toast({
@@ -65,6 +110,23 @@ export default function PublicProfilePage() {
       });
     },
   });
+
+  const handleSendRequest = () => {
+    if (!relationshipType) {
+      toast({
+        title: "Select Relationship",
+        description: "Please select how you're related to this person",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    sendConnectionRequest.mutate({
+      relationshipType,
+      customLabel: relationshipType === "other" ? customLabel : undefined,
+      message: message || undefined,
+    });
+  };
 
   if (isLoading || authLoading) {
     return (
@@ -191,19 +253,14 @@ export default function PublicProfilePage() {
               <div className="space-y-3">
                 <Button 
                   className="w-full" 
-                  onClick={() => sendConnectionRequest.mutate()}
-                  disabled={sendConnectionRequest.isPending}
+                  onClick={() => setShowConnectionDialog(true)}
                   data-testid="button-send-connection"
                 >
-                  {sendConnectionRequest.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <UserPlus className="h-4 w-4 mr-2" />
-                  )}
-                  Send Connection Request
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Connect with {profile.firstName}
                 </Button>
                 <p className="text-xs text-center text-muted-foreground">
-                  Connect to collaborate on family trees together
+                  Tell {profile.firstName} how you're related to collaborate on family trees together
                 </p>
               </div>
             ) : (
@@ -236,11 +293,92 @@ export default function PublicProfilePage() {
         <div className="mt-6 text-center">
           <Link href="/">
             <Button variant="ghost" className="text-muted-foreground" data-testid="link-learn-more">
-              Learn more about FamilyRoots →
+              Learn more about FamilyRoots
             </Button>
           </Link>
         </div>
       </main>
+
+      {/* Connection Request Dialog */}
+      <Dialog open={showConnectionDialog} onOpenChange={setShowConnectionDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Heart className="h-5 w-5 text-primary" />
+              Connect with {profile.firstName}
+            </DialogTitle>
+            <DialogDescription>
+              Tell {profile.firstName} how you're related so they can add you to their family tree.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="relationship">I am {profile.firstName}'s...</Label>
+              <Select value={relationshipType} onValueChange={setRelationshipType}>
+                <SelectTrigger id="relationship" data-testid="select-relationship">
+                  <SelectValue placeholder="Select your relationship" />
+                </SelectTrigger>
+                <SelectContent>
+                  {RELATIONSHIP_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {relationshipType === "other" && (
+              <div className="space-y-2">
+                <Label htmlFor="customLabel">Describe your relationship</Label>
+                <Input
+                  id="customLabel"
+                  placeholder="e.g., Family friend, Godchild..."
+                  value={customLabel}
+                  onChange={(e) => setCustomLabel(e.target.value)}
+                  data-testid="input-custom-label"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="message">Add a message (optional)</Label>
+              <Textarea
+                id="message"
+                placeholder={`Hi ${profile.firstName}, it was great seeing you at the reunion!`}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="resize-none"
+                rows={3}
+                data-testid="input-message"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowConnectionDialog(false)}
+              data-testid="button-cancel-connection"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendRequest}
+              disabled={!relationshipType || sendConnectionRequest.isPending}
+              data-testid="button-confirm-connection"
+            >
+              {sendConnectionRequest.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-2" />
+              )}
+              Send Connection Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
