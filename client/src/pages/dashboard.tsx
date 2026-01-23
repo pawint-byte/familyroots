@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
+import { PendingClaimsSection } from "@/components/pending-claims";
 import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
@@ -442,6 +443,11 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Pending Profile Claims Section */}
+        <div className="mb-8">
+          <PendingClaimsSection />
+        </div>
 
         {isLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">

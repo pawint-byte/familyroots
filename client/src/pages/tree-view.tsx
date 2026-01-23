@@ -40,6 +40,7 @@ import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import TimelineView from "@/components/timeline-view";
 import { RelationshipDisplay, FocusMemberSelector } from "@/components/relationship-display";
 import { AddRelationship } from "@/components/add-relationship";
+import { ProfileClaimSection } from "@/components/profile-claim-section";
 
 interface TreeData {
   tree: FamilyTree;
@@ -845,6 +846,12 @@ export default function TreeView() {
                 <MemberDiscoverability 
                   member={selectedMember} 
                   canEdit={canEdit}
+                />
+
+                {/* Profile Claim Section */}
+                <ProfileClaimSection 
+                  member={selectedMember}
+                  isOwner={treeData?.tree.ownerId === user?.id}
                 />
 
                 {/* Add Relationship Button */}
