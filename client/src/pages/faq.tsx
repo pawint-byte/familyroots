@@ -307,6 +307,22 @@ export default function FAQ() {
         {
           question: "Can I find family members when I travel?",
           answer: <>Yes! Visit the <Link href="/network" className="text-primary hover:underline font-medium">Network page</Link> and search by city, state, or country. You'll see family members who have chosen to share their location. This makes it easy to meet up with relatives when you're traveling.</>
+        },
+        {
+          question: "Can I install FamilyRoots as a mobile app?",
+          answer: <>Yes! FamilyRoots is a Progressive Web App (PWA) that you can install on your phone or tablet for a native app-like experience. On iPhone/iPad: Open FamilyRoots in Safari, tap the Share button, then 'Add to Home Screen'. On Android: Open in Chrome, tap the menu (three dots), then 'Add to Home Screen' or 'Install App'. Once installed, you'll have a FamilyRoots icon on your home screen that opens the app in full-screen mode - just like a regular app!</>
+        },
+        {
+          question: "What are the benefits of installing the mobile app?",
+          answer: "Installing FamilyRoots as a mobile app gives you: faster loading times with offline caching, a full-screen experience without browser bars, easy access from your home screen, and push notification support. It's completely free and takes just seconds to install - no app store required!"
+        },
+        {
+          question: "How do I share FamilyRoots with family members?",
+          answer: <>Visit the <Link href="/share" className="text-primary hover:underline font-medium">Share page</Link> to get a QR code that links directly to FamilyRoots. Family members can scan the code with their phone camera to instantly open the app. You can also copy the link, download the QR code as an image, or use your device's native share feature to send via text, email, or social media.</>
+        },
+        {
+          question: "How do I use the QR code sharing feature?",
+          answer: <>Go to the <Link href="/share" className="text-primary hover:underline font-medium">Share page</Link> and you'll see a scannable QR code. You can: 1) Show it to family members to scan with their phone, 2) Click 'Download QR Code' to save it as an image for printing or sharing, 3) Click 'Copy Link' to paste the URL in messages, or 4) Use the 'Share' button to send via your phone's share menu. The QR code is perfect for family reunions, printed invitations, or holiday cards!</>
         }
       ]
     },
