@@ -4413,13 +4413,19 @@ export async function registerRoutes(
     try {
       const urlObj = new URL(url);
       
-      // Amazon affiliate tracking
+      // Amazon affiliate tracking (Amazon Associates ID: pawint-20)
       if (urlObj.hostname.includes('amazon.com') || urlObj.hostname.includes('amzn.to')) {
         urlObj.searchParams.set('tag', 'pawint-20');
         return urlObj.toString();
       }
       
-      // Return unchanged for other URLs (can add more affiliate programs later)
+      // Etsy affiliate tracking via Awin (Publisher ID: 2735710)
+      if (urlObj.hostname.includes('etsy.com')) {
+        const encodedUrl = encodeURIComponent(url);
+        return `https://www.awin1.com/cread.php?awinmid=6220&awinaffid=2735710&ued=${encodedUrl}`;
+      }
+      
+      // Return unchanged for other URLs
       return url;
     } catch {
       return url;
