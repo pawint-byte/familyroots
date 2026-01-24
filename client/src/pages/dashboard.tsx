@@ -47,6 +47,7 @@ export default function Dashboard() {
   const [settingsTreeId, setSettingsTreeId] = useState<string | null>(null);
   const [settingsTree, setSettingsTree] = useState<FamilyTreeWithCount | null>(null);
   const [settingsVisibility, setSettingsVisibility] = useState<"full" | "extended" | "limited">("extended");
+  const [settingsPrivacy, setSettingsPrivacy] = useState<"private" | "public">("private");
   const [pendingConnectionInfo, setPendingConnectionInfo] = useState<{ userId: string; redirectUrl: string } | null>(null);
   const [showPaymentGate, setShowPaymentGate] = useState(false);
   const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit: number; current: number }>({ limit: 1, current: 1 });
@@ -178,8 +179,8 @@ export default function Dashboard() {
   });
 
   const updateTreeSettingsMutation = useMutation({
-    mutationFn: async ({ id, visibilityDefault }: { id: string; visibilityDefault: string }) => {
-      return apiRequest("PATCH", `/api/trees/${id}`, { visibilityDefault });
+    mutationFn: async ({ id, visibilityDefault, privacy }: { id: string; visibilityDefault: string; privacy: string }) => {
+      return apiRequest("PATCH", `/api/trees/${id}`, { visibilityDefault, privacy });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
@@ -204,11 +205,12 @@ export default function Dashboard() {
     setSettingsTreeId(tree.id);
     setSettingsTree(tree);
     setSettingsVisibility((tree.visibilityDefault as "full" | "extended" | "limited") || "extended");
+    setSettingsPrivacy((tree.privacy as "private" | "public") || "private");
   };
 
   const handleSettingsSubmit = () => {
     if (settingsTreeId) {
-      updateTreeSettingsMutation.mutate({ id: settingsTreeId, visibilityDefault: settingsVisibility });
+      updateTreeSettingsMutation.mutate({ id: settingsTreeId, visibilityDefault: settingsVisibility, privacy: settingsPrivacy });
     }
   };
 
@@ -635,7 +637,7 @@ export default function Dashboard() {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" data-testid={`button-tree-menu-${tree.id}`}>
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -787,7 +789,41 @@ export default function Dashboard() {
             <DialogTitle className="font-serif">Privacy Settings</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 pt-4">
-            <div className="space-y-2">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-base font-medium">Tree Privacy</Label>
+                <p className="text-sm text-muted-foreground">
+                  Control who can discover and view your family tree.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={settingsPrivacy === "private" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setSettingsPrivacy("private")}
+                  data-testid="button-privacy-private"
+                >
+                  Private
+                </Button>
+                <Button
+                  type="button"
+                  variant={settingsPrivacy === "public" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setSettingsPrivacy("public")}
+                  data-testid="button-privacy-public"
+                >
+                  Public
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {settingsPrivacy === "private" 
+                  ? "Only you and invited collaborators can see this tree."
+                  : "Anyone with the link can view this tree (based on visibility settings below)."}
+              </p>
+            </div>
+
+            <div className="border-t pt-4 space-y-2">
               <Label className="text-base font-medium">Default Visibility for Non-Immediate Family</Label>
               <p className="text-sm text-muted-foreground">
                 Control how much information is visible to people outside immediate family (parents, siblings, children, spouse).
