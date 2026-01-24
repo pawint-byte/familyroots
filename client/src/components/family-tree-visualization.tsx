@@ -249,17 +249,10 @@ export default function FamilyTreeVisualization({
     });
     const allChildren = Array.from(new Set([...children, ...spouseChildren]));
     
-    // Track positioned spouses count for proper centering
-    const positionedSpousesCount = spouses.filter(sId => members.find(m => m.id === sId)).length;
-    
     if (allChildren.length > 0) {
       const childY = centerY + verticalGap + nodeHeight;
-      // Center children between focus and spouse(s) for better visual balance
-      // Use actual positioned spouses count to ensure layout matches line drawing
-      const coupleCenter = positionedSpousesCount > 0 
-        ? centerX + (positionedSpousesCount * (nodeWidth + horizontalGap)) / 2 
-        : centerX;
-      const childStartX = coupleCenter - ((allChildren.length - 1) * (nodeWidth + horizontalGap)) / 2;
+      // Center children around the focus member
+      const childStartX = centerX - ((allChildren.length - 1) * (nodeWidth + horizontalGap)) / 2;
       
       labels.push({ x: centerX, y: childY - 40, text: 'Children', type: 'child' });
       
@@ -403,55 +396,35 @@ export default function FamilyTreeVisualization({
       }
     });
 
-    // Draw lines to children - check focus member and their spouses for children
-    const focusPos = positions.find(p => p.branchType === 'focus');
-    const spousePositions = positions.filter(p => p.branchType === 'spouse');
-    
-    if (focusPos) {
-      // Get all children from focus and all spouses
-      const focusChildren = parentChildMap.get(focusPos.member.id) || [];
-      const allSpouseChildren: string[] = [];
-      spousePositions.forEach(sp => {
-        const sChildren = parentChildMap.get(sp.member.id) || [];
-        sChildren.forEach(cId => {
-          if (!focusChildren.includes(cId) && !allSpouseChildren.includes(cId)) {
-            allSpouseChildren.push(cId);
+    // Draw lines from each parent (focus and spouses) to their children
+    // Each parent gets their own connecting lines to their children
+    positions.forEach((pos) => {
+      if (pos.branchType === 'focus' || pos.branchType === 'spouse' || pos.branchType === 'child') {
+        const children = parentChildMap.get(pos.member.id) || [];
+        children.forEach(childId => {
+          const childPos = positionMap.get(childId);
+          if (childPos && (childPos.branchType === 'child' || childPos.branchType === 'grandchild')) {
+            const fromX = pos.x + nodeWidth / 2;
+            const fromY = pos.y + nodeHeight;
+            const toX = childPos.x + nodeWidth / 2;
+            const toY = childPos.y;
+            
+            lines.push(
+              <path
+                key={`child-${pos.member.id}-${childId}`}
+                d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+                stroke={BRANCH_COLORS.child.line}
+                strokeWidth="3"
+                fill="none"
+                strokeLinecap="round"
+                opacity="0.7"
+                className="transition-all duration-300"
+              />
+            );
           }
         });
-      });
-      const allChildIds = Array.from(new Set([...focusChildren, ...allSpouseChildren]));
-      
-      // Calculate the center point between focus and all spouses
-      // This matches the layout calculation for consistency
-      let fromX = focusPos.x + nodeWidth / 2;
-      if (spousePositions.length > 0) {
-        // Find the rightmost spouse position to calculate true center
-        const rightmostSpouse = spousePositions.reduce((max, sp) => sp.x > max.x ? sp : max, spousePositions[0]);
-        fromX = (focusPos.x + rightmostSpouse.x + nodeWidth) / 2;
       }
-      const fromY = focusPos.y + nodeHeight;
-      
-      allChildIds.forEach(childId => {
-        const childPos = positionMap.get(childId);
-        if (childPos && (childPos.branchType === 'child' || childPos.branchType === 'grandchild')) {
-          const toX = childPos.x + nodeWidth / 2;
-          const toY = childPos.y;
-          
-          lines.push(
-            <path
-              key={`child-focus-${childId}`}
-              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-              stroke={BRANCH_COLORS.child.line}
-              strokeWidth="3"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.7"
-              className="transition-all duration-300"
-            />
-          );
-        }
-      });
-    }
+    });
     
     // Draw lines from child nodes to their grandchildren
     positions.forEach((pos) => {
