@@ -396,35 +396,32 @@ export default function FamilyTreeVisualization({
       }
     });
 
-    // Draw lines from each parent (focus and spouses) to their children
-    // Each parent gets their own connecting lines to their children
-    positions.forEach((pos) => {
-      if (pos.branchType === 'focus' || pos.branchType === 'spouse' || pos.branchType === 'child') {
-        const children = parentChildMap.get(pos.member.id) || [];
-        children.forEach(childId => {
-          const childPos = positionMap.get(childId);
-          if (childPos && (childPos.branchType === 'child' || childPos.branchType === 'grandchild')) {
-            const fromX = pos.x + nodeWidth / 2;
-            const fromY = pos.y + nodeHeight;
-            const toX = childPos.x + nodeWidth / 2;
-            const toY = childPos.y;
-            
-            lines.push(
-              <path
-                key={`child-${pos.member.id}-${childId}`}
-                d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-                stroke={BRANCH_COLORS.child.line}
-                strokeWidth="3"
-                fill="none"
-                strokeLinecap="round"
-                opacity="0.7"
-                className="transition-all duration-300"
-              />
-            );
-          }
-        });
-      }
-    });
+    // Draw lines from focus to children positioned below
+    const focusPosition = positions.find(p => p.branchType === 'focus');
+    if (focusPosition) {
+      // Find all children that are positioned below the focus
+      const childPositions = positions.filter(p => p.branchType === 'child');
+      
+      childPositions.forEach(childPos => {
+        const fromX = focusPosition.x + nodeWidth / 2;
+        const fromY = focusPosition.y + nodeHeight;
+        const toX = childPos.x + nodeWidth / 2;
+        const toY = childPos.y;
+        
+        lines.push(
+          <path
+            key={`focus-to-child-${childPos.member.id}`}
+            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+            stroke={BRANCH_COLORS.child.line}
+            strokeWidth="3"
+            fill="none"
+            strokeLinecap="round"
+            opacity="0.7"
+            className="transition-all duration-300"
+          />
+        );
+      });
+    }
     
     // Draw lines from child nodes to their grandchildren
     positions.forEach((pos) => {
