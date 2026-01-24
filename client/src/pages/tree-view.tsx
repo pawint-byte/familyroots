@@ -45,6 +45,7 @@ import { ProfileClaimSection } from "@/components/profile-claim-section";
 import { LifeEventsSection } from "@/components/life-events-section";
 import { CustodianshipSection } from "@/components/custodianship-section";
 import { SpecialConnectionsSection, LocationSection } from "@/components/special-connections";
+import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 
 interface TreeData {
   tree: FamilyTree;
@@ -68,6 +69,8 @@ export default function TreeView() {
   const [newTreeName, setNewTreeName] = useState("");
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
+  const [showPaymentGate, setShowPaymentGate] = useState(false);
+  const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit: number; current: number }>({ limit: 20, current: 20 });
   const [isExporting, setIsExporting] = useState(false);
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -117,7 +120,20 @@ export default function TreeView() {
 
   const addMemberMutation = useMutation({
     mutationFn: async (data: InsertFamilyMember & { createParentPlaceholders?: boolean }) => {
-      return apiRequest("POST", `/api/trees/${treeId}/members`, data);
+      const res = await fetch(`/api/trees/${treeId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        if (res.status === 402 && errorData.code === "FREE_TIER_MEMBER_LIMIT") {
+          throw { isPaymentGate: true, ...errorData };
+        }
+        throw new Error(errorData.message || "Failed to add member");
+      }
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
@@ -127,12 +143,18 @@ export default function TreeView() {
         description: "Family member added successfully!",
       });
     },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to add family member",
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      if (error.isPaymentGate) {
+        setIsAddMemberOpen(false);
+        setPaymentGateInfo({ limit: error.limit, current: error.current });
+        setShowPaymentGate(true);
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to add family member",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -1049,6 +1071,14 @@ export default function TreeView() {
           <MatchRequests treeId={treeData.tree.id} canEdit={canEditTree} />
         </div>
       )}
+
+      <PaymentGateDialog
+        open={showPaymentGate}
+        onOpenChange={setShowPaymentGate}
+        type="member"
+        limit={paymentGateInfo.limit}
+        current={paymentGateInfo.current}
+      />
     </div>
   );
 }

@@ -271,6 +271,27 @@ export async function registerRoutes(
   app.post("/api/trees", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      
+      // Check free tier limits: 1 tree without subscription
+      const user = await storage.getUser(userId);
+      let hasActiveSubscription = false;
+      if (user?.stripeCustomerId) {
+        const subscription = await stripeService.getCustomerSubscription(user.stripeCustomerId);
+        hasActiveSubscription = subscription !== null;
+      }
+      
+      if (!hasActiveSubscription) {
+        const existingTrees = await storage.getTrees(userId);
+        if (existingTrees.length >= 1) {
+          return res.status(402).json({ 
+            message: "Free tier limit reached. Subscribe to create more family trees.",
+            code: "FREE_TIER_TREE_LIMIT",
+            limit: 1,
+            current: existingTrees.length
+          });
+        }
+      }
+      
       const data = insertFamilyTreeSchema.parse({ ...req.body, ownerId: userId });
       const tree = await storage.createTree(data);
       res.status(201).json(tree);
@@ -360,6 +381,26 @@ export async function registerRoutes(
         const canEdit = collaborators.some(c => c.userId === userId && c.canEdit);
         if (!canEdit) {
           return res.status(403).json({ message: "Access denied" });
+        }
+      }
+      
+      // Check free tier limits: 20 members per tree without subscription
+      const treeOwner = await storage.getUser(tree.ownerId);
+      let ownerHasSubscription = false;
+      if (treeOwner?.stripeCustomerId) {
+        const subscription = await stripeService.getCustomerSubscription(treeOwner.stripeCustomerId);
+        ownerHasSubscription = subscription !== null;
+      }
+      
+      if (!ownerHasSubscription) {
+        const existingMembers = await storage.getMembers(treeId);
+        if (existingMembers.length >= 20) {
+          return res.status(402).json({ 
+            message: "Free tier limit reached. The tree owner needs to subscribe to add more family members.",
+            code: "FREE_TIER_MEMBER_LIMIT",
+            limit: 20,
+            current: existingMembers.length
+          });
         }
       }
 
