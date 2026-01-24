@@ -3535,7 +3535,6 @@ export async function registerRoutes(
   // List of admin emails - only these users can access admin routes
   const ADMIN_EMAILS = [
     "pawint@me.com",
-    "andrew.wint@gmail.com",
   ];
 
   // Admin middleware - checks if user email is in admin list
