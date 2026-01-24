@@ -2901,12 +2901,29 @@ export async function registerRoutes(
         }
       }
 
-      // Check if user is owner or co-owner of tree2
-      if (tree2.ownerId !== userId) {
+      // Check if user can connect to tree2:
+      // Either they own/co-own tree2, OR they are connected (user-to-user) with tree2's owner
+      let canConnectToTree2 = false;
+      
+      if (tree2.ownerId === userId) {
+        canConnectToTree2 = true;
+      } else {
         const collab = await storage.getCollaboratorByUserAndTree(userId, targetTreeId);
-        if (!collab || collab.role !== "co_owner") {
-          return res.status(403).json({ message: "You must be an owner of both trees to connect them" });
+        if (collab && collab.role === "co_owner") {
+          canConnectToTree2 = true;
+        } else {
+          // Check if user is connected (user-to-user) with the tree2 owner
+          const userConnection = await storage.getExistingUserConnection(userId, tree2.ownerId);
+          if (userConnection) {
+            canConnectToTree2 = true;
+          }
         }
+      }
+      
+      if (!canConnectToTree2) {
+        return res.status(403).json({ 
+          message: "You must be connected with the tree owner to link your trees. Send a connection request first." 
+        });
       }
 
       // Create the connection
@@ -2919,30 +2936,61 @@ export async function registerRoutes(
         createdBy: userId,
       });
 
-      // Make both owners co-owners of each other's trees
-      if (tree1.ownerId !== tree2.ownerId) {
-        // Add tree1 owner as co-owner of tree2
-        const existing1 = await storage.getCollaboratorByUserAndTree(tree1.ownerId, targetTreeId);
-        if (!existing1) {
-          await storage.addCollaborator({
-            treeId: targetTreeId,
-            userId: tree1.ownerId,
-            role: "co_owner",
-            canEdit: true,
-            acceptedAt: new Date(),
-          });
-        }
+      // Determine if user owns/co-owns both trees (for granting edit access)
+      const userOwnsBothTrees = (tree1.ownerId === userId || 
+        (await storage.getCollaboratorByUserAndTree(userId, treeId))?.role === "co_owner") &&
+        (tree2.ownerId === userId || 
+        (await storage.getCollaboratorByUserAndTree(userId, targetTreeId))?.role === "co_owner");
 
-        // Add tree2 owner as co-owner of tree1
-        const existing2 = await storage.getCollaboratorByUserAndTree(tree2.ownerId, treeId);
-        if (!existing2) {
-          await storage.addCollaborator({
-            treeId: treeId,
-            userId: tree2.ownerId,
-            role: "co_owner",
-            canEdit: true,
-            acceptedAt: new Date(),
-          });
+      // Only auto-grant co-owner access if user owns/co-owns BOTH trees
+      // If connected via user connection only, grant viewer access for merged view (not edit)
+      if (tree1.ownerId !== tree2.ownerId) {
+        if (userOwnsBothTrees) {
+          // Full co-owner access - user explicitly owns both trees
+          const existing1 = await storage.getCollaboratorByUserAndTree(tree1.ownerId, targetTreeId);
+          if (!existing1) {
+            await storage.addCollaborator({
+              treeId: targetTreeId,
+              userId: tree1.ownerId,
+              role: "co_owner",
+              canEdit: true,
+              acceptedAt: new Date(),
+            });
+          }
+
+          const existing2 = await storage.getCollaboratorByUserAndTree(tree2.ownerId, treeId);
+          if (!existing2) {
+            await storage.addCollaborator({
+              treeId: treeId,
+              userId: tree2.ownerId,
+              role: "co_owner",
+              canEdit: true,
+              acceptedAt: new Date(),
+            });
+          }
+        } else {
+          // Connected via user connection - grant viewer access only (for merged view)
+          const existing1 = await storage.getCollaboratorByUserAndTree(tree1.ownerId, targetTreeId);
+          if (!existing1) {
+            await storage.addCollaborator({
+              treeId: targetTreeId,
+              userId: tree1.ownerId,
+              role: "viewer",
+              canEdit: false,
+              acceptedAt: new Date(),
+            });
+          }
+
+          const existing2 = await storage.getCollaboratorByUserAndTree(tree2.ownerId, treeId);
+          if (!existing2) {
+            await storage.addCollaborator({
+              treeId: treeId,
+              userId: tree2.ownerId,
+              role: "viewer",
+              canEdit: false,
+              acceptedAt: new Date(),
+            });
+          }
         }
       }
 
@@ -5209,6 +5257,69 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching user connections:", error);
       res.status(500).json({ message: "Failed to fetch connections" });
+    }
+  });
+
+  // Get trees owned by connected users (for tree connection feature)
+  app.get("/api/connected-users-trees", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get all user connections
+      const connections = await storage.getUserConnections(userId);
+      
+      // Get my trees
+      const myTrees = await storage.getTrees(userId);
+      const myTreeIds = myTrees.map(t => t.id);
+      
+      // Get trees for each connected user and check for existing tree connections
+      const connectedUsersTrees = await Promise.all(
+        connections.map(async (conn) => {
+          const otherUserId = conn.userId1 === userId ? conn.userId2 : conn.userId1;
+          const otherUser = await storage.getUser(otherUserId);
+          const theirTrees = await storage.getTrees(otherUserId);
+          
+          // For each of their trees, check if already connected to any of my trees
+          const treesWithConnectionStatus = await Promise.all(
+            theirTrees.map(async (tree) => {
+              // Check if this tree is connected to any of my trees
+              const treeConnections = await storage.getTreeConnections(tree.id);
+              const connectedToMyTree = treeConnections.some(
+                tc => myTreeIds.includes(tc.tree1Id) || myTreeIds.includes(tc.tree2Id)
+              );
+              
+              return {
+                id: tree.id,
+                name: tree.name,
+                isConnectedToMyTree: connectedToMyTree,
+              };
+            })
+          );
+          
+          return {
+            userId: otherUserId,
+            user: otherUser ? {
+              id: otherUser.id,
+              firstName: otherUser.firstName,
+              lastName: otherUser.lastName,
+              profileImageUrl: otherUser.profileImageUrl,
+            } : null,
+            trees: treesWithConnectionStatus,
+            relationshipToMe: conn.userId1 === userId ? conn.relationshipFromUser2 : conn.relationshipFromUser1,
+          };
+        })
+      );
+      
+      // Filter out users with no trees
+      const usersWithTrees = connectedUsersTrees.filter(u => u.trees.length > 0);
+      
+      res.json({
+        myTrees: myTrees.map(t => ({ id: t.id, name: t.name })),
+        connectedUsersTrees: usersWithTrees,
+      });
+    } catch (error) {
+      console.error("Error fetching connected users' trees:", error);
+      res.status(500).json({ message: "Failed to fetch connected users' trees" });
     }
   });
 
