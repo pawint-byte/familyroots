@@ -18,6 +18,7 @@ import Pricing from "@/pages/pricing";
 import Gifts from "@/pages/gifts";
 import AdminVideos from "@/pages/admin-videos";
 import AdminUsers from "@/pages/admin-users";
+import AdminRelationships from "@/pages/admin-relationships";
 import VideoPage from "@/pages/video";
 import JoinTree from "@/pages/join-tree";
 import AccountSettings from "@/pages/account-settings";
@@ -58,6 +59,7 @@ function Router() {
       <Route path="/gifts" component={Gifts} />
       <Route path="/admin/videos" component={AdminVideos} />
       <Route path="/admin/users" component={AdminUsers} />
+      <Route path="/admin/relationships" component={AdminRelationships} />
       <Route path="/video/:id" component={VideoPage} />
       <Route path="/join/:inviteCode" component={JoinTree} />
       <Route path="/account/settings" component={AccountSettings} />

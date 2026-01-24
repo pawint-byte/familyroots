@@ -121,7 +121,7 @@ export function AddRelationship({
         </DialogHeader>
         <div className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label>Relationship Type</Label>
+            <Label>Who is {getMemberName(currentMember)} to the other person?</Label>
             <Select 
               value={relationshipType} 
               onValueChange={(val) => setRelationshipType(val as RelationshipType)}
@@ -131,22 +131,21 @@ export function AddRelationship({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="parent">
-                  {getMemberName(currentMember)} is a <strong>parent</strong> of...
+                  {getMemberName(currentMember)} is their <strong>PARENT</strong> (they are {getMemberName(currentMember)}'s child)
                 </SelectItem>
                 <SelectItem value="child">
-                  {getMemberName(currentMember)} is a <strong>child</strong> of...
+                  {getMemberName(currentMember)} is their <strong>CHILD</strong> (they are {getMemberName(currentMember)}'s parent)
                 </SelectItem>
                 <SelectItem value="spouse">
-                  {getMemberName(currentMember)} is a <strong>spouse/partner</strong> of...
+                  {getMemberName(currentMember)} is their <strong>SPOUSE/PARTNER</strong>
                 </SelectItem>
                 <SelectItem value="sibling">
-                  {getMemberName(currentMember)} is a <strong>sibling</strong> of...
+                  {getMemberName(currentMember)} is their <strong>SIBLING</strong>
                 </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Use "parent" if {getMemberName(currentMember)} is someone's parent (biological, adoptive, or step).
-              Use "child" if {getMemberName(currentMember)} is someone's child.
+              Select what {getMemberName(currentMember)} is to the person you'll select next.
             </p>
           </div>
 
@@ -176,10 +175,24 @@ export function AddRelationship({
           </div>
 
           {relationshipType && selectedMemberId && (
-            <div className="bg-muted p-3 rounded-md text-sm">
-              <strong>{getMemberName(currentMember)}</strong>{" "}
-              {relationshipLabels[relationshipType as RelationshipType]}{" "}
-              <strong>{getMemberName(allMembers.find(m => m.id === selectedMemberId)!)}</strong>
+            <div className="bg-muted p-3 rounded-md text-sm space-y-2">
+              <div className="font-medium text-center">
+                <strong>{getMemberName(currentMember)}</strong>{" "}
+                {relationshipLabels[relationshipType as RelationshipType]}{" "}
+                <strong>{getMemberName(allMembers.find(m => m.id === selectedMemberId)!)}</strong>
+              </div>
+              {relationshipType === "parent" && (
+                <p className="text-xs text-muted-foreground text-center">
+                  This means {getMemberName(currentMember)} is the parent, 
+                  and {getMemberName(allMembers.find(m => m.id === selectedMemberId)!)} is their child.
+                </p>
+              )}
+              {relationshipType === "child" && (
+                <p className="text-xs text-muted-foreground text-center">
+                  This means {getMemberName(currentMember)} is the child, 
+                  and {getMemberName(allMembers.find(m => m.id === selectedMemberId)!)} is their parent.
+                </p>
+              )}
             </div>
           )}
 
