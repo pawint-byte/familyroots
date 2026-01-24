@@ -141,6 +141,22 @@ export default function FAQ() {
         {
           question: "How do I add education and career history for family members?",
           answer: "Open any family member's profile by clicking on them in the tree view. You'll see sections for Education and Career where you can add schools attended, degrees earned, jobs held, and career achievements. This helps preserve your family's professional and educational legacy."
+        },
+        {
+          question: "What is the Relationship Manager?",
+          answer: <>The Relationship Manager is a powerful tool for viewing and editing all relationships in your family tree at once. Access it from your <Link href="/manage-relationships" className="text-primary hover:underline font-medium">Manage Relationships</Link> page. You can see every parent-child, spouse, and sibling connection in a table format, add new relationships, or delete incorrect ones. It shows email addresses next to names to help identify family members, especially when you have people with similar names.</>
+        },
+        {
+          question: "How does FamilyRoots prevent relationship mistakes?",
+          answer: "FamilyRoots includes smart validation to catch illogical relationships. For example, the system won't let you add a parent who is younger than their child based on birth dates. When you try to create an impossible relationship, you'll see a clear error message explaining the problem - like 'John (born 1990) cannot be a parent of Mary (born 1980)'. This helps keep your family tree accurate."
+        },
+        {
+          question: "How do email addresses work for family members?",
+          answer: "Email addresses serve as unique identifiers for family members across the entire FamilyRoots network. When you add an email for a family member, the system checks if that email already exists in other trees and warns you - this helps you discover connections you might not have known about! Emails are shown in the Relationship Manager and member dropdowns to help you tell apart people with similar names."
+        },
+        {
+          question: "What happens if I add an email that already exists?",
+          answer: "If you add a family member with an email that already exists in another tree, you'll see a warning showing which trees contain that email. This doesn't block you from creating the member - it's just a heads-up that this person may already be tracked elsewhere in the FamilyRoots network. This can help you discover cross-tree connections with other families!"
         }
       ]
     },
