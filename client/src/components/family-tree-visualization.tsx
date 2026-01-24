@@ -454,28 +454,30 @@ export default function FamilyTreeVisualization({
       }
     });
 
+    // Draw sibling connections - curved dashed lines that arc above the siblings
     positions.forEach((pos) => {
       if (pos.branchType === 'sibling') {
         const focusPos = positions.find(p => p.branchType === 'focus');
         if (focusPos) {
           const fromX = pos.x + nodeWidth / 2;
-          const fromY = pos.y + nodeHeight / 2;
+          const fromY = pos.y; // Start from TOP of sibling card
           const toX = focusPos.x + nodeWidth / 2;
-          const toY = focusPos.y + nodeHeight / 2;
+          const toY = focusPos.y; // End at TOP of focus card
           
           const midX = (fromX + toX) / 2;
-          const controlY = fromY - 40;
+          // Arc 60px above the card tops
+          const controlY = Math.min(fromY, toY) - 60;
           
           lines.push(
             <path
               key={`sibling-${pos.member.id}`}
               d={`M ${fromX} ${fromY} Q ${midX} ${controlY}, ${toX} ${toY}`}
               stroke={BRANCH_COLORS.sibling.line}
-              strokeWidth="3"
+              strokeWidth="2"
               fill="none"
               strokeLinecap="round"
-              opacity="0.6"
-              strokeDasharray="8 4"
+              opacity="0.5"
+              strokeDasharray="6 4"
               className="transition-all duration-300"
             />
           );
