@@ -248,7 +248,7 @@ export default function RegistryDetailPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="itemUrl">Product Link (Amazon, Etsy, etc.)</Label>
+                    <Label htmlFor="itemUrl">Product Link (Amazon, etc.)</Label>
                     <Input
                       id="itemUrl"
                       type="url"
@@ -314,7 +314,7 @@ export default function RegistryDetailPage() {
               <h3 className="text-lg font-medium mb-2">No Items Yet</h3>
               <p className="text-muted-foreground text-center mb-4">
                 {registry.isOwner 
-                  ? "Add gift ideas to this registry. You can paste links from Amazon, Etsy, or any online store."
+                  ? "Add gift ideas to this registry. You can paste links from Amazon or any online store."
                   : "The registry owner hasn't added any items yet."}
               </p>
               {registry.isOwner && registry.isActive && (

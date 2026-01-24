@@ -775,7 +775,7 @@ export const giftRegistryItems = pgTable("gift_registry_items", {
   registryId: varchar("registry_id").notNull(),
   name: text("name").notNull(), // Product name
   description: text("description"), // Optional details
-  productUrl: text("product_url"), // Link to product (Amazon, Etsy, etc.)
+  productUrl: text("product_url"), // Link to product (Amazon, etc.)
   imageUrl: text("image_url"), // Product image
   price: integer("price"), // Price in cents
   quantity: integer("quantity").default(1).notNull(), // How many needed

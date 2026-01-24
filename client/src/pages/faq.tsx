@@ -364,7 +364,7 @@ export default function FAQ() {
       items: [
         {
           question: "What's the difference between 'Print My Tree on Products' and 'Browse Gift Ideas'?",
-          answer: <>These are two different features! 'Print My Tree on Products' (on the <Link href="/merchandise" className="text-primary hover:underline font-medium">Merchandise page</Link>) lets you print YOUR actual family tree on custom products like mugs, t-shirts, and posters - we handle everything from printing to shipping. 'Browse Gift Ideas' (on the <Link href="/gifts" className="text-primary hover:underline font-medium">Gifts page</Link>) shows curated family tree-related products from external stores like Etsy and Amazon - these are pre-made items that don't include your specific family tree. If you want your own tree printed, use the Merchandise page.</>
+          answer: <>These are two different features! 'Print My Tree on Products' (on the <Link href="/merchandise" className="text-primary hover:underline font-medium">Merchandise page</Link>) lets you print YOUR actual family tree on custom products like mugs, t-shirts, and posters - we handle everything from printing to shipping. 'Browse Gift Ideas' (on the <Link href="/gifts" className="text-primary hover:underline font-medium">Gifts page</Link>) shows curated family tree-related products from Amazon - these are pre-made items that don't include your specific family tree. If you want your own tree printed, use the Merchandise page.</>
         },
         {
           question: "Can I put my family tree on a mug, t-shirt, or poster?",
@@ -396,7 +396,7 @@ export default function FAQ() {
         },
         {
           question: "What are Gift Registries?",
-          answer: "Gift Registries let you create wishlists for family events like birthdays, baby showers, weddings, graduations, and more. You can add items from any store (we support Amazon and Etsy links), and family members can see what's needed and mark items as purchased to avoid duplicates."
+          answer: "Gift Registries let you create wishlists for family events like birthdays, baby showers, weddings, graduations, and more. You can add items from any online store (like Amazon), and family members can see what's needed and mark items as purchased to avoid duplicates."
         },
         {
           question: "How do I create a Gift Registry?",

@@ -312,7 +312,7 @@ export default function GiftRegistryPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <p><strong>1. Create a Registry:</strong> Set up a registry for a family member's special event.</p>
-            <p><strong>2. Add Items:</strong> Add gift ideas with links to online stores (Amazon, Etsy, etc.).</p>
+            <p><strong>2. Add Items:</strong> Add gift ideas with links to online stores (like Amazon).</p>
             <p><strong>3. Share with Family:</strong> All tree collaborators can view the registry and see what's needed.</p>
             <p><strong>4. Mark as Purchased:</strong> Family members click "I'm getting this" to avoid duplicate gifts.</p>
             <p><strong>5. Track Progress:</strong> See how much of the registry has been fulfilled.</p>
