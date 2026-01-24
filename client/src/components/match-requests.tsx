@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Inbox, Send, Check, X, Users } from "lucide-react";
+import { Loader2, Inbox, Send, Check, X, Users, ChevronUp, ChevronDown } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,6 +34,7 @@ interface MatchRequestsProps {
 
 export function MatchRequests({ treeId, canEdit }: MatchRequestsProps) {
   const { toast } = useToast();
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   const { data: incomingRequests, isLoading: isLoadingIncoming } = useQuery<EnrichedMatchRequest[]>({
     queryKey: ['/api/trees', treeId, 'match-requests'],
@@ -91,20 +93,30 @@ export function MatchRequests({ treeId, canEdit }: MatchRequestsProps) {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const totalPending = pendingIncoming.length + pendingSent.length;
+
   return (
     <Card>
-      <CardHeader className="py-3">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
+      <CardHeader className="py-2 cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <Users className="h-4 w-4" />
-          Connection Requests
-          {(pendingIncoming.length > 0 || pendingSent.length > 0) && (
+          <span className="flex-1">Connection Requests</span>
+          {totalPending > 0 && (
             <Badge variant="secondary" className="text-xs">
-              {pendingIncoming.length + pendingSent.length} pending
+              {totalPending}
             </Badge>
           )}
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); setIsCollapsed(!isCollapsed); }}
+            data-testid="button-toggle-requests"
+          >
+            {isCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
         </CardTitle>
       </CardHeader>
-      <CardContent className="py-4 pt-0">
+      {!isCollapsed && <CardContent className="py-4 pt-0">
         <Tabs defaultValue="incoming">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="incoming" className="gap-2" data-testid="tab-incoming-requests">
@@ -248,7 +260,7 @@ export function MatchRequests({ treeId, canEdit }: MatchRequestsProps) {
             )}
           </TabsContent>
         </Tabs>
-      </CardContent>
+      </CardContent>}
     </Card>
   );
 }
