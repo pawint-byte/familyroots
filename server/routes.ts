@@ -3568,7 +3568,22 @@ export async function registerRoutes(
       }
       
       const user = await storage.getUser(userId);
-      if (!user || !user.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+      if (!user) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      // Check if user email is in admin list (case-insensitive)
+      const userEmail = user.email?.toLowerCase() || "";
+      const isAdminUser = ADMIN_EMAILS.some(adminEmail => 
+        adminEmail.toLowerCase() === userEmail
+      );
+      
+      // Also allow if the user ID matches known admin IDs
+      const ADMIN_USER_IDS = ["52852375"];
+      const isAdminById = ADMIN_USER_IDS.includes(userId);
+      
+      if (!isAdminUser && !isAdminById) {
+        console.log(`Admin access denied for user: ${userId}, email: ${user.email}`);
         return res.status(403).json({ message: "Admin access required" });
       }
       
