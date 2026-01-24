@@ -1339,6 +1339,41 @@ export async function registerRoutes(
     }
   });
 
+  // Delete a member invitation
+  app.delete("/api/trees/:treeId/member-invitations/:invitationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, invitationId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      // Check ownership or editor permission
+      if (tree.ownerId !== userId) {
+        const collaboration = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collaboration || collaboration.role === 'viewer') {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      // Verify invitation belongs to this tree
+      const invitations = await storage.getMemberInvitationsByTree(treeId);
+      const invitation = invitations.find(inv => inv.id === invitationId);
+      if (!invitation) {
+        return res.status(404).json({ message: "Invitation not found" });
+      }
+
+      // Delete the invitation
+      await storage.deleteMemberInvitation(invitationId);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting invitation:", error);
+      res.status(500).json({ message: error?.message || "Failed to delete invitation" });
+    }
+  });
+
   // ==================== PROFILE CLAIM ROUTES ====================
 
   // Get pending claim requests for trees owned by the current user

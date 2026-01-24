@@ -153,6 +153,7 @@ export interface IStorage {
   getMemberInvitationsByTree(treeId: string): Promise<MemberInvitation[]>;
   createMemberInvitation(invitation: InsertMemberInvitation): Promise<MemberInvitation>;
   updateMemberInvitationStatus(id: string, status: 'clicked' | 'registered'): Promise<MemberInvitation | undefined>;
+  deleteMemberInvitation(id: string): Promise<void>;
 
   // Profile Claim Requests
   getProfileClaimRequest(id: string): Promise<ProfileClaimRequest | undefined>;
@@ -856,6 +857,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(memberInvitations.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteMemberInvitation(id: string): Promise<void> {
+    await db.delete(memberInvitations).where(eq(memberInvitations.id, id));
   }
 
   // Profile Claim Requests

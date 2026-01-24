@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2 } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -503,13 +503,23 @@ export default function Dashboard() {
               Manage and explore your family trees
             </p>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" data-testid="button-create-tree">
-                <Plus className="h-4 w-4" />
-                New Tree
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/trees"] })}
+              title="Refresh tree data"
+              data-testid="button-refresh-trees"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" data-testid="button-create-tree">
+                  <Plus className="h-4 w-4" />
+                  New Tree
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle className="font-serif">Create New Family Tree</DialogTitle>
@@ -558,6 +568,7 @@ export default function Dashboard() {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Pending Family Connection Requests Section */}

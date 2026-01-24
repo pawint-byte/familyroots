@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, RefreshCw, Check, Clock, MousePointer, UserPlus } from "lucide-react";
+import { Mail, RefreshCw, Check, Clock, MousePointer, UserPlus, Trash2 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -52,6 +52,29 @@ export function InvitationStatus({ treeId }: InvitationStatusProps) {
       toast({
         title: "Failed to Resend",
         description: error?.message || "Could not resend the invitation.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      await apiRequest(
+        "DELETE",
+        `/api/trees/${treeId}/member-invitations/${invitationId}`
+      );
+    },
+    onSuccess: () => {
+      toast({
+        title: "Invitation Deleted",
+        description: "The invitation has been removed.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/trees', treeId, 'member-invitations'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Delete",
+        description: error?.message || "Could not delete the invitation.",
         variant: "destructive",
       });
     },
@@ -166,6 +189,17 @@ export function InvitationStatus({ treeId }: InvitationStatusProps) {
               {invitation.status === 'registered' && (
                 <Check className="h-4 w-4 text-green-500" />
               )}
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => deleteMutation.mutate(invitation.id)}
+                disabled={deleteMutation.isPending}
+                title="Delete invitation"
+                data-testid={`delete-invitation-${invitation.id}`}
+                className="text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         ))}
