@@ -2979,6 +2979,124 @@ export async function registerRoutes(
     }
   });
 
+  // Get merged tree view (combines connected trees into one visualization)
+  app.get("/api/trees/:treeId/merged", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      // Check access to the main tree (consistent with /api/trees/:id)
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Allow access if: owner, collaborator, or public tree
+      const isOwner = tree.ownerId === userId;
+      const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+      const isPublic = tree.privacy === 'public';
+      
+      if (!isOwner && !collab && !isPublic) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Get all connections for this tree
+      const connections = await storage.getTreeConnections(treeId);
+      
+      // Collect all tree IDs (main tree + connected trees) and verify access to each
+      const accessibleTreeIds: string[] = [treeId];
+      
+      for (const conn of connections) {
+        const otherTreeId = conn.tree1Id === treeId ? conn.tree2Id : conn.tree1Id;
+        if (!accessibleTreeIds.includes(otherTreeId)) {
+          // Check if user has access to connected tree
+          const otherTree = await storage.getTree(otherTreeId);
+          if (otherTree) {
+            const isOtherOwner = otherTree.ownerId === userId;
+            const otherCollab = await storage.getCollaboratorByUserAndTree(userId, otherTreeId);
+            const isOtherPublic = otherTree.privacy === 'public';
+            
+            // Only include trees user has access to
+            if (isOtherOwner || otherCollab || isOtherPublic) {
+              accessibleTreeIds.push(otherTreeId);
+            }
+          }
+        }
+      }
+
+      // Fetch data from all accessible trees
+      const allMembers: any[] = [];
+      const allRelationships: any[] = [];
+      const treeInfoMap = new Map<string, { name: string; ownerId: string }>();
+      
+      for (const id of accessibleTreeIds) {
+        const treeInfo = await storage.getTree(id);
+        if (treeInfo) {
+          treeInfoMap.set(id, { name: treeInfo.name, ownerId: treeInfo.ownerId });
+          const members = await storage.getMembers(id);
+          const relationships = await storage.getRelationships(id);
+          
+          // Add source tree info to each member for display purposes
+          members.forEach((m: any) => {
+            allMembers.push({
+              ...m,
+              sourceTreeId: id,
+              sourceTreeName: treeInfo.name,
+              isFromConnectedTree: id !== treeId
+            });
+          });
+          
+          allRelationships.push(...relationships);
+        }
+      }
+
+      // Create bridge relationships between connector members from different trees
+      // Only for connections where both trees are accessible
+      const bridgeRelationships: any[] = [];
+      connections.forEach(conn => {
+        if (conn.connector1MemberId && conn.connector2MemberId) {
+          // Only create bridge if both trees are accessible
+          if (accessibleTreeIds.includes(conn.tree1Id) && accessibleTreeIds.includes(conn.tree2Id)) {
+            // Determine relationship type based on connection type (marriage/adoption/other)
+            let relType = 'spouse'; // Default for marriage
+            if (conn.connectionType === 'adoption') {
+              relType = 'parent';
+            }
+            // 'other' defaults to spouse connection for visualization purposes
+            
+            bridgeRelationships.push({
+              id: `bridge-${conn.id}`,
+              treeId: treeId,
+              fromMemberId: conn.connector1MemberId,
+              toMemberId: conn.connector2MemberId,
+              relationshipType: relType,
+              isBridge: true,
+              connectionId: conn.id,
+              createdAt: conn.createdAt
+            });
+          }
+        }
+      });
+
+      res.json({
+        mainTree: tree,
+        connections: connections.filter(c => 
+          accessibleTreeIds.includes(c.tree1Id) && accessibleTreeIds.includes(c.tree2Id)
+        ),
+        members: allMembers,
+        relationships: [...allRelationships, ...bridgeRelationships],
+        connectedTrees: Array.from(treeInfoMap.entries()).map(([id, info]) => ({
+          id,
+          name: info.name,
+          isMainTree: id === treeId
+        }))
+      });
+    } catch (error) {
+      console.error("Error fetching merged tree:", error);
+      res.status(500).json({ message: "Failed to fetch merged tree data" });
+    }
+  });
+
   // Stripe Routes - all gracefully handle missing Stripe configuration
   
   // Get publishable key

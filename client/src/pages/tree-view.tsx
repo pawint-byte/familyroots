@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
@@ -74,6 +75,7 @@ export default function TreeView() {
   const [isExporting, setIsExporting] = useState(false);
   const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; member1Name: string; member2Name: string; member1Id: string; member2Id: string } | null>(null);
   const [newRelationshipType, setNewRelationshipType] = useState<string>("");
+  const [showMergedView, setShowMergedView] = useState(false);
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
   const treeId = params?.id;
@@ -83,11 +85,40 @@ export default function TreeView() {
     enabled: !!treeId,
   });
 
+  // Fetch merged tree data (connected trees combined)
+  interface MergedTreeData {
+    mainTree: FamilyTree;
+    connections: Array<{
+      id: string;
+      tree1Id: string;
+      tree2Id: string;
+      connector1MemberId: string | null;
+      connector2MemberId: string | null;
+      connectionType: string;
+    }>;
+    members: Array<FamilyMember & { sourceTreeId: string; sourceTreeName: string; isFromConnectedTree: boolean }>;
+    relationships: Relationship[];
+    connectedTrees: Array<{ id: string; name: string; isMainTree: boolean }>;
+  }
+
+  const { data: mergedData, isLoading: isMergedLoading } = useQuery<MergedTreeData>({
+    queryKey: ["/api/trees", treeId, "merged"],
+    enabled: !!treeId && showMergedView,
+  });
+
+  // Determine which data to use based on merged view toggle
+  const displayMembers = showMergedView && mergedData ? mergedData.members : (treeData?.members || []);
+  const displayRelationships = showMergedView && mergedData ? mergedData.relationships : (treeData?.relationships || []);
+  const hasConnections = mergedData?.connections && mergedData.connections.length > 0;
+
   // Derive focusMember from ID for stable state across re-renders
+  // Use displayMembers to support both normal and merged view
   const focusMember = useMemo(() => {
-    if (!focusMemberId || !treeData?.members) return null;
-    return treeData.members.find(m => m.id === focusMemberId) || null;
-  }, [focusMemberId, treeData?.members]);
+    if (!focusMemberId) return null;
+    const membersToSearch = showMergedView && mergedData?.members ? mergedData.members : treeData?.members;
+    if (!membersToSearch) return null;
+    return membersToSearch.find(m => m.id === focusMemberId) || null;
+  }, [focusMemberId, treeData?.members, showMergedView, mergedData?.members]);
 
   // Auto-focus on root member when tree loads (only if not already focused)
   useEffect(() => {
@@ -683,27 +714,58 @@ export default function TreeView() {
           </div>
 
           <TabsContent value="tree" className="flex-1 m-0 relative">
-            {isLoading ? (
+            {isLoading || (showMergedView && isMergedLoading) ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <Trees className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
-                  <p className="text-muted-foreground">Loading family tree...</p>
+                  <p className="text-muted-foreground">
+                    {showMergedView ? "Loading connected trees..." : "Loading family tree..."}
+                  </p>
                 </div>
               </div>
-            ) : treeData?.members && treeData.members.length > 0 ? (
+            ) : displayMembers.length > 0 ? (
               <>
-                {/* Focus Member Selector */}
+                {/* Focus Member Selector and Merged View Toggle */}
                 <div className="absolute top-4 left-4 z-10 bg-background/95 backdrop-blur rounded-lg p-3 shadow-lg border" data-testid="focus-selector-container">
                   <FocusMemberSelector
-                    members={treeData.members}
+                    members={displayMembers}
                     focusMember={focusMember}
                     onSelectFocus={(member) => setFocusMemberId(member?.id || null)}
                   />
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+                    <Switch
+                      id="merged-view"
+                      checked={showMergedView}
+                      onCheckedChange={setShowMergedView}
+                      data-testid="switch-merged-view"
+                    />
+                    <Label htmlFor="merged-view" className="text-sm cursor-pointer flex items-center gap-1">
+                      <Link2 className="h-3 w-3" />
+                      Show Connected Trees
+                    </Label>
+                  </div>
+                  {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <span className="font-medium">{mergedData.connectedTrees.length} trees connected:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {mergedData.connectedTrees.map(t => (
+                          <Badge key={t.id} variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
+                            {t.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {showMergedView && (!mergedData?.connections || mergedData.connections.length === 0) && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      No connected trees yet. Connect with other family members to see their trees here.
+                    </p>
+                  )}
                 </div>
                 <div ref={treeContainerRef} className="w-full h-full">
                   <FamilyTreeVisualization
-                    members={treeData.members}
-                    relationships={treeData.relationships || []}
+                    members={displayMembers}
+                    relationships={displayRelationships}
                     zoom={zoom}
                     onMemberClick={handleMemberClick}
                     focusMemberId={focusMemberId}
