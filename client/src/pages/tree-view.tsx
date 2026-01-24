@@ -799,7 +799,38 @@ export default function TreeView() {
                 </div>
               </>
             ) : (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center justify-center h-full gap-4">
+                <div className="absolute top-4 left-4 z-10 bg-background/95 backdrop-blur rounded-lg p-3 shadow-lg border" data-testid="focus-selector-container">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="merged-view-empty"
+                      checked={showMergedView}
+                      onCheckedChange={setShowMergedView}
+                      data-testid="switch-merged-view"
+                    />
+                    <Label htmlFor="merged-view-empty" className="text-sm cursor-pointer flex items-center gap-1">
+                      <Link2 className="h-3 w-3" />
+                      Show Connected Trees
+                    </Label>
+                  </div>
+                  {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <span className="font-medium">{mergedData.connectedTrees.length} trees connected:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {mergedData.connectedTrees.map(t => (
+                          <Badge key={t.id} variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
+                            {t.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {showMergedView && (!mergedData?.connections || mergedData.connections.length === 0) && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      No connected trees yet. Connect with other family members to see their trees here.
+                    </p>
+                  )}
+                </div>
                 <Card className="max-w-md text-center">
                   <CardContent className="pt-6">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
