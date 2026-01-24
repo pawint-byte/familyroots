@@ -280,16 +280,16 @@ export default function AdminUsers() {
                             Transfer
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="destructive"
                             size="sm"
                             onClick={() => {
                               setSelectedUser(user);
                               setShowDeleteDialog(true);
                             }}
-                            disabled={user.treeCount > 0}
                             data-testid={`button-delete-${user.id}`}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Delete
                           </Button>
                         </div>
                       </TableCell>
@@ -370,18 +370,26 @@ export default function AdminUsers() {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete User Account</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete User Account
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this user account? This action cannot be undone.
+              This will permanently delete this user and ALL their data including family trees, connections, and membership. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           
           <div className="py-4">
-            <div className="p-3 bg-muted rounded-md">
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
               <p className="font-mono text-sm">{selectedUser?.email || "No email"}</p>
               <p className="text-sm text-muted-foreground">
                 {selectedUser?.firstName || ""} {selectedUser?.lastName || ""}
               </p>
+              {selectedUser?.treeCount && selectedUser.treeCount > 0 && (
+                <p className="text-sm text-destructive font-medium mt-2">
+                  Warning: This user has {selectedUser.treeCount} family tree(s) that will be deleted!
+                </p>
+              )}
             </div>
           </div>
 

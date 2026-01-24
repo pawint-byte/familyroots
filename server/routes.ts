@@ -3693,16 +3693,27 @@ export async function registerRoutes(
         return res.status(404).json({ message: "User not found" });
       }
       
-      // Check if user has any trees
-      const treeCount = await storage.getUserTreeCount(userId);
-      if (treeCount > 0) {
-        return res.status(400).json({ 
-          message: "Cannot delete user with existing trees. Transfer ownership first." 
-        });
+      // Delete all user's trees first (cascade delete)
+      const userTrees = await storage.getTrees(userId);
+      for (const tree of userTrees) {
+        // Delete all members in the tree
+        const members = await storage.getMembers(tree.id);
+        for (const member of members) {
+          await storage.deleteMember(member.id);
+        }
+        // Delete the tree
+        await storage.deleteTree(tree.id);
       }
       
+      // Delete user connections
+      await storage.deleteUserConnections(userId);
+      
+      // Delete connection requests
+      await storage.deleteUserConnectionRequests(userId);
+      
+      // Delete the user
       await storage.deleteUser(userId);
-      res.json({ message: "User deleted successfully" });
+      res.json({ message: "User and all associated data deleted successfully" });
     } catch (error: any) {
       console.error("Error deleting user:", error);
       res.status(500).json({ message: "Failed to delete user" });

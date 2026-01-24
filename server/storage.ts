@@ -1551,6 +1551,18 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
+  async deleteUserConnections(userId: string): Promise<void> {
+    await db.delete(userConnections).where(
+      or(eq(userConnections.userId1, userId), eq(userConnections.userId2, userId))
+    );
+  }
+
+  async deleteUserConnectionRequests(userId: string): Promise<void> {
+    await db.delete(userConnectionRequests).where(
+      or(eq(userConnectionRequests.fromUserId, userId), eq(userConnectionRequests.toUserId, userId))
+    );
+  }
+
   async getUserTreeCount(userId: string): Promise<number> {
     const trees = await db.select().from(familyTrees).where(eq(familyTrees.ownerId, userId));
     return trees.length;
