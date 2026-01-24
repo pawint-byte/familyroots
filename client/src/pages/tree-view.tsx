@@ -47,6 +47,7 @@ import { LifeEventsSection } from "@/components/life-events-section";
 import { CustodianshipSection } from "@/components/custodianship-section";
 import { SpecialConnectionsSection, LocationSection } from "@/components/special-connections";
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
+import { BranchImportDialog } from "@/components/branch-import-dialog";
 
 interface TreeData {
   tree: FamilyTree;
@@ -76,6 +77,12 @@ export default function TreeView() {
   const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; member1Name: string; member2Name: string; member1Id: string; member2Id: string } | null>(null);
   const [newRelationshipType, setNewRelationshipType] = useState<string>("");
   const [showMergedView, setShowMergedView] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importConnectionData, setImportConnectionData] = useState<{
+    connectionId: string;
+    connectorMemberId: string;
+    sourceTreeName: string;
+  } | null>(null);
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
   const treeId = params?.id;
@@ -748,11 +755,40 @@ export default function TreeView() {
                     <div className="mt-2 text-xs text-muted-foreground">
                       <span className="font-medium">{mergedData.connectedTrees.length} trees connected:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {mergedData.connectedTrees.map(t => (
-                          <Badge key={t.id} variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
-                            {t.name}
-                          </Badge>
-                        ))}
+                        {mergedData.connectedTrees.map(t => {
+                          const connection = !t.isMainTree ? mergedData.connections.find(
+                            c => c.tree1Id === t.id || c.tree2Id === t.id
+                          ) : null;
+                          const connectorMemberId = connection ? (
+                            connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId
+                          ) : null;
+                          
+                          return (
+                            <div key={t.id} className="flex items-center gap-1">
+                              <Badge variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
+                                {t.name}
+                              </Badge>
+                              {!t.isMainTree && connection && connectorMemberId && canEditTree && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 px-1 text-xs"
+                                  onClick={() => {
+                                    setImportConnectionData({
+                                      connectionId: connection.id,
+                                      connectorMemberId,
+                                      sourceTreeName: t.name
+                                    });
+                                    setImportDialogOpen(true);
+                                  }}
+                                  data-testid={`button-import-${t.id}`}
+                                >
+                                  Import
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -817,11 +853,40 @@ export default function TreeView() {
                     <div className="mt-2 text-xs text-muted-foreground">
                       <span className="font-medium">{mergedData.connectedTrees.length} trees connected:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {mergedData.connectedTrees.map(t => (
-                          <Badge key={t.id} variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
-                            {t.name}
-                          </Badge>
-                        ))}
+                        {mergedData.connectedTrees.map(t => {
+                          const connection = !t.isMainTree ? mergedData.connections.find(
+                            c => c.tree1Id === t.id || c.tree2Id === t.id
+                          ) : null;
+                          const connectorMemberId = connection ? (
+                            connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId
+                          ) : null;
+                          
+                          return (
+                            <div key={t.id} className="flex items-center gap-1">
+                              <Badge variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
+                                {t.name}
+                              </Badge>
+                              {!t.isMainTree && connection && connectorMemberId && canEditTree && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 px-1 text-xs"
+                                  onClick={() => {
+                                    setImportConnectionData({
+                                      connectionId: connection.id,
+                                      connectorMemberId,
+                                      sourceTreeName: t.name
+                                    });
+                                    setImportDialogOpen(true);
+                                  }}
+                                  data-testid={`button-import-${t.id}`}
+                                >
+                                  Import
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1501,6 +1566,20 @@ export default function TreeView() {
         limit={paymentGateInfo.limit}
         current={paymentGateInfo.current}
       />
+
+      {importConnectionData && treeId && (
+        <BranchImportDialog
+          isOpen={importDialogOpen}
+          onClose={() => {
+            setImportDialogOpen(false);
+            setImportConnectionData(null);
+          }}
+          treeId={treeId}
+          connectionId={importConnectionData.connectionId}
+          connectorMemberId={importConnectionData.connectorMemberId}
+          sourceTreeName={importConnectionData.sourceTreeName}
+        />
+      )}
     </div>
   );
 }
