@@ -966,6 +966,86 @@ export default function TreeView() {
                   />
                 )}
 
+                {/* Existing Relationships Section */}
+                {treeData && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Link2 className="h-4 w-4" />
+                      Family Relationships
+                    </h4>
+                    {(() => {
+                      const memberRelationships = treeData.relationships.filter(
+                        r => r.fromMemberId === selectedMember.id || r.toMemberId === selectedMember.id
+                      );
+                      if (memberRelationships.length === 0) {
+                        return (
+                          <p className="text-sm text-muted-foreground">
+                            No relationships defined yet. Use the button below to add family connections.
+                          </p>
+                        );
+                      }
+                      const getMember = (id: string) => treeData.members.find(m => m.id === id);
+                      const getMemberName = (m: FamilyMember | undefined) => m ? (m.lastName ? `${m.firstName} ${m.lastName}` : m.firstName) : "Unknown";
+                      
+                      const relationshipDescriptions: { type: string; label: string; members: FamilyMember[] }[] = [];
+                      
+                      // Parents (relationships where someone else is parent of selectedMember)
+                      const parents = memberRelationships
+                        .filter(r => r.toMemberId === selectedMember.id && r.relationshipType === "parent")
+                        .map(r => getMember(r.fromMemberId))
+                        .filter((m): m is FamilyMember => !!m);
+                      if (parents.length > 0) {
+                        relationshipDescriptions.push({ type: "parent", label: parents.length === 1 ? "Parent" : "Parents", members: parents });
+                      }
+                      
+                      // Children (relationships where selectedMember is parent of someone)
+                      const children = memberRelationships
+                        .filter(r => r.fromMemberId === selectedMember.id && r.relationshipType === "parent")
+                        .map(r => getMember(r.toMemberId))
+                        .filter((m): m is FamilyMember => !!m);
+                      if (children.length > 0) {
+                        relationshipDescriptions.push({ type: "child", label: children.length === 1 ? "Child" : "Children", members: children });
+                      }
+                      
+                      // Spouse/Partner
+                      const spouses = memberRelationships
+                        .filter(r => r.relationshipType === "spouse")
+                        .map(r => r.fromMemberId === selectedMember.id ? getMember(r.toMemberId) : getMember(r.fromMemberId))
+                        .filter((m): m is FamilyMember => !!m);
+                      if (spouses.length > 0) {
+                        relationshipDescriptions.push({ type: "spouse", label: spouses.length === 1 ? "Spouse/Partner" : "Spouses/Partners", members: spouses });
+                      }
+                      
+                      // Siblings
+                      const siblings = memberRelationships
+                        .filter(r => r.relationshipType === "sibling")
+                        .map(r => r.fromMemberId === selectedMember.id ? getMember(r.toMemberId) : getMember(r.fromMemberId))
+                        .filter((m): m is FamilyMember => !!m);
+                      if (siblings.length > 0) {
+                        relationshipDescriptions.push({ type: "sibling", label: siblings.length === 1 ? "Sibling" : "Siblings", members: siblings });
+                      }
+                      
+                      return (
+                        <div className="space-y-2">
+                          {relationshipDescriptions.map(({ type, label, members }) => (
+                            <div key={type} className="flex items-start gap-2">
+                              <Badge variant="outline" className="text-xs shrink-0">{label}</Badge>
+                              <span className="text-sm">
+                                {members.map((m, i) => (
+                                  <span key={m.id}>
+                                    {getMemberName(m)}
+                                    {i < members.length - 1 ? ", " : ""}
+                                  </span>
+                                ))}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {/* Add Relationship Button */}
                 {canEditTree && treeData && (
                   <div className="pt-4 border-t border-border">
