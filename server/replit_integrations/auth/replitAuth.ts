@@ -50,7 +50,7 @@ function updateUserSession(
   user.expires_at = user.claims?.exp;
 }
 
-async function upsertUser(claims: any) {
+async function upsertUser(claims: any): Promise<{ id: string }> {
   const userData: any = {
     id: claims["sub"],
   };
@@ -68,7 +68,8 @@ async function upsertUser(claims: any) {
     userData.profileImageUrl = claims["profile_image_url"];
   }
   
-  await authStorage.upsertUser(userData);
+  const user = await authStorage.upsertUser(userData);
+  return { id: user.id };
 }
 
 export async function setupAuth(app: Express) {
@@ -83,9 +84,18 @@ export async function setupAuth(app: Express) {
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
-    const user = {};
+    const user: any = {};
     updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
+    
+    // Upsert user and get the actual user ID (might differ if email conflict)
+    const dbUser = await upsertUser(tokens.claims());
+    
+    // Update claims.sub to use the actual database user ID
+    // This handles cases where an email already exists with a different ID
+    if (user.claims && dbUser.id !== user.claims.sub) {
+      user.claims.sub = dbUser.id;
+    }
+    
     verified(null, user);
   };
 

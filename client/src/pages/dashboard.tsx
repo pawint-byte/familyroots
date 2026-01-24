@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -69,6 +69,13 @@ export default function Dashboard() {
   const { data: trees, isLoading } = useQuery<FamilyTreeWithCount[]>({
     queryKey: ["/api/trees"],
   });
+
+  // Check if current user is admin
+  const { data: adminCheck } = useQuery<{ isAdmin: boolean }>({
+    queryKey: ["/api/admin/check"],
+    enabled: !!user,
+  });
+  const isAdmin = adminCheck?.isAdmin || false;
 
   const createTreeMutation = useMutation({
     mutationFn: async (data: { name: string; description?: string; privacy: "private" | "public" }) => {
@@ -405,6 +412,27 @@ export default function Dashboard() {
                   <HelpCircle className="h-4 w-4" />
                   <span>Help & FAQ</span>
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/users")}
+                      data-testid="menu-admin-users"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Users</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/videos")}
+                      data-testid="menu-admin-videos"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Videos</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="flex items-center gap-2 text-destructive"

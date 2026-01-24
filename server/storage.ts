@@ -245,6 +245,12 @@ export interface IStorage {
   getUserConnections(userId: string): Promise<UserConnection[]>;
   getExistingUserConnection(userId1: string, userId2: string): Promise<UserConnection | undefined>;
   createUserConnection(connection: InsertUserConnection): Promise<UserConnection>;
+
+  // Admin methods
+  getAllUsers(search?: string): Promise<User[]>;
+  deleteUser(id: string): Promise<boolean>;
+  getUserTreeCount(userId: string): Promise<number>;
+  transferUserOwnership(fromUserId: string, toUserId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1507,6 +1513,98 @@ export class DatabaseStorage implements IStorage {
   async createUserConnection(connection: InsertUserConnection): Promise<UserConnection> {
     const [created] = await db.insert(userConnections).values(connection).returning();
     return created;
+  }
+
+  // Admin methods
+  async getAllUsers(search?: string): Promise<User[]> {
+    if (search) {
+      return db.select().from(users)
+        .where(or(
+          ilike(users.email, `%${search}%`),
+          ilike(users.firstName, `%${search}%`),
+          ilike(users.lastName, `%${search}%`)
+        ))
+        .orderBy(desc(users.createdAt))
+        .limit(100);
+    }
+    return db.select().from(users).orderBy(desc(users.createdAt)).limit(100);
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getUserTreeCount(userId: string): Promise<number> {
+    const trees = await db.select().from(familyTrees).where(eq(familyTrees.ownerId, userId));
+    return trees.length;
+  }
+
+  async transferUserOwnership(fromUserId: string, toUserId: string): Promise<void> {
+    // Transfer family trees ownership
+    await db.update(familyTrees)
+      .set({ ownerId: toUserId })
+      .where(eq(familyTrees.ownerId, fromUserId));
+
+    // Transfer claimed profiles
+    await db.update(familyMembers)
+      .set({ claimedByUserId: toUserId })
+      .where(eq(familyMembers.claimedByUserId, fromUserId));
+
+    // Transfer custodianship
+    await db.update(familyMembers)
+      .set({ custodianUserId: toUserId })
+      .where(eq(familyMembers.custodianUserId, fromUserId));
+
+    // Transfer collaborator roles
+    await db.update(treeCollaborators)
+      .set({ userId: toUserId })
+      .where(eq(treeCollaborators.userId, fromUserId));
+
+    // Transfer user connections (userId1)
+    await db.update(userConnections)
+      .set({ userId1: toUserId })
+      .where(eq(userConnections.userId1, fromUserId));
+
+    // Transfer user connections (userId2)
+    await db.update(userConnections)
+      .set({ userId2: toUserId })
+      .where(eq(userConnections.userId2, fromUserId));
+
+    // Transfer connection requests (from)
+    await db.update(userConnectionRequests)
+      .set({ fromUserId: toUserId })
+      .where(eq(userConnectionRequests.fromUserId, fromUserId));
+
+    // Transfer connection requests (to)
+    await db.update(userConnectionRequests)
+      .set({ toUserId: toUserId })
+      .where(eq(userConnectionRequests.toUserId, fromUserId));
+
+    // Transfer gift registries
+    await db.update(giftRegistries)
+      .set({ createdByUserId: toUserId })
+      .where(eq(giftRegistries.createdByUserId, fromUserId));
+
+    // Transfer merchandise orders
+    await db.update(merchandiseOrders)
+      .set({ userId: toUserId })
+      .where(eq(merchandiseOrders.userId, fromUserId));
+
+    // Transfer account heirs
+    await db.update(accountHeirs)
+      .set({ userId: toUserId })
+      .where(eq(accountHeirs.userId, fromUserId));
+
+    // Transfer profile claim requests
+    await db.update(profileClaimRequests)
+      .set({ requesterId: toUserId })
+      .where(eq(profileClaimRequests.requesterId, fromUserId));
+
+    // Transfer custodianship requests
+    await db.update(custodianshipRequests)
+      .set({ requesterId: toUserId })
+      .where(eq(custodianshipRequests.requesterId, fromUserId));
   }
 }
 

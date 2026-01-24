@@ -3530,6 +3530,149 @@ export async function registerRoutes(
     }
   });
 
+  // ============== ADMIN USER MANAGEMENT ROUTES ==============
+  
+  // List of admin emails - only these users can access admin routes
+  const ADMIN_EMAILS = [
+    "pawint@me.com",
+    "andrew.wint@gmail.com",
+  ];
+
+  // Admin middleware - checks if user email is in admin list
+  const isAdmin = async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user || !user.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      next();
+    } catch (error) {
+      return res.status(500).json({ message: "Failed to verify admin status" });
+    }
+  };
+
+  // Check if current user is admin
+  app.get("/api/admin/check", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const isUserAdmin = user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
+      res.json({ isAdmin: isUserAdmin });
+    } catch (error: any) {
+      console.error("Error checking admin status:", error);
+      res.status(500).json({ isAdmin: false });
+    }
+  });
+
+  // Get all users (admin only)
+  app.get("/api/admin/users", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { search } = req.query;
+      const users = await storage.getAllUsers(search as string | undefined);
+      
+      // Get tree count for each user
+      const usersWithStats = await Promise.all(users.map(async (user) => {
+        const treeCount = await storage.getUserTreeCount(user.id);
+        return {
+          ...user,
+          treeCount,
+        };
+      }));
+      
+      res.json(usersWithStats);
+    } catch (error: any) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Get specific user details (admin only)
+  app.get("/api/admin/users/:userId", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const trees = await storage.getTrees(userId);
+      const treeCount = trees.length;
+      const connections = await storage.getUserConnections(userId);
+      
+      res.json({
+        ...user,
+        treeCount,
+        trees,
+        connectionCount: connections.length,
+      });
+    } catch (error: any) {
+      console.error("Error fetching user details:", error);
+      res.status(500).json({ message: "Failed to fetch user details" });
+    }
+  });
+
+  // Transfer all data from one user to another (admin only)
+  app.post("/api/admin/users/:fromUserId/transfer/:toUserId", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { fromUserId, toUserId } = req.params;
+      
+      const fromUser = await storage.getUser(fromUserId);
+      const toUser = await storage.getUser(toUserId);
+      
+      if (!fromUser) {
+        return res.status(404).json({ message: "Source user not found" });
+      }
+      if (!toUser) {
+        return res.status(404).json({ message: "Target user not found" });
+      }
+      
+      await storage.transferUserOwnership(fromUserId, toUserId);
+      
+      res.json({ 
+        message: "Successfully transferred all data",
+        fromUser: { id: fromUser.id, email: fromUser.email },
+        toUser: { id: toUser.id, email: toUser.email },
+      });
+    } catch (error: any) {
+      console.error("Error transferring user data:", error);
+      res.status(500).json({ message: "Failed to transfer user data" });
+    }
+  });
+
+  // Delete a user (admin only) - only works if user has no trees
+  app.delete("/api/admin/users/:userId", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Check if user has any trees
+      const treeCount = await storage.getUserTreeCount(userId);
+      if (treeCount > 0) {
+        return res.status(400).json({ 
+          message: "Cannot delete user with existing trees. Transfer ownership first." 
+        });
+      }
+      
+      await storage.deleteUser(userId);
+      res.json({ message: "User deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
   // Get account settings including activity info
   app.get("/api/account/settings", isAuthenticated, async (req: any, res) => {
     try {
