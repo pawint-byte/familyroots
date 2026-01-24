@@ -15,14 +15,14 @@ interface NodePosition {
   x: number;
   y: number;
   member: FamilyMember;
-  branchType: 'focus' | 'parent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse';
+  branchType: 'focus' | 'parent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'unconnected';
 }
 
 interface BranchLabel {
   x: number;
   y: number;
   text: string;
-  type: 'parent' | 'sibling' | 'child';
+  type: 'parent' | 'sibling' | 'child' | 'unconnected';
 }
 
 const BRANCH_COLORS = {
@@ -33,6 +33,7 @@ const BRANCH_COLORS = {
   grandchild: { line: 'hsl(var(--primary))', bg: 'bg-primary/10 dark:bg-primary/5', border: 'border-primary/30', ring: 'ring-primary/50', label: 'bg-primary' },
   spouse: { line: 'hsl(var(--destructive))', bg: 'bg-destructive/10 dark:bg-destructive/5', border: 'border-destructive/30', ring: 'ring-destructive/50', label: 'bg-destructive' },
   focus: { line: 'hsl(var(--primary))', bg: 'bg-primary/20 dark:bg-primary/10', border: 'border-primary', ring: 'ring-primary', label: 'bg-primary' },
+  unconnected: { line: 'hsl(var(--muted-foreground))', bg: 'bg-muted/30 dark:bg-muted/20', border: 'border-muted-foreground/20', ring: 'ring-muted-foreground/30', label: 'bg-muted-foreground' },
 };
 
 export default function FamilyTreeVisualization({
@@ -286,13 +287,18 @@ export default function FamilyTreeVisualization({
     }
 
     let extraX = centerX + 600;
+    let hasUnconnected = false;
     members.forEach((member) => {
       if (!placed.has(member.id)) {
+        if (!hasUnconnected) {
+          labels.push({ x: extraX, y: centerY - 40, text: 'No Relationship Defined', type: 'unconnected' });
+          hasUnconnected = true;
+        }
         positioned.push({
           x: extraX,
           y: centerY,
           member,
-          branchType: 'sibling'
+          branchType: 'unconnected'
         });
         extraX += nodeWidth + horizontalGap;
         placed.add(member.id);
@@ -548,6 +554,7 @@ export default function FamilyTreeVisualization({
                 rx="12"
                 fill={label.type === 'parent' ? BRANCH_COLORS.parent.line : 
                       label.type === 'sibling' ? BRANCH_COLORS.sibling.line : 
+                      label.type === 'unconnected' ? BRANCH_COLORS.unconnected.line :
                       BRANCH_COLORS.child.line}
                 opacity="0.9"
               />
@@ -634,10 +641,14 @@ export default function FamilyTreeVisualization({
                       pos.branchType === 'focus' ? 'bg-primary/20 text-primary' :
                       pos.branchType === 'spouse' ? 'bg-destructive/20 text-destructive' :
                       pos.branchType === 'child' || pos.branchType === 'grandchild' ? 'bg-primary/20 text-primary' :
+                      pos.branchType === 'unconnected' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' :
                       'bg-muted text-muted-foreground'
                     }`}
                   >
-                    {pos.member.isUnknown ? 'placeholder' : (pos.branchType === 'focus' ? 'You' : pos.branchType)}
+                    {pos.member.isUnknown ? 'placeholder' : 
+                     pos.branchType === 'focus' ? 'You' : 
+                     pos.branchType === 'unconnected' ? 'Add Relationship' : 
+                     pos.branchType}
                   </div>
                 </div>
               </div>
