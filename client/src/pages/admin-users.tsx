@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -47,12 +47,28 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<UserWithStats | null>(null);
   const [transferTargetId, setTransferTargetId] = useState("");
   const [transferSearch, setTransferSearch] = useState("");
+  const [debouncedTransferSearch, setDebouncedTransferSearch] = useState("");
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleSearch = () => {
     setDebouncedSearch(search);
   };
+
+  const transferSearchTimeout = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (transferSearchTimeout.current) {
+      clearTimeout(transferSearchTimeout.current);
+    }
+    transferSearchTimeout.current = setTimeout(() => {
+      setDebouncedTransferSearch(transferSearch);
+    }, 300);
+    return () => {
+      if (transferSearchTimeout.current) {
+        clearTimeout(transferSearchTimeout.current);
+      }
+    };
+  }, [transferSearch]);
 
   const { data: isAdmin, isLoading: checkingAdmin } = useQuery<{ isAdmin: boolean }>({
     queryKey: ["/api/admin/check"],
@@ -69,6 +85,18 @@ export default function AdminUsers() {
       return res.json();
     },
     enabled: isAdmin?.isAdmin === true,
+  });
+
+  const { data: transferTargetUsers = [], isLoading: loadingTransferTargets } = useQuery<UserWithStats[]>({
+    queryKey: ["/api/admin/users/transfer-search", debouncedTransferSearch],
+    queryFn: async () => {
+      if (!debouncedTransferSearch || debouncedTransferSearch.length < 2) return [];
+      const url = `/api/admin/users?search=${encodeURIComponent(debouncedTransferSearch)}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to search users");
+      return res.json();
+    },
+    enabled: isAdmin?.isAdmin === true && showTransferDialog && debouncedTransferSearch.length >= 2,
   });
 
   const transferMutation = useMutation({
@@ -309,6 +337,7 @@ export default function AdminUsers() {
         if (!open) {
           setTransferTargetId("");
           setTransferSearch("");
+          setDebouncedTransferSearch("");
         }
       }}>
         <DialogContent>
@@ -334,40 +363,77 @@ export default function AdminUsers() {
             
             <div>
               <p className="text-sm font-medium mb-2">Target Account (data will be moved to):</p>
-              <Input
-                placeholder="Search by email or name..."
-                value={transferSearch}
-                onChange={(e) => setTransferSearch(e.target.value)}
-                className="mb-2"
-                data-testid="input-transfer-search"
-              />
-              <select
-                className="w-full p-3 border rounded-md bg-background"
-                value={transferTargetId}
-                onChange={(e) => setTransferTargetId(e.target.value)}
-                data-testid="select-transfer-target"
-              >
-                <option value="">Select target user...</option>
-                {users
-                  .filter(u => u.id !== selectedUser?.id)
-                  .filter(u => {
-                    if (!transferSearch) return true;
-                    const searchLower = transferSearch.toLowerCase();
-                    return (
-                      (u.email?.toLowerCase() || "").includes(searchLower) ||
-                      (u.firstName?.toLowerCase() || "").includes(searchLower) ||
-                      (u.lastName?.toLowerCase() || "").includes(searchLower)
-                    );
-                  })
-                  .map(u => (
-                    <option key={u.id} value={u.id}>
-                      {u.email || "No email"} {u.firstName || u.lastName ? `(${u.firstName || ""} ${u.lastName || ""})`.trim() : ""}
-                    </option>
-                  ))
-                }
-              </select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Select the account to receive all data from the source account.
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by email or name (min 2 characters)..."
+                  value={transferSearch}
+                  onChange={(e) => {
+                    setTransferSearch(e.target.value);
+                    setTransferTargetId("");
+                  }}
+                  className="pl-9"
+                  data-testid="input-transfer-search"
+                />
+              </div>
+              
+              {loadingTransferTargets && (
+                <div className="flex items-center gap-2 py-3 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Searching users...</span>
+                </div>
+              )}
+              
+              {!loadingTransferTargets && transferSearch.length >= 2 && transferTargetUsers.length === 0 && (
+                <p className="text-sm text-muted-foreground py-3">
+                  No users found matching "{transferSearch}"
+                </p>
+              )}
+              
+              {!loadingTransferTargets && transferTargetUsers.length > 0 && (
+                <ScrollArea className="h-48 border rounded-md mt-2">
+                  <div className="p-1">
+                    {transferTargetUsers
+                      .filter(u => u.id !== selectedUser?.id)
+                      .map(u => (
+                        <div
+                          key={u.id}
+                          onClick={() => setTransferTargetId(u.id)}
+                          className={`p-3 rounded-md cursor-pointer transition-colors ${
+                            transferTargetId === u.id 
+                              ? "bg-primary/10 border border-primary" 
+                              : "hover-elevate"
+                          }`}
+                          data-testid={`transfer-target-${u.id}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="font-mono text-sm truncate">{u.email || "No email"}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                            <span>{u.firstName || ""} {u.lastName || ""}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {u.treeCount} trees
+                            </Badge>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </ScrollArea>
+              )}
+              
+              {transferTargetId && (
+                <div className="mt-2 p-2 bg-primary/5 border border-primary/20 rounded-md">
+                  <p className="text-xs text-muted-foreground">Selected target:</p>
+                  <p className="text-sm font-medium">
+                    {transferTargetUsers.find(u => u.id === transferTargetId)?.email || "Unknown"}
+                  </p>
+                </div>
+              )}
+              
+              <p className="text-xs text-muted-foreground mt-2">
+                Search and select the account to receive all data from the source account.
               </p>
             </div>
           </div>
