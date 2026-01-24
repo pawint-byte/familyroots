@@ -306,6 +306,43 @@ export default function Dashboard() {
                   <HelpCircle className="h-4 w-4" />
                   <span>Help & FAQ</span>
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/users")}
+                      data-testid="mobile-menu-admin-users"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Users</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/videos")}
+                      data-testid="mobile-menu-admin-videos"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Videos</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/relationships")}
+                      data-testid="mobile-menu-admin-relationships"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Relationships</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/members")}
+                      data-testid="mobile-menu-admin-members"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Members</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             <Tooltip>
@@ -345,6 +382,34 @@ export default function Dashboard() {
               <QrCode className="h-4 w-4" />
               <span className="hidden lg:inline">Share</span>
             </Button>
+            {isAdmin && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="hidden md:flex gap-1" data-testid="link-admin">
+                    <Shield className="h-4 w-4" />
+                    <span className="hidden lg:inline">Admin</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => navigate("/admin/users")} data-testid="admin-menu-users">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Users
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/admin/videos")} data-testid="admin-menu-videos">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Videos
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/admin/relationships")} data-testid="admin-menu-relationships">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Relationships
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/admin/members")} data-testid="admin-menu-members">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Members
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
