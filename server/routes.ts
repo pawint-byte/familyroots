@@ -3558,6 +3558,9 @@ export async function registerRoutes(
     "pawint@me.com",
     "andrew.wint@gmail.com",
   ];
+  
+  // Also allow if the user ID matches known admin IDs
+  const ADMIN_USER_IDS = ["52852375"];
 
   // Admin middleware - checks if user email is in admin list
   const isAdmin = async (req: any, res: any, next: any) => {
@@ -3578,8 +3581,6 @@ export async function registerRoutes(
         adminEmail.toLowerCase() === userEmail
       );
       
-      // Also allow if the user ID matches known admin IDs
-      const ADMIN_USER_IDS = ["52852375"];
       const isAdminById = ADMIN_USER_IDS.includes(userId);
       
       if (!isAdminUser && !isAdminById) {
@@ -3599,8 +3600,9 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      const isUserAdmin = user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
-      res.json({ isAdmin: isUserAdmin });
+      const isAdminByEmail = user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
+      const isAdminById = ADMIN_USER_IDS.includes(userId);
+      res.json({ isAdmin: isAdminByEmail || isAdminById });
     } catch (error: any) {
       console.error("Error checking admin status:", error);
       res.status(500).json({ isAdmin: false });
