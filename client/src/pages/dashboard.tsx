@@ -447,6 +447,14 @@ export default function Dashboard() {
                       <Shield className="h-4 w-4" />
                       <span>Admin - Relationships</span>
                     </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/members")}
+                      data-testid="menu-admin-members"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Members</span>
+                    </DropdownMenuItem>
                   </>
                 )}
                 <DropdownMenuSeparator />
