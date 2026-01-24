@@ -4701,6 +4701,24 @@ export async function registerRoutes(
     }
   });
 
+  // Delete a user connection
+  app.delete("/api/user-connections/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const deleted = await storage.deleteUserConnection(id, userId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Connection not found or you don't have permission to delete it" });
+      }
+
+      res.json({ success: true, message: "Connection removed" });
+    } catch (error) {
+      console.error("Error deleting connection:", error);
+      res.status(500).json({ message: "Failed to delete connection" });
+    }
+  });
+
   // Legacy endpoint - redirect to new endpoint
   app.post("/api/connection-requests", isAuthenticated, async (req: any, res) => {
     res.status(400).json({ 

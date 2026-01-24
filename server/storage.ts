@@ -1557,6 +1557,19 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
+  async deleteUserConnection(connectionId: string, userId: string): Promise<boolean> {
+    const connection = await db.select().from(userConnections).where(eq(userConnections.id, connectionId)).limit(1);
+    if (!connection.length) return false;
+    
+    const conn = connection[0];
+    if (conn.userId1 !== userId && conn.userId2 !== userId) {
+      return false;
+    }
+    
+    await db.delete(userConnections).where(eq(userConnections.id, connectionId));
+    return true;
+  }
+
   async deleteUserConnectionRequests(userId: string): Promise<void> {
     await db.delete(userConnectionRequests).where(
       or(eq(userConnectionRequests.fromUserId, userId), eq(userConnectionRequests.toUserId, userId))

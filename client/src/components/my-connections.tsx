@@ -1,10 +1,24 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, ArrowRight, Trash2 } from "lucide-react";
 import { Link } from "wouter";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface UserConnection {
   id: string;
@@ -42,8 +56,25 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
 };
 
 export function MyConnectionsSection() {
+  const { toast } = useToast();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
   const { data: connections = [], isLoading } = useQuery<UserConnection[]>({
     queryKey: ["/api/user-connections"],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (connectionId: string) => {
+      await apiRequest("DELETE", `/api/user-connections/${connectionId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user-connections"] });
+      toast({ title: "Connection removed" });
+      setDeleteTarget(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to remove connection", variant: "destructive" });
+    },
   });
 
   if (isLoading) {
@@ -104,15 +135,12 @@ export function MyConnectionsSection() {
               : null;
 
             return (
-              <Link 
-                key={connection.id} 
-                href={`/profile/${otherUser.id}`}
-                className="block"
+              <div
+                key={connection.id}
+                className="flex items-center gap-3 p-4 rounded-lg border bg-card"
+                data-testid={`connection-${connection.id}`}
               >
-                <div
-                  className="flex items-center gap-3 p-4 rounded-lg border bg-card hover-elevate cursor-pointer transition-colors"
-                  data-testid={`connection-${connection.id}`}
-                >
+                <Link href={`/profile/${otherUser.id}`} className="flex items-center gap-3 flex-1 min-w-0 hover-elevate rounded-md p-1 -m-1">
                   <Avatar className="h-12 w-12 shrink-0">
                     <AvatarImage src={otherUser.profileImageUrl || undefined} />
                     <AvatarFallback className="bg-primary/10">{initials}</AvatarFallback>
@@ -145,12 +173,44 @@ export function MyConnectionsSection() {
                   </div>
 
                   <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </div>
-              </Link>
+                </Link>
+
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="shrink-0 text-destructive hover:text-destructive"
+                  onClick={() => setDeleteTarget({ id: connection.id, name: fullName })}
+                  data-testid={`delete-connection-${connection.id}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             );
           })}
         </div>
       </CardContent>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Connection</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove your connection with {deleteTarget?.name}? 
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
