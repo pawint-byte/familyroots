@@ -362,127 +362,130 @@ export default function FamilyTreeVisualization({
 
   const getConnectionLines = () => {
     const lines: JSX.Element[] = [];
-    const positionMap = new Map<string, NodePosition>();
-    positions.forEach((p) => positionMap.set(p.member.id, p));
+    const focusPos = positions.find(p => p.branchType === 'focus');
+    if (!focusPos) return lines;
 
-    const { parentChildMap, spouseMap, siblingMap } = getRelationshipMaps();
-
-    positions.forEach((pos) => {
-      if (pos.branchType === 'parent' || pos.branchType === 'grandparent') {
-        const focusPos = positions.find(p => p.branchType === 'focus');
-        if (focusPos) {
-          const children = parentChildMap.get(pos.member.id) || [];
-          children.forEach(childId => {
-            const childPos = positionMap.get(childId);
-            if (childPos && (childPos.branchType === 'focus' || childPos.branchType === 'parent')) {
-              const fromX = pos.x + nodeWidth / 2;
-              const fromY = pos.y + nodeHeight;
-              const toX = childPos.x + nodeWidth / 2;
-              const toY = childPos.y;
-              
-              lines.push(
-                <path
-                  key={`parent-${pos.member.id}-${childId}`}
-                  d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-                  stroke={BRANCH_COLORS.parent.line}
-                  strokeWidth="3"
-                  fill="none"
-                  strokeLinecap="round"
-                  opacity="0.7"
-                  className="transition-all duration-300"
-                />
-              );
-            }
-          });
-        }
-      }
-    });
-
-    // Draw lines from focus to children positioned below
-    const focusPosition = positions.find(p => p.branchType === 'focus');
-    if (focusPosition) {
-      // Find all children that are positioned below the focus
-      const childPositions = positions.filter(p => p.branchType === 'child');
+    // === PARENTS: Lines from each parent's BOTTOM to focus's TOP ===
+    const parentPositions = positions.filter(p => p.branchType === 'parent');
+    parentPositions.forEach(parentPos => {
+      const fromX = parentPos.x + nodeWidth / 2;
+      const fromY = parentPos.y + nodeHeight; // Bottom of parent
+      const toX = focusPos.x + nodeWidth / 2;
+      const toY = focusPos.y; // Top of focus
       
-      childPositions.forEach(childPos => {
-        const fromX = focusPosition.x + nodeWidth / 2;
-        const fromY = focusPosition.y + nodeHeight;
-        const toX = childPos.x + nodeWidth / 2;
-        const toY = childPos.y;
-        
-        lines.push(
-          <path
-            key={`focus-to-child-${childPos.member.id}`}
-            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-            stroke={BRANCH_COLORS.child.line}
-            strokeWidth="3"
-            fill="none"
-            strokeLinecap="round"
-            opacity="0.7"
-            className="transition-all duration-300"
-          />
-        );
-      });
-    }
-    
-    // Draw lines from child nodes to their grandchildren
-    positions.forEach((pos) => {
-      if (pos.branchType === 'child') {
-        const grandchildren = parentChildMap.get(pos.member.id) || [];
-        grandchildren.forEach(gcId => {
-          const gcPos = positionMap.get(gcId);
-          if (gcPos && gcPos.branchType === 'grandchild') {
-            const fromX = pos.x + nodeWidth / 2;
-            const fromY = pos.y + nodeHeight;
-            const toX = gcPos.x + nodeWidth / 2;
-            const toY = gcPos.y;
-            
-            lines.push(
-              <path
-                key={`grandchild-${pos.member.id}-${gcId}`}
-                d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-                stroke={BRANCH_COLORS.grandchild.line}
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="round"
-                opacity="0.6"
-                className="transition-all duration-300"
-              />
-            );
-          }
-        });
-      }
+      lines.push(
+        <path
+          key={`parent-to-focus-${parentPos.member.id}`}
+          d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+          stroke={BRANCH_COLORS.parent.line}
+          strokeWidth="3"
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.8"
+        />
+      );
     });
 
-    // Draw sibling connections - curved dashed lines that arc above the siblings
-    positions.forEach((pos) => {
-      if (pos.branchType === 'sibling') {
-        const focusPos = positions.find(p => p.branchType === 'focus');
-        if (focusPos) {
-          const fromX = pos.x + nodeWidth / 2;
-          const fromY = pos.y; // Start from TOP of sibling card
-          const toX = focusPos.x + nodeWidth / 2;
-          const toY = focusPos.y; // End at TOP of focus card
-          
-          const midX = (fromX + toX) / 2;
-          // Arc 60px above the card tops
-          const controlY = Math.min(fromY, toY) - 60;
+    // === GRANDPARENTS: Lines from grandparent's BOTTOM to parent's TOP ===
+    const grandparentPositions = positions.filter(p => p.branchType === 'grandparent');
+    grandparentPositions.forEach(gpPos => {
+      // Find which parent this grandparent connects to
+      parentPositions.forEach(parentPos => {
+        const { parentChildMap } = getRelationshipMaps();
+        const gpChildren = parentChildMap.get(gpPos.member.id) || [];
+        if (gpChildren.includes(parentPos.member.id)) {
+          const fromX = gpPos.x + nodeWidth / 2;
+          const fromY = gpPos.y + nodeHeight;
+          const toX = parentPos.x + nodeWidth / 2;
+          const toY = parentPos.y;
           
           lines.push(
             <path
-              key={`sibling-${pos.member.id}`}
-              d={`M ${fromX} ${fromY} Q ${midX} ${controlY}, ${toX} ${toY}`}
-              stroke={BRANCH_COLORS.sibling.line}
+              key={`grandparent-to-parent-${gpPos.member.id}-${parentPos.member.id}`}
+              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+              stroke={BRANCH_COLORS.grandparent.line}
               strokeWidth="2"
               fill="none"
               strokeLinecap="round"
-              opacity="0.5"
-              strokeDasharray="6 4"
-              className="transition-all duration-300"
+              opacity="0.6"
             />
           );
         }
-      }
+      });
+    });
+
+    // === CHILDREN: Lines from focus's BOTTOM to each child's TOP ===
+    const childPositions = positions.filter(p => p.branchType === 'child');
+    childPositions.forEach(childPos => {
+      const fromX = focusPos.x + nodeWidth / 2;
+      const fromY = focusPos.y + nodeHeight; // Bottom of focus
+      const toX = childPos.x + nodeWidth / 2;
+      const toY = childPos.y; // Top of child
+      
+      lines.push(
+        <path
+          key={`focus-to-child-${childPos.member.id}`}
+          d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+          stroke={BRANCH_COLORS.child.line}
+          strokeWidth="3"
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.8"
+        />
+      );
+    });
+
+    // === GRANDCHILDREN: Lines from child's BOTTOM to grandchild's TOP ===
+    const grandchildPositions = positions.filter(p => p.branchType === 'grandchild');
+    grandchildPositions.forEach(gcPos => {
+      // Find which child this grandchild connects to
+      const { parentChildMap } = getRelationshipMaps();
+      childPositions.forEach(childPos => {
+        const childChildren = parentChildMap.get(childPos.member.id) || [];
+        if (childChildren.includes(gcPos.member.id)) {
+          const fromX = childPos.x + nodeWidth / 2;
+          const fromY = childPos.y + nodeHeight;
+          const toX = gcPos.x + nodeWidth / 2;
+          const toY = gcPos.y;
+          
+          lines.push(
+            <path
+              key={`child-to-grandchild-${childPos.member.id}-${gcPos.member.id}`}
+              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+              stroke={BRANCH_COLORS.grandchild.line}
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              opacity="0.7"
+            />
+          );
+        }
+      });
+    });
+
+    // === SIBLINGS: Horizontal lines from sibling's SIDE to focus's SIDE ===
+    const siblingPositions = positions.filter(p => p.branchType === 'sibling');
+    siblingPositions.forEach(sibPos => {
+      const isLeftSibling = sibPos.x < focusPos.x;
+      
+      // Connect from sibling's edge toward focus
+      const fromX = isLeftSibling ? sibPos.x + nodeWidth : sibPos.x; // Right or left edge
+      const fromY = sibPos.y + nodeHeight / 2; // Middle height
+      const toX = isLeftSibling ? focusPos.x : focusPos.x + nodeWidth; // Left or right edge of focus
+      const toY = focusPos.y + nodeHeight / 2; // Middle height
+      
+      lines.push(
+        <path
+          key={`sibling-${sibPos.member.id}`}
+          d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
+          stroke={BRANCH_COLORS.sibling.line}
+          strokeWidth="2"
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.5"
+          strokeDasharray="6 4"
+        />
+      );
     });
 
     positions.forEach((pos) => {
