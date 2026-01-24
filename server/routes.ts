@@ -414,6 +414,28 @@ export async function registerRoutes(
       }
       
       const data = insertFamilyMemberSchema.parse({ ...sanitizedBody, treeId });
+      
+      // Normalize email to lowercase for consistent uniqueness checking
+      if (data.email) {
+        data.email = data.email.toLowerCase().trim();
+      }
+      
+      // Check email uniqueness across network if email is provided
+      let emailWarning: string | undefined;
+      if (data.email) {
+        const existingMembersWithEmail = await storage.getMembersByEmail(data.email);
+        if (existingMembersWithEmail.length > 0) {
+          // Get tree names for context
+          const treeNames = await Promise.all(
+            existingMembersWithEmail.map(async (m) => {
+              const t = await storage.getTree(m.treeId);
+              return t?.name || 'Unknown tree';
+            })
+          );
+          emailWarning = `This email (${data.email}) already exists in the network: ${treeNames.join(', ')}. This may indicate a duplicate entry or the same person across trees.`;
+        }
+      }
+      
       const member = await storage.createMember(data);
 
       // Create parent placeholders (Mom and Dad) if user opted in:
@@ -544,7 +566,11 @@ export async function registerRoutes(
         }
       }
 
-      res.status(201).json(member);
+      // Return member with optional email warning
+      res.status(201).json({ 
+        ...member, 
+        emailWarning: emailWarning || null 
+      });
     } catch (error: any) {
       console.error("Error adding member:", error);
       
@@ -627,9 +653,32 @@ export async function registerRoutes(
           // Sanitize date fields - convert empty strings to null
           if ((field === 'birthDate' || field === 'deathDate') && req.body[field] === '') {
             updateData[field] = null;
+          } else if (field === 'email' && req.body[field]) {
+            // Normalize email to lowercase for consistent uniqueness checking
+            updateData[field] = req.body[field].toLowerCase().trim();
           } else {
             updateData[field] = req.body[field];
           }
+        }
+      }
+
+      // Normalize oldEmail for comparison
+      const normalizedOldEmail = oldEmail?.toLowerCase().trim();
+
+      // Check email uniqueness across network if email is being changed
+      let emailWarning: string | undefined;
+      if (updateData.email && updateData.email !== normalizedOldEmail) {
+        const existingMembersWithEmail = await storage.getMembersByEmail(updateData.email);
+        // Filter out current member (we're updating this one)
+        const otherMembersWithEmail = existingMembersWithEmail.filter(m => m.id !== memberId);
+        if (otherMembersWithEmail.length > 0) {
+          const treeNames = await Promise.all(
+            otherMembersWithEmail.map(async (m) => {
+              const t = await storage.getTree(m.treeId);
+              return t?.name || 'Unknown tree';
+            })
+          );
+          emailWarning = `This email (${updateData.email}) already exists in the network: ${treeNames.join(', ')}. This may indicate a duplicate entry or the same person across trees.`;
         }
       }
 
@@ -681,7 +730,11 @@ export async function registerRoutes(
         }
       }
 
-      res.json(updated);
+      // Return updated member with optional email warning
+      res.json({ 
+        ...updated, 
+        emailWarning: emailWarning || null 
+      });
     } catch (error: any) {
       console.error("Error updating member:", error);
       

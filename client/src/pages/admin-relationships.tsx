@@ -149,6 +149,11 @@ export default function AdminRelationships() {
     return new Date(member.birthDate).getFullYear().toString();
   };
 
+  const getMemberEmail = (memberId: string): string | null => {
+    const member = treeData?.members.find(m => m.id === memberId);
+    return member?.email || null;
+  };
+
   if (loadingTrees) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -272,6 +277,11 @@ export default function AdminRelationships() {
                         <TableRow key={rel.id} data-testid={`row-relationship-${rel.id}`}>
                           <TableCell>
                             <div className="font-medium">{getMemberName(rel.fromMemberId)}</div>
+                            {getMemberEmail(rel.fromMemberId) && (
+                              <div className="text-xs text-primary truncate max-w-[150px]" title={getMemberEmail(rel.fromMemberId) || ''}>
+                                {getMemberEmail(rel.fromMemberId)}
+                              </div>
+                            )}
                             {getMemberBirthYear(rel.fromMemberId) && (
                               <div className="text-xs text-muted-foreground">
                                 Born {getMemberBirthYear(rel.fromMemberId)}
@@ -289,6 +299,11 @@ export default function AdminRelationships() {
                           </TableCell>
                           <TableCell>
                             <div className="font-medium">{getMemberName(rel.toMemberId)}</div>
+                            {getMemberEmail(rel.toMemberId) && (
+                              <div className="text-xs text-primary truncate max-w-[150px]" title={getMemberEmail(rel.toMemberId) || ''}>
+                                {getMemberEmail(rel.toMemberId)}
+                              </div>
+                            )}
                             {getMemberBirthYear(rel.toMemberId) && (
                               <div className="text-xs text-muted-foreground">
                                 Born {getMemberBirthYear(rel.toMemberId)}
@@ -406,8 +421,15 @@ export default function AdminRelationships() {
                 <SelectContent>
                   {treeData?.members.map((member) => (
                     <SelectItem key={member.id} value={member.id}>
-                      {member.firstName} {member.lastName}
-                      {member.birthDate && ` (${new Date(member.birthDate).getFullYear()})`}
+                      <div className="flex flex-col">
+                        <span>
+                          {member.firstName} {member.lastName}
+                          {member.birthDate && ` (${new Date(member.birthDate).getFullYear()})`}
+                        </span>
+                        {member.email && (
+                          <span className="text-xs text-primary">{member.email}</span>
+                        )}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -440,8 +462,15 @@ export default function AdminRelationships() {
                     .filter(m => m.id !== newFromMemberId)
                     .map((member) => (
                       <SelectItem key={member.id} value={member.id}>
-                        {member.firstName} {member.lastName}
-                        {member.birthDate && ` (${new Date(member.birthDate).getFullYear()})`}
+                        <div className="flex flex-col">
+                          <span>
+                            {member.firstName} {member.lastName}
+                            {member.birthDate && ` (${new Date(member.birthDate).getFullYear()})`}
+                          </span>
+                          {member.email && (
+                            <span className="text-xs text-primary">{member.email}</span>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                 </SelectContent>

@@ -47,6 +47,7 @@ export interface IStorage {
   getMembers(treeId: string): Promise<FamilyMember[]>;
   getMember(id: string): Promise<FamilyMember | undefined>;
   getMemberByClaimedUserId(userId: string, treeId: string): Promise<FamilyMember | undefined>;
+  getMembersByEmail(email: string): Promise<FamilyMember[]>;
   createMember(member: InsertFamilyMember): Promise<FamilyMember>;
   updateMember(id: string, member: Partial<InsertFamilyMember>): Promise<FamilyMember | undefined>;
   deleteMember(id: string): Promise<boolean>;
@@ -320,6 +321,14 @@ export class DatabaseStorage implements IStorage {
       )
     );
     return member;
+  }
+
+  async getMembersByEmail(email: string): Promise<FamilyMember[]> {
+    // Find all family members with this email across all trees
+    const members = await db.select().from(familyMembers).where(
+      eq(familyMembers.email, email.toLowerCase())
+    );
+    return members;
   }
 
   async createMember(member: InsertFamilyMember): Promise<FamilyMember> {
