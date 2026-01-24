@@ -92,6 +92,25 @@ export default function PublicProfilePage() {
     enabled: !!userId,
   });
 
+  // Check connection status with this user
+  interface ConnectionStatus {
+    status: 'self' | 'connected' | 'pending_sent' | 'pending_received' | 'not_connected';
+    isConnected: boolean;
+    hasPendingRequest: boolean;
+    direction?: 'sent' | 'received';
+    requestId?: string;
+  }
+  
+  const { data: connectionStatus } = useQuery<ConnectionStatus>({
+    queryKey: ['/api/user-connections/check', userId],
+    queryFn: async () => {
+      const res = await fetch(`/api/user-connections/check/${userId}`, { credentials: 'include' });
+      if (!res.ok) return { status: 'not_connected', isConnected: false, hasPendingRequest: false };
+      return res.json();
+    },
+    enabled: !!userId && !!currentUser && currentUser.id !== userId,
+  });
+
   const sendConnectionRequest = useMutation({
     mutationFn: async (data: { relationshipType: string; customLabel?: string; message?: string }) => {
       const res = await fetch('/api/user-connection-requests', {
@@ -120,6 +139,7 @@ export default function PublicProfilePage() {
       setCustomLabel("");
       setMessage("");
       queryClient.invalidateQueries({ queryKey: ['/api/user-connection-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user-connections/check', userId] });
     },
     onError: (error: Error) => {
       toast({
@@ -270,17 +290,53 @@ export default function PublicProfilePage() {
               </div>
             ) : currentUser ? (
               <div className="space-y-3">
-                <Button 
-                  className="w-full" 
-                  onClick={() => setShowConnectionDialog(true)}
-                  data-testid="button-send-connection"
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Connect with {profile.firstName}
-                </Button>
-                <p className="text-xs text-center text-muted-foreground">
-                  Tell {profile.firstName} how you're related to collaborate on family trees together
-                </p>
+                {connectionStatus?.isConnected ? (
+                  <>
+                    <Badge variant="secondary" className="w-full justify-center py-2">
+                      <Users className="h-4 w-4 mr-2 text-primary" />
+                      <span className="text-primary font-medium">Already Connected</span>
+                    </Badge>
+                    <p className="text-xs text-center text-muted-foreground">
+                      You're already connected with {profile.firstName || 'this person'}. View your connections on the dashboard.
+                    </p>
+                  </>
+                ) : connectionStatus?.status === 'pending_sent' ? (
+                  <>
+                    <Badge variant="secondary" className="w-full justify-center py-2">
+                      <Loader2 className="h-4 w-4 mr-2" />
+                      Request Pending
+                    </Badge>
+                    <p className="text-xs text-center text-muted-foreground">
+                      You've already sent a connection request to {profile.firstName || 'this person'}. Waiting for their approval.
+                    </p>
+                  </>
+                ) : connectionStatus?.status === 'pending_received' ? (
+                  <>
+                    <Link href="/dashboard">
+                      <Button className="w-full" data-testid="button-view-pending-request">
+                        <Users className="h-4 w-4 mr-2" />
+                        View Their Request
+                      </Button>
+                    </Link>
+                    <p className="text-xs text-center text-muted-foreground">
+                      {profile.firstName || 'This person'} has sent you a connection request. Check your dashboard to approve it.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Button 
+                      className="w-full" 
+                      onClick={() => setShowConnectionDialog(true)}
+                      data-testid="button-send-connection"
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Connect with {profile.firstName || 'this person'}
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                      Tell {profile.firstName || 'them'} how you're related to collaborate on family trees together
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -291,7 +347,7 @@ export default function PublicProfilePage() {
                   </Button>
                 </Link>
                 <p className="text-xs text-center text-muted-foreground">
-                  Create a free account to connect with {profile.firstName} and start building your family tree
+                  Create a free account to connect with {profile.firstName || 'this person'} and start building your family tree
                 </p>
               </div>
             )}
@@ -365,7 +421,7 @@ export default function PublicProfilePage() {
               <Label htmlFor="message">Add a message (optional)</Label>
               <Textarea
                 id="message"
-                placeholder={`Hi ${profile.firstName}, it was great seeing you at the reunion!`}
+                placeholder={`Hi ${profile.firstName || 'there'}, it was great seeing you at the reunion!`}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 className="resize-none"

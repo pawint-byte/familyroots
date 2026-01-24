@@ -4428,6 +4428,58 @@ export async function registerRoutes(
     }
   });
 
+  // Check connection status with a specific user
+  app.get("/api/user-connections/check/:targetUserId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { targetUserId } = req.params;
+
+      if (userId === targetUserId) {
+        return res.json({ status: "self", isConnected: false, hasPendingRequest: false });
+      }
+
+      // Check if already connected
+      const existingConnection = await storage.getExistingUserConnection(userId, targetUserId);
+      if (existingConnection) {
+        return res.json({ 
+          status: "connected", 
+          isConnected: true, 
+          hasPendingRequest: false,
+          connection: existingConnection 
+        });
+      }
+
+      // Check if there's a pending request from current user to target
+      const sentRequest = await storage.getExistingUserConnectionRequest(userId, targetUserId);
+      if (sentRequest) {
+        return res.json({ 
+          status: "pending_sent", 
+          isConnected: false, 
+          hasPendingRequest: true,
+          direction: "sent" 
+        });
+      }
+
+      // Check if there's a pending request from target to current user
+      const receivedRequest = await storage.getExistingUserConnectionRequest(targetUserId, userId);
+      if (receivedRequest) {
+        return res.json({ 
+          status: "pending_received", 
+          isConnected: false, 
+          hasPendingRequest: true,
+          direction: "received",
+          requestId: receivedRequest.id
+        });
+      }
+
+      // No connection or pending request
+      res.json({ status: "not_connected", isConnected: false, hasPendingRequest: false });
+    } catch (error) {
+      console.error("Error checking connection status:", error);
+      res.status(500).json({ message: "Failed to check connection status" });
+    }
+  });
+
   // Legacy endpoint - redirect to new endpoint
   app.post("/api/connection-requests", isAuthenticated, async (req: any, res) => {
     res.status(400).json({ 
