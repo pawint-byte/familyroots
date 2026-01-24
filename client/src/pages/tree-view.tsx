@@ -72,6 +72,8 @@ export default function TreeView() {
   const [showPaymentGate, setShowPaymentGate] = useState(false);
   const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit: number; current: number }>({ limit: 20, current: 20 });
   const [isExporting, setIsExporting] = useState(false);
+  const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; member1Name: string; member2Name: string; member1Id: string; member2Id: string } | null>(null);
+  const [newRelationshipType, setNewRelationshipType] = useState<string>("");
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
   const treeId = params?.id;
@@ -240,6 +242,55 @@ export default function TreeView() {
       toast({
         title: "Error",
         description: "Failed to set root member",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteRelationshipMutation = useMutation({
+    mutationFn: async (relationshipId: string) => {
+      return apiRequest("DELETE", `/api/trees/${treeId}/relationships/${relationshipId}`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      toast({
+        title: "Success",
+        description: "Relationship removed",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to remove relationship",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateRelationshipMutation = useMutation({
+    mutationFn: async ({ oldRelationshipId, fromMemberId, toMemberId, newType }: { oldRelationshipId: string; fromMemberId: string; toMemberId: string; newType: string }) => {
+      // Delete the old relationship first
+      await apiRequest("DELETE", `/api/trees/${treeId}/relationships/${oldRelationshipId}`, undefined);
+      // Create the new relationship
+      return apiRequest("POST", `/api/trees/${treeId}/relationships`, {
+        fromMemberId,
+        toMemberId,
+        relationshipType: newType,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      setEditingRelationship(null);
+      setNewRelationshipType("");
+      toast({
+        title: "Success",
+        description: "Relationship updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update relationship",
         variant: "destructive",
       });
     },
@@ -845,6 +896,65 @@ export default function TreeView() {
                 </div>
               </SheetHeader>
 
+              {/* Prominent Relationship to Focus Person / Root Member */}
+              {treeData && selectedMember && (() => {
+                // Determine the "reference" person - the focus member or root member
+                const referenceMemberId = focusMemberId || treeData.tree.rootMemberId;
+                if (!referenceMemberId || referenceMemberId === selectedMember.id) return null;
+                
+                const referenceMember = treeData.members.find(m => m.id === referenceMemberId);
+                if (!referenceMember) return null;
+                
+                // Find direct relationship between selectedMember and referenceMember
+                const directRelationship = treeData.relationships.find(r => 
+                  (r.fromMemberId === selectedMember.id && r.toMemberId === referenceMemberId) ||
+                  (r.fromMemberId === referenceMemberId && r.toMemberId === selectedMember.id)
+                );
+                
+                if (!directRelationship) return null;
+                
+                // Determine the relationship label from reference member's perspective
+                let relationshipLabel = "";
+                let description = "";
+                
+                if (directRelationship.relationshipType === "parent") {
+                  if (directRelationship.fromMemberId === selectedMember.id) {
+                    // selectedMember is parent of referenceMember - so selectedMember is "Your Parent"
+                    const genderLabel = selectedMember.gender === "female" ? "Mother" : selectedMember.gender === "male" ? "Father" : "Parent";
+                    relationshipLabel = `Your ${genderLabel}`;
+                    description = `${selectedMember.firstName} is ${referenceMember.firstName}'s ${genderLabel.toLowerCase()}`;
+                  } else {
+                    // referenceMember is parent of selectedMember - so selectedMember is "Your Child"
+                    const genderLabel = selectedMember.gender === "female" ? "Daughter" : selectedMember.gender === "male" ? "Son" : "Child";
+                    relationshipLabel = `Your ${genderLabel}`;
+                    description = `${selectedMember.firstName} is ${referenceMember.firstName}'s ${genderLabel.toLowerCase()}`;
+                  }
+                } else if (directRelationship.relationshipType === "spouse") {
+                  relationshipLabel = "Your Spouse";
+                  description = `${selectedMember.firstName} is ${referenceMember.firstName}'s spouse/partner`;
+                } else if (directRelationship.relationshipType === "sibling") {
+                  const genderLabel = selectedMember.gender === "female" ? "Sister" : selectedMember.gender === "male" ? "Brother" : "Sibling";
+                  relationshipLabel = `Your ${genderLabel}`;
+                  description = `${selectedMember.firstName} is ${referenceMember.firstName}'s ${genderLabel.toLowerCase()}`;
+                }
+                
+                if (!relationshipLabel) return null;
+                
+                return (
+                  <div className="mb-4 p-3 bg-primary/5 rounded-lg border border-primary/20" data-testid="relationship-to-you-section">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Heart className="h-4 w-4 text-primary" />
+                      <Badge variant="default" className="text-sm" data-testid="badge-relationship-to-you">
+                        {relationshipLabel}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        (relative to {referenceMember.firstName})
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Relationship to focus person */}
               {focusMember && treeId && (
                 <RelationshipDisplay
@@ -987,57 +1097,131 @@ export default function TreeView() {
                       const getMember = (id: string) => treeData.members.find(m => m.id === id);
                       const getMemberName = (m: FamilyMember | undefined) => m ? (m.lastName ? `${m.firstName} ${m.lastName}` : m.firstName) : "Unknown";
                       
-                      const relationshipDescriptions: { type: string; label: string; members: FamilyMember[] }[] = [];
+                      // Build list of individual relationships with their IDs
+                      const relationshipItems: { id: string; label: string; personName: string; description: string; fromMemberId: string; toMemberId: string; relationshipType: string; otherMemberName: string }[] = [];
                       
                       // Parents (relationships where someone else is parent of selectedMember)
-                      const parents = memberRelationships
+                      memberRelationships
                         .filter(r => r.toMemberId === selectedMember.id && r.relationshipType === "parent")
-                        .map(r => getMember(r.fromMemberId))
-                        .filter((m): m is FamilyMember => !!m);
-                      if (parents.length > 0) {
-                        relationshipDescriptions.push({ type: "parent", label: parents.length === 1 ? "Parent" : "Parents", members: parents });
-                      }
+                        .forEach(r => {
+                          const parent = getMember(r.fromMemberId);
+                          if (parent) {
+                            const label = parent.gender === "female" ? "Mother" : parent.gender === "male" ? "Father" : "Parent";
+                            relationshipItems.push({
+                              id: r.id,
+                              label,
+                              personName: getMemberName(parent),
+                              description: `${getMemberName(parent)} is ${selectedMember.firstName}'s ${label.toLowerCase()}`,
+                              fromMemberId: r.fromMemberId,
+                              toMemberId: r.toMemberId,
+                              relationshipType: r.relationshipType,
+                              otherMemberName: getMemberName(parent)
+                            });
+                          }
+                        });
                       
                       // Children (relationships where selectedMember is parent of someone)
-                      const children = memberRelationships
+                      memberRelationships
                         .filter(r => r.fromMemberId === selectedMember.id && r.relationshipType === "parent")
-                        .map(r => getMember(r.toMemberId))
-                        .filter((m): m is FamilyMember => !!m);
-                      if (children.length > 0) {
-                        relationshipDescriptions.push({ type: "child", label: children.length === 1 ? "Child" : "Children", members: children });
-                      }
+                        .forEach(r => {
+                          const child = getMember(r.toMemberId);
+                          if (child) {
+                            const label = child.gender === "female" ? "Daughter" : child.gender === "male" ? "Son" : "Child";
+                            relationshipItems.push({
+                              id: r.id,
+                              label,
+                              personName: getMemberName(child),
+                              description: `${getMemberName(child)} is ${selectedMember.firstName}'s ${label.toLowerCase()}`,
+                              fromMemberId: r.fromMemberId,
+                              toMemberId: r.toMemberId,
+                              relationshipType: r.relationshipType,
+                              otherMemberName: getMemberName(child)
+                            });
+                          }
+                        });
                       
                       // Spouse/Partner
-                      const spouses = memberRelationships
+                      memberRelationships
                         .filter(r => r.relationshipType === "spouse")
-                        .map(r => r.fromMemberId === selectedMember.id ? getMember(r.toMemberId) : getMember(r.fromMemberId))
-                        .filter((m): m is FamilyMember => !!m);
-                      if (spouses.length > 0) {
-                        relationshipDescriptions.push({ type: "spouse", label: spouses.length === 1 ? "Spouse/Partner" : "Spouses/Partners", members: spouses });
-                      }
+                        .forEach(r => {
+                          const spouse = getMember(r.fromMemberId === selectedMember.id ? r.toMemberId : r.fromMemberId);
+                          if (spouse) {
+                            relationshipItems.push({
+                              id: r.id,
+                              label: "Spouse",
+                              personName: getMemberName(spouse),
+                              description: `${getMemberName(spouse)} is ${selectedMember.firstName}'s spouse/partner`,
+                              fromMemberId: r.fromMemberId,
+                              toMemberId: r.toMemberId,
+                              relationshipType: r.relationshipType,
+                              otherMemberName: getMemberName(spouse)
+                            });
+                          }
+                        });
                       
                       // Siblings
-                      const siblings = memberRelationships
+                      memberRelationships
                         .filter(r => r.relationshipType === "sibling")
-                        .map(r => r.fromMemberId === selectedMember.id ? getMember(r.toMemberId) : getMember(r.fromMemberId))
-                        .filter((m): m is FamilyMember => !!m);
-                      if (siblings.length > 0) {
-                        relationshipDescriptions.push({ type: "sibling", label: siblings.length === 1 ? "Sibling" : "Siblings", members: siblings });
-                      }
+                        .forEach(r => {
+                          const sibling = getMember(r.fromMemberId === selectedMember.id ? r.toMemberId : r.fromMemberId);
+                          if (sibling) {
+                            const label = sibling.gender === "female" ? "Sister" : sibling.gender === "male" ? "Brother" : "Sibling";
+                            relationshipItems.push({
+                              id: r.id,
+                              label,
+                              personName: getMemberName(sibling),
+                              description: `${getMemberName(sibling)} is ${selectedMember.firstName}'s ${label.toLowerCase()}`,
+                              fromMemberId: r.fromMemberId,
+                              toMemberId: r.toMemberId,
+                              relationshipType: r.relationshipType,
+                              otherMemberName: getMemberName(sibling)
+                            });
+                          }
+                        });
                       
                       return (
                         <div className="space-y-2">
-                          {relationshipDescriptions.map(({ type, label, members }) => (
-                            <div key={type} className="flex items-start gap-2">
-                              <Badge variant="outline" className="text-xs shrink-0">{label}</Badge>
-                              <span className="text-sm">
-                                {members.map((m, i) => (
-                                  <span key={m.id}>
-                                    {getMemberName(m)}
-                                    {i < members.length - 1 ? ", " : ""}
-                                  </span>
-                                ))}
-                              </span>
+                          {relationshipItems.map((item) => (
+                            <div key={item.id} className="flex items-center gap-2 justify-between p-2 rounded-md bg-muted/50" data-testid={`relationship-item-${item.id}`}>
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <Badge variant="outline" className="text-xs shrink-0">{item.label}</Badge>
+                                <span className="text-sm truncate">{item.personName}</span>
+                              </div>
+                              {canEditTree && (
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => {
+                                      setEditingRelationship({
+                                        id: item.id,
+                                        currentType: item.relationshipType,
+                                        member1Name: selectedMember.firstName,
+                                        member2Name: item.otherMemberName,
+                                        member1Id: item.fromMemberId,
+                                        member2Id: item.toMemberId
+                                      });
+                                      setNewRelationshipType(item.relationshipType);
+                                    }}
+                                    data-testid={`button-edit-relationship-${item.id}`}
+                                  >
+                                    <Edit className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => {
+                                      if (confirm(`Remove this relationship? (${item.description})`)) {
+                                        deleteRelationshipMutation.mutate(item.id);
+                                      }
+                                    }}
+                                    disabled={deleteRelationshipMutation.isPending}
+                                    data-testid={`button-delete-relationship-${item.id}`}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1159,6 +1343,63 @@ export default function TreeView() {
           <MatchRequests treeId={treeData.tree.id} canEdit={canEditTree} />
         </div>
       )}
+
+      {/* Edit Relationship Dialog */}
+      <Dialog open={!!editingRelationship} onOpenChange={(open) => !open && setEditingRelationship(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Relationship</DialogTitle>
+          </DialogHeader>
+          {editingRelationship && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Change the relationship between {editingRelationship.member1Name} and {editingRelationship.member2Name}
+              </p>
+              <div className="space-y-2">
+                <Label>Relationship Type</Label>
+                <Select value={newRelationshipType} onValueChange={setNewRelationshipType}>
+                  <SelectTrigger data-testid="select-new-relationship-type">
+                    <SelectValue placeholder="Select relationship type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="parent">Parent/Child</SelectItem>
+                    <SelectItem value="spouse">Spouse/Partner</SelectItem>
+                    <SelectItem value="sibling">Sibling</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Current: {editingRelationship.currentType}
+                </p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingRelationship(null)}
+                  data-testid="button-cancel-edit-relationship"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (editingRelationship && newRelationshipType && newRelationshipType !== editingRelationship.currentType) {
+                      updateRelationshipMutation.mutate({
+                        oldRelationshipId: editingRelationship.id,
+                        fromMemberId: editingRelationship.member1Id,
+                        toMemberId: editingRelationship.member2Id,
+                        newType: newRelationshipType,
+                      });
+                    }
+                  }}
+                  disabled={!newRelationshipType || newRelationshipType === editingRelationship.currentType || updateRelationshipMutation.isPending}
+                  data-testid="button-save-relationship"
+                >
+                  {updateRelationshipMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <PaymentGateDialog
         open={showPaymentGate}
