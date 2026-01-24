@@ -23,7 +23,7 @@ import {
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, Filter, Download, Upload, Clock, Star, Image,
-  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw
+  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toPng } from "html-to-image";
@@ -459,6 +459,14 @@ export default function TreeView() {
                 {(isOwner || isCoOwner) && (
                   <>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      className="gap-2"
+                      onClick={() => navigate("/manage-relationships")}
+                      data-testid="button-manage-relationships"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      Manage Relationships
+                    </DropdownMenuItem>
                     <DropdownMenuItem 
                       className="gap-2 text-destructive"
                       onClick={handleDeleteTree}

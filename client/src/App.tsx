@@ -60,6 +60,7 @@ function Router() {
       <Route path="/admin/videos" component={AdminVideos} />
       <Route path="/admin/users" component={AdminUsers} />
       <Route path="/admin/relationships" component={AdminRelationships} />
+      <Route path="/manage-relationships" component={AdminRelationships} />
       <Route path="/video/:id" component={VideoPage} />
       <Route path="/join/:inviteCode" component={JoinTree} />
       <Route path="/account/settings" component={AccountSettings} />

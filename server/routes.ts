@@ -866,6 +866,41 @@ export async function registerRoutes(
       }
 
       const data = insertRelationshipSchema.parse({ ...req.body, treeId });
+      
+      // Age validation for parent/child relationships
+      if (data.relationshipType === "parent" || data.relationshipType === "child") {
+        const members = await storage.getMembers(treeId);
+        const fromMember = members.find(m => m.id === data.fromMemberId);
+        const toMember = members.find(m => m.id === data.toMemberId);
+        
+        if (fromMember?.birthDate && toMember?.birthDate) {
+          const fromBirth = new Date(fromMember.birthDate);
+          const toBirth = new Date(toMember.birthDate);
+          
+          // For "parent" relationship: fromMember should be older (born before toMember)
+          // For "child" relationship: fromMember should be younger (born after toMember)
+          if (data.relationshipType === "parent") {
+            // fromMember is the parent, so they should be older (earlier birth date)
+            if (fromBirth >= toBirth) {
+              const fromName = `${fromMember.firstName} ${fromMember.lastName || ''}`.trim();
+              const toName = `${toMember.firstName} ${toMember.lastName || ''}`.trim();
+              return res.status(400).json({ 
+                message: `Age error: ${fromName} (born ${fromBirth.getFullYear()}) cannot be a parent of ${toName} (born ${toBirth.getFullYear()}). A parent must be older than their child.` 
+              });
+            }
+          } else if (data.relationshipType === "child") {
+            // fromMember is the child, so they should be younger (later birth date)
+            if (fromBirth <= toBirth) {
+              const fromName = `${fromMember.firstName} ${fromMember.lastName || ''}`.trim();
+              const toName = `${toMember.firstName} ${toMember.lastName || ''}`.trim();
+              return res.status(400).json({ 
+                message: `Age error: ${fromName} (born ${fromBirth.getFullYear()}) cannot be a child of ${toName} (born ${toBirth.getFullYear()}). A child must be younger than their parent.` 
+              });
+            }
+          }
+        }
+      }
+
       const relationship = await storage.createRelationship(data);
       res.status(201).json(relationship);
     } catch (error) {

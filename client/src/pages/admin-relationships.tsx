@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { 
   Loader2, ArrowLeft, Trash2, ArrowRight, Plus, AlertTriangle, Link2
 } from "lucide-react";
@@ -58,6 +59,7 @@ const RELATIONSHIP_COLORS: Record<string, string> = {
 
 export default function AdminRelationships() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedTreeId, setSelectedTreeId] = useState<string>("");
   const [relationshipToDelete, setRelationshipToDelete] = useState<Relationship | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -65,18 +67,29 @@ export default function AdminRelationships() {
   const [newToMemberId, setNewToMemberId] = useState("");
   const [newRelationshipType, setNewRelationshipType] = useState("");
 
-  const { data: isAdmin, isLoading: checkingAdmin } = useQuery<{ isAdmin: boolean }>({
+  // Check if user is admin (for showing admin badge and accessing all trees)
+  const { data: adminStatus } = useQuery<{ isAdmin: boolean }>({
     queryKey: ["/api/admin/check"],
   });
 
-  const { data: trees = [], isLoading: loadingTrees } = useQuery<FamilyTree[]>({
+  // Get user's trees (owned + collaborated)
+  const { data: allTrees = [], isLoading: loadingTrees } = useQuery<FamilyTree[]>({
     queryKey: ["/api/trees"],
-    enabled: isAdmin?.isAdmin === true,
   });
+
+  // Filter to only show owned trees for non-admins
+  const trees = useMemo(() => {
+    if (adminStatus?.isAdmin) {
+      // Admins can see all trees
+      return allTrees;
+    }
+    // Non-admins can only see trees they own
+    return allTrees.filter(tree => tree.ownerId === user?.id);
+  }, [allTrees, adminStatus?.isAdmin, user?.id]);
 
   const { data: treeData, isLoading: loadingTree } = useQuery<TreeWithMembers>({
     queryKey: ["/api/trees", selectedTreeId],
-    enabled: !!selectedTreeId && isAdmin?.isAdmin === true,
+    enabled: !!selectedTreeId,
   });
 
   const deleteMutation = useMutation({
@@ -136,7 +149,7 @@ export default function AdminRelationships() {
     return new Date(member.birthDate).getFullYear().toString();
   };
 
-  if (checkingAdmin || loadingTrees) {
+  if (loadingTrees) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -144,24 +157,26 @@ export default function AdminRelationships() {
     );
   }
 
-  if (!isAdmin?.isAdmin) {
+  // Show message if user has no trees
+  if (trees.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="max-w-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              Access Denied
+            <CardTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5 text-primary" />
+              No Trees Found
             </CardTitle>
             <CardDescription>
-              You do not have permission to access this page.
+              You need to own a family tree to manage relationships.
+              Create a tree first, then you can use this tool to edit relationships.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/">
+            <Link href="/dashboard">
               <Button variant="outline" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
-                Return Home
+                Go to Dashboard
               </Button>
             </Link>
           </CardContent>
@@ -184,9 +199,12 @@ export default function AdminRelationships() {
               <h1 className="text-xl font-semibold flex items-center gap-2">
                 <Link2 className="h-5 w-5 text-primary" />
                 Relationship Editor
+                {adminStatus?.isAdmin && (
+                  <Badge variant="secondary" className="text-xs">Admin</Badge>
+                )}
               </h1>
               <p className="text-sm text-muted-foreground">
-                View, delete, and add family relationships
+                View, delete, and add family relationships in your trees
               </p>
             </div>
           </div>
