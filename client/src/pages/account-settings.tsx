@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Shield, User, Clock, AlertTriangle, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Shield, User, Clock, AlertTriangle, Save, Trash2, Pencil, X, Check } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { NotificationPreferences } from "@/components/notification-preferences";
 import type { AccountHeir } from "@shared/schema";
@@ -25,6 +25,10 @@ export default function AccountSettings() {
   const [relationship, setRelationship] = useState("");
   const [notes, setNotes] = useState("");
   const [inactivityMonths, setInactivityMonths] = useState("6");
+  
+  // Email editing state
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
 
   const { data: accountSettings, isLoading: settingsLoading } = useQuery<{
     lastActivityAt: string | null;
@@ -96,6 +100,50 @@ export default function AccountSettings() {
       });
     },
   });
+
+  const updateEmailMutation = useMutation({
+    mutationFn: async (email: string) => {
+      return apiRequest("PATCH", "/api/account/email", { email });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setIsEditingEmail(false);
+      setNewEmail("");
+      toast({
+        title: "Email Updated",
+        description: "Your email address has been changed successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update email",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveEmail = () => {
+    if (!newEmail.trim()) {
+      toast({
+        title: "Required Field",
+        description: "Please enter an email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateEmailMutation.mutate(newEmail.trim());
+  };
+
+  const handleCancelEmailEdit = () => {
+    setIsEditingEmail(false);
+    setNewEmail("");
+  };
+
+  const handleStartEmailEdit = () => {
+    setNewEmail(user?.email || "");
+    setIsEditingEmail(true);
+  };
 
   const handleSaveHeir = () => {
     if (!heirName.trim() || !heirEmail.trim()) {
@@ -178,9 +226,49 @@ export default function AccountSettings() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Email</Label>
-                  <p className="font-medium" data-testid="text-user-email">
-                    {user.email || "Not set"}
-                  </p>
+                  {isEditingEmail ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        type="email"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        placeholder="Enter new email"
+                        data-testid="input-new-email"
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={handleSaveEmail}
+                        disabled={updateEmailMutation.isPending}
+                        data-testid="button-save-email"
+                      >
+                        <Check className="h-4 w-4 text-green-600" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={handleCancelEmailEdit}
+                        disabled={updateEmailMutation.isPending}
+                        data-testid="button-cancel-email"
+                      >
+                        <X className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium" data-testid="text-user-email">
+                        {user.email || "Not set"}
+                      </p>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={handleStartEmailEdit}
+                        data-testid="button-edit-email"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">

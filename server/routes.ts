@@ -3694,6 +3694,37 @@ export async function registerRoutes(
     }
   });
 
+  // Update user email
+  app.patch("/api/account/email", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { email } = req.body;
+
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        return res.status(400).json({ message: "Invalid email format" });
+      }
+
+      // Check if email is already used by another user
+      const existingUser = await storage.getUserByEmail(email.trim());
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({ message: "This email is already in use by another account" });
+      }
+
+      // Update the user's email
+      await storage.updateUserEmail(userId, email.trim());
+
+      res.json({ success: true, email: email.trim() });
+    } catch (error: any) {
+      console.error("Error updating email:", error);
+      res.status(500).json({ message: "Failed to update email" });
+    }
+  });
+
   // ============== MERCHANDISE / PRINTFUL ROUTES ==============
   
   // Get recommended products for merchandise

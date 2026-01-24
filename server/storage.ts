@@ -92,6 +92,7 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  updateUserEmail(userId: string, email: string): Promise<void>;
   updateUserStripeInfo(userId: string, info: { stripeCustomerId?: string; stripeSubscriptionId?: string }): Promise<User | undefined>;
   updateUserActivity(userId: string): Promise<void>;
   getInactiveUsers(inactivityMonths: number): Promise<User[]>;
@@ -532,6 +533,12 @@ export class DatabaseStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
+  }
+
+  async updateUserEmail(userId: string, email: string): Promise<void> {
+    await db.update(users)
+      .set({ email, updatedAt: new Date() })
+      .where(eq(users.id, userId));
   }
 
   async updateUserActivity(userId: string): Promise<void> {
