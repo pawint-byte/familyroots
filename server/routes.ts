@@ -5203,11 +5203,173 @@ export async function registerRoutes(
       });
 
       const fromUser = await storage.getUser(request.fromUserId);
+      const toUser = await storage.getUser(request.toUserId);
+
+      // === AUTO-CONNECT TREES AND ADD FAMILY MEMBERS ===
+      // Get both users' trees (primary tree - first one they own)
+      const fromUserTrees = await storage.getTrees(request.fromUserId);
+      const toUserTrees = await storage.getTrees(request.toUserId);
+      
+      if (fromUserTrees.length > 0 && toUserTrees.length > 0) {
+        const fromTree = fromUserTrees[0];
+        const toTree = toUserTrees[0];
+        
+        // Check if trees are already connected
+        const existingConnections = await storage.getTreeConnections(fromTree.id);
+        const alreadyConnected = existingConnections.some(
+          c => (c.tree1Id === fromTree.id && c.tree2Id === toTree.id) ||
+               (c.tree1Id === toTree.id && c.tree2Id === fromTree.id)
+        );
+        
+        if (!alreadyConnected) {
+          // Find or create member for fromUser in toTree
+          const toTreeMembers = await storage.getMembers(toTree.id);
+          let fromUserMemberInToTree = toTreeMembers.find(m => m.claimedByUserId === request.fromUserId);
+          
+          if (!fromUserMemberInToTree) {
+            // Create a member for the requester in the approver's tree
+            fromUserMemberInToTree = await storage.createMember({
+              treeId: toTree.id,
+              firstName: fromUser?.firstName || 'Unknown',
+              lastName: fromUser?.lastName || '',
+              photoUrl: fromUser?.profileImageUrl || null,
+              email: null,
+              claimedByUserId: request.fromUserId,
+              claimedAt: new Date(),
+            });
+          }
+          
+          // Find or create member for toUser in fromTree
+          const fromTreeMembers = await storage.getMembers(fromTree.id);
+          let toUserMemberInFromTree = fromTreeMembers.find(m => m.claimedByUserId === request.toUserId);
+          
+          if (!toUserMemberInFromTree) {
+            // Create a member for the approver in the requester's tree
+            toUserMemberInFromTree = await storage.createMember({
+              treeId: fromTree.id,
+              firstName: toUser?.firstName || 'Unknown',
+              lastName: toUser?.lastName || '',
+              photoUrl: toUser?.profileImageUrl || null,
+              email: null,
+              claimedByUserId: request.toUserId,
+              claimedAt: new Date(),
+            });
+          }
+          
+          // Map user connection relationship to family tree relationship
+          // requesterRelationship is how the requester relates TO the approver
+          // e.g., if requester says "I am your son", relationship should be: approver is parent of requester
+          const mapToTreeRelationship = (userRel: string): { type: string; fromId: string; toId: string } | null => {
+            // In both trees, we need to create the correct relationship
+            // fromUserMemberInToTree = requester in approver's tree
+            // toUserMemberInFromTree = approver in requester's tree
+            
+            switch(userRel) {
+              case 'son':
+              case 'daughter':
+                // Requester is child of approver
+                // In approver's tree: approver's member -> parent -> fromUser's member
+                return { type: 'parent', fromId: 'from', toId: 'to' }; // from is child, to is parent
+              case 'parent':
+                // Requester is parent of approver
+                return { type: 'parent', fromId: 'to', toId: 'from' }; // to is child, from is parent
+              case 'spouse':
+                return { type: 'spouse', fromId: 'from', toId: 'to' };
+              case 'sibling':
+                return { type: 'sibling', fromId: 'from', toId: 'to' };
+              default:
+                return null; // Complex relationships like grandparent need manual setup
+            }
+          };
+          
+          const relMapping = mapToTreeRelationship(requesterRelationship);
+          
+          // Find the tree owner's own member in their tree (for creating relationship)
+          const toUserClaimedInOwnTree = toTreeMembers.find(m => m.claimedByUserId === request.toUserId);
+          const fromUserClaimedInOwnTree = fromTreeMembers.find(m => m.claimedByUserId === request.fromUserId);
+          
+          // Add relationship in approver's tree (toTree)
+          if (relMapping && toUserClaimedInOwnTree && fromUserMemberInToTree) {
+            const existingRels = await storage.getRelationships(toTree.id);
+            const relExists = existingRels.some(r => 
+              (r.fromMemberId === toUserClaimedInOwnTree.id && r.toMemberId === fromUserMemberInToTree!.id) ||
+              (r.fromMemberId === fromUserMemberInToTree!.id && r.toMemberId === toUserClaimedInOwnTree.id)
+            );
+            
+            if (!relExists) {
+              const fromMember = relMapping.fromId === 'from' ? fromUserMemberInToTree.id : toUserClaimedInOwnTree.id;
+              const toMember = relMapping.toId === 'from' ? fromUserMemberInToTree.id : toUserClaimedInOwnTree.id;
+              
+              await storage.createRelationship({
+                treeId: toTree.id,
+                fromMemberId: fromMember,
+                toMemberId: toMember,
+                relationshipType: relMapping.type as any,
+              });
+            }
+          }
+          
+          // Add relationship in requester's tree (fromTree)
+          if (relMapping && fromUserClaimedInOwnTree && toUserMemberInFromTree) {
+            const existingRels = await storage.getRelationships(fromTree.id);
+            const relExists = existingRels.some(r => 
+              (r.fromMemberId === fromUserClaimedInOwnTree.id && r.toMemberId === toUserMemberInFromTree!.id) ||
+              (r.fromMemberId === toUserMemberInFromTree!.id && r.toMemberId === fromUserClaimedInOwnTree.id)
+            );
+            
+            if (!relExists) {
+              // Flip the relationship direction for the other tree
+              const fromMember = relMapping.fromId === 'from' ? fromUserClaimedInOwnTree.id : toUserMemberInFromTree.id;
+              const toMember = relMapping.toId === 'from' ? fromUserClaimedInOwnTree.id : toUserMemberInFromTree.id;
+              
+              await storage.createRelationship({
+                treeId: fromTree.id,
+                fromMemberId: fromMember,
+                toMemberId: toMember,
+                relationshipType: relMapping.type as any,
+              });
+            }
+          }
+          
+          // Connect the trees with the connector members
+          await storage.createTreeConnection({
+            tree1Id: fromTree.id,
+            tree2Id: toTree.id,
+            connector1MemberId: fromUserClaimedInOwnTree?.id || null,
+            connector2MemberId: toUserClaimedInOwnTree?.id || null,
+            connectionType: requesterRelationship === 'spouse' ? 'marriage' : 'other',
+            createdBy: request.toUserId,
+          });
+          
+          // Add viewer access for both users to each other's trees
+          const existingCollab1 = await storage.getCollaboratorByUserAndTree(request.fromUserId, toTree.id);
+          if (!existingCollab1) {
+            await storage.addCollaborator({
+              treeId: toTree.id,
+              userId: request.fromUserId,
+              role: "viewer",
+              canEdit: false,
+              acceptedAt: new Date(),
+            });
+          }
+          
+          const existingCollab2 = await storage.getCollaboratorByUserAndTree(request.toUserId, fromTree.id);
+          if (!existingCollab2) {
+            await storage.addCollaborator({
+              treeId: fromTree.id,
+              userId: request.toUserId,
+              role: "viewer",
+              canEdit: false,
+              acceptedAt: new Date(),
+            });
+          }
+        }
+      }
 
       res.json({ 
         success: true, 
         request: approved,
-        message: `You are now connected with ${fromUser?.firstName}!`,
+        message: `You are now connected with ${fromUser?.firstName}! Your family trees have been linked.`,
       });
     } catch (error) {
       console.error("Error approving connection request:", error);
