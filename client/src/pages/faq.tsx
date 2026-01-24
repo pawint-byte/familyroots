@@ -124,7 +124,11 @@ export default function FAQ() {
       items: [
         {
           question: "How do I add my child's other parent without showing a marriage?",
-          answer: "You can add relationships between any family members without requiring a marriage connection. Simply: 1) Add the other parent as a new family member, 2) Click on that person in the tree, 3) Click 'Add Relationship', 4) Select 'Parent' and choose your child. This creates a parent-child connection without implying any relationship between the parents."
+          answer: "You can add relationships between any family members without requiring a marriage connection. Simply: 1) Add the other parent as a new family member, 2) Click on that person in the tree, 3) Click 'Add Relationship', 4) Select 'Parent' and choose your child. This creates a parent-child connection without implying any relationship between the parents. Parents of a common child are connected through their individual parent-child relationships, not through a spouse relationship."
+        },
+        {
+          question: "How do I edit or delete a relationship?",
+          answer: "Click on any family member to open their details panel, then scroll down to the 'Family Relationships' section. Each relationship shows edit (pencil) and delete (trash) buttons. Click the pencil to change the relationship type (parent, spouse, or sibling), or click the trash to remove the relationship entirely. This gives you full control to fix any mistakes or update your family connections."
         },
         {
           question: "Can I invite family members who don't have an account yet?",
