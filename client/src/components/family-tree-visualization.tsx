@@ -530,13 +530,11 @@ export default function FamilyTreeVisualization({
     return lines;
   };
 
-  const minX = positions.length > 0 ? Math.min(...positions.map((p) => p.x)) - 150 : 0;
-  const maxX = positions.length > 0 ? Math.max(...positions.map((p) => p.x)) + nodeWidth + 150 : 800;
-  const minY = positions.length > 0 ? Math.min(...positions.map((p) => p.y)) - 100 : 0;
-  const maxY = positions.length > 0 ? Math.max(...positions.map((p) => p.y)) + nodeHeight + 100 : 600;
-
-  const svgWidth = maxX - minX;
-  const svgHeight = maxY - minY;
+  // SVG dimensions - use the full extent to ensure lines align with cards
+  const maxX = positions.length > 0 ? Math.max(...positions.map((p) => p.x)) + nodeWidth + 200 : 1000;
+  const maxY = positions.length > 0 ? Math.max(...positions.map((p) => p.y)) + nodeHeight + 200 : 800;
+  const svgWidth = maxX;
+  const svgHeight = maxY;
 
   const getBranchStyles = (branchType: NodePosition['branchType']) => {
     const colors = BRANCH_COLORS[branchType];
@@ -567,7 +565,7 @@ export default function FamilyTreeVisualization({
           className="absolute inset-0 pointer-events-none"
           width={svgWidth}
           height={svgHeight}
-          viewBox={`${minX} ${minY} ${svgWidth} ${svgHeight}`}
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         >
           <defs>
             <filter id="glow">
