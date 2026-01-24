@@ -200,7 +200,9 @@ export default function FamilyTreeVisualization({
       });
     }
 
-    const siblings = getSiblings(focusId, parentChildMap, childParentMap, siblingMap);
+    // Get siblings but ensure we exclude the focus member and anyone already placed
+    const allSiblings = getSiblings(focusId, parentChildMap, childParentMap, siblingMap);
+    const siblings = allSiblings.filter(sibId => sibId !== focusId && !placed.has(sibId));
     if (siblings.length > 0) {
       const leftSiblings = siblings.slice(0, Math.ceil(siblings.length / 2));
       const rightSiblings = siblings.slice(Math.ceil(siblings.length / 2));
