@@ -5344,9 +5344,34 @@ export async function registerRoutes(
           
           const relMapping = mapToTreeRelationship(requesterRelationship);
           
-          // Find the tree owner's own member in their tree (for creating relationship)
-          const toUserClaimedInOwnTree = toTreeMembers.find(m => m.claimedByUserId === request.toUserId);
-          const fromUserClaimedInOwnTree = fromTreeMembers.find(m => m.claimedByUserId === request.fromUserId);
+          // Find or create the tree owner's own member in their tree (for creating relationship and tree connection)
+          let toUserClaimedInOwnTree = toTreeMembers.find(m => m.claimedByUserId === request.toUserId);
+          if (!toUserClaimedInOwnTree) {
+            // Create a member for the approver in their own tree
+            toUserClaimedInOwnTree = await storage.createMember({
+              treeId: toTree.id,
+              firstName: toUser?.firstName || 'Me',
+              lastName: toUser?.lastName || '',
+              photoUrl: toUser?.profileImageUrl || null,
+              email: null,
+              claimedByUserId: request.toUserId,
+              claimedAt: new Date(),
+            });
+          }
+          
+          let fromUserClaimedInOwnTree = fromTreeMembers.find(m => m.claimedByUserId === request.fromUserId);
+          if (!fromUserClaimedInOwnTree) {
+            // Create a member for the requester in their own tree
+            fromUserClaimedInOwnTree = await storage.createMember({
+              treeId: fromTree.id,
+              firstName: fromUser?.firstName || 'Me',
+              lastName: fromUser?.lastName || '',
+              photoUrl: fromUser?.profileImageUrl || null,
+              email: null,
+              claimedByUserId: request.fromUserId,
+              claimedAt: new Date(),
+            });
+          }
           
           // Add relationship in approver's tree (toTree)
           if (relMapping && toUserClaimedInOwnTree && fromUserMemberInToTree) {
