@@ -4401,6 +4401,18 @@ export async function registerRoutes(
     }
   });
 
+  // Get all tree connections (admin only) - for debugging merged view issues
+  app.get("/api/admin/tree-connections", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { search } = req.query;
+      const connections = await storage.getAllTreeConnections(search as string | undefined);
+      res.json(connections);
+    } catch (error: any) {
+      console.error("Error fetching tree connections (admin):", error);
+      res.status(500).json({ message: "Failed to fetch tree connections" });
+    }
+  });
+
   // Get account settings including activity info
   app.get("/api/account/settings", isAuthenticated, async (req: any, res) => {
     try {

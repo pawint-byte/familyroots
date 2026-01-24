@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -349,6 +349,14 @@ export default function Dashboard() {
                       <Link2 className="h-4 w-4" />
                       <span>Admin - Connections</span>
                     </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/tree-connections")}
+                      data-testid="mobile-menu-admin-tree-connections"
+                    >
+                      <TreeDeciduous className="h-4 w-4" />
+                      <span>Admin - Tree Links</span>
+                    </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
@@ -542,6 +550,14 @@ export default function Dashboard() {
                     >
                       <Link2 className="h-4 w-4" />
                       <span>Admin - Connections</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/tree-connections")}
+                      data-testid="menu-admin-tree-connections"
+                    >
+                      <TreeDeciduous className="h-4 w-4" />
+                      <span>Admin - Tree Links</span>
                     </DropdownMenuItem>
                   </>
                 )}

@@ -46,6 +46,7 @@ export default function AdminUsers() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserWithStats | null>(null);
   const [transferTargetId, setTransferTargetId] = useState("");
+  const [transferSearch, setTransferSearch] = useState("");
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -83,6 +84,7 @@ export default function AdminUsers() {
       setShowTransferDialog(false);
       setSelectedUser(null);
       setTransferTargetId("");
+      setTransferSearch("");
     },
     onError: (error: Error) => {
       toast({ 
@@ -302,7 +304,13 @@ export default function AdminUsers() {
         </CardContent>
       </Card>
 
-      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+      <Dialog open={showTransferDialog} onOpenChange={(open) => {
+        setShowTransferDialog(open);
+        if (!open) {
+          setTransferTargetId("");
+          setTransferSearch("");
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Transfer User Data</DialogTitle>
@@ -325,15 +333,41 @@ export default function AdminUsers() {
             </div>
             
             <div>
-              <p className="text-sm font-medium mb-2">Target Account ID (data will be moved to):</p>
+              <p className="text-sm font-medium mb-2">Target Account (data will be moved to):</p>
               <Input
-                placeholder="Enter target user ID..."
+                placeholder="Search by email or name..."
+                value={transferSearch}
+                onChange={(e) => setTransferSearch(e.target.value)}
+                className="mb-2"
+                data-testid="input-transfer-search"
+              />
+              <select
+                className="w-full p-3 border rounded-md bg-background"
                 value={transferTargetId}
                 onChange={(e) => setTransferTargetId(e.target.value)}
-                data-testid="input-transfer-target"
-              />
+                data-testid="select-transfer-target"
+              >
+                <option value="">Select target user...</option>
+                {users
+                  .filter(u => u.id !== selectedUser?.id)
+                  .filter(u => {
+                    if (!transferSearch) return true;
+                    const searchLower = transferSearch.toLowerCase();
+                    return (
+                      (u.email?.toLowerCase() || "").includes(searchLower) ||
+                      (u.firstName?.toLowerCase() || "").includes(searchLower) ||
+                      (u.lastName?.toLowerCase() || "").includes(searchLower)
+                    );
+                  })
+                  .map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.email || "No email"} {u.firstName || u.lastName ? `(${u.firstName || ""} ${u.lastName || ""})`.trim() : ""}
+                    </option>
+                  ))
+                }
+              </select>
               <p className="text-xs text-muted-foreground mt-1">
-                Find the target user's ID by searching for them above and copying their ID from the row.
+                Select the account to receive all data from the source account.
               </p>
             </div>
           </div>

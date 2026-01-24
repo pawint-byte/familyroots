@@ -62,6 +62,7 @@ export default function FamilyTreeVisualization({
 
     relationships.forEach((rel) => {
       if (rel.relationshipType === "parent") {
+        // fromMember is the PARENT of toMember
         if (!parentChildMap.has(rel.fromMemberId)) {
           parentChildMap.set(rel.fromMemberId, []);
         }
@@ -71,6 +72,18 @@ export default function FamilyTreeVisualization({
           childParentMap.set(rel.toMemberId, []);
         }
         childParentMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+      } else if (rel.relationshipType === "child") {
+        // fromMember is the CHILD of toMember (reverse of parent)
+        // So toMember is the parent, fromMember is the child
+        if (!parentChildMap.has(rel.toMemberId)) {
+          parentChildMap.set(rel.toMemberId, []);
+        }
+        parentChildMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+        
+        if (!childParentMap.has(rel.fromMemberId)) {
+          childParentMap.set(rel.fromMemberId, []);
+        }
+        childParentMap.get(rel.fromMemberId)!.push(rel.toMemberId);
       } else if (rel.relationshipType === "spouse") {
         if (!spouseMap.has(rel.fromMemberId)) {
           spouseMap.set(rel.fromMemberId, []);

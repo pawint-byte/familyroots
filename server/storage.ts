@@ -273,6 +273,7 @@ export interface IStorage {
   transferUserOwnership(fromUserId: string, toUserId: string): Promise<void>;
   getAllUserConnections(search?: string): Promise<UserConnection[]>;
   adminDeleteUserConnection(connectionId: string): Promise<void>;
+  getAllTreeConnections(search?: string): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1758,6 +1759,71 @@ export class DatabaseStorage implements IStorage {
 
   async adminDeleteUserConnection(connectionId: string): Promise<void> {
     await db.delete(userConnections).where(eq(userConnections.id, connectionId));
+  }
+
+  async getAllTreeConnections(search?: string): Promise<any[]> {
+    // Efficient query to get all tree connections with tree and owner info
+    const allConnections = await db.select().from(treeConnections)
+      .orderBy(desc(treeConnections.createdAt));
+    
+    // Fetch all related data in batches
+    const treeIds = new Set<string>();
+    allConnections.forEach(conn => {
+      treeIds.add(conn.tree1Id);
+      treeIds.add(conn.tree2Id);
+    });
+    
+    // Get all trees in one query
+    const trees = await db.select().from(familyTrees)
+      .where(inArray(familyTrees.id, Array.from(treeIds)));
+    const treeMap = new Map(trees.map(t => [t.id, t]));
+    
+    // Get all tree owners in one query
+    const ownerIds = new Set(trees.map(t => t.ownerId));
+    const owners = await db.select().from(users)
+      .where(inArray(users.id, Array.from(ownerIds)));
+    const ownerMap = new Map(owners.map(u => [u.id, u]));
+    
+    // Enrich connections
+    const enriched = allConnections.map(conn => {
+      const tree1 = treeMap.get(conn.tree1Id);
+      const tree2 = treeMap.get(conn.tree2Id);
+      const tree1Owner = tree1 ? ownerMap.get(tree1.ownerId) : null;
+      const tree2Owner = tree2 ? ownerMap.get(tree2.ownerId) : null;
+      
+      return {
+        ...conn,
+        tree1: tree1 ? {
+          id: tree1.id,
+          name: tree1.name,
+          ownerId: tree1.ownerId,
+          ownerEmail: tree1Owner?.email || null,
+          ownerName: tree1Owner ? `${tree1Owner.firstName || ''} ${tree1Owner.lastName || ''}`.trim() : null,
+        } : null,
+        tree2: tree2 ? {
+          id: tree2.id,
+          name: tree2.name,
+          ownerId: tree2.ownerId,
+          ownerEmail: tree2Owner?.email || null,
+          ownerName: tree2Owner ? `${tree2Owner.firstName || ''} ${tree2Owner.lastName || ''}`.trim() : null,
+        } : null,
+      };
+    });
+    
+    // Apply search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      return enriched.filter(conn => 
+        conn.tree1?.name?.toLowerCase().includes(searchLower) ||
+        conn.tree2?.name?.toLowerCase().includes(searchLower) ||
+        conn.tree1?.ownerEmail?.toLowerCase().includes(searchLower) ||
+        conn.tree2?.ownerEmail?.toLowerCase().includes(searchLower) ||
+        conn.tree1?.ownerName?.toLowerCase().includes(searchLower) ||
+        conn.tree2?.ownerName?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return enriched;
   }
 }
 
