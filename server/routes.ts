@@ -2979,6 +2979,371 @@ export async function registerRoutes(
     }
   });
 
+  // Get import preview for a branch (shows which members would be imported)
+  app.get("/api/trees/:treeId/connections/:connectionId/import-preview", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, connectionId } = req.params;
+      const { rootMemberId, scope = "immediate_family", includeSpouses = "true", includeParents = "false", includeChildren = "true" } = req.query;
+      const userId = req.user.claims.sub;
+
+      // Verify access to the target tree
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || (collab.role !== "co_owner" && collab.role !== "editor")) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      // Get the connection
+      const connections = await storage.getTreeConnections(treeId);
+      const connection = connections.find(c => c.id === connectionId);
+      if (!connection) {
+        return res.status(404).json({ message: "Connection not found" });
+      }
+
+      // Determine source tree (the other tree in the connection)
+      const sourceTreeId = connection.tree1Id === treeId ? connection.tree2Id : connection.tree1Id;
+      const sourceTree = await storage.getTree(sourceTreeId);
+      if (!sourceTree) {
+        return res.status(404).json({ message: "Source tree not found" });
+      }
+
+      // Get all members from source tree
+      const sourceMembers = await storage.getMembers(sourceTreeId);
+      const sourceRelationships = await storage.getRelationships(sourceTreeId);
+
+      // If no root member specified, use the connector member as root
+      const actualRootMemberId = rootMemberId || (connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId);
+      
+      if (!actualRootMemberId) {
+        return res.status(400).json({ message: "Root member ID required" });
+      }
+
+      // Find the root member
+      const rootMember = sourceMembers.find(m => m.id === actualRootMemberId);
+      if (!rootMember) {
+        return res.status(404).json({ message: "Root member not found in source tree" });
+      }
+
+      // Build relationship map
+      const getRelatedMembers = (memberId: string): { parents: string[], children: string[], spouses: string[], siblings: string[] } => {
+        const parents: string[] = [];
+        const children: string[] = [];
+        const spouses: string[] = [];
+        const siblings: string[] = [];
+
+        for (const rel of sourceRelationships) {
+          if (rel.fromMemberId === memberId) {
+            if (rel.relationshipType === "parent") children.push(rel.toMemberId);
+            if (rel.relationshipType === "spouse") spouses.push(rel.toMemberId);
+            if (rel.relationshipType === "sibling") siblings.push(rel.toMemberId);
+          }
+          if (rel.toMemberId === memberId) {
+            if (rel.relationshipType === "parent") parents.push(rel.fromMemberId);
+            if (rel.relationshipType === "spouse") spouses.push(rel.fromMemberId);
+            if (rel.relationshipType === "sibling") siblings.push(rel.fromMemberId);
+          }
+        }
+        return { parents, children, spouses, siblings };
+      };
+
+      // Collect members based on scope
+      const selectedMemberIds = new Set<string>();
+      selectedMemberIds.add(actualRootMemberId);
+
+      const addSpouses = includeSpouses === "true";
+      const addParents = includeParents === "true";
+      const addChildren = includeChildren === "true";
+
+      if (scope === "single") {
+        // Just the root member
+      } else if (scope === "immediate_family") {
+        const related = getRelatedMembers(actualRootMemberId);
+        if (addSpouses) related.spouses.forEach(id => selectedMemberIds.add(id));
+        if (addParents) related.parents.forEach(id => selectedMemberIds.add(id));
+        if (addChildren) related.children.forEach(id => selectedMemberIds.add(id));
+        related.siblings.forEach(id => selectedMemberIds.add(id));
+      } else if (scope === "descendants") {
+        // BFS to find all descendants
+        const queue = [actualRootMemberId];
+        while (queue.length > 0) {
+          const currentId = queue.shift()!;
+          const related = getRelatedMembers(currentId);
+          if (addSpouses) related.spouses.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); } });
+          related.children.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); queue.push(id); } });
+        }
+      } else if (scope === "ancestors") {
+        // BFS to find all ancestors
+        const queue = [actualRootMemberId];
+        while (queue.length > 0) {
+          const currentId = queue.shift()!;
+          const related = getRelatedMembers(currentId);
+          if (addSpouses) related.spouses.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); } });
+          related.parents.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); queue.push(id); } });
+        }
+      }
+
+      // Get the actual member objects
+      const selectedMembers = sourceMembers.filter(m => selectedMemberIds.has(m.id));
+
+      // Calculate pricing impact
+      const currentImported = await storage.getImportedMemberCount(treeId);
+      const ownedMembers = await storage.getMembers(treeId);
+      const currentTotal = ownedMembers.length + currentImported;
+      const newTotal = currentTotal + selectedMembers.length;
+
+      // Pricing tiers
+      const getPricingTier = (count: number) => {
+        if (count >= 100) return { price: 0, label: "FREE" };
+        if (count >= 75) return { price: 2.50, label: "75% off" };
+        if (count >= 50) return { price: 4.99, label: "50% off" };
+        if (count >= 25) return { price: 7.49, label: "25% off" };
+        return { price: 9.99, label: "Base" };
+      };
+
+      const currentTier = getPricingTier(currentTotal);
+      const newTier = getPricingTier(newTotal);
+
+      res.json({
+        sourceTree: { id: sourceTree.id, name: sourceTree.name },
+        rootMember: { id: rootMember.id, firstName: rootMember.firstName, lastName: rootMember.lastName },
+        scope,
+        membersToImport: selectedMembers.map(m => ({
+          id: m.id,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          photoUrl: m.photoUrl
+        })),
+        memberCount: selectedMembers.length,
+        pricingImpact: {
+          currentTotal,
+          newTotal,
+          currentTier,
+          newTier,
+          tierChange: currentTier.price !== newTier.price
+        }
+      });
+    } catch (error) {
+      console.error("Error getting import preview:", error);
+      res.status(500).json({ message: "Failed to get import preview" });
+    }
+  });
+
+  // Commit an import (actually import the selected branch)
+  app.post("/api/trees/:treeId/connections/:connectionId/import", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, connectionId } = req.params;
+      const { rootMemberId, scope = "immediate_family", includeSpouses = true, includeParents = false, includeChildren = true } = req.body;
+      const userId = req.user.claims.sub;
+
+      // Verify access to the target tree (must be owner or co-owner)
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Only tree owners or co-owners can import branches" });
+        }
+      }
+
+      // Get the connection
+      const connections = await storage.getTreeConnections(treeId);
+      const connection = connections.find(c => c.id === connectionId);
+      if (!connection) {
+        return res.status(404).json({ message: "Connection not found" });
+      }
+
+      // Determine source tree
+      const sourceTreeId = connection.tree1Id === treeId ? connection.tree2Id : connection.tree1Id;
+
+      // Create import config
+      const importConfig = await storage.createImportConfig({
+        connectionId,
+        sourceTreeId,
+        targetTreeId: treeId,
+        importRootMemberId: rootMemberId,
+        importScope: scope,
+        includeSpouses,
+        includeParents,
+        includeChildren,
+        createdBy: userId
+      });
+
+      // Get members based on the same logic as preview
+      const sourceMembers = await storage.getMembers(sourceTreeId);
+      const sourceRelationships = await storage.getRelationships(sourceTreeId);
+
+      const getRelatedMembers = (memberId: string): { parents: string[], children: string[], spouses: string[], siblings: string[] } => {
+        const parents: string[] = [];
+        const children: string[] = [];
+        const spouses: string[] = [];
+        const siblings: string[] = [];
+
+        for (const rel of sourceRelationships) {
+          if (rel.fromMemberId === memberId) {
+            if (rel.relationshipType === "parent") children.push(rel.toMemberId);
+            if (rel.relationshipType === "spouse") spouses.push(rel.toMemberId);
+            if (rel.relationshipType === "sibling") siblings.push(rel.toMemberId);
+          }
+          if (rel.toMemberId === memberId) {
+            if (rel.relationshipType === "parent") parents.push(rel.fromMemberId);
+            if (rel.relationshipType === "spouse") spouses.push(rel.fromMemberId);
+            if (rel.relationshipType === "sibling") siblings.push(rel.fromMemberId);
+          }
+        }
+        return { parents, children, spouses, siblings };
+      };
+
+      const selectedMemberIds = new Set<string>();
+      selectedMemberIds.add(rootMemberId);
+
+      if (scope === "single") {
+        // Just root
+      } else if (scope === "immediate_family") {
+        const related = getRelatedMembers(rootMemberId);
+        if (includeSpouses) related.spouses.forEach(id => selectedMemberIds.add(id));
+        if (includeParents) related.parents.forEach(id => selectedMemberIds.add(id));
+        if (includeChildren) related.children.forEach(id => selectedMemberIds.add(id));
+        related.siblings.forEach(id => selectedMemberIds.add(id));
+      } else if (scope === "descendants") {
+        const queue = [rootMemberId];
+        while (queue.length > 0) {
+          const currentId = queue.shift()!;
+          const related = getRelatedMembers(currentId);
+          if (includeSpouses) related.spouses.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); } });
+          related.children.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); queue.push(id); } });
+        }
+      } else if (scope === "ancestors") {
+        const queue = [rootMemberId];
+        while (queue.length > 0) {
+          const currentId = queue.shift()!;
+          const related = getRelatedMembers(currentId);
+          if (includeSpouses) related.spouses.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); } });
+          related.parents.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); queue.push(id); } });
+        }
+      }
+
+      // Create imported member records
+      let importedCount = 0;
+      for (const memberId of Array.from(selectedMemberIds)) {
+        await storage.createImportedMember({
+          importConfigId: importConfig.id,
+          connectionId,
+          sourceMemberId: memberId,
+          sourceTreeId,
+          targetTreeId: treeId,
+          importedBy: userId
+        });
+        importedCount++;
+      }
+
+      res.status(201).json({
+        importConfig,
+        importedCount,
+        message: `Successfully imported ${importedCount} members`
+      });
+    } catch (error) {
+      console.error("Error importing branch:", error);
+      res.status(500).json({ message: "Failed to import branch" });
+    }
+  });
+
+  // Get import configs for a connection
+  app.get("/api/trees/:treeId/connections/:connectionId/imports", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, connectionId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const importConfigs = await storage.getImportConfigsForConnection(connectionId);
+      
+      // Enrich with member counts
+      const enrichedConfigs = await Promise.all(importConfigs.map(async (config) => {
+        const members = await storage.getImportedMembersForConfig(config.id);
+        return {
+          ...config,
+          importedMemberCount: members.length
+        };
+      }));
+
+      res.json(enrichedConfigs);
+    } catch (error) {
+      console.error("Error getting import configs:", error);
+      res.status(500).json({ message: "Failed to get import configs" });
+    }
+  });
+
+  // Delete an import config (remove imported branch)
+  app.delete("/api/trees/:treeId/connections/:connectionId/imports/:importId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, importId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Only tree owners or co-owners can remove imports" });
+        }
+      }
+
+      await storage.deleteImportConfig(importId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting import:", error);
+      res.status(500).json({ message: "Failed to delete import" });
+    }
+  });
+
+  // Get all imported members for a tree (for pricing calculation)
+  app.get("/api/trees/:treeId/imported-members", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const importedMembers = await storage.getImportedMembersForTree(treeId);
+      const count = await storage.getImportedMemberCount(treeId);
+
+      res.json({
+        importedMembers,
+        uniqueCount: count
+      });
+    } catch (error) {
+      console.error("Error getting imported members:", error);
+      res.status(500).json({ message: "Failed to get imported members" });
+    }
+  });
+
   // Get merged tree view (combines connected trees into one visualization)
   app.get("/api/trees/:treeId/merged", isAuthenticated, async (req: any, res) => {
     try {

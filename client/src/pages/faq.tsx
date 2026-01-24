@@ -139,6 +139,26 @@ export default function FAQ() {
           answer: "Use our Tree Connections feature. When you discover that a member in your tree also appears in another family's tree (through Smart Matching or manually), you can request to connect the trees. Once both tree owners approve, the trees are linked and you can see how the families connect."
         },
         {
+          question: "What is the Merged Tree View?",
+          answer: "The Merged Tree View combines your family tree with any trees you're connected to, showing them as one unified visualization. Toggle 'Show Connected Trees' in your tree view to see your extended family across multiple trees. This is perfect for seeing how your family connects to your spouse's family or other branches."
+        },
+        {
+          question: "What is Selective Branch Import?",
+          answer: "Selective Branch Import lets you control which members from connected trees count toward your subscription. When you connect to another tree, you can choose to import just specific branches (like immediate family or descendants) rather than the entire tree. Only imported members count toward your pricing tier - the rest remain viewable but don't affect your cost."
+        },
+        {
+          question: "How does importing branches affect my pricing?",
+          answer: "Only your own tree members plus imported members from connected trees count toward your subscription tier. When you connect to another tree with 59 members, you don't automatically pay for all 59 - you choose which branches to import. For example, you might import just your mother-in-law's immediate family (8 members) and view the rest for free. This gives you control over costs while still seeing the full extended family."
+        },
+        {
+          question: "Can I import different amounts from different connected trees?",
+          answer: "Yes! Each tree connection is independent. You might import your dad's entire branch (descendants) from one tree, but only immediate family from another. You can also change what you've imported at any time - add more branches or remove imports to adjust your costs and features."
+        },
+        {
+          question: "What features do imported vs view-only members have?",
+          answer: "Imported members have full features: you can see their gift registries, get notifications about life events, see their location (if shared), and collaborate on their profiles. View-only members from connected trees can be seen in the merged view, but with limited features - no notifications, view-only access to basic info based on privacy settings."
+        },
+        {
           question: "Can I track name changes (maiden names, married names)?",
           answer: "Yes! Each family member has a Name History feature that tracks names through life events. You can record birth names, married names, names after divorce, or adoption names. The timeline shows when each name was used."
         },

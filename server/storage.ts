@@ -1,6 +1,7 @@
 import { 
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
-  treeInvitations, nameHistory, treeConnections, accountHeirs, educationHistory, careerHistory,
+  treeInvitations, nameHistory, treeConnections, treeConnectionImports, importedMembers,
+  accountHeirs, educationHistory, careerHistory,
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
   giftRegistries, giftRegistryItems, userConnectionRequests, userConnections,
@@ -12,6 +13,8 @@ import {
   type TreeInvitation, type InsertTreeInvitation,
   type NameHistory, type InsertNameHistory,
   type TreeConnection, type InsertTreeConnection,
+  type TreeConnectionImport, type InsertTreeConnectionImport,
+  type ImportedMember, type InsertImportedMember,
   type AccountHeir, type InsertAccountHeir,
   type EducationHistory, type InsertEducationHistory,
   type CareerHistory, type InsertCareerHistory,
@@ -84,6 +87,20 @@ export interface IStorage {
   getTreeConnections(treeId: string): Promise<TreeConnection[]>;
   createTreeConnection(connection: InsertTreeConnection): Promise<TreeConnection>;
   deleteTreeConnection(id: string): Promise<boolean>;
+
+  // Tree Connection Imports (Selective Branch Import)
+  getImportConfigsForConnection(connectionId: string): Promise<TreeConnectionImport[]>;
+  getImportConfigsForTree(targetTreeId: string): Promise<TreeConnectionImport[]>;
+  createImportConfig(config: InsertTreeConnectionImport): Promise<TreeConnectionImport>;
+  deleteImportConfig(id: string): Promise<boolean>;
+  
+  // Imported Members
+  getImportedMembersForTree(targetTreeId: string): Promise<ImportedMember[]>;
+  getImportedMembersForConfig(importConfigId: string): Promise<ImportedMember[]>;
+  createImportedMember(member: InsertImportedMember): Promise<ImportedMember>;
+  deleteImportedMembersForConfig(importConfigId: string): Promise<boolean>;
+  getImportedMemberCount(targetTreeId: string): Promise<number>;
+  isImportedMember(targetTreeId: string, sourceMemberId: string): Promise<boolean>;
 
   // Events
   getEvents(treeId: string): Promise<FamilyEvent[]>;
@@ -507,6 +524,65 @@ export class DatabaseStorage implements IStorage {
   async deleteTreeConnection(id: string): Promise<boolean> {
     await db.delete(treeConnections).where(eq(treeConnections.id, id));
     return true;
+  }
+
+  // Tree Connection Imports (Selective Branch Import)
+  async getImportConfigsForConnection(connectionId: string): Promise<TreeConnectionImport[]> {
+    return db.select().from(treeConnectionImports)
+      .where(eq(treeConnectionImports.connectionId, connectionId));
+  }
+
+  async getImportConfigsForTree(targetTreeId: string): Promise<TreeConnectionImport[]> {
+    return db.select().from(treeConnectionImports)
+      .where(eq(treeConnectionImports.targetTreeId, targetTreeId));
+  }
+
+  async createImportConfig(config: InsertTreeConnectionImport): Promise<TreeConnectionImport> {
+    const [created] = await db.insert(treeConnectionImports).values(config).returning();
+    return created;
+  }
+
+  async deleteImportConfig(id: string): Promise<boolean> {
+    await db.delete(importedMembers).where(eq(importedMembers.importConfigId, id));
+    await db.delete(treeConnectionImports).where(eq(treeConnectionImports.id, id));
+    return true;
+  }
+
+  // Imported Members
+  async getImportedMembersForTree(targetTreeId: string): Promise<ImportedMember[]> {
+    return db.select().from(importedMembers)
+      .where(eq(importedMembers.targetTreeId, targetTreeId));
+  }
+
+  async getImportedMembersForConfig(importConfigId: string): Promise<ImportedMember[]> {
+    return db.select().from(importedMembers)
+      .where(eq(importedMembers.importConfigId, importConfigId));
+  }
+
+  async createImportedMember(member: InsertImportedMember): Promise<ImportedMember> {
+    const [created] = await db.insert(importedMembers).values(member).returning();
+    return created;
+  }
+
+  async deleteImportedMembersForConfig(importConfigId: string): Promise<boolean> {
+    await db.delete(importedMembers).where(eq(importedMembers.importConfigId, importConfigId));
+    return true;
+  }
+
+  async getImportedMemberCount(targetTreeId: string): Promise<number> {
+    const result = await db.select().from(importedMembers)
+      .where(eq(importedMembers.targetTreeId, targetTreeId));
+    const uniqueMembers = new Set(result.map(m => m.sourceMemberId));
+    return uniqueMembers.size;
+  }
+
+  async isImportedMember(targetTreeId: string, sourceMemberId: string): Promise<boolean> {
+    const result = await db.select().from(importedMembers)
+      .where(and(
+        eq(importedMembers.targetTreeId, targetTreeId),
+        eq(importedMembers.sourceMemberId, sourceMemberId)
+      ));
+    return result.length > 0;
   }
 
   // Events

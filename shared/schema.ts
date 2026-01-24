@@ -137,6 +137,42 @@ export const treeConnections = pgTable("tree_connections", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Import scope enum for selective branch import
+export const importScopeEnum = pgEnum("import_scope", [
+  "single",
+  "immediate_family",
+  "descendants",
+  "ancestors",
+  "custom"
+]);
+
+// Tree Connection Imports table (for tracking import configurations)
+export const treeConnectionImports = pgTable("tree_connection_imports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  connectionId: varchar("connection_id").notNull(),
+  sourceTreeId: varchar("source_tree_id").notNull(),
+  targetTreeId: varchar("target_tree_id").notNull(),
+  importRootMemberId: varchar("import_root_member_id").notNull(),
+  importScope: importScopeEnum("import_scope").default("immediate_family").notNull(),
+  includeSpouses: boolean("include_spouses").default(true),
+  includeParents: boolean("include_parents").default(false),
+  includeChildren: boolean("include_children").default(true),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Imported Members table (materialized list of imported members)
+export const importedMembers = pgTable("imported_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  importConfigId: varchar("import_config_id").notNull(),
+  connectionId: varchar("connection_id").notNull(),
+  sourceMemberId: varchar("source_member_id").notNull(),
+  sourceTreeId: varchar("source_tree_id").notNull(),
+  targetTreeId: varchar("target_tree_id").notNull(),
+  importedBy: varchar("imported_by").notNull(),
+  importedAt: timestamp("imported_at").defaultNow().notNull(),
+});
+
 // Name History table (for tracking name changes through life events)
 export const nameHistory = pgTable("name_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -643,6 +679,16 @@ export const insertTreeConnectionSchema = createInsertSchema(treeConnections).om
   createdAt: true,
 });
 
+export const insertTreeConnectionImportSchema = createInsertSchema(treeConnectionImports).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertImportedMemberSchema = createInsertSchema(importedMembers).omit({
+  id: true,
+  importedAt: true,
+});
+
 export const insertFamilyEventSchema = createInsertSchema(familyEvents).omit({
   id: true,
   createdAt: true,
@@ -857,6 +903,12 @@ export type InsertNameHistory = z.infer<typeof insertNameHistorySchema>;
 
 export type TreeConnection = typeof treeConnections.$inferSelect;
 export type InsertTreeConnection = z.infer<typeof insertTreeConnectionSchema>;
+
+export type TreeConnectionImport = typeof treeConnectionImports.$inferSelect;
+export type InsertTreeConnectionImport = z.infer<typeof insertTreeConnectionImportSchema>;
+
+export type ImportedMember = typeof importedMembers.$inferSelect;
+export type InsertImportedMember = z.infer<typeof insertImportedMemberSchema>;
 
 export type FamilyEvent = typeof familyEvents.$inferSelect;
 export type InsertFamilyEvent = z.infer<typeof insertFamilyEventSchema>;
