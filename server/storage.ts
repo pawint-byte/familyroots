@@ -271,6 +271,8 @@ export interface IStorage {
   deleteUser(id: string): Promise<boolean>;
   getUserTreeCount(userId: string): Promise<number>;
   transferUserOwnership(fromUserId: string, toUserId: string): Promise<void>;
+  getAllUserConnections(search?: string): Promise<UserConnection[]>;
+  adminDeleteUserConnection(connectionId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1727,6 +1729,35 @@ export class DatabaseStorage implements IStorage {
     await db.update(custodianshipRequests)
       .set({ requesterId: toUserId })
       .where(eq(custodianshipRequests.requesterId, fromUserId));
+  }
+
+  async getAllUserConnections(search?: string): Promise<UserConnection[]> {
+    if (search) {
+      // Get all users matching search
+      const matchingUsers = await this.getAllUsers(search);
+      const userIds = matchingUsers.map(u => u.id);
+      
+      if (userIds.length === 0) {
+        return [];
+      }
+      
+      // Get connections where either user matches
+      const conditions = userIds.flatMap(id => [
+        eq(userConnections.userId1, id),
+        eq(userConnections.userId2, id)
+      ]);
+      
+      return db.select().from(userConnections)
+        .where(or(...conditions))
+        .orderBy(desc(userConnections.connectedAt));
+    }
+    
+    return db.select().from(userConnections)
+      .orderBy(desc(userConnections.connectedAt));
+  }
+
+  async adminDeleteUserConnection(connectionId: string): Promise<void> {
+    await db.delete(userConnections).where(eq(userConnections.id, connectionId));
   }
 }
 

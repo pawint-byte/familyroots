@@ -341,6 +341,14 @@ export default function Dashboard() {
                       <Shield className="h-4 w-4" />
                       <span>Admin - Members</span>
                     </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/connections")}
+                      data-testid="mobile-menu-admin-connections"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      <span>Admin - Connections</span>
+                    </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
@@ -406,6 +414,10 @@ export default function Dashboard() {
                   <DropdownMenuItem onClick={() => navigate("/admin/members")} data-testid="admin-menu-members">
                     <Shield className="h-4 w-4 mr-2" />
                     Members
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/admin/connections")} data-testid="admin-menu-connections">
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Connections
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -522,6 +534,14 @@ export default function Dashboard() {
                     >
                       <Shield className="h-4 w-4" />
                       <span>Admin - Members</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/connections")}
+                      data-testid="menu-admin-connections"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      <span>Admin - Connections</span>
                     </DropdownMenuItem>
                   </>
                 )}

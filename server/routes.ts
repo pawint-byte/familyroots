@@ -4353,6 +4353,54 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Get all user connections
+  app.get("/api/admin/connections", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { search } = req.query;
+      const connections = await storage.getAllUserConnections(search as string | undefined);
+      
+      // Enrich with user info
+      const enrichedConnections = await Promise.all(
+        connections.map(async (conn: any) => {
+          const user1 = await storage.getUser(conn.userId1);
+          const user2 = await storage.getUser(conn.userId2);
+          return {
+            ...conn,
+            user1: user1 ? {
+              id: user1.id,
+              email: user1.email,
+              firstName: user1.firstName,
+              lastName: user1.lastName,
+            } : null,
+            user2: user2 ? {
+              id: user2.id,
+              email: user2.email,
+              firstName: user2.firstName,
+              lastName: user2.lastName,
+            } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedConnections);
+    } catch (error: any) {
+      console.error("Error fetching connections (admin):", error);
+      res.status(500).json({ message: "Failed to fetch connections" });
+    }
+  });
+
+  // Admin: Delete a user connection
+  app.delete("/api/admin/connections/:connectionId", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { connectionId } = req.params;
+      await storage.adminDeleteUserConnection(connectionId);
+      res.json({ message: "Connection deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting connection (admin):", error);
+      res.status(500).json({ message: "Failed to delete connection" });
+    }
+  });
+
   // Get account settings including activity info
   app.get("/api/account/settings", isAuthenticated, async (req: any, res) => {
     try {

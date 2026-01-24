@@ -20,6 +20,7 @@ import AdminVideos from "@/pages/admin-videos";
 import AdminUsers from "@/pages/admin-users";
 import AdminRelationships from "@/pages/admin-relationships";
 import AdminMembers from "@/pages/admin-members";
+import AdminConnections from "@/pages/admin-connections";
 import VideoPage from "@/pages/video";
 import JoinTree from "@/pages/join-tree";
 import AccountSettings from "@/pages/account-settings";
@@ -62,6 +63,7 @@ function Router() {
       <Route path="/admin/users" component={AdminUsers} />
       <Route path="/admin/relationships" component={AdminRelationships} />
       <Route path="/admin/members" component={AdminMembers} />
+      <Route path="/admin/connections" component={AdminConnections} />
       <Route path="/manage-relationships" component={AdminRelationships} />
       <Route path="/video/:id" component={VideoPage} />
       <Route path="/join/:inviteCode" component={JoinTree} />
