@@ -2926,12 +2926,34 @@ export async function registerRoutes(
         });
       }
 
-      // Create the connection
+      // Auto-find connector members based on claimed profiles if not provided
+      let finalConnector1Id = connector1MemberId || null;
+      let finalConnector2Id = connector2MemberId || null;
+      
+      // If connectors not provided, try to find them from claimed profiles
+      if (!finalConnector1Id || !finalConnector2Id) {
+        // Get tree1 owner's claimed profile in tree1
+        const tree1Members = await storage.getMembers(treeId);
+        const tree1OwnerClaimed = tree1Members.find(m => m.claimedByUserId === tree1.ownerId);
+        
+        // Get tree2 owner's claimed profile in tree2
+        const tree2Members = await storage.getMembers(targetTreeId);
+        const tree2OwnerClaimed = tree2Members.find(m => m.claimedByUserId === tree2.ownerId);
+        
+        if (tree1OwnerClaimed && !finalConnector1Id) {
+          finalConnector1Id = tree1OwnerClaimed.id;
+        }
+        if (tree2OwnerClaimed && !finalConnector2Id) {
+          finalConnector2Id = tree2OwnerClaimed.id;
+        }
+      }
+
+      // Create the connection with auto-discovered connectors
       const connection = await storage.createTreeConnection({
         tree1Id: treeId,
         tree2Id: targetTreeId,
-        connector1MemberId: connector1MemberId || null,
-        connector2MemberId: connector2MemberId || null,
+        connector1MemberId: finalConnector1Id,
+        connector2MemberId: finalConnector2Id,
         connectionType: connectionType || "marriage",
         createdBy: userId,
       });
