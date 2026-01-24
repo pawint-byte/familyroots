@@ -3722,6 +3722,49 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Update any family member directly
+  app.patch("/api/admin/members/:memberId", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const member = await storage.getMember(memberId);
+      
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const allowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes"];
+      const updateData: Record<string, any> = {};
+      
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          if ((field === 'birthDate' || field === 'deathDate') && req.body[field] === '') {
+            updateData[field] = null;
+          } else {
+            updateData[field] = req.body[field];
+          }
+        }
+      }
+      
+      const updated = await storage.updateMember(memberId, updateData);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating member (admin):", error);
+      res.status(500).json({ message: error?.message || "Failed to update member" });
+    }
+  });
+
+  // Admin: Get all members for a tree
+  app.get("/api/admin/trees/:treeId/members", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const members = await storage.getMembers(treeId);
+      res.json(members);
+    } catch (error: any) {
+      console.error("Error getting members (admin):", error);
+      res.status(500).json({ message: "Failed to get members" });
+    }
+  });
+
   // Get account settings including activity info
   app.get("/api/account/settings", isAuthenticated, async (req: any, res) => {
     try {
