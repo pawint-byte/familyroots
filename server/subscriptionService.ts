@@ -33,11 +33,24 @@ export interface UserSubscriptionInfo {
 
 export class SubscriptionService {
   async calculateTotalMemberCount(userId: string): Promise<number> {
+    // Count unique members: owned members + imported members (deduplicated)
+    // Uses UNION to avoid double-counting if same member appears in both
     const result = await db.execute(sql`
-      SELECT COUNT(fm.id) as total
-      FROM family_members fm
-      JOIN family_trees ft ON fm.tree_id = ft.id
-      WHERE ft.owner_id = ${userId}
+      SELECT COUNT(*) as total FROM (
+        -- Members from owned trees
+        SELECT fm.id as member_id
+        FROM family_members fm
+        JOIN family_trees ft ON fm.tree_id = ft.id
+        WHERE ft.owner_id = ${userId}
+        
+        UNION
+        
+        -- Imported members from connected trees (unique source members)
+        SELECT DISTINCT im.source_member_id as member_id
+        FROM imported_members im
+        JOIN family_trees ft ON im.target_tree_id = ft.id
+        WHERE ft.owner_id = ${userId}
+      ) as all_members
     `);
     return parseInt(result.rows[0]?.total as string || '0', 10);
   }

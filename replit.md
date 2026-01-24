@@ -71,6 +71,15 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
   - For users at 100+ members, each additional 25 members requires a $2.99 one-time payment (milestone payment)
   - Dashboard shows progress bar toward next discount tier
   - Pricing page displays all tiers with current tier highlighted
+  - Member count includes: owned tree members + imported members from connected trees
+  - View-only members from connected trees (not imported) are FREE and don't count toward tier
+- **Selective Branch Import**: Control which members from connected trees count toward your subscription:
+  - Import specific branches from connected trees using scope options: single member, immediate family, descendants, or ancestors
+  - Include options for spouses, parents, children based on scope
+  - Preview shows member count and pricing tier impact before importing
+  - Imported members get full feature access (gifts, locations, notifications, editing)
+  - View-only members from connected trees have limited access but are free
+  - Database tables: tree_connection_imports (import configurations), imported_members (individual imported records)
 - **FamilySearch Integration**: Historical records search via FamilySearch API integration:
   - OAuth flow for connecting FamilySearch accounts (requires FAMILYSEARCH_APP_KEY environment variable)
   - Search billions of historical records (birth, marriage, death, census, immigration, military)
