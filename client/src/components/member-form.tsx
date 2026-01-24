@@ -16,7 +16,6 @@ import type { InsertFamilyMember } from "@shared/schema";
 const memberFormSchema = z.object({
   isUnknown: z.boolean().default(false),
   unknownLabel: z.string().optional(),
-  createParentPlaceholders: z.boolean().default(false),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   nickname: z.string().optional(),
@@ -42,7 +41,7 @@ type MemberFormValues = z.infer<typeof memberFormSchema>;
 interface MemberFormProps {
   treeId: string;
   initialData?: Partial<MemberFormValues>;
-  onSubmit: (data: InsertFamilyMember & { createParentPlaceholders?: boolean; visibilityOverride?: string | null }) => void;
+  onSubmit: (data: InsertFamilyMember & { visibilityOverride?: string | null }) => void;
   isLoading?: boolean;
   showVisibilityControl?: boolean;
 }
@@ -63,7 +62,6 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
     defaultValues: {
       isUnknown: (initialData as any)?.isUnknown ?? false,
       unknownLabel: (initialData as any)?.unknownLabel || "",
-      createParentPlaceholders: false,
       firstName: initialData?.firstName || "",
       lastName: initialData?.lastName || "",
       nickname: (initialData as any)?.nickname || "",
@@ -105,7 +103,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
   };
 
   const handleSubmit = (values: MemberFormValues) => {
-    const data: InsertFamilyMember & { createParentPlaceholders?: boolean; visibilityOverride?: string | null } = {
+    const data: InsertFamilyMember & { visibilityOverride?: string | null } = {
       treeId,
       firstName: values.isUnknown ? (values.unknownLabel || "Unknown") : (values.firstName || "Unknown"),
       lastName: values.lastName || null,
@@ -120,7 +118,6 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
       notes: values.notes || null,
       isUnknown: values.isUnknown,
       unknownLabel: values.unknownLabel || null,
-      createParentPlaceholders: values.createParentPlaceholders,
       visibilityOverride: values.visibilityOverride || null,
     };
     onSubmit(data);
@@ -213,27 +210,6 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="createParentPlaceholders"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Add Parent Placeholders</FormLabel>
-                    <p className="text-sm text-muted-foreground">
-                      Automatically create Mom and Dad placeholders for this person
-                    </p>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      data-testid="switch-create-parent-placeholders"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
           </>
         )}
 
