@@ -52,6 +52,7 @@ PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for sc
 - **Comparison Page**: Marketing page comparing FamilyRoots features against Ancestry.
 - **Progressive Web App (PWA)**: Full PWA support for mobile installation and offline caching.
 - **Google Analytics**: Optional integration for user engagement tracking.
+- **Reddit Pixel**: Conversion tracking for Reddit Ads campaigns (ID: a2_iepozq36wg7a). Tracks page visits and sign-up conversions.
 - **Automatic Maintenance Mode**: User-friendly maintenance page displayed during server unavailability with auto-retry.
 - **My Family Connections**: Dashboard section displaying approved user-to-user connections with relationship badges.
 - **Single Source of Truth (Profile Sync)**: Claimed users manage their canonical profile, syncing personal data across all claimed profiles in family trees.
