@@ -3464,6 +3464,11 @@ export async function registerRoutes(
       const allRelationships: any[] = [];
       const treeInfoMap = new Map<string, { name: string; ownerId: string }>();
       
+      // Track claimed users to deduplicate members across trees
+      // Key: claimedByUserId, Value: { preferredMember, allMemberIds (for relationship remapping) }
+      const claimedUserMap = new Map<string, { preferredMember: any; allMemberIds: string[] }>();
+      const memberIdRemapping = new Map<string, string>(); // Maps duplicate member IDs to the preferred one
+      
       for (const id of accessibleTreeIds) {
         const treeInfo = await storage.getTree(id);
         if (treeInfo) {
@@ -3471,19 +3476,89 @@ export async function registerRoutes(
           const members = await storage.getMembers(id);
           const relationships = await storage.getRelationships(id);
           
-          // Add source tree info to each member for display purposes
+          // Add source tree info to each member and handle deduplication
           members.forEach((m: any) => {
-            allMembers.push({
+            const memberWithSource = {
               ...m,
               sourceTreeId: id,
               sourceTreeName: treeInfo.name,
               isFromConnectedTree: id !== treeId
-            });
+            };
+            
+            // Check if this member is claimed by a user
+            if (m.claimedByUserId) {
+              const existing = claimedUserMap.get(m.claimedByUserId);
+              if (existing) {
+                // Prefer member from main tree, otherwise prefer the one with more data
+                const shouldReplace = id === treeId && existing.preferredMember.sourceTreeId !== treeId;
+                if (shouldReplace) {
+                  // Remap the old preferred member ID to this one
+                  memberIdRemapping.set(existing.preferredMember.id, m.id);
+                  existing.allMemberIds.push(existing.preferredMember.id);
+                  existing.preferredMember = memberWithSource;
+                  existing.allMemberIds.push(m.id);
+                } else {
+                  // This is a duplicate, remap it to the preferred one
+                  memberIdRemapping.set(m.id, existing.preferredMember.id);
+                  existing.allMemberIds.push(m.id);
+                }
+              } else {
+                claimedUserMap.set(m.claimedByUserId, {
+                  preferredMember: memberWithSource,
+                  allMemberIds: [m.id]
+                });
+                allMembers.push(memberWithSource);
+              }
+            } else {
+              // Unclaimed members are always added
+              allMembers.push(memberWithSource);
+            }
           });
           
           allRelationships.push(...relationships);
         }
       }
+      
+      // Also add preferred members from claimed users (in case they weren't added from main tree first)
+      claimedUserMap.forEach(({ preferredMember }) => {
+        if (!allMembers.find(m => m.id === preferredMember.id)) {
+          allMembers.push(preferredMember);
+        }
+      });
+      
+      // Second pass: deduplicate unclaimed members that match claimed members by name
+      // This handles cases where an unclaimed member exists alongside a claimed version
+      const claimedMembersByName = new Map<string, any>();
+      allMembers.forEach(m => {
+        if (m.claimedByUserId) {
+          const nameKey = `${(m.firstName || '').toLowerCase().trim()}-${(m.lastName || '').toLowerCase().trim()}`;
+          if (!claimedMembersByName.has(nameKey)) {
+            claimedMembersByName.set(nameKey, m);
+          }
+        }
+      });
+      
+      // Filter out unclaimed duplicates that match claimed members by name
+      const deduplicatedMembers = allMembers.filter(m => {
+        if (m.claimedByUserId) return true; // Keep all claimed members
+        
+        const nameKey = `${(m.firstName || '').toLowerCase().trim()}-${(m.lastName || '').toLowerCase().trim()}`;
+        const claimedVersion = claimedMembersByName.get(nameKey);
+        
+        if (claimedVersion) {
+          // This unclaimed member has a claimed version - remap and exclude
+          memberIdRemapping.set(m.id, claimedVersion.id);
+          return false;
+        }
+        return true;
+      });
+      
+      // Remap relationship IDs to use preferred member IDs (deduplicated)
+      const remappedRelationships = allRelationships.map((rel: any) => ({
+        ...rel,
+        fromMemberId: memberIdRemapping.get(rel.fromMemberId) || rel.fromMemberId,
+        toMemberId: memberIdRemapping.get(rel.toMemberId) || rel.toMemberId
+      }));
 
       // Create bridge relationships between connector members from different trees
       // Only for connections where both trees are accessible
@@ -3499,11 +3574,15 @@ export async function registerRoutes(
             }
             // 'other' defaults to spouse connection for visualization purposes
             
+            // Remap connector member IDs to use deduplicated preferred members
+            const fromMemberId = memberIdRemapping.get(conn.connector1MemberId) || conn.connector1MemberId;
+            const toMemberId = memberIdRemapping.get(conn.connector2MemberId) || conn.connector2MemberId;
+            
             bridgeRelationships.push({
               id: `bridge-${conn.id}`,
               treeId: treeId,
-              fromMemberId: conn.connector1MemberId,
-              toMemberId: conn.connector2MemberId,
+              fromMemberId,
+              toMemberId,
               relationshipType: relType,
               isBridge: true,
               connectionId: conn.id,
@@ -3518,8 +3597,8 @@ export async function registerRoutes(
         connections: connections.filter(c => 
           accessibleTreeIds.includes(c.tree1Id) && accessibleTreeIds.includes(c.tree2Id)
         ),
-        members: allMembers,
-        relationships: [...allRelationships, ...bridgeRelationships],
+        members: deduplicatedMembers,
+        relationships: [...remappedRelationships, ...bridgeRelationships],
         connectedTrees: Array.from(treeInfoMap.entries()).map(([id, info]) => ({
           id,
           name: info.name,
@@ -5287,16 +5366,32 @@ export async function registerRoutes(
           let fromUserMemberInToTree = toTreeMembers.find(m => m.claimedByUserId === request.fromUserId);
           
           if (!fromUserMemberInToTree) {
-            // Create a member for the requester in the approver's tree
-            fromUserMemberInToTree = await storage.createMember({
-              treeId: toTree.id,
-              firstName: fromUser?.firstName || 'Unknown',
-              lastName: fromUser?.lastName || '',
-              photoUrl: fromUser?.profileImageUrl || null,
-              email: null,
-              claimedByUserId: request.fromUserId,
-              claimedAt: new Date(),
-            });
+            // Look for unclaimed member with matching name to claim instead of creating duplicate
+            const matchingUnclaimed = toTreeMembers.find(m => 
+              !m.claimedByUserId && 
+              m.firstName?.toLowerCase() === fromUser?.firstName?.toLowerCase() &&
+              m.lastName?.toLowerCase() === fromUser?.lastName?.toLowerCase()
+            );
+            
+            if (matchingUnclaimed) {
+              // Claim the existing member instead of creating a new one
+              fromUserMemberInToTree = await storage.updateMember(matchingUnclaimed.id, {
+                claimedByUserId: request.fromUserId,
+                claimedAt: new Date(),
+                photoUrl: fromUser?.profileImageUrl || matchingUnclaimed.photoUrl,
+              });
+            } else {
+              // Create a member for the requester in the approver's tree
+              fromUserMemberInToTree = await storage.createMember({
+                treeId: toTree.id,
+                firstName: fromUser?.firstName || 'Unknown',
+                lastName: fromUser?.lastName || '',
+                photoUrl: fromUser?.profileImageUrl || null,
+                email: null,
+                claimedByUserId: request.fromUserId,
+                claimedAt: new Date(),
+              });
+            }
           }
           
           // Find or create member for toUser in fromTree
@@ -5304,16 +5399,32 @@ export async function registerRoutes(
           let toUserMemberInFromTree = fromTreeMembers.find(m => m.claimedByUserId === request.toUserId);
           
           if (!toUserMemberInFromTree) {
-            // Create a member for the approver in the requester's tree
-            toUserMemberInFromTree = await storage.createMember({
-              treeId: fromTree.id,
-              firstName: toUser?.firstName || 'Unknown',
-              lastName: toUser?.lastName || '',
-              photoUrl: toUser?.profileImageUrl || null,
-              email: null,
-              claimedByUserId: request.toUserId,
-              claimedAt: new Date(),
-            });
+            // Look for unclaimed member with matching name to claim instead of creating duplicate
+            const matchingUnclaimed = fromTreeMembers.find(m => 
+              !m.claimedByUserId && 
+              m.firstName?.toLowerCase() === toUser?.firstName?.toLowerCase() &&
+              m.lastName?.toLowerCase() === toUser?.lastName?.toLowerCase()
+            );
+            
+            if (matchingUnclaimed) {
+              // Claim the existing member instead of creating a new one
+              toUserMemberInFromTree = await storage.updateMember(matchingUnclaimed.id, {
+                claimedByUserId: request.toUserId,
+                claimedAt: new Date(),
+                photoUrl: toUser?.profileImageUrl || matchingUnclaimed.photoUrl,
+              });
+            } else {
+              // Create a member for the approver in the requester's tree
+              toUserMemberInFromTree = await storage.createMember({
+                treeId: fromTree.id,
+                firstName: toUser?.firstName || 'Unknown',
+                lastName: toUser?.lastName || '',
+                photoUrl: toUser?.profileImageUrl || null,
+                email: null,
+                claimedByUserId: request.toUserId,
+                claimedAt: new Date(),
+              });
+            }
           }
           
           // Map user connection relationship to family tree relationship
@@ -5347,30 +5458,58 @@ export async function registerRoutes(
           // Find or create the tree owner's own member in their tree (for creating relationship and tree connection)
           let toUserClaimedInOwnTree = toTreeMembers.find(m => m.claimedByUserId === request.toUserId);
           if (!toUserClaimedInOwnTree) {
-            // Create a member for the approver in their own tree
-            toUserClaimedInOwnTree = await storage.createMember({
-              treeId: toTree.id,
-              firstName: toUser?.firstName || 'Me',
-              lastName: toUser?.lastName || '',
-              photoUrl: toUser?.profileImageUrl || null,
-              email: null,
-              claimedByUserId: request.toUserId,
-              claimedAt: new Date(),
-            });
+            // Look for unclaimed member with matching name to claim instead of creating duplicate
+            const matchingUnclaimedInToTree = toTreeMembers.find(m => 
+              !m.claimedByUserId && 
+              m.firstName?.toLowerCase() === toUser?.firstName?.toLowerCase() &&
+              m.lastName?.toLowerCase() === toUser?.lastName?.toLowerCase()
+            );
+            
+            if (matchingUnclaimedInToTree) {
+              toUserClaimedInOwnTree = await storage.updateMember(matchingUnclaimedInToTree.id, {
+                claimedByUserId: request.toUserId,
+                claimedAt: new Date(),
+                photoUrl: toUser?.profileImageUrl || matchingUnclaimedInToTree.photoUrl,
+              });
+            } else {
+              toUserClaimedInOwnTree = await storage.createMember({
+                treeId: toTree.id,
+                firstName: toUser?.firstName || 'Me',
+                lastName: toUser?.lastName || '',
+                photoUrl: toUser?.profileImageUrl || null,
+                email: null,
+                claimedByUserId: request.toUserId,
+                claimedAt: new Date(),
+              });
+            }
           }
           
           let fromUserClaimedInOwnTree = fromTreeMembers.find(m => m.claimedByUserId === request.fromUserId);
           if (!fromUserClaimedInOwnTree) {
-            // Create a member for the requester in their own tree
-            fromUserClaimedInOwnTree = await storage.createMember({
-              treeId: fromTree.id,
-              firstName: fromUser?.firstName || 'Me',
-              lastName: fromUser?.lastName || '',
-              photoUrl: fromUser?.profileImageUrl || null,
-              email: null,
-              claimedByUserId: request.fromUserId,
-              claimedAt: new Date(),
-            });
+            // Look for unclaimed member with matching name to claim instead of creating duplicate
+            const matchingUnclaimedInFromTree = fromTreeMembers.find(m => 
+              !m.claimedByUserId && 
+              m.firstName?.toLowerCase() === fromUser?.firstName?.toLowerCase() &&
+              m.lastName?.toLowerCase() === fromUser?.lastName?.toLowerCase()
+            );
+            
+            if (matchingUnclaimedInFromTree) {
+              fromUserClaimedInOwnTree = await storage.updateMember(matchingUnclaimedInFromTree.id, {
+                claimedByUserId: request.fromUserId,
+                claimedAt: new Date(),
+                photoUrl: fromUser?.profileImageUrl || matchingUnclaimedInFromTree.photoUrl,
+              });
+            } else {
+              fromUserClaimedInOwnTree = await storage.createMember({
+                treeId: fromTree.id,
+                firstName: fromUser?.firstName || 'Me',
+                lastName: fromUser?.lastName || '',
+                photoUrl: fromUser?.profileImageUrl || null,
+                email: null,
+                claimedByUserId: request.fromUserId,
+                claimedAt: new Date(),
+              });
+            }
           }
           
           // Add relationship in approver's tree (toTree)
