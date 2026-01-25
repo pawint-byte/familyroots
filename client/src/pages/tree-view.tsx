@@ -24,7 +24,7 @@ import {
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, Filter, Download, Upload, Clock, Star, Image,
-  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2
+  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toPng } from "html-to-image";
@@ -48,6 +48,7 @@ import { CustodianshipSection } from "@/components/custodianship-section";
 import { SpecialConnectionsSection, LocationSection } from "@/components/special-connections";
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 import { BranchImportDialog } from "@/components/branch-import-dialog";
+import { MergeMembersDialog } from "@/components/merge-members-dialog";
 
 interface TreeData {
   tree: FamilyTree;
@@ -78,6 +79,7 @@ export default function TreeView() {
   const [newRelationshipType, setNewRelationshipType] = useState<string>("");
   const [showMergedView, setShowMergedView] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const [importConnectionData, setImportConnectionData] = useState<{
     connectionId: string;
     connectorMemberId: string;
@@ -1435,6 +1437,20 @@ export default function TreeView() {
                     <Edit className="h-4 w-4" />
                     Edit
                   </Button>
+                  {canEditTree && !selectedMember.claimedByUserId && (
+                    <Button 
+                      variant="outline" 
+                      className="gap-2"
+                      onClick={() => {
+                        setIsMemberDetailOpen(false);
+                        setTimeout(() => setIsMergeDialogOpen(true), 100);
+                      }}
+                      data-testid="button-merge-member"
+                    >
+                      <Merge className="h-4 w-4" />
+                      Merge
+                    </Button>
+                  )}
                   <Button 
                     variant="destructive" 
                     className="gap-2"
@@ -1578,6 +1594,17 @@ export default function TreeView() {
           connectionId={importConnectionData.connectionId}
           connectorMemberId={importConnectionData.connectorMemberId}
           sourceTreeName={importConnectionData.sourceTreeName}
+        />
+      )}
+
+      {selectedMember && treeData && (
+        <MergeMembersDialog
+          open={isMergeDialogOpen}
+          onOpenChange={setIsMergeDialogOpen}
+          sourceMember={selectedMember}
+          allMembers={treeData.members}
+          relationships={treeData.relationships}
+          treeId={treeData.tree.id}
         />
       )}
     </div>

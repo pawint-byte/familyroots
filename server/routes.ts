@@ -719,6 +719,80 @@ export async function registerRoutes(
     }
   });
 
+  // Merge two members (source member is deleted, relationships transferred to target)
+  app.post("/api/trees/:treeId/members/merge", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const { sourceMemberId, targetMemberId } = req.body;
+      const userId = req.user.claims.sub;
+      
+      if (!sourceMemberId || !targetMemberId) {
+        return res.status(400).json({ message: "Both sourceMemberId and targetMemberId are required" });
+      }
+      
+      if (sourceMemberId === targetMemberId) {
+        return res.status(400).json({ message: "Cannot merge a member with itself" });
+      }
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Only tree owner or editors can merge
+      if (tree.ownerId !== userId) {
+        const collaborators = await storage.getCollaborators(treeId);
+        const canEdit = collaborators.some(c => c.userId === userId && c.canEdit);
+        if (!canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+      
+      // Get both members
+      const sourceMember = await storage.getMember(sourceMemberId);
+      const targetMember = await storage.getMember(targetMemberId);
+      
+      if (!sourceMember || !targetMember) {
+        return res.status(404).json({ message: "One or both members not found" });
+      }
+      
+      if (sourceMember.treeId !== treeId || targetMember.treeId !== treeId) {
+        return res.status(400).json({ message: "Both members must be from the same tree" });
+      }
+      
+      // Don't allow merging claimed members (they represent real users)
+      if (sourceMember.claimedByUserId) {
+        return res.status(400).json({ 
+          message: "Cannot merge a member that has been claimed by a user. The claimed profile represents a real person." 
+        });
+      }
+      
+      // Also prevent merging INTO a claimed member (would modify their relationships)
+      if (targetMember.claimedByUserId) {
+        return res.status(400).json({ 
+          message: "Cannot merge into a member that has been claimed by a user. Choose a different target member." 
+        });
+      }
+      
+      // Call the merge function (survivorId=target to keep, mergedId=source to delete)
+      const result = await storage.mergeMembers(targetMemberId, sourceMemberId, userId);
+      
+      // Update tree's root member if needed
+      if (tree.rootMemberId === sourceMemberId) {
+        await storage.updateTree(treeId, { rootMemberId: targetMemberId });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Successfully merged ${sourceMember.firstName} ${sourceMember.lastName || ''} into ${targetMember.firstName} ${targetMember.lastName || ''}`.trim(),
+        mergeHistoryId: result.mergeHistoryId
+      });
+    } catch (error) {
+      console.error("Error merging members:", error);
+      res.status(500).json({ message: "Failed to merge members" });
+    }
+  });
+
   // Search members
   app.get("/api/trees/:treeId/members/search", isAuthenticated, async (req: any, res) => {
     try {
