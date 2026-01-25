@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, date, pgEnum, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, date, pgEnum, integer, jsonb, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -471,6 +471,106 @@ export const insertFamilySearchSourceSchema = createInsertSchema(familySearchSou
 
 export type FamilySearchSource = typeof familySearchSources.$inferSelect;
 export type InsertFamilySearchSource = z.infer<typeof insertFamilySearchSourceSchema>;
+
+// External Person Identifiers - Links family members to external systems (FamilySearch, etc.)
+// This enables cross-tree matching using shared external IDs
+export const externalPersonIdentifiers = pgTable("external_person_identifiers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(),
+  treeId: varchar("tree_id").notNull(),
+  source: text("source").notNull(), // "familysearch", "ancestry", "myheritage", etc.
+  externalId: text("external_id").notNull(), // The ID from the external system
+  externalUrl: text("external_url"), // Link to the external record
+  confidence: real("confidence").default(1.0), // Confidence score (1.0 = confirmed by user, lower = auto-matched)
+  verifiedAt: timestamp("verified_at"), // When user confirmed the match
+  verifiedBy: varchar("verified_by"), // User who verified
+  metadata: jsonb("metadata"), // Additional data from external source (name, dates, etc.)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertExternalPersonIdentifierSchema = createInsertSchema(externalPersonIdentifiers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ExternalPersonIdentifier = typeof externalPersonIdentifiers.$inferSelect;
+export type InsertExternalPersonIdentifier = z.infer<typeof insertExternalPersonIdentifierSchema>;
+
+// Pending Member Suggestions - Members discovered from external sources awaiting approval
+export const pendingMemberSuggestions = pgTable("pending_member_suggestions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  treeId: varchar("tree_id").notNull(),
+  suggestedBy: varchar("suggested_by").notNull(), // User ID or "system" for auto-discoveries
+  source: text("source").notNull(), // "familysearch", "cross_tree_match", "network_discovery"
+  externalId: text("external_id"), // External system ID if from external source
+  
+  // Suggested member data
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  gender: text("gender"),
+  birthDate: text("birth_date"),
+  birthPlace: text("birth_place"),
+  deathDate: text("death_date"),
+  deathPlace: text("death_place"),
+  
+  // Relationship suggestion
+  relatedToMemberId: varchar("related_to_member_id"), // Existing member this person relates to
+  relationshipType: text("relationship_type"), // "parent", "child", "spouse", "sibling"
+  
+  // Matching info
+  matchScore: real("match_score"), // How confident we are this is a valid suggestion
+  matchReason: text("match_reason"), // Why this was suggested
+  sourceData: jsonb("source_data"), // Full data from external source for review
+  
+  // Status tracking
+  status: text("status").default("pending").notNull(), // "pending", "approved", "rejected", "merged"
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: varchar("reviewed_by"),
+  createdMemberId: varchar("created_member_id"), // If approved, the new member ID
+  mergedWithMemberId: varchar("merged_with_member_id"), // If merged with existing
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPendingMemberSuggestionSchema = createInsertSchema(pendingMemberSuggestions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PendingMemberSuggestion = typeof pendingMemberSuggestions.$inferSelect;
+export type InsertPendingMemberSuggestion = z.infer<typeof insertPendingMemberSuggestionSchema>;
+
+// Cross-Tree Person Matches - Tracks when the same person appears in multiple trees
+export const crossTreeMatches = pgTable("cross_tree_matches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  member1Id: varchar("member1_id").notNull(),
+  tree1Id: varchar("tree1_id").notNull(),
+  member2Id: varchar("member2_id").notNull(),
+  tree2Id: varchar("tree2_id").notNull(),
+  
+  matchType: text("match_type").notNull(), // "external_id", "name_date", "user_confirmed"
+  matchSource: text("match_source"), // "familysearch", "auto_detection", "user_link"
+  externalId: text("external_id"), // If matched via external ID
+  matchScore: real("match_score").default(0), // Confidence score
+  
+  status: text("status").default("pending").notNull(), // "pending", "confirmed", "rejected"
+  confirmedByUser1: boolean("confirmed_by_user1").default(false),
+  confirmedByUser2: boolean("confirmed_by_user2").default(false),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertCrossTreeMatchSchema = createInsertSchema(crossTreeMatches).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CrossTreeMatch = typeof crossTreeMatches.$inferSelect;
+export type InsertCrossTreeMatch = z.infer<typeof insertCrossTreeMatchSchema>;
 
 // Relations
 export const familyTreesRelations = relations(familyTrees, ({ many }) => ({

@@ -6,6 +6,7 @@ import {
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
   giftRegistries, giftRegistryItems, userConnectionRequests, userConnections, memberMergeHistory,
+  externalPersonIdentifiers, pendingMemberSuggestions, crossTreeMatches,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -35,6 +36,9 @@ import {
   type UserConnectionRequest, type InsertUserConnectionRequest,
   type UserConnection, type InsertUserConnection,
   type MemberMergeHistory, type InsertMemberMergeHistory,
+  type ExternalPersonIdentifier, type InsertExternalPersonIdentifier,
+  type PendingMemberSuggestion, type InsertPendingMemberSuggestion,
+  type CrossTreeMatch, type InsertCrossTreeMatch,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -290,6 +294,30 @@ export interface IStorage {
   getAllUserConnections(search?: string): Promise<UserConnection[]>;
   adminDeleteUserConnection(connectionId: string): Promise<void>;
   getAllTreeConnections(search?: string): Promise<any[]>;
+
+  // External Person Identifiers (FamilySearch, Ancestry, etc.)
+  getExternalIdentifiersForMember(memberId: string): Promise<ExternalPersonIdentifier[]>;
+  getExternalIdentifiersByExternalId(source: string, externalId: string): Promise<ExternalPersonIdentifier[]>;
+  createExternalIdentifier(data: InsertExternalPersonIdentifier): Promise<ExternalPersonIdentifier>;
+  updateExternalIdentifier(id: string, data: Partial<InsertExternalPersonIdentifier>): Promise<ExternalPersonIdentifier | undefined>;
+  deleteExternalIdentifier(id: string): Promise<boolean>;
+  findMembersByExternalId(source: string, externalId: string): Promise<FamilyMember[]>;
+
+  // Pending Member Suggestions
+  getPendingMemberSuggestions(treeId: string): Promise<PendingMemberSuggestion[]>;
+  getPendingMemberSuggestionById(id: string): Promise<PendingMemberSuggestion | undefined>;
+  createPendingMemberSuggestion(data: InsertPendingMemberSuggestion): Promise<PendingMemberSuggestion>;
+  updatePendingMemberSuggestion(id: string, data: Partial<InsertPendingMemberSuggestion>): Promise<PendingMemberSuggestion | undefined>;
+  approvePendingMemberSuggestion(id: string, reviewerId: string, createdMemberId?: string, mergedWithMemberId?: string): Promise<PendingMemberSuggestion | undefined>;
+  rejectPendingMemberSuggestion(id: string, reviewerId: string): Promise<PendingMemberSuggestion | undefined>;
+
+  // Cross-Tree Matches
+  getCrossTreeMatchesForTree(treeId: string): Promise<CrossTreeMatch[]>;
+  getCrossTreeMatchById(id: string): Promise<CrossTreeMatch | undefined>;
+  getCrossTreeMatchByMembers(member1Id: string, member2Id: string): Promise<CrossTreeMatch | undefined>;
+  createCrossTreeMatch(data: InsertCrossTreeMatch): Promise<CrossTreeMatch>;
+  updateCrossTreeMatch(id: string, data: Partial<InsertCrossTreeMatch>): Promise<CrossTreeMatch | undefined>;
+  confirmCrossTreeMatch(id: string, userId: string, treeId: string): Promise<CrossTreeMatch | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1998,6 +2026,166 @@ export class DatabaseStorage implements IStorage {
     await db.delete(familyMembers).where(eq(familyMembers.id, mergedId));
     
     return { success: true, mergeHistoryId: historyRecord.id };
+  }
+
+  // External Person Identifiers (FamilySearch, Ancestry, etc.)
+  async getExternalIdentifiersForMember(memberId: string): Promise<ExternalPersonIdentifier[]> {
+    return db.select().from(externalPersonIdentifiers)
+      .where(eq(externalPersonIdentifiers.memberId, memberId))
+      .orderBy(desc(externalPersonIdentifiers.createdAt));
+  }
+
+  async getExternalIdentifiersByExternalId(source: string, externalId: string): Promise<ExternalPersonIdentifier[]> {
+    return db.select().from(externalPersonIdentifiers)
+      .where(and(
+        eq(externalPersonIdentifiers.source, source),
+        eq(externalPersonIdentifiers.externalId, externalId)
+      ));
+  }
+
+  async createExternalIdentifier(data: InsertExternalPersonIdentifier): Promise<ExternalPersonIdentifier> {
+    const [identifier] = await db.insert(externalPersonIdentifiers).values(data).returning();
+    return identifier;
+  }
+
+  async updateExternalIdentifier(id: string, data: Partial<InsertExternalPersonIdentifier>): Promise<ExternalPersonIdentifier | undefined> {
+    const [updated] = await db.update(externalPersonIdentifiers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(externalPersonIdentifiers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteExternalIdentifier(id: string): Promise<boolean> {
+    await db.delete(externalPersonIdentifiers).where(eq(externalPersonIdentifiers.id, id));
+    return true;
+  }
+
+  async findMembersByExternalId(source: string, externalId: string): Promise<FamilyMember[]> {
+    const identifiers = await this.getExternalIdentifiersByExternalId(source, externalId);
+    if (identifiers.length === 0) return [];
+    
+    const memberIds = identifiers.map(i => i.memberId);
+    return db.select().from(familyMembers)
+      .where(inArray(familyMembers.id, memberIds));
+  }
+
+  // Pending Member Suggestions
+  async getPendingMemberSuggestions(treeId: string): Promise<PendingMemberSuggestion[]> {
+    return db.select().from(pendingMemberSuggestions)
+      .where(and(
+        eq(pendingMemberSuggestions.treeId, treeId),
+        eq(pendingMemberSuggestions.status, "pending")
+      ))
+      .orderBy(desc(pendingMemberSuggestions.createdAt));
+  }
+
+  async getPendingMemberSuggestionById(id: string): Promise<PendingMemberSuggestion | undefined> {
+    const [suggestion] = await db.select().from(pendingMemberSuggestions)
+      .where(eq(pendingMemberSuggestions.id, id));
+    return suggestion;
+  }
+
+  async createPendingMemberSuggestion(data: InsertPendingMemberSuggestion): Promise<PendingMemberSuggestion> {
+    const [suggestion] = await db.insert(pendingMemberSuggestions).values(data).returning();
+    return suggestion;
+  }
+
+  async updatePendingMemberSuggestion(id: string, data: Partial<InsertPendingMemberSuggestion>): Promise<PendingMemberSuggestion | undefined> {
+    const [updated] = await db.update(pendingMemberSuggestions)
+      .set(data)
+      .where(eq(pendingMemberSuggestions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async approvePendingMemberSuggestion(id: string, reviewerId: string, createdMemberId?: string, mergedWithMemberId?: string): Promise<PendingMemberSuggestion | undefined> {
+    const status = mergedWithMemberId ? "merged" : "approved";
+    const [updated] = await db.update(pendingMemberSuggestions)
+      .set({
+        status,
+        reviewedAt: new Date(),
+        reviewedBy: reviewerId,
+        createdMemberId: createdMemberId || null,
+        mergedWithMemberId: mergedWithMemberId || null,
+      })
+      .where(eq(pendingMemberSuggestions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async rejectPendingMemberSuggestion(id: string, reviewerId: string): Promise<PendingMemberSuggestion | undefined> {
+    const [updated] = await db.update(pendingMemberSuggestions)
+      .set({
+        status: "rejected",
+        reviewedAt: new Date(),
+        reviewedBy: reviewerId,
+      })
+      .where(eq(pendingMemberSuggestions.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Cross-Tree Matches
+  async getCrossTreeMatchesForTree(treeId: string): Promise<CrossTreeMatch[]> {
+    return db.select().from(crossTreeMatches)
+      .where(or(
+        eq(crossTreeMatches.tree1Id, treeId),
+        eq(crossTreeMatches.tree2Id, treeId)
+      ))
+      .orderBy(desc(crossTreeMatches.createdAt));
+  }
+
+  async getCrossTreeMatchById(id: string): Promise<CrossTreeMatch | undefined> {
+    const [match] = await db.select().from(crossTreeMatches)
+      .where(eq(crossTreeMatches.id, id));
+    return match;
+  }
+
+  async getCrossTreeMatchByMembers(member1Id: string, member2Id: string): Promise<CrossTreeMatch | undefined> {
+    const [match] = await db.select().from(crossTreeMatches)
+      .where(or(
+        and(eq(crossTreeMatches.member1Id, member1Id), eq(crossTreeMatches.member2Id, member2Id)),
+        and(eq(crossTreeMatches.member1Id, member2Id), eq(crossTreeMatches.member2Id, member1Id))
+      ));
+    return match;
+  }
+
+  async createCrossTreeMatch(data: InsertCrossTreeMatch): Promise<CrossTreeMatch> {
+    const [match] = await db.insert(crossTreeMatches).values(data).returning();
+    return match;
+  }
+
+  async updateCrossTreeMatch(id: string, data: Partial<InsertCrossTreeMatch>): Promise<CrossTreeMatch | undefined> {
+    const [updated] = await db.update(crossTreeMatches)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(crossTreeMatches.id, id))
+      .returning();
+    return updated;
+  }
+
+  async confirmCrossTreeMatch(id: string, userId: string, treeId: string): Promise<CrossTreeMatch | undefined> {
+    const match = await this.getCrossTreeMatchById(id);
+    if (!match) return undefined;
+
+    const updateData: Partial<InsertCrossTreeMatch> = {};
+    
+    if (match.tree1Id === treeId) {
+      updateData.confirmedByUser1 = true;
+    } else if (match.tree2Id === treeId) {
+      updateData.confirmedByUser2 = true;
+    }
+
+    // Check if both users confirmed
+    const willBeFullyConfirmed = 
+      (match.tree1Id === treeId && match.confirmedByUser2) ||
+      (match.tree2Id === treeId && match.confirmedByUser1);
+    
+    if (willBeFullyConfirmed) {
+      updateData.status = "confirmed";
+    }
+
+    return this.updateCrossTreeMatch(id, updateData);
   }
 }
 
