@@ -2001,6 +2001,92 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== NETWORK CONNECTION REQUESTS ====================
+
+  // Get pending network connection requests for current user
+  app.get("/api/user/network-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const requests = await storage.getNetworkConnectionRequestsForUser(userId);
+      
+      // Enrich with tree info
+      const enrichedRequests = await Promise.all(requests.map(async (request) => {
+        const fromTree = await storage.getTree(request.fromTreeId);
+        const toTree = await storage.getTree(request.toTreeId);
+        const viaTree = await storage.getTree(request.viaTreeId);
+        return {
+          ...request,
+          fromTreeName: fromTree?.name || 'Unknown Tree',
+          toTreeName: toTree?.name || 'Unknown Tree',
+          viaTreeName: viaTree?.name || 'Unknown Tree',
+        };
+      }));
+      
+      res.json(enrichedRequests);
+    } catch (error) {
+      console.error("Error fetching network requests:", error);
+      res.status(500).json({ message: "Failed to fetch network requests" });
+    }
+  });
+
+  // Respond to a network connection request (approve/deny)
+  app.post("/api/user/network-requests/:requestId/respond", isAuthenticated, async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      const { action } = req.body; // "approve" or "deny"
+      const userId = req.user.claims.sub;
+
+      if (!action || !["approve", "deny"].includes(action)) {
+        return res.status(400).json({ message: "Invalid action. Must be 'approve' or 'deny'" });
+      }
+
+      // Get the request
+      const request = await storage.getNetworkConnectionRequestById(requestId);
+      if (!request) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      // Verify user owns the target tree
+      if (request.toOwnerId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (request.status !== "pending") {
+        return res.status(400).json({ message: "Request already processed" });
+      }
+
+      if (action === "approve") {
+        // Create the tree connection
+        const fromTree = await storage.getTree(request.fromTreeId);
+        const toTree = await storage.getTree(request.toTreeId);
+        
+        if (!fromTree || !toTree) {
+          return res.status(404).json({ message: "One or both trees not found" });
+        }
+
+        // Check if connection already exists
+        const existingConnection = await storage.getTreeConnectionBetween(request.fromTreeId, request.toTreeId);
+        if (!existingConnection) {
+          await storage.createTreeConnection({
+            tree1Id: request.fromTreeId,
+            tree2Id: request.toTreeId,
+            connectionType: "family",
+            createdBy: userId,
+          });
+        }
+
+        await storage.updateNetworkConnectionRequestStatus(requestId, "approved");
+        res.json({ success: true, message: "Connection request approved" });
+      } else {
+        await storage.updateNetworkConnectionRequestStatus(requestId, "denied");
+        res.json({ success: true, message: "Connection request denied" });
+      }
+    } catch (error) {
+      console.error("Error responding to network request:", error);
+      res.status(500).json({ message: "Failed to respond to request" });
+    }
+  });
+
   // ==================== LIFE EVENTS ROUTES ====================
 
   // Get event by ID
@@ -3088,6 +3174,78 @@ export async function registerRoutes(
             });
           }
         }
+      }
+
+      // Auto-generate network connection requests for extended family
+      // Find trees that tree2 is connected to (that are not tree1)
+      try {
+        const tree2Connections = await storage.getTreeConnections(targetTreeId);
+        for (const otherConn of tree2Connections) {
+          const otherTreeId = otherConn.tree1Id === targetTreeId ? otherConn.tree2Id : otherConn.tree1Id;
+          
+          // Skip if this is the same tree we just connected to
+          if (otherTreeId === treeId) continue;
+          
+          const otherTree = await storage.getTree(otherTreeId);
+          if (!otherTree) continue;
+          
+          // Check if already connected or request already exists
+          const existingConnection = await storage.getTreeConnectionBetween(treeId, otherTreeId);
+          if (existingConnection) continue;
+          
+          const existingRequest = await storage.getNetworkConnectionRequest(treeId, otherTreeId);
+          if (existingRequest) continue;
+          
+          // Create auto-generated request
+          await storage.createNetworkConnectionRequest({
+            fromTreeId: treeId,
+            toTreeId: otherTreeId,
+            viaConnectionId: connection.id,
+            viaTreeId: targetTreeId,
+            requestedBy: userId,
+            toOwnerId: otherTree.ownerId,
+            status: "pending",
+            message: `${tree1.name || 'A family tree'} connected to ${tree2.name || 'your connected tree'} and is requesting to join your extended family network.`,
+          });
+          
+          console.log(`[Network] Auto-generated connection request from ${treeId} to ${otherTreeId} via ${targetTreeId}`);
+        }
+        
+        // Also find trees that tree1 is connected to (for tree2's owner)
+        const tree1Connections = await storage.getTreeConnections(treeId);
+        for (const otherConn of tree1Connections) {
+          const otherTreeId = otherConn.tree1Id === treeId ? otherConn.tree2Id : otherConn.tree1Id;
+          
+          // Skip if this is the same tree we just connected to
+          if (otherTreeId === targetTreeId) continue;
+          
+          const otherTree = await storage.getTree(otherTreeId);
+          if (!otherTree) continue;
+          
+          // Check if already connected or request already exists
+          const existingConnection = await storage.getTreeConnectionBetween(targetTreeId, otherTreeId);
+          if (existingConnection) continue;
+          
+          const existingRequest = await storage.getNetworkConnectionRequest(targetTreeId, otherTreeId);
+          if (existingRequest) continue;
+          
+          // Create auto-generated request from tree2 to tree1's other connections
+          await storage.createNetworkConnectionRequest({
+            fromTreeId: targetTreeId,
+            toTreeId: otherTreeId,
+            viaConnectionId: connection.id,
+            viaTreeId: treeId,
+            requestedBy: tree2.ownerId,
+            toOwnerId: otherTree.ownerId,
+            status: "pending",
+            message: `${tree2.name || 'A family tree'} connected to ${tree1.name || 'your connected tree'} and is requesting to join your extended family network.`,
+          });
+          
+          console.log(`[Network] Auto-generated connection request from ${targetTreeId} to ${otherTreeId} via ${treeId}`);
+        }
+      } catch (networkError) {
+        // Non-fatal error - log but don't fail the main connection
+        console.error("[Network] Error generating network requests:", networkError);
       }
 
       res.status(201).json(connection);

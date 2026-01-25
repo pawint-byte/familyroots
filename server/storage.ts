@@ -1,6 +1,7 @@
 import { 
   familyTrees, familyMembers, relationships, treeCollaborators, familyEvents, users,
   treeInvitations, nameHistory, treeConnections, treeConnectionImports, importedMembers,
+  networkConnectionRequests,
   accountHeirs, educationHistory, careerHistory,
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
@@ -15,6 +16,7 @@ import {
   type TreeConnection, type InsertTreeConnection,
   type TreeConnectionImport, type InsertTreeConnectionImport,
   type ImportedMember, type InsertImportedMember,
+  type NetworkConnectionRequest, type InsertNetworkConnectionRequest,
   type AccountHeir, type InsertAccountHeir,
   type EducationHistory, type InsertEducationHistory,
   type CareerHistory, type InsertCareerHistory,
@@ -86,8 +88,16 @@ export interface IStorage {
 
   // Tree Connections
   getTreeConnections(treeId: string): Promise<TreeConnection[]>;
+  getTreeConnectionBetween(tree1Id: string, tree2Id: string): Promise<TreeConnection | undefined>;
   createTreeConnection(connection: InsertTreeConnection): Promise<TreeConnection>;
   deleteTreeConnection(id: string): Promise<boolean>;
+  
+  // Network Connection Requests
+  getNetworkConnectionRequest(fromTreeId: string, toTreeId: string): Promise<NetworkConnectionRequest | undefined>;
+  getNetworkConnectionRequestById(id: string): Promise<NetworkConnectionRequest | undefined>;
+  getNetworkConnectionRequestsForUser(userId: string): Promise<NetworkConnectionRequest[]>;
+  createNetworkConnectionRequest(request: InsertNetworkConnectionRequest): Promise<NetworkConnectionRequest>;
+  updateNetworkConnectionRequestStatus(id: string, status: string): Promise<NetworkConnectionRequest | undefined>;
 
   // Tree Connection Imports (Selective Branch Import)
   getImportConfigsForConnection(connectionId: string): Promise<TreeConnectionImport[]>;
@@ -533,6 +543,52 @@ export class DatabaseStorage implements IStorage {
   async deleteTreeConnection(id: string): Promise<boolean> {
     await db.delete(treeConnections).where(eq(treeConnections.id, id));
     return true;
+  }
+
+  async getTreeConnectionBetween(tree1Id: string, tree2Id: string): Promise<TreeConnection | undefined> {
+    const [connection] = await db.select().from(treeConnections)
+      .where(or(
+        and(eq(treeConnections.tree1Id, tree1Id), eq(treeConnections.tree2Id, tree2Id)),
+        and(eq(treeConnections.tree1Id, tree2Id), eq(treeConnections.tree2Id, tree1Id))
+      ))
+      .limit(1);
+    return connection;
+  }
+
+  // Network Connection Requests
+  async getNetworkConnectionRequest(fromTreeId: string, toTreeId: string): Promise<NetworkConnectionRequest | undefined> {
+    const [request] = await db.select().from(networkConnectionRequests)
+      .where(or(
+        and(eq(networkConnectionRequests.fromTreeId, fromTreeId), eq(networkConnectionRequests.toTreeId, toTreeId)),
+        and(eq(networkConnectionRequests.fromTreeId, toTreeId), eq(networkConnectionRequests.toTreeId, fromTreeId))
+      ))
+      .limit(1);
+    return request;
+  }
+
+  async getNetworkConnectionRequestById(id: string): Promise<NetworkConnectionRequest | undefined> {
+    const [request] = await db.select().from(networkConnectionRequests)
+      .where(eq(networkConnectionRequests.id, id))
+      .limit(1);
+    return request;
+  }
+
+  async getNetworkConnectionRequestsForUser(userId: string): Promise<NetworkConnectionRequest[]> {
+    return db.select().from(networkConnectionRequests)
+      .where(eq(networkConnectionRequests.toOwnerId, userId));
+  }
+
+  async createNetworkConnectionRequest(request: InsertNetworkConnectionRequest): Promise<NetworkConnectionRequest> {
+    const [created] = await db.insert(networkConnectionRequests).values(request).returning();
+    return created;
+  }
+
+  async updateNetworkConnectionRequestStatus(id: string, status: string): Promise<NetworkConnectionRequest | undefined> {
+    const [updated] = await db.update(networkConnectionRequests)
+      .set({ status, respondedAt: new Date() })
+      .where(eq(networkConnectionRequests.id, id))
+      .returning();
+    return updated;
   }
 
   // Tree Connection Imports (Selective Branch Import)
