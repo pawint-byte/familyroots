@@ -173,6 +173,21 @@ export const importedMembers = pgTable("imported_members", {
   importedAt: timestamp("imported_at").defaultNow().notNull(),
 });
 
+// Network Connection Requests table (auto-generated requests for extended family network)
+export const networkConnectionRequests = pgTable("network_connection_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromTreeId: varchar("from_tree_id").notNull(),
+  toTreeId: varchar("to_tree_id").notNull(),
+  viaConnectionId: varchar("via_connection_id").notNull(), // The connection that triggered this request
+  viaTreeId: varchar("via_tree_id").notNull(), // The intermediate tree (bridge)
+  requestedBy: varchar("requested_by").notNull(), // User who owns fromTree
+  toOwnerId: varchar("to_owner_id").notNull(), // User who owns toTree
+  status: text("status").default("pending").notNull(), // pending, approved, denied
+  message: text("message"), // Optional message explaining the connection
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  respondedAt: timestamp("responded_at"),
+});
+
 // Name History table (for tracking name changes through life events)
 export const nameHistory = pgTable("name_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -689,6 +704,12 @@ export const insertImportedMemberSchema = createInsertSchema(importedMembers).om
   importedAt: true,
 });
 
+export const insertNetworkConnectionRequestSchema = createInsertSchema(networkConnectionRequests).omit({
+  id: true,
+  createdAt: true,
+  respondedAt: true,
+});
+
 export const insertFamilyEventSchema = createInsertSchema(familyEvents).omit({
   id: true,
   createdAt: true,
@@ -929,6 +950,9 @@ export type InsertTreeConnectionImport = z.infer<typeof insertTreeConnectionImpo
 
 export type ImportedMember = typeof importedMembers.$inferSelect;
 export type InsertImportedMember = z.infer<typeof insertImportedMemberSchema>;
+
+export type NetworkConnectionRequest = typeof networkConnectionRequests.$inferSelect;
+export type InsertNetworkConnectionRequest = z.infer<typeof insertNetworkConnectionRequestSchema>;
 
 export type FamilyEvent = typeof familyEvents.$inferSelect;
 export type InsertFamilyEvent = z.infer<typeof insertFamilyEventSchema>;
