@@ -24,6 +24,7 @@ import { PendingCustodianshipSection } from "@/components/pending-custodianship"
 import { PendingConnectionsSection } from "@/components/pending-connections";
 import { MyConnectionsSection } from "@/components/my-connections";
 import { ConnectTreesSection } from "@/components/connect-trees-section";
+import { NetworkRequestsSection } from "@/components/network-requests-section";
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 import type { FamilyTree } from "@shared/schema";
 
@@ -688,6 +689,11 @@ export default function Dashboard() {
         {/* Connect Trees Section - Show when connected users have trees */}
         <div className="mb-8">
           <ConnectTreesSection />
+        </div>
+
+        {/* Network Connection Requests Section - Extended family discovered via network */}
+        <div className="mb-8">
+          <NetworkRequestsSection />
         </div>
 
         {/* Pending Profile Claims Section */}
