@@ -3491,6 +3491,7 @@ export async function registerRoutes(
               if (existing) {
                 // Prefer member from main tree, otherwise prefer the one with more data
                 const shouldReplace = id === treeId && existing.preferredMember.sourceTreeId !== treeId;
+                console.log(`[MERGE DEDUP] Found duplicate claimed member: ${m.firstName} ${m.lastName} (id: ${m.id}, claimedBy: ${m.claimedByUserId}) - remapping to ${existing.preferredMember.id}`);
                 if (shouldReplace) {
                   // Remap the old preferred member ID to this one
                   memberIdRemapping.set(existing.preferredMember.id, m.id);
@@ -3528,30 +3529,103 @@ export async function registerRoutes(
       
       // Second pass: deduplicate unclaimed members that match claimed members by name
       // This handles cases where an unclaimed member exists alongside a claimed version
-      const claimedMembersByName = new Map<string, any>();
+      // Use multiple name keys for fuzzy matching (exact, first-word-only, last-name-only)
+      const claimedMembersByExactName = new Map<string, any>();
+      const claimedMembersByLastName = new Map<string, any[]>(); // Multiple members can share last name
+      
       allMembers.forEach(m => {
         if (m.claimedByUserId) {
-          const nameKey = `${(m.firstName || '').toLowerCase().trim()}-${(m.lastName || '').toLowerCase().trim()}`;
-          if (!claimedMembersByName.has(nameKey)) {
-            claimedMembersByName.set(nameKey, m);
+          const firstName = (m.firstName || '').toLowerCase().trim();
+          const lastName = (m.lastName || '').toLowerCase().trim();
+          const exactKey = `${firstName}-${lastName}`;
+          
+          if (!claimedMembersByExactName.has(exactKey)) {
+            claimedMembersByExactName.set(exactKey, m);
+          }
+          
+          // Also index by last name for fuzzy matching
+          if (lastName) {
+            const existing = claimedMembersByLastName.get(lastName) || [];
+            existing.push(m);
+            claimedMembersByLastName.set(lastName, existing);
           }
         }
       });
       
+      // Helper to check if first names are similar enough
+      const firstNameMatches = (name1: string, name2: string): boolean => {
+        if (!name1 || !name2) return false;
+        const n1 = name1.toLowerCase().trim();
+        const n2 = name2.toLowerCase().trim();
+        if (n1 === n2) return true;
+        // Check if one starts with the other (e.g., "Peter" vs "Peter A")
+        const firstWord1 = n1.split(/\s+/)[0];
+        const firstWord2 = n2.split(/\s+/)[0];
+        return firstWord1 === firstWord2;
+      };
+      
       // Filter out unclaimed duplicates that match claimed members by name
-      const deduplicatedMembers = allMembers.filter(m => {
+      const afterClaimedDedup = allMembers.filter(m => {
         if (m.claimedByUserId) return true; // Keep all claimed members
         
-        const nameKey = `${(m.firstName || '').toLowerCase().trim()}-${(m.lastName || '').toLowerCase().trim()}`;
-        const claimedVersion = claimedMembersByName.get(nameKey);
+        const firstName = (m.firstName || '').toLowerCase().trim();
+        const lastName = (m.lastName || '').toLowerCase().trim();
+        const exactKey = `${firstName}-${lastName}`;
         
-        if (claimedVersion) {
-          // This unclaimed member has a claimed version - remap and exclude
-          memberIdRemapping.set(m.id, claimedVersion.id);
+        // Check exact match first
+        const exactMatch = claimedMembersByExactName.get(exactKey);
+        if (exactMatch) {
+          console.log(`[MERGE DEDUP] Exact name match: unclaimed "${m.firstName} ${m.lastName}" (${m.id}) -> claimed (${exactMatch.id})`);
+          memberIdRemapping.set(m.id, exactMatch.id);
           return false;
         }
+        
+        // Check fuzzy match by last name + similar first name
+        const sameSurname = claimedMembersByLastName.get(lastName) || [];
+        for (const claimed of sameSurname) {
+          if (firstNameMatches(m.firstName, claimed.firstName)) {
+            console.log(`[MERGE DEDUP] Fuzzy name match: unclaimed "${m.firstName} ${m.lastName}" (${m.id}) -> claimed "${claimed.firstName} ${claimed.lastName}" (${claimed.id})`);
+            memberIdRemapping.set(m.id, claimed.id);
+            return false;
+          }
+        }
+        
         return true;
       });
+      
+      // Third pass: deduplicate unclaimed members against each other (for cases where 
+      // both duplicates are unclaimed but have similar names across different trees)
+      const seenUnclaimedByName = new Map<string, any>();
+      const deduplicatedMembers = afterClaimedDedup.filter(m => {
+        if (m.claimedByUserId) return true; // Keep all claimed members
+        
+        const firstName = (m.firstName || '').toLowerCase().trim();
+        const lastName = (m.lastName || '').toLowerCase().trim();
+        const firstWord = firstName.split(/\s+/)[0] || '';
+        const fuzzyKey = `${firstWord}-${lastName}`;
+        
+        const existing = seenUnclaimedByName.get(fuzzyKey);
+        if (existing) {
+          // Prefer member from main tree
+          if (m.sourceTreeId === treeId && existing.sourceTreeId !== treeId) {
+            // This one is from main tree, remap the existing one
+            console.log(`[MERGE DEDUP] Unclaimed fuzzy match (keeping main): "${m.firstName} ${m.lastName}" (${m.id}) kept, remapping (${existing.id})`);
+            memberIdRemapping.set(existing.id, m.id);
+            seenUnclaimedByName.set(fuzzyKey, m);
+            return true;
+          } else {
+            // Keep existing, remap this one
+            console.log(`[MERGE DEDUP] Unclaimed fuzzy match: "${m.firstName} ${m.lastName}" (${m.id}) -> (${existing.id})`);
+            memberIdRemapping.set(m.id, existing.id);
+            return false;
+          }
+        }
+        
+        seenUnclaimedByName.set(fuzzyKey, m);
+        return true;
+      });
+      
+      console.log(`[MERGE DEDUP] Summary: ${allMembers.length} members -> ${deduplicatedMembers.length} after deduplication`);
       
       // Remap relationship IDs to use preferred member IDs (deduplicated)
       const remappedRelationships = allRelationships.map((rel: any) => ({

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { HelpCircle } from "lucide-react";
 import type { FamilyMember, Relationship } from "@shared/schema";
@@ -49,6 +49,21 @@ export default function FamilyTreeVisualization({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [positions, setPositions] = useState<NodePosition[]>([]);
   const [branchLabels, setBranchLabels] = useState<BranchLabel[]>([]);
+  
+  // Dedupe members at the input level to handle any edge cases
+  const deduplicatedMembers = useMemo(() => {
+    const seen = new Set<string>();
+    const result: typeof members = [];
+    for (const member of members) {
+      if (!seen.has(member.id)) {
+        seen.add(member.id);
+        result.push(member);
+      } else if (process.env.NODE_ENV === 'development') {
+        console.warn('[Tree Viz] Duplicate member detected:', member.id, member.firstName, member.lastName);
+      }
+    }
+    return result;
+  }, [members]);
 
   const nodeWidth = 140;
   const nodeHeight = 160;
@@ -129,7 +144,7 @@ export default function FamilyTreeVisualization({
   }, []);
 
   const calculateHierarchicalPositions = useCallback(() => {
-    if (members.length === 0) return { positions: [], labels: [] };
+    if (deduplicatedMembers.length === 0) return { positions: [], labels: [] };
 
     const positioned: NodePosition[] = [];
     const labels: BranchLabel[] = [];
@@ -137,8 +152,8 @@ export default function FamilyTreeVisualization({
 
     const { parentChildMap, childParentMap, spouseMap, siblingMap } = getRelationshipMaps();
 
-    const focusId = focusMemberId || members[0]?.id;
-    const focusMember = members.find(m => m.id === focusId);
+    const focusId = focusMemberId || deduplicatedMembers[0]?.id;
+    const focusMember = deduplicatedMembers.find(m => m.id === focusId);
     
     if (!focusMember) return { positions: [], labels: [] };
 
@@ -150,7 +165,7 @@ export default function FamilyTreeVisualization({
 
     const spouses = spouseMap.get(focusId) || [];
     spouses.forEach((spouseId, index) => {
-      const spouse = members.find(m => m.id === spouseId);
+      const spouse = deduplicatedMembers.find(m => m.id === spouseId);
       if (spouse && !placed.has(spouseId)) {
         positioned.push({
           x: centerX + (nodeWidth + horizontalGap) * (index + 1),
@@ -170,7 +185,7 @@ export default function FamilyTreeVisualization({
       labels.push({ x: centerX, y: parentY + nodeHeight + 40, text: 'Parents', type: 'parent' });
       
       parents.forEach((parentId, index) => {
-        const parent = members.find(m => m.id === parentId);
+        const parent = deduplicatedMembers.find(m => m.id === parentId);
         if (parent && !placed.has(parentId)) {
           positioned.push({
             x: parentStartX + index * (nodeWidth + horizontalGap),
@@ -185,7 +200,7 @@ export default function FamilyTreeVisualization({
           const gpStartX = parentStartX + index * (nodeWidth + horizontalGap) - ((grandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
           
           grandparents.forEach((gpId, gpIndex) => {
-            const gp = members.find(m => m.id === gpId);
+            const gp = deduplicatedMembers.find(m => m.id === gpId);
             if (gp && !placed.has(gpId)) {
               positioned.push({
                 x: gpStartX + gpIndex * (nodeWidth + horizontalGap / 2),
@@ -212,7 +227,7 @@ export default function FamilyTreeVisualization({
       }
       
       leftSiblings.forEach((sibId, index) => {
-        const sib = members.find(m => m.id === sibId);
+        const sib = deduplicatedMembers.find(m => m.id === sibId);
         if (sib && !placed.has(sibId)) {
           positioned.push({
             x: centerX - (nodeWidth + horizontalGap) * (index + 1.5),
@@ -226,7 +241,7 @@ export default function FamilyTreeVisualization({
       
       const spouseOffset = spouses.length > 0 ? (spouses.length + 1) : 1;
       rightSiblings.forEach((sibId, index) => {
-        const sib = members.find(m => m.id === sibId);
+        const sib = deduplicatedMembers.find(m => m.id === sibId);
         if (sib && !placed.has(sibId)) {
           positioned.push({
             x: centerX + (nodeWidth + horizontalGap) * (index + spouseOffset + 0.5),
@@ -244,12 +259,16 @@ export default function FamilyTreeVisualization({
     spouses.forEach(spouseId => {
       const sChildren = parentChildMap.get(spouseId) || [];
       sChildren.forEach(cId => {
-        if (!children.includes(cId)) {
+        if (!children.includes(cId) && !spouseChildren.includes(cId)) {
           spouseChildren.push(cId);
         }
       });
     });
     const allChildren = Array.from(new Set([...children, ...spouseChildren]));
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Tree Viz] Focus:', focusId, 'Children:', children, 'SpouseChildren:', spouseChildren, 'AllChildren:', allChildren);
+    }
     
     if (allChildren.length > 0) {
       const childY = centerY + verticalGap + nodeHeight;
@@ -259,7 +278,7 @@ export default function FamilyTreeVisualization({
       labels.push({ x: centerX, y: childY - 40, text: 'Children', type: 'child' });
       
       allChildren.forEach((childId, index) => {
-        const child = members.find(m => m.id === childId);
+        const child = deduplicatedMembers.find(m => m.id === childId);
         if (child && !placed.has(childId)) {
           positioned.push({
             x: childStartX + index * (nodeWidth + horizontalGap),
@@ -274,7 +293,7 @@ export default function FamilyTreeVisualization({
           const gcStartX = childStartX + index * (nodeWidth + horizontalGap) - ((grandchildren.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
           
           grandchildren.forEach((gcId, gcIndex) => {
-            const gc = members.find(m => m.id === gcId);
+            const gc = deduplicatedMembers.find(m => m.id === gcId);
             if (gc && !placed.has(gcId)) {
               positioned.push({
                 x: gcStartX + gcIndex * (nodeWidth + horizontalGap / 2),
@@ -291,7 +310,7 @@ export default function FamilyTreeVisualization({
 
     let extraX = centerX + 600;
     let hasUnconnected = false;
-    members.forEach((member) => {
+    deduplicatedMembers.forEach((member) => {
       if (!placed.has(member.id)) {
         if (!hasUnconnected) {
           labels.push({ x: extraX, y: centerY - 40, text: 'No Relationship Defined', type: 'unconnected' });
@@ -309,7 +328,7 @@ export default function FamilyTreeVisualization({
     });
 
     return { positions: positioned, labels };
-  }, [members, relationships, focusMemberId, getRelationshipMaps, getSiblings, nodeWidth, nodeHeight, horizontalGap, verticalGap]);
+  }, [deduplicatedMembers, relationships, focusMemberId, getRelationshipMaps, getSiblings, nodeWidth, nodeHeight, horizontalGap, verticalGap]);
 
   useEffect(() => {
     const result = calculateHierarchicalPositions();
