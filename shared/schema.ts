@@ -882,6 +882,26 @@ export const insertUserConnectionSchema = createInsertSchema(userConnections).om
   connectedAt: true,
 });
 
+// Member merge history - tracks when members are merged together
+export const memberMergeHistory = pgTable("member_merge_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  treeId: varchar("tree_id").notNull(),
+  survivorMemberId: varchar("survivor_member_id").notNull(), // The member that remains after merge
+  mergedMemberId: varchar("merged_member_id").notNull(), // The member that was merged/deleted
+  mergedByUserId: varchar("merged_by_user_id").notNull(), // Who performed the merge
+  // Snapshot of the merged member's data before deletion
+  mergedMemberData: jsonb("merged_member_data"),
+  // Snapshot of relationships that were remapped
+  remappedRelationships: jsonb("remapped_relationships"),
+  notes: text("notes"), // Optional notes about why they were merged
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertMemberMergeHistorySchema = createInsertSchema(memberMergeHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type FamilyTree = typeof familyTrees.$inferSelect;
 export type InsertFamilyTree = z.infer<typeof insertFamilyTreeSchema>;
@@ -960,3 +980,6 @@ export type InsertUserConnectionRequest = z.infer<typeof insertUserConnectionReq
 
 export type UserConnection = typeof userConnections.$inferSelect;
 export type InsertUserConnection = z.infer<typeof insertUserConnectionSchema>;
+
+export type MemberMergeHistory = typeof memberMergeHistory.$inferSelect;
+export type InsertMemberMergeHistory = z.infer<typeof insertMemberMergeHistorySchema>;

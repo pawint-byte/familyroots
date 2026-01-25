@@ -4,7 +4,7 @@ import {
   accountHeirs, educationHistory, careerHistory,
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
-  giftRegistries, giftRegistryItems, userConnectionRequests, userConnections,
+  giftRegistries, giftRegistryItems, userConnectionRequests, userConnections, memberMergeHistory,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -32,6 +32,7 @@ import {
   type GiftRegistryItem, type InsertGiftRegistryItem,
   type UserConnectionRequest, type InsertUserConnectionRequest,
   type UserConnection, type InsertUserConnection,
+  type MemberMergeHistory, type InsertMemberMergeHistory,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -265,6 +266,11 @@ export interface IStorage {
   getUserConnections(userId: string): Promise<UserConnection[]>;
   getExistingUserConnection(userId1: string, userId2: string): Promise<UserConnection | undefined>;
   createUserConnection(connection: InsertUserConnection): Promise<UserConnection>;
+
+  // Member Merge
+  getMergeHistory(treeId: string): Promise<MemberMergeHistory[]>;
+  createMergeHistory(data: InsertMemberMergeHistory): Promise<MemberMergeHistory>;
+  mergeMembers(survivorId: string, mergedId: string, userId: string, notes?: string): Promise<{ success: boolean; mergeHistoryId: string }>;
 
   // Admin methods
   getAllUsers(search?: string): Promise<User[]>;
@@ -1824,6 +1830,118 @@ export class DatabaseStorage implements IStorage {
     }
     
     return enriched;
+  }
+
+  // Member Merge
+  async getMergeHistory(treeId: string): Promise<MemberMergeHistory[]> {
+    return db.select().from(memberMergeHistory)
+      .where(eq(memberMergeHistory.treeId, treeId))
+      .orderBy(desc(memberMergeHistory.createdAt));
+  }
+
+  async createMergeHistory(data: InsertMemberMergeHistory): Promise<MemberMergeHistory> {
+    const [created] = await db.insert(memberMergeHistory).values(data).returning();
+    return created;
+  }
+
+  async mergeMembers(survivorId: string, mergedId: string, userId: string, notes?: string): Promise<{ success: boolean; mergeHistoryId: string }> {
+    // Get both members
+    const [survivor] = await db.select().from(familyMembers).where(eq(familyMembers.id, survivorId));
+    const [merged] = await db.select().from(familyMembers).where(eq(familyMembers.id, mergedId));
+    
+    if (!survivor || !merged) {
+      throw new Error("One or both members not found");
+    }
+    
+    if (survivor.treeId !== merged.treeId) {
+      throw new Error("Members must be in the same tree");
+    }
+    
+    const treeId = survivor.treeId;
+    
+    // Get all relationships involving the merged member
+    const allRelationships = await db.select().from(relationships)
+      .where(eq(relationships.treeId, treeId));
+    
+    const mergedRelationships = allRelationships.filter(r => 
+      r.fromMemberId === mergedId || r.toMemberId === mergedId
+    );
+    
+    // Remap relationships from merged member to survivor
+    for (const rel of mergedRelationships) {
+      const newFromId = rel.fromMemberId === mergedId ? survivorId : rel.fromMemberId;
+      const newToId = rel.toMemberId === mergedId ? survivorId : rel.toMemberId;
+      
+      // Skip if this would create a self-reference
+      if (newFromId === newToId) continue;
+      
+      // Check if relationship already exists
+      const existingRel = allRelationships.find(r => 
+        r.fromMemberId === newFromId && r.toMemberId === newToId && r.relationshipType === rel.relationshipType
+      );
+      
+      if (!existingRel) {
+        // Create new relationship pointing to survivor
+        await db.insert(relationships).values({
+          treeId: treeId,
+          fromMemberId: newFromId,
+          toMemberId: newToId,
+          relationshipType: rel.relationshipType,
+        });
+      }
+      
+      // Delete the old relationship
+      await db.delete(relationships).where(eq(relationships.id, rel.id));
+    }
+    
+    // Update tree connections that reference the merged member
+    await db.update(treeConnections)
+      .set({ connector1MemberId: survivorId })
+      .where(eq(treeConnections.connector1MemberId, mergedId));
+    
+    await db.update(treeConnections)
+      .set({ connector2MemberId: survivorId })
+      .where(eq(treeConnections.connector2MemberId, mergedId));
+    
+    // Transfer claimed profile if merged has one and survivor doesn't
+    if (merged.claimedByUserId && !survivor.claimedByUserId) {
+      await db.update(familyMembers)
+        .set({ claimedByUserId: merged.claimedByUserId, claimedAt: merged.claimedAt })
+        .where(eq(familyMembers.id, survivorId));
+    }
+    
+    // Merge data - fill in any empty fields on survivor with merged member's data
+    const updates: Partial<typeof survivor> = {};
+    if (!survivor.nickname && merged.nickname) updates.nickname = merged.nickname;
+    if (!survivor.birthDate && merged.birthDate) updates.birthDate = merged.birthDate;
+    if (!survivor.birthPlace && merged.birthPlace) updates.birthPlace = merged.birthPlace;
+    if (!survivor.deathDate && merged.deathDate) updates.deathDate = merged.deathDate;
+    if (!survivor.photoUrl && merged.photoUrl) updates.photoUrl = merged.photoUrl;
+    if (!survivor.notes && merged.notes) updates.notes = merged.notes;
+    if (!survivor.gender && merged.gender) updates.gender = merged.gender;
+    if (!survivor.currentCity && merged.currentCity) updates.currentCity = merged.currentCity;
+    if (!survivor.currentRegion && merged.currentRegion) updates.currentRegion = merged.currentRegion;
+    if (!survivor.currentCountry && merged.currentCountry) updates.currentCountry = merged.currentCountry;
+    
+    if (Object.keys(updates).length > 0) {
+      await db.update(familyMembers).set(updates).where(eq(familyMembers.id, survivorId));
+    }
+    
+    // Create merge history record
+    const [historyRecord] = await db.insert(memberMergeHistory).values({
+      treeId,
+      survivorMemberId: survivorId,
+      mergedMemberId: mergedId,
+      mergedByUserId: userId,
+      mergedMemberData: merged as any,
+      remappedRelationships: mergedRelationships as any,
+      notes: notes || null,
+    }).returning();
+    
+    // Delete the merged member
+    await db.delete(familyMembers).where(eq(familyMembers.id, mergedId));
+    
+    return { success: true, mergeHistoryId: historyRecord.id };
   }
 }
 
