@@ -2,7 +2,7 @@
 
 ## Overview
 
-FamilyRoots is a full-stack web application designed for creating, managing, and visualizing interactive family trees. It empowers users to build comprehensive family histories with detailed member profiles, define intricate relationships, and explore their ancestry through dynamic timelines. The platform emphasizes user collaboration, robust privacy controls, and secure user authentication, aiming to be a leading tool for genealogical research and connection.
+FamilyRoots is a full-stack web application for creating, managing, and visualizing interactive family trees. It allows users to build comprehensive family histories with detailed profiles, define relationships, and explore ancestry through dynamic timelines. The platform emphasizes user collaboration, robust privacy controls, and secure authentication, aiming to be a leading tool for genealogical research and connection.
 
 ## User Preferences
 
@@ -11,116 +11,50 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-The frontend is built with React 18 and TypeScript, using Wouter for routing, TanStack React Query for server state, and React Context for UI state. Styling is managed with Tailwind CSS, supporting light/dark modes through CSS custom properties. shadcn/ui components, based on Radix UI primitives, provide a consistent design system, with Vite as the build tool. The design aesthetic is inspired by Ancestry.com's genealogy UX and Linear's modern approach, using Inter and Merriweather fonts.
+The frontend uses React 18, TypeScript, Wouter for routing, TanStack React Query for server state, and React Context for UI state. Tailwind CSS manages styling with light/dark modes. shadcn/ui components, based on Radix UI, provide a consistent design, built with Vite. The design is inspired by Ancestry.com and Linear, using Inter and Merriweather fonts.
 
 ### Backend
-The backend utilizes Node.js with Express.js and TypeScript, employing ES modules. It provides RESTful API endpoints and integrates Replit Auth for authentication via OpenID Connect with Passport.js. Sessions are managed using PostgreSQL.
+The backend is built with Node.js, Express.js, and TypeScript (ES modules). It provides RESTful API endpoints and integrates Replit Auth for authentication via OpenID Connect with Passport.js. Sessions are managed using PostgreSQL.
 
 ### Data Storage
-PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for schema validation. Key tables include `family_trees`, `family_members`, `relationships`, `tree_collaborators`, `tree_invitations`, `name_history`, `tree_connections`, `family_events`, `sessions`, and `users`.
+PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for schema validation. Key tables store family trees, members, relationships, collaboration data, events, sessions, and user information.
 
 ### Core Features
 
-- **Authentication**: Replit Auth with OpenID Connect for secure login, sessions stored in PostgreSQL.
-- **Collaboration System**: Users can share family trees with defined roles (Viewer, Editor, Co-owner) via invitation links with optional expiration and usage limits. Tree connections allow linking co-owned trees.
-- **Relationship Management**: Full control over family relationships with edit and delete capabilities. Each relationship in the member detail panel has pencil (edit) and trash (delete) buttons. Users add members individually and define relationships manually - no automatic placeholder creation.
-- **Profile Claiming**: Family members can claim their own profiles within trees they don't own. Once approved by the tree owner, claimed users can edit their personal details (name, photo, bio, dates) directly without needing tree-level edit permissions. Tree owners see pending claims on their dashboard and can approve or deny requests.
-- **Life Events Recording**: Record significant life events for family members including births, deaths, marriages, divorces, graduations, achievements, and milestones. Events support dates, descriptions, locations, and media attachments (photos/videos). Opt-in email notifications notify tree collaborators when events are recorded based on their notification preferences.
-- **Custodianship System**: Direct relatives (parent, child, spouse, sibling) can request custodianship of deceased family members' profiles. Requests have a 30-day approval window with email reminders at days 7, 14, 21, and 28. If no action is taken, requests are auto-approved. Custodians have limited edit permissions (name, death date, notes, photo) to maintain the member's memorial profile.
-- **Privacy Visibility Controls**: Three-tier privacy system controlling how much information is visible to non-immediate family members:
-  - Full Access: All details visible (dates, locations, photos, notes, life events)
-  - Extended Family View: Name, relationship, birth year, and photo only
-  - Limited: Name and relationship only
-  - Immediate family (parents, children, spouse, siblings) always has full access
-  - Tree owners set the default visibility tier; per-member overrides can be set
-- **Special Connections System**: Enables adding non-blood relationships between family members including:
-  - Godparents/godchildren, boyfriends/girlfriends, fiances, best friends, family friends
-  - Mentors/mentees, guardians/wards, and custom "other" connections
-  - Cross-tree connection requests with approval workflow
-  - Network discovery to see connections of connections with limited privacy info
-- **Location Sharing**: Optional location fields (city, region, country) on member profiles:
-  - Opt-in visibility toggle to share location with connections
-  - Network page with location-based search for finding family when traveling
-  - Limited info display for privacy (last name initial only for non-connections)
-- **Deadman Switch (Account Heir)**: Allows users to designate an heir to inherit their family trees after a configurable period of inactivity, ensuring the preservation of genealogical data.
-- **Smart Family Member Matching**: A privacy-focused, opt-in feature that enables cross-tree matching to discover shared family connections based on user-controlled data points. Matching uses a weighted scoring algorithm.
-- **Dynamic Relationship Calculator**: Utilizes a BFS algorithm to determine the genealogical relationship between any two family members within a tree, providing accurate terminology (e.g., cousins "once removed").
-- **Education & Career History**: Enables detailed tracking of education and employment records for each family member, displayed within their profiles.
-- **AI Chatbot**: A floating chatbot powered by OpenAI GPT-4.1-mini (via Replit AI Integrations) offering genealogy assistance, app guidance, and family history help with streaming responses.
-- **Internationalization (i18n)**: Supports English, Spanish, French, and German with browser language detection and a language switcher.
-- **HeyGen Video Generation**: An admin interface for creating AI avatar videos via HeyGen API, with public playback pages and social media sharing integration (Bluesky, Open Graph/Twitter meta tags).
-- **SEO**: Client-side SEO for meta tags, Open Graph, Twitter cards, and JSON-LD structured data.
-- **FAQ Page**: A comprehensive, categorized FAQ with expandable sections.
-- **Email Service**: Uses Resend for transactional emails (welcome, invites, notifications) with invitation status tracking for family members.
-- **Photo Uploads**: Secure photo uploads leveraging Replit Object Storage with a presigned URL flow.
-- **Gifts & Products Page**: Curated list of family tree-related products linking to external marketplaces.
-- **Tree Export**: Users can export their family tree visualization as a high-resolution PNG image with theme-aware backgrounds (white for light mode, dark for dark mode) using html-to-image library.
-- **Custom Merchandise (Print-on-Demand)**: Users can order custom products (mugs, t-shirts, posters, pillows, tote bags) with their family tree printed on them via Printful integration. Features include product catalog, variant selection (size/color), Stripe checkout for payment, and order tracking. Commission is added to orders for revenue.
-- **QR Code Sharing**: A share page (/share) displays a scannable QR code linking to the app, with options to copy the URL, download the QR code as PNG, or use the native share dialog on mobile devices.
-- **Personal Profile QR Codes**: Each user has a unique QR code (/my-qr) linking to their public profile (/profile/:userId). Designed for family reunions and face-to-face meetings where family members can scan each other's codes to quickly connect and collaborate on family trees. Features include: download QR as PNG, share via native share dialog, copy profile link. Enhanced connection flow:
-  - When scanning a QR code, users specify their relationship (son, daughter, parent, spouse, sibling, grandparent, grandchild, aunt, uncle, niece, nephew, cousin, in-law, step-relative)
-  - If not logged in, users are automatically redirected back to the scanned profile after signing up
-  - Connection requests appear on the target user's dashboard with relationship information for approval
-  - Database tables: userConnectionRequests (pending requests with relationship), userConnections (approved connections)
-- **Tiered Subscription Discounts**: Subscription pricing with automatic discounts based on total family members across all trees:
-  - 0-24 members: $9.99/month (base price)
-  - 25-49 members: $7.49/month (25% off)
-  - 50-74 members: $4.99/month (50% off)
-  - 75-99 members: $2.50/month (75% off)
-  - 100+ members: FREE subscription
-  - For users at 100+ members, each additional 25 members requires a $2.99 one-time payment (milestone payment)
-  - Dashboard shows progress bar toward next discount tier
-  - Pricing page displays all tiers with current tier highlighted
-  - Member count includes: owned tree members + imported members from connected trees
-  - View-only members from connected trees (not imported) are FREE and don't count toward tier
-- **Selective Branch Import**: Control which members from connected trees count toward your subscription:
-  - Import specific branches from connected trees using scope options: single member, immediate family, descendants, or ancestors
-  - Include options for spouses, parents, children based on scope
-  - Preview shows member count and pricing tier impact before importing
-  - Imported members get full feature access (gifts, locations, notifications, editing)
-  - View-only members from connected trees have limited access but are free
-  - Database tables: tree_connection_imports (import configurations), imported_members (individual imported records)
-- **FamilySearch Integration**: Historical records search via FamilySearch API integration:
-  - OAuth flow for connecting FamilySearch accounts (requires FAMILYSEARCH_APP_KEY environment variable)
-  - Search billions of historical records (birth, marriage, death, census, immigration, military)
-  - Attach record sources to family members for documentation
-  - Demo mode with mock data when API credentials not configured
-  - Database tables: familySearchConnections (OAuth tokens), familySearchSources (attached records)
-- **Comparison Page**: Feature comparison page (/comparison) showing FamilyRoots vs Ancestry with:
-  - Categorized feature matrix (Core, Research, Collaboration, Privacy, Monetization, Community)
-  - Visual checkmarks and crosses for feature availability
-  - Unique FamilyRoots features highlighted
-  - Linked from landing page for marketing
-- **Progressive Web App (PWA)**: Full PWA support for mobile installation:
-  - Web app manifest for home screen installation
-  - Service worker for offline caching and faster loads
-  - Custom app icons (192x192 and 512x512)
-  - Apple touch icon support for iOS devices
-  - Standalone display mode for native-like experience
-- **Google Analytics**: Optional analytics integration for tracking user engagement:
-  - Automatic page view tracking on route changes
-  - Custom event tracking for user actions
-  - Requires VITE_GA_MEASUREMENT_ID environment variable (Google Analytics 4 Measurement ID)
-- **Automatic Maintenance Mode**: User-friendly maintenance page shown when server is unavailable:
-  - Detects server unavailability via /api/health endpoint
-  - Displays friendly "We're Making Improvements" message with wrench icon
-  - Auto-retries every 10 seconds to check if server is back
-  - Automatically reloads page when server recovers
-  - Manual "Check Again" button for immediate retry
-- **My Family Connections**: Dashboard section showing approved user-to-user connections:
-  - Displays connected family members with relationship badges
-  - Shows both perspectives (e.g., "Your Son" / "You're their Parent")
-  - Links to connected user's public profile
-- **Single Source of Truth (Profile Sync)**: Claimed users own their personal data across all family trees:
-  - Users manage their canonical profile at /my-profile with personal data (nickname, gender, birthDate, birthPlace, bio, location)
-  - When a user claims their profile in a tree, their personal data automatically syncs to that tree
-  - Data merge logic: User's non-empty fields override tree data; tree owner's data fills gaps for empty fields
-  - Import feature: Users can pull existing data from claimed profiles into their canonical profile
-  - Visual sync indicator: Tree view shows "Synced" badge when member data comes from claimed user's profile
-  - Philosophy: "Let them accept their truth" - relationship agreement is required, but personal data is controlled by the profile owner
-  - Only the relationship connection ("we are connected and this is our relationship") requires mutual agreement
-  - Tree structure (who is connected to whom) remains controlled by tree owner
-  - No cascade effects: personal data changes sync only to claimed profiles, not to tree relationships
+- **Authentication**: Secure login via Replit Auth (OpenID Connect) with PostgreSQL session management.
+- **Collaboration**: Users can share family trees with defined roles (Viewer, Editor, Co-owner) via invitation links and link co-owned trees.
+- **Relationship Management**: Comprehensive control over family relationships, allowing manual additions and definitions.
+- **Profile Claiming**: Family members can claim their profiles in trees they don't own, gaining limited editing rights upon owner approval.
+- **Life Events Recording**: Track significant life events with dates, descriptions, locations, and media attachments, including email notifications for collaborators.
+- **Custodianship System**: Direct relatives can request custodianship of deceased members' profiles, gaining limited edit permissions after an approval window.
+- **Privacy Controls**: Three-tier visibility (Full Access, Extended Family View, Limited) with immediate family exceptions and per-member overrides.
+- **Special Connections**: Add non-blood relationships (e.g., godparents, friends) and manage cross-tree connection requests.
+- **Location Sharing**: Optional location fields with opt-in visibility and a network page for location-based discovery.
+- **Deadman Switch**: Users can designate an heir to inherit their family trees after inactivity.
+- **Smart Family Member Matching**: Opt-in, privacy-focused cross-tree matching for shared connections using a weighted scoring algorithm.
+- **Cross-Tree Person Matching**: Automatic detection of the same person across multiple trees using external IDs and name/date similarity, with a pending review system.
+- **Network Connection Discovery**: Automated expansion of extended family networks when trees connect, with dashboard approval.
+- **Dynamic Relationship Calculator**: Uses a BFS algorithm to determine genealogical relationships between any two family members.
+- **Education & Career History**: Detailed tracking of education and employment records.
+- **AI Chatbot**: An OpenAI GPT-4.1-mini powered chatbot for genealogy assistance and app guidance.
+- **Internationalization (i18n)**: Supports English, Spanish, French, and German with language detection and switching.
+- **HeyGen Video Generation**: Admin interface for creating AI avatar videos with public playback and social sharing.
+- **SEO**: Client-side SEO for meta tags, Open Graph, Twitter cards, and JSON-LD.
+- **Email Service**: Uses Resend for transactional emails (invites, notifications).
+- **Photo Uploads**: Secure photo uploads via Replit Object Storage with presigned URLs.
+- **Tree Export**: Export family tree visualizations as high-resolution PNG images with theme-aware backgrounds.
+- **Custom Merchandise**: Order custom products with family tree prints via Printful integration, with Stripe checkout.
+- **QR Code Sharing**: Share page with scannable QR code for app linking, download, and native sharing.
+- **Personal Profile QR Codes**: Unique QR codes for users' public profiles to facilitate in-person connection requests with specified relationships.
+- **Tiered Subscription Discounts**: Dynamic pricing based on total family members across all trees, including milestone payments for larger trees.
+- **Selective Branch Import**: Control which members from connected trees count towards subscription tiers, with scope options and preview.
+- **FamilySearch Integration**: OAuth-based integration for searching historical records and attaching sources (optional).
+- **Comparison Page**: Marketing page comparing FamilyRoots features against Ancestry.
+- **Progressive Web App (PWA)**: Full PWA support for mobile installation and offline caching.
+- **Google Analytics**: Optional integration for user engagement tracking.
+- **Automatic Maintenance Mode**: User-friendly maintenance page displayed during server unavailability with auto-retry.
+- **My Family Connections**: Dashboard section displaying approved user-to-user connections with relationship badges.
+- **Single Source of Truth (Profile Sync)**: Claimed users manage their canonical profile, syncing personal data across all claimed profiles in family trees.
 
 ## External Dependencies
 
@@ -130,11 +64,7 @@ PostgreSQL serves as the primary database, with Drizzle ORM and drizzle-zod for 
 - **Email**: Resend
 - **Video Generation**: HeyGen API
 - **Social Media**: Bluesky
-- **Payments**: Stripe (for subscription management and merchandise checkout)
-  - Uses `stripe-replit-sync` library for automated webhook management
-  - Webhooks are auto-configured at `/api/stripe/webhook` - no manual Stripe Dashboard setup required
-  - Stripe data syncs automatically to PostgreSQL database
-  - Accepts both card and crypto payments (Bitcoin, Ethereum, stablecoins) - settles in USD
-- **Print-on-Demand**: Printful API for merchandise fulfillment
-- **Genealogy Research**: FamilySearch API for historical records (optional - requires registration at developers.familysearch.org)
+- **Payments**: Stripe (subscription management, merchandise checkout, supports card and crypto payments)
+- **Print-on-Demand**: Printful API
+- **Genealogy Research**: FamilySearch API
 - **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image, react-leaflet.

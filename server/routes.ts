@@ -3176,6 +3176,20 @@ export async function registerRoutes(
         }
       }
 
+      // Auto-detect cross-tree matches (same person appearing in both trees)
+      // Fire-and-forget: don't await to keep connection response fast
+      import("./crossTreeMatching").then(({ detectAndCreateCrossTreeMatches }) => {
+        detectAndCreateCrossTreeMatches(treeId, targetTreeId)
+          .then(crossMatches => {
+            if (crossMatches.length > 0) {
+              console.log(`[CrossMatch] Detected ${crossMatches.length} potential matches between trees ${treeId} and ${targetTreeId}`);
+            }
+          })
+          .catch(matchError => {
+            console.error("[CrossMatch] Error detecting cross-tree matches:", matchError);
+          });
+      }).catch(err => console.error("[CrossMatch] Failed to import module:", err));
+
       // Auto-generate network connection requests for extended family
       // Find trees that tree2 is connected to (that are not tree1)
       try {
@@ -6661,6 +6675,352 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting source:", error);
       res.status(500).json({ message: "Failed to delete source" });
+    }
+  });
+
+  // ==================== CROSS-TREE MATCHING ROUTES ====================
+
+  // Get external identifiers for a member
+  app.get("/api/members/:memberId/external-ids", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId } = req.params;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+      
+      if (!isOwner && !collaborator) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const identifiers = await storage.getExternalIdentifiersForMember(memberId);
+      res.json(identifiers);
+    } catch (error) {
+      console.error("Error fetching external identifiers:", error);
+      res.status(500).json({ message: "Failed to fetch external identifiers" });
+    }
+  });
+
+  // Link a member to an external source (FamilySearch, etc.)
+  app.post("/api/members/:memberId/external-ids", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { memberId } = req.params;
+      const { source, externalId, externalUrl, metadata } = req.body;
+      
+      if (!source || !externalId) {
+        return res.status(400).json({ message: "Source and externalId are required" });
+      }
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+      const canEdit = tree.ownerId === userId || collaborator?.canEdit;
+      
+      if (!canEdit) {
+        return res.status(403).json({ message: "Permission denied" });
+      }
+      
+      // Import the cross-tree matching module dynamically
+      const { linkMemberToExternalSource } = await import("./crossTreeMatching");
+      
+      const identifier = await linkMemberToExternalSource(
+        memberId,
+        member.treeId,
+        source,
+        externalId,
+        userId,
+        { ...metadata, externalUrl }
+      );
+      
+      res.json(identifier);
+    } catch (error) {
+      console.error("Error linking external ID:", error);
+      res.status(500).json({ message: "Failed to link external ID" });
+    }
+  });
+
+  // Get cross-tree matches for a tree
+  app.get("/api/trees/:treeId/cross-matches", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId } = req.params;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
+      
+      if (!isOwner && !collaborator) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const matches = await storage.getCrossTreeMatchesForTree(treeId);
+      
+      // Enrich with member and tree info
+      const enrichedMatches = await Promise.all(matches.map(async (match) => {
+        const member1 = await storage.getMember(match.member1Id);
+        const member2 = await storage.getMember(match.member2Id);
+        const tree1 = await storage.getTree(match.tree1Id);
+        const tree2 = await storage.getTree(match.tree2Id);
+        
+        return {
+          ...match,
+          member1Name: member1 ? `${member1.firstName} ${member1.lastName}` : 'Unknown',
+          member2Name: member2 ? `${member2.firstName} ${member2.lastName}` : 'Unknown',
+          tree1Name: tree1?.name || 'Unknown',
+          tree2Name: tree2?.name || 'Unknown',
+        };
+      }));
+      
+      res.json(enrichedMatches);
+    } catch (error) {
+      console.error("Error fetching cross-tree matches:", error);
+      res.status(500).json({ message: "Failed to fetch cross-tree matches" });
+    }
+  });
+
+  // Confirm a cross-tree match
+  app.post("/api/cross-matches/:matchId/confirm", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { matchId } = req.params;
+      
+      const match = await storage.getCrossTreeMatchById(matchId);
+      if (!match) {
+        return res.status(404).json({ message: "Match not found" });
+      }
+      
+      // Check if user owns one of the trees
+      const tree1 = await storage.getTree(match.tree1Id);
+      const tree2 = await storage.getTree(match.tree2Id);
+      
+      let userTreeId: string | null = null;
+      if (tree1 && tree1.ownerId === userId) userTreeId = tree1.id;
+      else if (tree2 && tree2.ownerId === userId) userTreeId = tree2.id;
+      
+      if (!userTreeId) {
+        const collab1 = await storage.getCollaboratorByUserAndTree(userId, match.tree1Id);
+        const collab2 = await storage.getCollaboratorByUserAndTree(userId, match.tree2Id);
+        if (collab1?.canEdit) userTreeId = match.tree1Id;
+        else if (collab2?.canEdit) userTreeId = match.tree2Id;
+      }
+      
+      if (!userTreeId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const updated = await storage.confirmCrossTreeMatch(matchId, userId, userTreeId);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error confirming cross-tree match:", error);
+      res.status(500).json({ message: "Failed to confirm match" });
+    }
+  });
+
+  // Reject a cross-tree match
+  app.post("/api/cross-matches/:matchId/reject", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { matchId } = req.params;
+      
+      const match = await storage.getCrossTreeMatchById(matchId);
+      if (!match) {
+        return res.status(404).json({ message: "Match not found" });
+      }
+      
+      // Check if user owns one of the trees
+      const tree1 = await storage.getTree(match.tree1Id);
+      const tree2 = await storage.getTree(match.tree2Id);
+      
+      const hasAccess = tree1?.ownerId === userId || tree2?.ownerId === userId;
+      if (!hasAccess) {
+        const collab1 = await storage.getCollaboratorByUserAndTree(userId, match.tree1Id);
+        const collab2 = await storage.getCollaboratorByUserAndTree(userId, match.tree2Id);
+        if (!collab1?.canEdit && !collab2?.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+      
+      const updated = await storage.updateCrossTreeMatch(matchId, { status: "rejected" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error rejecting cross-tree match:", error);
+      res.status(500).json({ message: "Failed to reject match" });
+    }
+  });
+
+  // Get pending member suggestions for a tree
+  app.get("/api/trees/:treeId/suggestions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId } = req.params;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const isOwner = tree.ownerId === userId;
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
+      
+      if (!isOwner && !collaborator) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const suggestions = await storage.getPendingMemberSuggestions(treeId);
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error fetching suggestions:", error);
+      res.status(500).json({ message: "Failed to fetch suggestions" });
+    }
+  });
+
+  // Approve a member suggestion (create new member or merge with existing)
+  app.post("/api/suggestions/:suggestionId/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { suggestionId } = req.params;
+      const { mergeWithMemberId, relationshipData } = req.body;
+      
+      const suggestion = await storage.getPendingMemberSuggestionById(suggestionId);
+      if (!suggestion) {
+        return res.status(404).json({ message: "Suggestion not found" });
+      }
+      
+      const tree = await storage.getTree(suggestion.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, suggestion.treeId);
+      const canEdit = tree.ownerId === userId || collaborator?.canEdit;
+      
+      if (!canEdit) {
+        return res.status(403).json({ message: "Permission denied" });
+      }
+      
+      if (mergeWithMemberId) {
+        // Merge with existing member
+        const updated = await storage.approvePendingMemberSuggestion(
+          suggestionId,
+          userId,
+          undefined,
+          mergeWithMemberId
+        );
+        
+        // Link the external ID to the existing member
+        if (suggestion.externalId && suggestion.source) {
+          await storage.createExternalIdentifier({
+            memberId: mergeWithMemberId,
+            treeId: suggestion.treeId,
+            source: suggestion.source,
+            externalId: suggestion.externalId,
+            confidence: 1.0,
+            verifiedAt: new Date(),
+            verifiedBy: userId,
+          });
+        }
+        
+        res.json({ success: true, merged: true, memberId: mergeWithMemberId, suggestion: updated });
+      } else {
+        // Create new member
+        const newMember = await storage.createMember({
+          treeId: suggestion.treeId,
+          firstName: suggestion.firstName || "Unknown",
+          lastName: suggestion.lastName || "",
+          gender: suggestion.gender as "male" | "female" | "other" | null,
+          birthDate: suggestion.birthDate,
+          birthPlace: suggestion.birthPlace,
+          deathDate: suggestion.deathDate,
+        });
+        
+        // Create relationship if specified
+        if (suggestion.relatedToMemberId && suggestion.relationshipType) {
+          await storage.createRelationship({
+            treeId: suggestion.treeId,
+            fromMemberId: newMember.id,
+            toMemberId: suggestion.relatedToMemberId,
+            relationshipType: suggestion.relationshipType as "parent" | "child" | "spouse" | "sibling",
+          });
+        }
+        
+        // Link the external ID
+        if (suggestion.externalId && suggestion.source) {
+          await storage.createExternalIdentifier({
+            memberId: newMember.id,
+            treeId: suggestion.treeId,
+            source: suggestion.source,
+            externalId: suggestion.externalId,
+            confidence: 1.0,
+            verifiedAt: new Date(),
+            verifiedBy: userId,
+          });
+        }
+        
+        const updated = await storage.approvePendingMemberSuggestion(
+          suggestionId,
+          userId,
+          newMember.id
+        );
+        
+        res.json({ success: true, merged: false, memberId: newMember.id, suggestion: updated });
+      }
+    } catch (error) {
+      console.error("Error approving suggestion:", error);
+      res.status(500).json({ message: "Failed to approve suggestion" });
+    }
+  });
+
+  // Reject a member suggestion
+  app.post("/api/suggestions/:suggestionId/reject", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { suggestionId } = req.params;
+      
+      const suggestion = await storage.getPendingMemberSuggestionById(suggestionId);
+      if (!suggestion) {
+        return res.status(404).json({ message: "Suggestion not found" });
+      }
+      
+      const tree = await storage.getTree(suggestion.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, suggestion.treeId);
+      const canEdit = tree.ownerId === userId || collaborator?.canEdit;
+      
+      if (!canEdit) {
+        return res.status(403).json({ message: "Permission denied" });
+      }
+      
+      const updated = await storage.rejectPendingMemberSuggestion(suggestionId, userId);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error rejecting suggestion:", error);
+      res.status(500).json({ message: "Failed to reject suggestion" });
     }
   });
 

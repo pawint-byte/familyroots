@@ -2152,7 +2152,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCrossTreeMatch(data: InsertCrossTreeMatch): Promise<CrossTreeMatch> {
-    const [match] = await db.insert(crossTreeMatches).values(data).returning();
+    // Ensure canonical ordering of member IDs for bidirectional uniqueness
+    // Always store smaller ID first to prevent (A,B) and (B,A) duplicates
+    let orderedData = { ...data };
+    if (data.member1Id > data.member2Id) {
+      orderedData = {
+        ...data,
+        member1Id: data.member2Id,
+        member2Id: data.member1Id,
+        tree1Id: data.tree2Id,
+        tree2Id: data.tree1Id,
+      };
+    }
+    const [match] = await db.insert(crossTreeMatches).values(orderedData).returning();
     return match;
   }
 

@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, date, pgEnum, integer, jsonb, real } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, date, pgEnum, integer, jsonb, real, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -561,7 +561,10 @@ export const crossTreeMatches = pgTable("cross_tree_matches", {
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  // Unique constraint to prevent duplicate matches (member pair in either direction)
+  uniqueMatchPair: unique("unique_match_pair").on(table.member1Id, table.member2Id),
+}));
 
 export const insertCrossTreeMatchSchema = createInsertSchema(crossTreeMatches).omit({
   id: true,
