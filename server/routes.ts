@@ -3626,7 +3626,33 @@ export async function registerRoutes(
         }
       });
       
-      // Helper to check if first names are similar enough
+      // Generational suffixes that indicate different people with same name
+      const generationalSuffixes = ['jr', 'jr.', 'junior', 'sr', 'sr.', 'senior', 'ii', 'iii', 'iv', 'v', '2nd', '3rd', '4th', '5th'];
+      
+      // Extract generational suffix from a name
+      const extractSuffix = (name: string): { baseName: string, suffix: string | null } => {
+        if (!name) return { baseName: '', suffix: null };
+        const parts = name.toLowerCase().trim().split(/\s+/);
+        const lastPart = parts[parts.length - 1];
+        if (generationalSuffixes.includes(lastPart)) {
+          return { baseName: parts.slice(0, -1).join(' '), suffix: lastPart };
+        }
+        return { baseName: name.toLowerCase().trim(), suffix: null };
+      };
+      
+      // Check if birth years are close enough to be the same generation (within 15 years)
+      const sameGeneration = (date1: string | null | undefined, date2: string | null | undefined): boolean => {
+        if (!date1 || !date2) return true; // If we don't know, assume possible match
+        try {
+          const year1 = new Date(date1).getFullYear();
+          const year2 = new Date(date2).getFullYear();
+          return Math.abs(year1 - year2) <= 15;
+        } catch {
+          return true; // If dates are invalid, assume possible match
+        }
+      };
+      
+      // Helper to check if first names are similar enough AND are the same generation
       const firstNameMatches = (name1: string, name2: string): boolean => {
         if (!name1 || !name2) return false;
         const n1 = name1.toLowerCase().trim();
@@ -3638,7 +3664,44 @@ export async function registerRoutes(
         return firstWord1 === firstWord2;
       };
       
-      // Filter out unclaimed duplicates that match claimed members by name
+      // Check if two members are likely the same person (same name, same generation, no suffix differences)
+      const areLikelySamePerson = (m1: any, m2: any): boolean => {
+        const firstName1 = (m1.firstName || '').toLowerCase().trim();
+        const firstName2 = (m2.firstName || '').toLowerCase().trim();
+        const lastName1 = (m1.lastName || '').toLowerCase().trim();
+        const lastName2 = (m2.lastName || '').toLowerCase().trim();
+        
+        // Check for generational suffixes in first name OR last name
+        const suffix1First = extractSuffix(firstName1);
+        const suffix2First = extractSuffix(firstName2);
+        const suffix1Last = extractSuffix(lastName1);
+        const suffix2Last = extractSuffix(lastName2);
+        
+        // If one has a generational suffix and the other doesn't, they're different people
+        const hasGenerationalDifference = 
+          (suffix1First.suffix && !suffix2First.suffix) ||
+          (!suffix1First.suffix && suffix2First.suffix) ||
+          (suffix1Last.suffix && !suffix2Last.suffix) ||
+          (!suffix1Last.suffix && suffix2Last.suffix) ||
+          (suffix1First.suffix !== suffix2First.suffix && suffix1First.suffix && suffix2First.suffix) ||
+          (suffix1Last.suffix !== suffix2Last.suffix && suffix1Last.suffix && suffix2Last.suffix);
+        
+        if (hasGenerationalDifference) {
+          console.log(`[MERGE DEDUP] Generational difference detected: "${m1.firstName} ${m1.lastName}" vs "${m2.firstName} ${m2.lastName}" - NOT duplicates`);
+          return false;
+        }
+        
+        // Check if birth years suggest different generations
+        if (!sameGeneration(m1.birthDate, m2.birthDate)) {
+          console.log(`[MERGE DEDUP] Different generations by birth date: "${m1.firstName} ${m1.lastName}" vs "${m2.firstName} ${m2.lastName}" - NOT duplicates`);
+          return false;
+        }
+        
+        // If we get here, names match and no generational indicators suggest they're different
+        return true;
+      };
+      
+      // Filter out unclaimed duplicates that match claimed members by name AND same generation
       const afterClaimedDedup = allMembers.filter(m => {
         if (m.claimedByUserId) return true; // Keep all claimed members
         
@@ -3646,19 +3709,19 @@ export async function registerRoutes(
         const lastName = (m.lastName || '').toLowerCase().trim();
         const exactKey = `${firstName}-${lastName}`;
         
-        // Check exact match first
+        // Check exact match first - but still verify they're the same generation
         const exactMatch = claimedMembersByExactName.get(exactKey);
-        if (exactMatch) {
-          console.log(`[MERGE DEDUP] Exact name match: unclaimed "${m.firstName} ${m.lastName}" (${m.id}) -> claimed (${exactMatch.id})`);
+        if (exactMatch && areLikelySamePerson(m, exactMatch)) {
+          console.log(`[MERGE DEDUP] Exact name match (same generation): unclaimed "${m.firstName} ${m.lastName}" (${m.id}) -> claimed (${exactMatch.id})`);
           memberIdRemapping.set(m.id, exactMatch.id);
           return false;
         }
         
-        // Check fuzzy match by last name + similar first name
+        // Check fuzzy match by last name + similar first name + same generation
         const sameSurname = claimedMembersByLastName.get(lastName) || [];
         for (const claimed of sameSurname) {
-          if (firstNameMatches(m.firstName, claimed.firstName)) {
-            console.log(`[MERGE DEDUP] Fuzzy name match: unclaimed "${m.firstName} ${m.lastName}" (${m.id}) -> claimed "${claimed.firstName} ${claimed.lastName}" (${claimed.id})`);
+          if (firstNameMatches(m.firstName, claimed.firstName) && areLikelySamePerson(m, claimed)) {
+            console.log(`[MERGE DEDUP] Fuzzy name match (same generation): unclaimed "${m.firstName} ${m.lastName}" (${m.id}) -> claimed "${claimed.firstName} ${claimed.lastName}" (${claimed.id})`);
             memberIdRemapping.set(m.id, claimed.id);
             return false;
           }
@@ -3669,7 +3732,8 @@ export async function registerRoutes(
       
       // Third pass: deduplicate unclaimed members against each other (for cases where 
       // both duplicates are unclaimed but have similar names across different trees)
-      const seenUnclaimedByName = new Map<string, any>();
+      // Use a list to check against all potential matches (not just first seen)
+      const seenUnclaimedByKey = new Map<string, any[]>();
       const deduplicatedMembers = afterClaimedDedup.filter(m => {
         if (m.claimedByUserId) return true; // Keep all claimed members
         
@@ -3678,24 +3742,32 @@ export async function registerRoutes(
         const firstWord = firstName.split(/\s+/)[0] || '';
         const fuzzyKey = `${firstWord}-${lastName}`;
         
-        const existing = seenUnclaimedByName.get(fuzzyKey);
-        if (existing) {
-          // Prefer member from main tree
-          if (m.sourceTreeId === treeId && existing.sourceTreeId !== treeId) {
-            // This one is from main tree, remap the existing one
-            console.log(`[MERGE DEDUP] Unclaimed fuzzy match (keeping main): "${m.firstName} ${m.lastName}" (${m.id}) kept, remapping (${existing.id})`);
-            memberIdRemapping.set(existing.id, m.id);
-            seenUnclaimedByName.set(fuzzyKey, m);
-            return true;
-          } else {
-            // Keep existing, remap this one
-            console.log(`[MERGE DEDUP] Unclaimed fuzzy match: "${m.firstName} ${m.lastName}" (${m.id}) -> (${existing.id})`);
-            memberIdRemapping.set(m.id, existing.id);
-            return false;
+        const existing = seenUnclaimedByKey.get(fuzzyKey) || [];
+        
+        // Check each potential match - but only merge if they're actually the same person
+        for (const candidate of existing) {
+          if (areLikelySamePerson(m, candidate)) {
+            // Prefer member from main tree
+            if (m.sourceTreeId === treeId && candidate.sourceTreeId !== treeId) {
+              // This one is from main tree, remap the existing one
+              console.log(`[MERGE DEDUP] Unclaimed match (keeping main): "${m.firstName} ${m.lastName}" (${m.id}) kept, remapping (${candidate.id})`);
+              memberIdRemapping.set(candidate.id, m.id);
+              // Replace candidate with m in the list
+              const idx = existing.indexOf(candidate);
+              if (idx >= 0) existing[idx] = m;
+              return true;
+            } else {
+              // Keep existing, remap this one
+              console.log(`[MERGE DEDUP] Unclaimed match: "${m.firstName} ${m.lastName}" (${m.id}) -> (${candidate.id})`);
+              memberIdRemapping.set(m.id, candidate.id);
+              return false;
+            }
           }
         }
         
-        seenUnclaimedByName.set(fuzzyKey, m);
+        // No match found - add to the seen list
+        existing.push(m);
+        seenUnclaimedByKey.set(fuzzyKey, existing);
         return true;
       });
       
