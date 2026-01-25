@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { trackAddFamilyMember } from "@/lib/tracking";
 import { 
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
@@ -180,6 +181,7 @@ export default function TreeView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
       setIsAddMemberOpen(false);
+      trackAddFamilyMember();
       toast({
         title: "Success",
         description: "Family member added successfully!",

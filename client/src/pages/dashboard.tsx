@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { trackTreeCreation } from "@/lib/tracking";
 import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -103,6 +104,7 @@ export default function Dashboard() {
       setNewTreeName("");
       setNewTreeDescription("");
       setNewTreePrivacy("private");
+      trackTreeCreation();
       toast({
         title: "Success",
         description: "Family tree created successfully!",
