@@ -132,12 +132,21 @@ export default function TreeView() {
     return membersToSearch.find(m => m.id === focusMemberId) || null;
   }, [focusMemberId, treeData?.members, showMergedView, mergedData?.members]);
 
-  // Auto-focus on root member when tree loads (only if not already focused)
+  // Auto-focus on viewing user's claimed member, or root member when tree loads
   useEffect(() => {
+    if (!focusMemberId && treeData?.members && user?.id) {
+      // First, try to find the user's claimed member in this tree
+      const usersMember = treeData.members.find(m => m.claimedByUserId === user.id);
+      if (usersMember) {
+        setFocusMemberId(usersMember.id);
+        return;
+      }
+    }
+    // Fall back to root member
     if (treeData?.tree?.rootMemberId && !focusMemberId) {
       setFocusMemberId(treeData.tree.rootMemberId);
     }
-  }, [treeData?.tree?.rootMemberId]);
+  }, [treeData?.tree?.rootMemberId, treeData?.members, user?.id]);
 
   // Query collaborator status
   const { data: collaborators } = useQuery<Array<{userId: string; role: string}>>({
