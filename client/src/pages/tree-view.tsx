@@ -1528,18 +1528,20 @@ export default function TreeView() {
                       {treeData?.tree?.rootMemberId === selectedMember.id ? "Main Person" : "Set as Main"}
                     </Button>
                   )}
-                  <Button 
-                    variant="outline" 
-                    className="flex-1 gap-2" 
-                    data-testid="button-edit-member"
-                    onClick={() => {
-                      setIsMemberDetailOpen(false);
-                      setTimeout(() => setIsEditMemberOpen(true), 100);
-                    }}
-                  >
-                    <Edit className="h-4 w-4" />
-                    Edit
-                  </Button>
+                  {canEdit && (
+                    <Button 
+                      variant="outline" 
+                      className="flex-1 gap-2" 
+                      data-testid="button-edit-member"
+                      onClick={() => {
+                        setIsMemberDetailOpen(false);
+                        setTimeout(() => setIsEditMemberOpen(true), 100);
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </Button>
+                  )}
                   {canEditTree && !selectedMember.claimedByUserId && (
                     <Button 
                       variant="outline" 
@@ -1554,16 +1556,18 @@ export default function TreeView() {
                       Merge
                     </Button>
                   )}
-                  <Button 
-                    variant="destructive" 
-                    className="gap-2"
-                    onClick={() => deleteMemberMutation.mutate(selectedMember.id)}
-                    disabled={deleteMemberMutation.isPending}
-                    data-testid="button-delete-member"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {deleteMemberMutation.isPending ? "Deleting..." : "Delete"}
-                  </Button>
+                  {canEditTree && (
+                    <Button 
+                      variant="destructive" 
+                      className="gap-2"
+                      onClick={() => deleteMemberMutation.mutate(selectedMember.id)}
+                      disabled={deleteMemberMutation.isPending}
+                      data-testid="button-delete-member"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deleteMemberMutation.isPending ? "Deleting..." : "Delete"}
+                    </Button>
+                  )}
                 </div>
               </div>
             </>

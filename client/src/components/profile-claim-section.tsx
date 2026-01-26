@@ -36,7 +36,7 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
       if (!response.ok) throw new Error('Failed to fetch claim status');
       return response.json();
     },
-    enabled: !isOwner && member.isLiving !== false,
+    enabled: !isOwner && member.isLiving !== false, // Query only runs for living members in non-owned trees
   });
 
   const submitClaimMutation = useMutation({
@@ -64,7 +64,8 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
     },
   });
 
-  if (isOwner || !member.isLiving) {
+  // Only hide if user owns the tree or member is explicitly marked as deceased
+  if (isOwner || member.isLiving === false) {
     return null;
   }
 
