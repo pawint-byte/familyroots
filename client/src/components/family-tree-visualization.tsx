@@ -164,6 +164,17 @@ export default function FamilyTreeVisualization({
     // PRE-IDENTIFY siblings to prevent them from being placed as grandparents or other roles
     const focusSiblings = new Set<string>(getSiblings(focusId, parentChildMap, childParentMap, siblingMap));
     focusSiblings.delete(focusId); // Remove focus from their own siblings list
+    
+    if (process.env.NODE_ENV === 'development') {
+      const focusParents = childParentMap.get(focusId) || [];
+      console.log('[Tree Viz] Focus ID:', focusId);
+      console.log('[Tree Viz] Focus Parents:', focusParents);
+      focusParents.forEach(pId => {
+        const parentChildren = parentChildMap.get(pId) || [];
+        console.log('[Tree Viz] Parent', pId, 'children:', parentChildren);
+      });
+      console.log('[Tree Viz] Detected Siblings:', Array.from(focusSiblings));
+    }
 
     // View depth controls which generations to show:
     // 'immediate': only parents, spouse, children (1 generation each direction)
@@ -350,12 +361,14 @@ export default function FamilyTreeVisualization({
       }
     }
 
-    const children = parentChildMap.get(focusId) || [];
+    // Get children but EXCLUDE siblings (someone can't be both a child and a sibling)
+    const children = (parentChildMap.get(focusId) || []).filter(cId => !focusSiblings.has(cId));
     const spouseChildren: string[] = [];
     spouses.forEach(spouseId => {
       const sChildren = parentChildMap.get(spouseId) || [];
       sChildren.forEach(cId => {
-        if (!children.includes(cId) && !spouseChildren.includes(cId)) {
+        // Exclude siblings and already-listed children
+        if (!children.includes(cId) && !spouseChildren.includes(cId) && !focusSiblings.has(cId)) {
           spouseChildren.push(cId);
         }
       });
