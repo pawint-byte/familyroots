@@ -87,6 +87,7 @@ export default function FamilyTreeVisualization({
     const parentChildMap = new Map<string, string[]>();
     const childParentMap = new Map<string, string[]>();
     const spouseMap = new Map<string, string[]>();
+    const coparentMap = new Map<string, string[]>();
     const siblingMap = new Map<string, string[]>();
     // Map to store qualifier for each relationship: key = "fromId-toId-type", value = qualifier
     const qualifierMap = new Map<string, RelationshipQualifier>();
@@ -152,16 +153,15 @@ export default function FamilyTreeVisualization({
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-sibling`, qualifier);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-sibling`, qualifier);
       } else if (rel.relationshipType === "coparent") {
-        // Co-parent is a bidirectional relationship (like spouse but not married)
-        if (!spouseMap.has(rel.fromMemberId)) {
-          spouseMap.set(rel.fromMemberId, []);
+        // Co-parent is a separate relationship (shares child, not married)
+        if (!coparentMap.has(rel.fromMemberId)) {
+          coparentMap.set(rel.fromMemberId, []);
         }
-        // We'll track co-parents separately using qualifier
-        spouseMap.get(rel.fromMemberId)!.push(rel.toMemberId);
-        if (!spouseMap.has(rel.toMemberId)) {
-          spouseMap.set(rel.toMemberId, []);
+        coparentMap.get(rel.fromMemberId)!.push(rel.toMemberId);
+        if (!coparentMap.has(rel.toMemberId)) {
+          coparentMap.set(rel.toMemberId, []);
         }
-        spouseMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+        coparentMap.get(rel.toMemberId)!.push(rel.fromMemberId);
         
         // Mark as co-parent specifically
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-coparent`, qualifier);
@@ -169,7 +169,7 @@ export default function FamilyTreeVisualization({
       }
     });
 
-    return { parentChildMap, childParentMap, spouseMap, siblingMap, qualifierMap };
+    return { parentChildMap, childParentMap, spouseMap, coparentMap, siblingMap, qualifierMap };
   }, [relationships]);
 
   const getSiblings = useCallback((memberId: string, parentChildMap: Map<string, string[]>, childParentMap: Map<string, string[]>, siblingMap: Map<string, string[]>): string[] => {
@@ -198,7 +198,7 @@ export default function FamilyTreeVisualization({
     const labels: BranchLabel[] = [];
     const placed = new Set<string>();
 
-    const { parentChildMap, childParentMap, spouseMap, siblingMap, qualifierMap } = getRelationshipMaps();
+    const { parentChildMap, childParentMap, spouseMap, coparentMap, siblingMap, qualifierMap } = getRelationshipMaps();
 
     const focusId = focusMemberId || deduplicatedMembers[0]?.id;
     const focusMember = deduplicatedMembers.find(m => m.id === focusId);
@@ -241,16 +241,20 @@ export default function FamilyTreeVisualization({
     // Get explicitly defined spouses - but EXCLUDE focus person's parents!
     const spouses = (spouseMap.get(focusId) || []).filter(id => !focusParentIds.has(id));
     
+    // Get explicitly defined co-parents from the coparentMap
+    const explicitCoParents = (coparentMap.get(focusId) || []).filter(id => !focusParentIds.has(id));
+    
     // Also find co-parents: other parents of focus person's children who aren't spouses
     // These are people who share a child with focus but weren't defined as spouse
     // EXCLUDE focus person's own parents - they can't be co-parents of their child
     // EXCLUDE focus person's siblings - siblings share parents with focus, not children
     const focusChildren = parentChildMap.get(focusId) || [];
-    const coParentIds = new Set<string>();
+    const coParentIds = new Set<string>(explicitCoParents); // Start with explicit co-parents
     
     if (process.env.NODE_ENV === 'development') {
       console.log('[Tree Viz] Focus Children:', focusChildren);
       console.log('[Tree Viz] Focus Parent IDs:', Array.from(focusParentIds));
+      console.log('[Tree Viz] Explicit Co-Parents from coparentMap:', explicitCoParents);
     }
     
     focusChildren.forEach(childId => {
