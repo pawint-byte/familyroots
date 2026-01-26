@@ -72,6 +72,7 @@ export interface IStorage {
   // Collaborators
   getCollaborators(treeId: string): Promise<TreeCollaborator[]>;
   getCollaboratorByUserAndTree(userId: string, treeId: string): Promise<TreeCollaborator | undefined>;
+  getCollaboratorsByUser(userId: string): Promise<TreeCollaborator[]>;
   addCollaborator(collaborator: InsertTreeCollaborator): Promise<TreeCollaborator>;
   updateCollaborator(id: string, data: Partial<InsertTreeCollaborator>): Promise<TreeCollaborator | undefined>;
   removeCollaborator(id: string): Promise<boolean>;
@@ -463,6 +464,10 @@ export class DatabaseStorage implements IStorage {
     const [collab] = await db.select().from(treeCollaborators)
       .where(and(eq(treeCollaborators.userId, userId), eq(treeCollaborators.treeId, treeId)));
     return collab;
+  }
+
+  async getCollaboratorsByUser(userId: string): Promise<TreeCollaborator[]> {
+    return db.select().from(treeCollaborators).where(eq(treeCollaborators.userId, userId));
   }
 
   async addCollaborator(collaborator: InsertTreeCollaborator): Promise<TreeCollaborator> {

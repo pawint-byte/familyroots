@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
@@ -487,6 +488,109 @@ export default function Landing() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section id="pricing" className="py-24">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+                <Sparkles className="h-4 w-4" />
+                <span>Simple, Fair Pricing</span>
+              </div>
+              <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4">
+                Grow Your Tree, Save More
+              </h2>
+              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+                The bigger your family tree grows, the less you pay. Reach 100 members and it's completely free forever.
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 max-w-6xl mx-auto" data-testid="pricing-cards-grid">
+              {/* Free Tier */}
+              <Card className="relative border-2 hover-elevate" data-testid="card-pricing-starter">
+                <CardContent className="p-6 text-center">
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                    <Users className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-1">Starter</h3>
+                  <p className="text-sm text-muted-foreground mb-4">Up to 20 members</p>
+                  <div className="text-3xl font-bold mb-2" data-testid="text-price-starter">Free</div>
+                  <p className="text-xs text-muted-foreground">1 tree included</p>
+                </CardContent>
+              </Card>
+              
+              {/* Tier 25 */}
+              <Card className="relative hover-elevate" data-testid="card-pricing-growing">
+                <CardContent className="p-6 text-center">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <Trees className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-1">Growing</h3>
+                  <p className="text-sm text-muted-foreground mb-4">25-49 members</p>
+                  <div className="text-3xl font-bold mb-1" data-testid="text-price-growing">$7.49</div>
+                  <p className="text-sm text-muted-foreground">/month</p>
+                  <Badge variant="secondary" className="mt-2">25% off</Badge>
+                </CardContent>
+              </Card>
+              
+              {/* Tier 50 */}
+              <Card className="relative hover-elevate" data-testid="card-pricing-extended">
+                <CardContent className="p-6 text-center">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <GitBranch className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-1">Extended</h3>
+                  <p className="text-sm text-muted-foreground mb-4">50-74 members</p>
+                  <div className="text-3xl font-bold mb-1" data-testid="text-price-extended">$4.99</div>
+                  <p className="text-sm text-muted-foreground">/month</p>
+                  <Badge variant="secondary" className="mt-2">50% off</Badge>
+                </CardContent>
+              </Card>
+              
+              {/* Tier 75 */}
+              <Card className="relative hover-elevate" data-testid="card-pricing-reunion">
+                <CardContent className="p-6 text-center">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <Share2 className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-1">Reunion</h3>
+                  <p className="text-sm text-muted-foreground mb-4">75-99 members</p>
+                  <div className="text-3xl font-bold mb-1" data-testid="text-price-reunion">$2.50</div>
+                  <p className="text-sm text-muted-foreground">/month</p>
+                  <Badge variant="secondary" className="mt-2">75% off</Badge>
+                </CardContent>
+              </Card>
+              
+              {/* Heritage Tier (Free) */}
+              <Card className="relative border-2 border-primary hover-elevate" data-testid="card-pricing-heritage">
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                  <Badge className="bg-primary text-primary-foreground">Best Value</Badge>
+                </div>
+                <CardContent className="p-6 text-center">
+                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
+                    <Sparkles className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-1">Heritage</h3>
+                  <p className="text-sm text-muted-foreground mb-4">100+ members</p>
+                  <div className="text-3xl font-bold text-primary mb-2" data-testid="text-price-heritage">Free</div>
+                  <p className="text-xs text-muted-foreground">Forever free</p>
+                </CardContent>
+              </Card>
+            </div>
+            
+            <div className="text-center mt-8 space-y-4">
+              <p className="text-sm text-muted-foreground" data-testid="text-pricing-features">
+                All plans include unlimited trees, cross-tree connections, and collaboration features.
+              </p>
+              <a href="/pricing" data-testid="link-view-full-pricing">
+                <Button variant="outline" data-testid="button-view-full-pricing">
+                  View Full Pricing Details
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </a>
             </div>
           </div>
         </section>

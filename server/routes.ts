@@ -514,33 +514,41 @@ export async function registerRoutes(
           if (matches.length > 0) {
             console.log(`Found ${matches.length} potential cross-tree matches for ${member.firstName} ${member.lastName}`);
             
+            // Fetch existing matches once for efficiency
+            const existingMatches = await storage.getCrossTreeMatchesForTree(treeId);
+            const existingMatchPairs = new Set(
+              existingMatches.flatMap(m => [
+                `${m.member1Id}-${m.member2Id}`,
+                `${m.member2Id}-${m.member1Id}`
+              ])
+            );
+            
             // Create pending match records for high-confidence matches
-            for (const match of matches.filter(m => m.score >= 0.6)) {
+            for (const match of matches.filter(m => m.matchScore >= 0.6)) {
               try {
-                // Check if this match already exists
-                const existingMatches = await storage.getCrossTreeMatchesForTree(treeId);
-                const alreadyExists = existingMatches.some(
-                  existing => 
-                    (existing.member1Id === member.id && existing.member2Id === match.memberId) ||
-                    (existing.member2Id === member.id && existing.member1Id === match.memberId)
-                );
+                // Check if this match already exists using cached set
+                const matchKey1 = `${member.id}-${match.member.id}`;
+                const matchKey2 = `${match.member.id}-${member.id}`;
+                const alreadyExists = existingMatchPairs.has(matchKey1) || existingMatchPairs.has(matchKey2);
                 
                 if (!alreadyExists) {
-                  const matchMember = await storage.getMember(match.memberId);
-                  const matchTree = matchMember ? await storage.getTree(matchMember.treeId) : null;
+                  // Add to set to prevent duplicates within same batch
+                  existingMatchPairs.add(matchKey1);
+                  const matchMember = match.member;
+                  const matchTree = await storage.getTree(matchMember.treeId);
                   
                   await storage.createCrossTreeMatch({
                     member1Id: member.id,
                     tree1Id: treeId,
-                    member2Id: match.memberId,
-                    tree2Id: matchMember?.treeId || '',
-                    matchType: match.matchType,
+                    member2Id: matchMember.id,
+                    tree2Id: matchMember.treeId,
+                    matchType: match.externalIdMatch ? 'external_id' : 'name_date',
                     matchSource: 'auto_detection',
-                    matchScore: match.score,
+                    matchScore: match.matchScore,
                     status: 'pending',
                   });
                   
-                  console.log(`Created cross-tree match record: ${member.firstName} <-> ${matchMember?.firstName}`);
+                  console.log(`Created cross-tree match record: ${member.firstName} <-> ${matchMember.firstName}`);
                   
                   // Send email notification to tree owner
                   if (matchTree && tree) {
@@ -556,11 +564,11 @@ export async function registerRoutes(
                       await sendCrossTreeMatchNotification(
                         matchTreeOwner.email,
                         matchTreeOwner.firstName || 'there',
-                        `${matchMember?.firstName} ${matchMember?.lastName}`,
+                        `${matchMember.firstName} ${matchMember.lastName}`,
                         matchTree.name,
                         `${member.firstName} ${member.lastName}`,
                         tree.name,
-                        match.score,
+                        match.matchScore,
                         `${baseUrl}/dashboard`
                       );
                       console.log(`Sent match notification to ${matchTreeOwner.email}`);
