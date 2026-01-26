@@ -469,7 +469,7 @@ export default function FamilyTreeVisualization({
     const targetY = containerRect.height / 2 - (targetPosition.y + nodeHeight / 2) * zoom;
     
     setOffset({ x: targetX, y: targetY });
-  }, [focusMemberId, positions, zoom, nodeWidth, nodeHeight]);
+  }, [focusMemberId, positions, zoom, nodeWidth, nodeHeight, viewDepth]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-member-node]")) return;
@@ -486,6 +486,28 @@ export default function FamilyTreeVisualization({
   };
 
   const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Touch handlers for mobile panning
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if ((e.target as HTMLElement).closest("[data-member-node]")) return;
+    if (e.touches.length === 1) {
+      setIsDragging(true);
+      setDragStart({ x: e.touches[0].clientX - offset.x, y: e.touches[0].clientY - offset.y });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || e.touches.length !== 1) return;
+    e.preventDefault(); // Prevent page scrolling while panning
+    setOffset({
+      x: e.touches[0].clientX - dragStart.x,
+      y: e.touches[0].clientY - dragStart.y,
+    });
+  };
+
+  const handleTouchEnd = () => {
     setIsDragging(false);
   };
 
@@ -744,6 +766,9 @@ export default function FamilyTreeVisualization({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* CRITICAL: transformOrigin MUST be "0 0" - NOT "center center"
           This ensures SVG connection lines align with HTML member cards.
