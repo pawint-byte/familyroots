@@ -925,6 +925,39 @@ export async function registerRoutes(
       const members = await storage.getMembers(treeId);
       const relationships = await storage.getRelationships(treeId);
       
+      // Check for DIRECT relationships first (co-parent, spouse, sibling) - these override path calculation
+      const directRelationship = relationships.find(r => 
+        (r.fromMemberId === fromMemberId && r.toMemberId === toMemberId) ||
+        (r.fromMemberId === toMemberId && r.toMemberId === fromMemberId)
+      );
+      
+      if (directRelationship && ['coparent', 'spouse', 'sibling'].includes(directRelationship.relationshipType)) {
+        const fromMember = members.find(m => m.id === fromMemberId);
+        const toMember = members.find(m => m.id === toMemberId);
+        
+        let relationshipName: string = directRelationship.relationshipType;
+        if (directRelationship.relationshipType === 'coparent') {
+          relationshipName = 'co-parent';
+        } else if (directRelationship.relationshipType === 'spouse') {
+          relationshipName = toMember?.gender === 'female' ? 'wife' : toMember?.gender === 'male' ? 'husband' : 'spouse';
+        } else if (directRelationship.relationshipType === 'sibling') {
+          relationshipName = toMember?.gender === 'female' ? 'sister' : toMember?.gender === 'male' ? 'brother' : 'sibling';
+        }
+        
+        return res.json({
+          relationshipName,
+          path: [fromMemberId, toMemberId],
+          pathWithNames: [
+            { id: fromMemberId, name: fromMember ? `${fromMember.firstName} ${fromMember.lastName}` : 'Unknown' },
+            { id: toMemberId, name: toMember ? `${toMember.firstName} ${toMember.lastName}` : 'Unknown' }
+          ],
+          commonAncestors: [],
+          generationsFromA: 0,
+          generationsFromB: 0,
+          isDirectLine: true
+        });
+      }
+      
       const result = calculateRelationship(fromMemberId, toMemberId, members, relationships);
       
       if (!result) {

@@ -1250,6 +1250,9 @@ export default function TreeView() {
                   const genderLabel = selectedMember.gender === "female" ? "Sister" : selectedMember.gender === "male" ? "Brother" : "Sibling";
                   relationshipLabel = `Your ${genderLabel}`;
                   description = `${selectedMember.firstName} is ${referenceMember.firstName}'s ${genderLabel.toLowerCase()}`;
+                } else if (directRelationship.relationshipType === "coparent") {
+                  relationshipLabel = "Your Co-Parent";
+                  description = `${selectedMember.firstName} shares a child with ${referenceMember.firstName}`;
                 }
                 
                 if (!relationshipLabel) return null;
