@@ -24,8 +24,8 @@ import { trackAddFamilyMember } from "@/lib/tracking";
 import { 
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
-  ChevronRight, Filter, Download, Upload, Clock, Star, Image,
-  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge
+  ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
+  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toPng } from "html-to-image";
@@ -81,6 +81,7 @@ export default function TreeView() {
   const [showMergedView, setShowMergedView] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
+  const [isFocusPanelCollapsed, setIsFocusPanelCollapsed] = useState(false);
   const [importConnectionData, setImportConnectionData] = useState<{
     connectionId: string;
     connectorMemberId: string;
@@ -736,70 +737,99 @@ export default function TreeView() {
               </div>
             ) : displayMembers.length > 0 ? (
               <>
-                {/* Focus Member Selector and Merged View Toggle */}
-                <div className="absolute top-4 left-4 z-10 bg-background/95 backdrop-blur rounded-lg p-3 shadow-lg border" data-testid="focus-selector-container">
-                  <FocusMemberSelector
-                    members={displayMembers}
-                    focusMember={focusMember}
-                    onSelectFocus={(member) => setFocusMemberId(member?.id || null)}
-                  />
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t">
-                    <Switch
-                      id="merged-view"
-                      checked={showMergedView}
-                      onCheckedChange={setShowMergedView}
-                      data-testid="switch-merged-view"
-                    />
-                    <Label htmlFor="merged-view" className="text-sm cursor-pointer flex items-center gap-1">
-                      <Link2 className="h-3 w-3" />
-                      Show Connected Trees
-                    </Label>
-                  </div>
-                  {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      <span className="font-medium">{mergedData.connectedTrees.length} trees connected:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {mergedData.connectedTrees.map(t => {
-                          const connection = !t.isMainTree ? mergedData.connections.find(
-                            c => c.tree1Id === t.id || c.tree2Id === t.id
-                          ) : null;
-                          const connectorMemberId = connection ? (
-                            connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId
-                          ) : null;
-                          
-                          return (
-                            <div key={t.id} className="flex items-center gap-1">
-                              <Badge variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
-                                {t.name}
-                              </Badge>
-                              {!t.isMainTree && connection && connectorMemberId && canEditTree && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-5 px-1 text-xs"
-                                  onClick={() => {
-                                    setImportConnectionData({
-                                      connectionId: connection.id,
-                                      connectorMemberId,
-                                      sourceTreeName: t.name
-                                    });
-                                    setImportDialogOpen(true);
-                                  }}
-                                  data-testid={`button-import-${t.id}`}
-                                >
-                                  Import
-                                </Button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                {/* Focus Member Selector and Merged View Toggle - Collapsible on mobile */}
+                <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-10 bg-background/95 backdrop-blur rounded-lg shadow-lg border max-w-[calc(100vw-5rem)] sm:max-w-xs" data-testid="focus-selector-container">
+                  {/* Collapsed header bar - always visible */}
+                  <button
+                    onClick={() => setIsFocusPanelCollapsed(!isFocusPanelCollapsed)}
+                    className="w-full flex items-center justify-between p-2 sm:p-3 gap-2 hover-elevate rounded-lg"
+                    data-testid="button-toggle-focus-panel"
+                    aria-expanded={!isFocusPanelCollapsed}
+                    aria-label={isFocusPanelCollapsed ? "Expand focus panel" : "Collapse focus panel"}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Target className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="text-sm font-medium truncate">
+                        {focusMember ? `${focusMember.firstName} ${focusMember.lastName}` : "Select Focus"}
+                      </span>
                     </div>
-                  )}
-                  {showMergedView && (!mergedData?.connections || mergedData.connections.length === 0) && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      No connected trees yet. Connect with other family members to see their trees here.
-                    </p>
+                    {isFocusPanelCollapsed ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                  </button>
+                  
+                  {/* Expandable content */}
+                  {!isFocusPanelCollapsed && (
+                    <div className="px-2 pb-2 sm:px-3 sm:pb-3 border-t">
+                      <div className="pt-2">
+                        <FocusMemberSelector
+                          members={displayMembers}
+                          focusMember={focusMember}
+                          onSelectFocus={(member) => setFocusMemberId(member?.id || null)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+                        <Switch
+                          id="merged-view"
+                          checked={showMergedView}
+                          onCheckedChange={setShowMergedView}
+                          data-testid="switch-merged-view"
+                        />
+                        <Label htmlFor="merged-view" className="text-xs sm:text-sm cursor-pointer flex items-center gap-1">
+                          <Link2 className="h-3 w-3" />
+                          <span className="hidden sm:inline">Show Connected Trees</span>
+                          <span className="sm:hidden">Connected</span>
+                        </Label>
+                      </div>
+                      {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          <span className="font-medium">{mergedData.connectedTrees.length} trees:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {mergedData.connectedTrees.map(t => {
+                              const connection = !t.isMainTree ? mergedData.connections.find(
+                                c => c.tree1Id === t.id || c.tree2Id === t.id
+                              ) : null;
+                              const connectorMemberId = connection ? (
+                                connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId
+                              ) : null;
+                              
+                              return (
+                                <div key={t.id} className="flex items-center gap-1">
+                                  <Badge variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
+                                    {t.name}
+                                  </Badge>
+                                  {!t.isMainTree && connection && connectorMemberId && canEditTree && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 px-1 text-xs"
+                                      onClick={() => {
+                                        setImportConnectionData({
+                                          connectionId: connection.id,
+                                          connectorMemberId,
+                                          sourceTreeName: t.name
+                                        });
+                                        setImportDialogOpen(true);
+                                      }}
+                                      data-testid={`button-import-${t.id}`}
+                                    >
+                                      Import
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {showMergedView && (!mergedData?.connections || mergedData.connections.length === 0) && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          No connected trees yet.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div ref={treeContainerRef} className="w-full h-full">
@@ -811,95 +841,122 @@ export default function TreeView() {
                     focusMemberId={focusMemberId}
                   />
                 </div>
-                <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+                {/* Zoom Controls - positioned higher on mobile to avoid being cut off */}
+                <div className="absolute bottom-20 sm:bottom-4 right-2 sm:right-4 flex flex-col gap-1.5 sm:gap-2 z-10 bg-background/80 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border">
                   <Button 
                     variant="secondary" 
                     size="icon" 
                     onClick={() => setZoom(z => Math.min(z + 0.2, 2))}
                     data-testid="button-zoom-in"
+                    className="h-10 w-10 sm:h-9 sm:w-9"
                   >
-                    <ZoomIn className="h-4 w-4" />
+                    <ZoomIn className="h-5 w-5 sm:h-4 sm:w-4" />
                   </Button>
                   <Button 
                     variant="secondary" 
                     size="icon" 
                     onClick={() => setZoom(z => Math.max(z - 0.2, 0.4))}
                     data-testid="button-zoom-out"
+                    className="h-10 w-10 sm:h-9 sm:w-9"
                   >
-                    <ZoomOut className="h-4 w-4" />
+                    <ZoomOut className="h-5 w-5 sm:h-4 sm:w-4" />
                   </Button>
                   <Button 
                     variant="secondary" 
                     size="icon" 
                     onClick={() => setZoom(1)}
                     data-testid="button-zoom-reset"
+                    className="h-10 w-10 sm:h-9 sm:w-9"
                   >
-                    <Maximize2 className="h-4 w-4" />
+                    <Maximize2 className="h-5 w-5 sm:h-4 sm:w-4" />
                   </Button>
                 </div>
               </>
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-4">
-                <div className="absolute top-4 left-4 z-10 bg-background/95 backdrop-blur rounded-lg p-3 shadow-lg border" data-testid="focus-selector-container">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="merged-view-empty"
-                      checked={showMergedView}
-                      onCheckedChange={setShowMergedView}
-                      data-testid="switch-merged-view"
-                    />
-                    <Label htmlFor="merged-view-empty" className="text-sm cursor-pointer flex items-center gap-1">
-                      <Link2 className="h-3 w-3" />
-                      Show Connected Trees
-                    </Label>
-                  </div>
-                  {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      <span className="font-medium">{mergedData.connectedTrees.length} trees connected:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {mergedData.connectedTrees.map(t => {
-                          const connection = !t.isMainTree ? mergedData.connections.find(
-                            c => c.tree1Id === t.id || c.tree2Id === t.id
-                          ) : null;
-                          const connectorMemberId = connection ? (
-                            connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId
-                          ) : null;
-                          
-                          return (
-                            <div key={t.id} className="flex items-center gap-1">
-                              <Badge variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
-                                {t.name}
-                              </Badge>
-                              {!t.isMainTree && connection && connectorMemberId && canEditTree && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-5 px-1 text-xs"
-                                  onClick={() => {
-                                    setImportConnectionData({
-                                      connectionId: connection.id,
-                                      connectorMemberId,
-                                      sourceTreeName: t.name
-                                    });
-                                    setImportDialogOpen(true);
-                                  }}
-                                  data-testid={`button-import-${t.id}`}
-                                >
-                                  Import
-                                </Button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                {/* Empty state focus panel - simplified and collapsible */}
+                <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-10 bg-background/95 backdrop-blur rounded-lg shadow-lg border max-w-[calc(100vw-5rem)] sm:max-w-xs" data-testid="focus-selector-container">
+                  <button
+                    onClick={() => setIsFocusPanelCollapsed(!isFocusPanelCollapsed)}
+                    className="w-full flex items-center justify-between p-2 sm:p-3 gap-2 hover-elevate rounded-lg"
+                    data-testid="button-toggle-focus-panel"
+                    aria-expanded={!isFocusPanelCollapsed}
+                    aria-label={isFocusPanelCollapsed ? "Expand connected trees panel" : "Collapse connected trees panel"}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Link2 className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="text-sm font-medium">Connected Trees</span>
                     </div>
-                  )}
-                  {showMergedView && (!mergedData?.connections || mergedData.connections.length === 0) && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      No connected trees yet. Connect with other family members to see their trees here.
-                    </p>
-                  )}
-                </div>
+                    {isFocusPanelCollapsed ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                  </button>
+                  
+                  {!isFocusPanelCollapsed && (
+                    <div className="px-2 pb-2 sm:px-3 sm:pb-3 border-t pt-2">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="merged-view-empty"
+                          checked={showMergedView}
+                          onCheckedChange={setShowMergedView}
+                          data-testid="switch-merged-view"
+                        />
+                        <Label htmlFor="merged-view-empty" className="text-xs sm:text-sm cursor-pointer flex items-center gap-1">
+                          <span className="hidden sm:inline">Show Connected Trees</span>
+                          <span className="sm:hidden">Show</span>
+                        </Label>
+                      </div>
+                      {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          <span className="font-medium">{mergedData.connectedTrees.length} trees:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {mergedData.connectedTrees.map(t => {
+                              const connection = !t.isMainTree ? mergedData.connections.find(
+                                c => c.tree1Id === t.id || c.tree2Id === t.id
+                              ) : null;
+                              const connectorMemberId = connection ? (
+                                connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId
+                              ) : null;
+                              
+                              return (
+                                <div key={t.id} className="flex items-center gap-1">
+                                  <Badge variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
+                                    {t.name}
+                                  </Badge>
+                                  {!t.isMainTree && connection && connectorMemberId && canEditTree && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 px-1 text-xs"
+                                          onClick={() => {
+                                            setImportConnectionData({
+                                              connectionId: connection.id,
+                                              connectorMemberId,
+                                              sourceTreeName: t.name
+                                            });
+                                            setImportDialogOpen(true);
+                                          }}
+                                          data-testid={`button-import-${t.id}`}
+                                        >
+                                          Import
+                                        </Button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {showMergedView && (!mergedData?.connections || mergedData.connections.length === 0) && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              No connected trees yet.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                 <Card className="max-w-md text-center">
                   <CardContent className="pt-6">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
