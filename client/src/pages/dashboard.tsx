@@ -32,6 +32,7 @@ import { ReferralSection } from "@/components/referral-section";
 import { EmailInviteForm } from "@/components/email-invite-form";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { InviteTemplates } from "@/components/invite-templates";
+import { RevenueForecastSection } from "@/components/revenue-forecast-section";
 import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
@@ -688,6 +689,13 @@ export default function Dashboard() {
           </Dialog>
           </div>
         </div>
+
+        {/* Revenue Forecast Section (Admin Only) */}
+        {isAdmin && (
+          <div className="mb-8">
+            <RevenueForecastSection />
+          </div>
+        )}
 
         {/* Pending Family Connection Requests Section */}
         <div className="mb-8">

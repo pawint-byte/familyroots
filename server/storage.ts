@@ -303,6 +303,15 @@ export interface IStorage {
   transferUserOwnership(fromUserId: string, toUserId: string): Promise<void>;
   getAllUserConnections(search?: string): Promise<UserConnection[]>;
   adminDeleteUserConnection(connectionId: string): Promise<void>;
+  getSubscriptionMetrics(): Promise<{
+    totalUsers: number;
+    activeSubscribers: number;
+    subscribersByTier: Record<string, number>;
+    monthlyRecurringRevenue: number;
+    projectedAnnualRevenue: number;
+    freeUsers: number;
+    tierBreakdown: Array<{ tier: string; count: number; monthlyRevenue: number }>;
+  }>;
   getAllTreeConnections(search?: string): Promise<any[]>;
 
   // External Person Identifiers (FamilySearch, Ancestry, etc.)
@@ -1767,6 +1776,91 @@ export class DatabaseStorage implements IStorage {
   async getUserTreeCount(userId: string): Promise<number> {
     const trees = await db.select().from(familyTrees).where(eq(familyTrees.ownerId, userId));
     return trees.length;
+  }
+
+  async getSubscriptionMetrics(): Promise<{
+    totalUsers: number;
+    activeSubscribers: number;
+    subscribersByTier: Record<string, number>;
+    monthlyRecurringRevenue: number;
+    projectedAnnualRevenue: number;
+    freeUsers: number;
+    tierBreakdown: Array<{ tier: string; count: number; monthlyRevenue: number }>;
+  }> {
+    // Import pricing from subscription config for consistency
+    // Starter (free tier, 0-24 members) is FREE - users only pay when exceeding limits
+    // Note: 'free' tier represents users still within free tier limits
+    const tierPrices: Record<string, number> = {
+      'free': 0,      // Starter tier is free (up to 20-24 members)
+      'tier_25': 749, // $7.49/mo (25-49 members)
+      'tier_50': 499, // $4.99/mo (50-74 members)
+      'tier_75': 250, // $2.50/mo (75-99 members)
+      'tier_100': 0,  // Heritage tier is free (100+ members)
+    };
+
+    const tierDisplayNames: Record<string, string> = {
+      'free': 'Starter (Free)',
+      'tier_25': 'Growing Family',
+      'tier_50': 'Extended Family',
+      'tier_75': 'Family Reunion',
+      'tier_100': 'Heritage (Free)',
+    };
+
+    // Get all users
+    const allUsers = await db.select().from(users);
+    const totalUsers = allUsers.length;
+
+    // Count active paying subscribers (exclude free tiers)
+    const activeSubscribers = allUsers.filter(u => 
+      u.isSubscriptionActive && 
+      u.subscriptionTier !== 'free' && 
+      u.subscriptionTier !== 'tier_100'
+    ).length;
+
+    // Count users by tier
+    const subscribersByTier: Record<string, number> = {};
+
+    for (const tier of Object.keys(tierPrices)) {
+      const count = allUsers.filter(u => u.subscriptionTier === tier).length;
+      subscribersByTier[tier] = count;
+    }
+
+    // Calculate MRR from active subscriptions (only paying tiers)
+    let monthlyRecurringRevenue = 0;
+    for (const user of allUsers) {
+      if (user.isSubscriptionActive && user.subscriptionTier) {
+        monthlyRecurringRevenue += tierPrices[user.subscriptionTier] || 0;
+      }
+    }
+
+    // Build tier breakdown showing all users per tier
+    const tierBreakdown: Array<{ tier: string; count: number; monthlyRevenue: number }> = [];
+    for (const [tier, price] of Object.entries(tierPrices)) {
+      const count = subscribersByTier[tier] || 0;
+      const activeCount = allUsers.filter(u => u.subscriptionTier === tier && u.isSubscriptionActive).length;
+      tierBreakdown.push({
+        tier: tierDisplayNames[tier] || tier,
+        count,
+        monthlyRevenue: activeCount * price, // Only count active subscribers for revenue
+      });
+    }
+
+    // Free users (on free tier, Heritage tier, or not subscribed)
+    const freeUsers = allUsers.filter(u => 
+      !u.isSubscriptionActive || 
+      u.subscriptionTier === 'free' || 
+      u.subscriptionTier === 'tier_100'
+    ).length;
+
+    return {
+      totalUsers,
+      activeSubscribers,
+      subscribersByTier,
+      monthlyRecurringRevenue,
+      projectedAnnualRevenue: monthlyRecurringRevenue * 12,
+      freeUsers,
+      tierBreakdown,
+    };
   }
 
   async transferUserOwnership(fromUserId: string, toUserId: string): Promise<void> {

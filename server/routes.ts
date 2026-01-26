@@ -4972,6 +4972,17 @@ export async function registerRoutes(
     }
   });
 
+  // Get subscription metrics for revenue forecast (admin only)
+  app.get("/api/admin/subscription-metrics", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const metrics = await storage.getSubscriptionMetrics();
+      res.json(metrics);
+    } catch (error: any) {
+      console.error("Error fetching subscription metrics:", error);
+      res.status(500).json({ message: "Failed to fetch subscription metrics" });
+    }
+  });
+
   // Get specific user details (admin only)
   app.get("/api/admin/users/:userId", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
