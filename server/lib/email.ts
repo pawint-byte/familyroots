@@ -683,3 +683,60 @@ export async function sendCustodianshipApproval(
   `;
   return sendEmail(to, subject, html);
 }
+
+// Family referral invite email
+export async function sendFamilyReferralInvite(
+  to: string,
+  inviterName: string,
+  personalMessage: string,
+  inviteLink: string
+) {
+  const subject = `${inviterName} wants you to join FamilyRoots!`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .message-box { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #4F46E5; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 14px 35px; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 600; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>You're Invited to FamilyRoots!</h1>
+      </div>
+      <div class="content">
+        <p>Hi there,</p>
+        <p><strong>${inviterName}</strong> thinks you'd love FamilyRoots - a beautiful way to build and share your family tree.</p>
+        ${personalMessage ? `
+        <div class="message-box">
+          <p style="margin: 0; font-style: italic;">"${personalMessage}"</p>
+          <p style="margin: 10px 0 0; color: #6b7280; font-size: 14px;">- ${inviterName}</p>
+        </div>
+        ` : ''}
+        <p>With FamilyRoots, you can:</p>
+        <ul>
+          <li>Build interactive family trees</li>
+          <li>Preserve photos and memories</li>
+          <li>Collaborate with family members</li>
+          <li>Connect across different family trees</li>
+        </ul>
+        <p style="text-align: center;">
+          <a href="${inviteLink}" class="button">Join FamilyRoots</a>
+        </p>
+        <p style="color: #6b7280; font-size: 14px; text-align: center;">It's free to get started!</p>
+      </div>
+      <div class="footer">
+        <p>FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You received this email because ${inviterName} invited you to join FamilyRoots.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}

@@ -4171,6 +4171,82 @@ export async function registerRoutes(
     }
   });
 
+  // Email invite routes
+  
+  // Send email invites to family members
+  app.post("/api/invites/email", isAuthenticated, async (req: any, res) => {
+    try {
+      const { emails, message, referralCode } = req.body;
+      const userId = req.user.claims.sub;
+      
+      if (!emails || !Array.isArray(emails) || emails.length === 0) {
+        return res.status(400).json({ message: "At least one email address is required" });
+      }
+      
+      if (emails.length > 10) {
+        return res.status(400).json({ message: "Maximum 10 emails per request" });
+      }
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const validEmails = emails.filter((email: string) => 
+        typeof email === 'string' && emailRegex.test(email.trim())
+      );
+      
+      if (validEmails.length === 0) {
+        return res.status(400).json({ message: "No valid email addresses provided" });
+      }
+      
+      // Get user info for the invite
+      const user = await storage.getUser(userId);
+      const inviterName = user?.firstName 
+        ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`
+        : 'A FamilyRoots user';
+      
+      // Get or create referral link
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0] || 'familyroots.replit.app'}`;
+      let inviteLink = baseUrl;
+      
+      if (referralCode) {
+        inviteLink = `${baseUrl}/?ref=${referralCode}`;
+      } else {
+        // Create referral if none exists
+        let userReferrals = await storage.getReferralsByUser(userId);
+        if (userReferrals.length === 0) {
+          const code = `FR${userId.slice(0, 6).toUpperCase()}${Date.now().toString(36).toUpperCase()}`;
+          await storage.createReferral(userId, code);
+          userReferrals = await storage.getReferralsByUser(userId);
+        }
+        if (userReferrals[0]) {
+          inviteLink = `${baseUrl}/?ref=${userReferrals[0].referralCode}`;
+        }
+      }
+      
+      // Send emails (using validated emails only)
+      const { sendFamilyReferralInvite } = await import('./lib/email');
+      const results = await Promise.allSettled(
+        validEmails.map((email: string) => 
+          sendFamilyReferralInvite(email.trim(), inviterName, message || '', inviteLink)
+        )
+      );
+      
+      const sent = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      const skipped = emails.length - validEmails.length;
+      
+      res.json({ 
+        success: true, 
+        sent, 
+        failed,
+        skipped,
+        message: `Successfully sent ${sent} invite${sent !== 1 ? 's' : ''}${failed > 0 ? `. ${failed} failed.` : '.'}${skipped > 0 ? ` ${skipped} invalid emails skipped.` : ''}`
+      });
+    } catch (error: any) {
+      console.error("Error sending email invites:", error);
+      res.status(500).json({ message: "Failed to send invites" });
+    }
+  });
+
   // Referral routes
   
   // Get user's referral code and stats

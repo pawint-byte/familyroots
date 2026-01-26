@@ -28,6 +28,9 @@ import { ConnectTreesSection } from "@/components/connect-trees-section";
 import { NetworkRequestsSection } from "@/components/network-requests-section";
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 import { ReferralSection } from "@/components/referral-section";
+import { EmailInviteForm } from "@/components/email-invite-form";
+import { SocialShareButtons } from "@/components/social-share-buttons";
+import { InviteTemplates } from "@/components/invite-templates";
 import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
@@ -81,6 +84,12 @@ export default function Dashboard() {
     enabled: !!user,
   });
   const isAdmin = adminCheck?.isAdmin || false;
+
+  // Get referral data for share links
+  const { data: referralData } = useQuery<{ referralCode: string; referralLink: string }>({
+    queryKey: ["/api/referrals/my"],
+    enabled: !!user,
+  });
 
   const createTreeMutation = useMutation({
     mutationFn: async (data: { name: string; description?: string; privacy: "private" | "public" }) => {
@@ -709,9 +718,24 @@ export default function Dashboard() {
           <PendingCustodianshipSection />
         </div>
 
-        {/* Referral Section */}
-        <div className="mb-8">
+        {/* Referral & Invite Section */}
+        <div className="mb-8 space-y-6">
           <ReferralSection />
+          
+          {/* Invite Family Section */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <EmailInviteForm referralCode={referralData?.referralCode} />
+            <SocialShareButtons 
+              shareUrl={referralData?.referralLink || `https://${window.location.hostname}`}
+              title="Join me on FamilyRoots!"
+              description="Build and explore your family tree with me on FamilyRoots - a beautiful way to preserve family history."
+            />
+          </div>
+          
+          <InviteTemplates 
+            referralLink={referralData?.referralLink || `https://${window.location.hostname}`}
+            userName={user?.firstName || undefined}
+          />
         </div>
 
         {isLoading ? (
