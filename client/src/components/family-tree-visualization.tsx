@@ -768,8 +768,8 @@ export default function FamilyTreeVisualization({
       });
     });
 
-    // === SIBLINGS: Connect siblings to their parents (shared parents with focus) ===
-    // This shows the proper family structure: parent → children (including focus and siblings)
+    // === SIBLINGS: Connect siblings through shared parent OR to focus person ===
+    // This shows proper family structure for siblings
     const siblingPositions = positions.filter(p => p.branchType === 'sibling');
     const { childParentMap } = getRelationshipMaps();
     
@@ -779,29 +779,44 @@ export default function FamilyTreeVisualization({
       const focusParents = childParentMap.get(focusPos.member.id) || [];
       const sharedParents = sibParents.filter(p => focusParents.includes(p));
       
+      // Check if we can find a parent in the tree for this sibling
+      let parentPos = null;
+      
       if (sharedParents.length > 0) {
-        // Connect sibling to the first shared parent
-        const parentPos = parentPositions.find(p => sharedParents.includes(p.member.id));
-        if (parentPos) {
-          const fromX = parentPos.x + nodeWidth / 2;
-          const fromY = parentPos.y + nodeHeight; // Bottom of parent
-          const toX = sibPos.x + nodeWidth / 2;
-          const toY = sibPos.y; // Top of sibling
-          
-          lines.push(
-            <path
-              key={`parent-to-sibling-${sibPos.member.id}`}
-              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-              stroke={BRANCH_COLORS.sibling.line}
-              strokeWidth="2"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.6"
-            />
-          );
-        }
+        // First priority: shared parent that's visible in tree
+        parentPos = parentPositions.find(p => sharedParents.includes(p.member.id));
+      }
+      
+      if (!parentPos && focusParents.length > 0) {
+        // Second priority: use focus person's parent (siblings should share a parent)
+        parentPos = parentPositions.find(p => focusParents.includes(p.member.id));
+      }
+      
+      if (!parentPos && parentPositions.length > 0) {
+        // Third priority: just use any visible parent (direct sibling relationships)
+        parentPos = parentPositions[0];
+      }
+      
+      if (parentPos) {
+        // Connect sibling to parent with a curved line
+        const fromX = parentPos.x + nodeWidth / 2;
+        const fromY = parentPos.y + nodeHeight; // Bottom of parent
+        const toX = sibPos.x + nodeWidth / 2;
+        const toY = sibPos.y; // Top of sibling
+        
+        lines.push(
+          <path
+            key={`parent-to-sibling-${sibPos.member.id}`}
+            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+            stroke={BRANCH_COLORS.sibling.line}
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+            opacity="0.6"
+          />
+        );
       } else {
-        // No shared parents found - connect horizontally to focus as fallback
+        // No parents visible - connect horizontally to focus as fallback
         const isLeftSibling = sibPos.x < focusPos.x;
         const fromX = isLeftSibling ? sibPos.x + nodeWidth : sibPos.x;
         const fromY = sibPos.y + nodeHeight / 2;

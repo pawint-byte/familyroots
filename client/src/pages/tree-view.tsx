@@ -1697,6 +1697,7 @@ export default function TreeView() {
                     <SelectItem value="parent">Parent/Child</SelectItem>
                     <SelectItem value="spouse">Spouse/Partner</SelectItem>
                     <SelectItem value="sibling">Sibling</SelectItem>
+                    <SelectItem value="coparent">Co-Parent (shares child, not married)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
