@@ -51,6 +51,10 @@ export default function FAQ() {
         {
           question: "Can I view the tree from a different person's perspective?",
           answer: "Yes! Click on any family member in the tree and tap 'Set as Focus'. The tree will recenter to show that person's connections. This is temporary - the tree will return to the Main Person next time you open it. To permanently change the center point, use 'Set as Main' instead."
+        },
+        {
+          question: "What's the best device to view my family tree on?",
+          answer: "For the best experience, we recommend viewing your family tree on a desktop computer or tablet with a larger screen. The tree visualization works on phones, but larger screens give you more space to see multiple generations and navigate your family connections. On tablets and desktops, you can also use zoom controls and drag to pan around the tree more easily."
         }
       ]
     },
