@@ -25,7 +25,9 @@ const memberFormSchema = z.object({
   birthPlace: z.string().optional(),
   deathDate: z.string().optional(),
   isLiving: z.boolean().default(true),
-  photoUrl: z.string().url().optional().or(z.literal("")),
+  photoUrl: z.string().optional().refine((val) => !val || val.startsWith("/") || val.startsWith("http"), {
+    message: "Invalid photo URL",
+  }),
   notes: z.string().optional(),
   visibilityOverride: z.enum(["full", "extended", "limited"]).optional().nullable(),
 }).refine((data) => {
