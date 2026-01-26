@@ -845,7 +845,7 @@ export default function TreeView() {
                 </div>
                 {/* View Depth Controls - show immediate, extended, or all family */}
                 <div 
-                  className="absolute bottom-24 sm:bottom-4 right-2 sm:right-4 z-50 bg-background/90 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border"
+                  className="fixed sm:absolute bottom-24 sm:bottom-4 right-2 sm:right-4 z-50 bg-background/90 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border"
                   role="group"
                   aria-label="Family view depth controls"
                 >
@@ -889,7 +889,7 @@ export default function TreeView() {
                   </div>
                 </div>
                 {/* Zoom Controls - positioned on bottom-left to avoid overlapping view controls */}
-                <div className="absolute bottom-24 sm:bottom-4 left-2 sm:left-4 flex flex-row gap-1 sm:gap-2 z-50 bg-background/90 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border">
+                <div className="fixed sm:absolute bottom-24 sm:bottom-4 left-2 sm:left-4 flex flex-row gap-1 sm:gap-2 z-50 bg-background/90 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border">
                   <Button 
                     variant="secondary" 
                     size="icon" 
