@@ -569,6 +569,10 @@ export default function FamilyTreeVisualization({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
+      {/* CRITICAL: transformOrigin MUST be "0 0" - NOT "center center"
+          This ensures SVG connection lines align with HTML member cards.
+          See replit.md "Family Tree Visualization" section for details.
+          DO NOT CHANGE without testing on both desktop and mobile. */}
       <div
         className="relative"
         style={{

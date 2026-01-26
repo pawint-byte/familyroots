@@ -71,3 +71,23 @@ PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for sc
 - **Print-on-Demand**: Printful API
 - **Genealogy Research**: FamilySearch API
 - **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image, react-leaflet.
+
+## Critical Implementation Notes
+
+### Family Tree Visualization (DO NOT MODIFY without testing)
+
+The family tree visualization (`client/src/components/family-tree-visualization.tsx`) has specific requirements that must be maintained:
+
+1. **Transform Origin**: Must be `"0 0"` (top-left) - NOT `"center center"`. This ensures SVG connection lines align with HTML member cards.
+
+2. **Container Hierarchy** (in `tree-view.tsx`):
+   - Outer container: `h-screen` (fixed height, not `min-h-screen`)
+   - Add `overflow-hidden` to prevent scroll issues
+   - TabsContent: `flex-1 overflow-hidden`
+   - Tree container: `w-full h-full`
+
+3. **Coordinate System**: SVG paths and HTML elements share the same coordinate space. Both use absolute positioning within the transformed container.
+
+4. **Centering Logic**: The useEffect that centers on focusMemberId calculates offset based on container dimensions and node positions.
+
+**Why this matters**: Changes to layout (min-h-screen vs h-screen, overflow settings, transform origin) can break the alignment between connection lines and member cards. Always test tree visualization on both desktop and mobile after any layout changes.
