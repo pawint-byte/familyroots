@@ -18,8 +18,10 @@ interface NodePosition {
   x: number;
   y: number;
   member: FamilyMember;
-  branchType: 'focus' | 'parent' | 'stepparent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'auntuncle' | 'unconnected';
+  branchType: 'focus' | 'parent' | 'stepparent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'auntuncle' | 'cousin' | 'unconnected';
   qualifier?: RelationshipQualifier;
+  // For cousins: deterministically store which aunt/uncle they connect to
+  parentAuntUncleId?: string;
 }
 
 interface BranchLabel {
@@ -41,6 +43,7 @@ const BRANCH_COLORS = {
   focus: { line: 'hsl(var(--primary))', bg: 'bg-primary/20 dark:bg-primary/10', border: 'border-primary', ring: 'ring-primary', label: 'bg-primary' },
   inlaw: { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/10 dark:bg-accent/5', border: 'border-accent/30', ring: 'ring-accent/30', label: 'bg-accent' },
   auntuncle: { line: 'hsl(45 80% 50%)', bg: 'bg-amber-100/50 dark:bg-amber-900/20', border: 'border-amber-300 dark:border-amber-700', ring: 'ring-amber-400/50', label: 'bg-amber-500' },
+  cousin: { line: 'hsl(160 60% 45%)', bg: 'bg-teal-100/50 dark:bg-teal-900/20', border: 'border-teal-300 dark:border-teal-700', ring: 'ring-teal-400/50', label: 'bg-teal-500' },
   'inlaw-grandparent': { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/5 dark:bg-accent/5', border: 'border-accent/20', ring: 'ring-accent/20', label: 'bg-accent' },
   unconnected: { line: 'hsl(var(--muted-foreground))', bg: 'bg-muted/30 dark:bg-muted/20', border: 'border-muted-foreground/20', ring: 'ring-muted-foreground/30', label: 'bg-muted-foreground' },
 };
@@ -195,7 +198,7 @@ export default function FamilyTreeVisualization({
     const labels: BranchLabel[] = [];
     const placed = new Set<string>();
 
-    const { parentChildMap, childParentMap, spouseMap, siblingMap } = getRelationshipMaps();
+    const { parentChildMap, childParentMap, spouseMap, siblingMap, qualifierMap } = getRelationshipMaps();
 
     const focusId = focusMemberId || deduplicatedMembers[0]?.id;
     const focusMember = deduplicatedMembers.find(m => m.id === focusId);
@@ -391,13 +394,64 @@ export default function FamilyTreeVisualization({
               parentSiblings.forEach((auId, auIndex) => {
                 const auntUncle = deduplicatedMembers.find(m => m.id === auId);
                 if (auntUncle && !placed.has(auId)) {
+                  const auX = auntUncleStartX + auIndex * (nodeWidth + horizontalGap / 2);
                   positioned.push({
-                    x: auntUncleStartX + auIndex * (nodeWidth + horizontalGap / 2),
+                    x: auX,
                     y: auntUncleY,
                     member: auntUncle,
                     branchType: 'auntuncle'
                   });
                   placed.add(auId);
+                  
+                  // Show cousins (children of this aunt/uncle) - only in 'all' view
+                  // Store mapping of cousin to their displaying parent for connection lines
+                  if (viewDepth === 'all') {
+                    const auntUncleChildren = parentChildMap.get(auId) || [];
+                    // Allowed qualifiers for cousin relationships (positive allowlist)
+                    const allowedCousinQualifiers = new Set(['biological', 'adopted', 'half', null, undefined]);
+                    
+                    // Filter out invalid cousin candidates with qualifier-aware logic using allowlist
+                    const validCousins = auntUncleChildren.filter(cousinId => {
+                      if (placed.has(cousinId)) return false;
+                      if (cousinId === focusMemberId) return false;
+                      if (focusSiblings.has(cousinId)) return false;
+                      // Exclude anyone who is a parent of the focus person
+                      if (parents.includes(cousinId)) return false;
+                      // Exclude anyone who is a grandparent of the focus person
+                      if (grandparents.includes(cousinId)) return false;
+                      // Exclude spouses/co-parents of focus person
+                      const focusSpouses = spouseMap.get(focusMemberId) || [];
+                      if (focusSpouses.includes(cousinId)) return false;
+                      
+                      // Qualifier-aware filtering using ALLOWLIST approach
+                      // Only include biological, adopted, half, or unspecified relationships
+                      const parentChildQualifier = qualifierMap.get(`${auId}-${cousinId}-parent`);
+                      if (!allowedCousinQualifiers.has(parentChildQualifier)) {
+                        return false; // Excludes step, foster, in-law, and any other non-allowed qualifiers
+                      }
+                      return true;
+                    });
+                    
+                    if (validCousins.length > 0) {
+                      const cousinY = centerY; // Same level as focus person
+                      const cousinStartX = auX - ((validCousins.length - 1) * (nodeWidth / 2 + 10)) / 2;
+                      
+                      validCousins.forEach((cousinId, cousinIndex) => {
+                        const cousin = deduplicatedMembers.find(m => m.id === cousinId);
+                        if (cousin && !placed.has(cousinId)) {
+                          positioned.push({
+                            x: cousinStartX + cousinIndex * (nodeWidth / 2 + 10),
+                            y: cousinY,
+                            member: cousin,
+                            branchType: 'cousin',
+                            // Deterministically store which aunt/uncle this cousin connects to
+                            parentAuntUncleId: auId
+                          });
+                          placed.add(cousinId);
+                        }
+                      });
+                    }
+                  }
                 }
               });
             }
@@ -919,6 +973,36 @@ export default function FamilyTreeVisualization({
       }
     });
 
+    // === COUSINS: Connect to their parent (aunt/uncle) - using deterministic parentAuntUncleId ===
+    const cousinPositions = positions.filter(p => p.branchType === 'cousin');
+    
+    cousinPositions.forEach(cousinPos => {
+      // Use the deterministically stored parent aunt/uncle ID
+      const parentAUId = cousinPos.parentAuntUncleId;
+      const matchingAU = parentAUId 
+        ? auntUnclePositions.find(au => au.member.id === parentAUId)
+        : null;
+      
+      if (matchingAU) {
+        const fromX = matchingAU.x + nodeWidth / 2;
+        const fromY = matchingAU.y + nodeHeight;
+        const toX = cousinPos.x + nodeWidth / 2;
+        const toY = cousinPos.y;
+        
+        lines.push(
+          <path
+            key={`auntuncle-to-cousin-${cousinPos.member.id}`}
+            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+            stroke={BRANCH_COLORS.cousin.line}
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+            opacity="0.6"
+          />
+        );
+      }
+    });
+
     positions.forEach((pos) => {
       if (pos.branchType === 'spouse') {
         const focusPos = positions.find(p => p.branchType === 'focus');
@@ -1211,6 +1295,7 @@ export default function FamilyTreeVisualization({
                       pos.branchType === 'spouse' ? 'bg-pink-500/20 text-pink-700 dark:text-pink-400' :
                       pos.branchType === 'coparent' ? 'bg-purple-500/20 text-purple-700 dark:text-purple-400' :
                       pos.branchType === 'auntuncle' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' :
+                      pos.branchType === 'cousin' ? 'bg-teal-500/20 text-teal-700 dark:text-teal-400' :
                       pos.branchType === 'stepparent' ? 'bg-sky-500/20 text-sky-700 dark:text-sky-400' :
                       pos.branchType === 'child' || pos.branchType === 'grandchild' ? 'bg-primary/20 text-primary' :
                       pos.branchType === 'unconnected' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' :
@@ -1222,6 +1307,7 @@ export default function FamilyTreeVisualization({
                      pos.branchType === 'coparent' ? 'Co-Parent' :
                      pos.branchType === 'stepparent' ? 'Step-Parent' :
                      pos.branchType === 'auntuncle' ? (pos.member.gender === 'female' ? 'Aunt' : pos.member.gender === 'male' ? 'Uncle' : 'Aunt/Uncle') :
+                     pos.branchType === 'cousin' ? 'Cousin' :
                      pos.branchType === 'unconnected' ? 'Add Relationship' : 
                      // Show qualifier prefix if set (e.g., "Adopted Parent", "Step-Child", "Half-Sibling")
                      pos.qualifier && pos.qualifier !== 'biological' ? 

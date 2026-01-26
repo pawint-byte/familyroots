@@ -1087,42 +1087,63 @@ export default function TreeView() {
             role="group"
             aria-label="Family view depth controls"
           >
-            <div className="flex flex-row gap-1 items-center">
-              <span className="text-xs text-muted-foreground font-medium pr-1 hidden sm:inline" id="view-depth-label">View:</span>
+            <div className="flex flex-col gap-1.5 items-center">
+              <span className="text-xs text-muted-foreground font-medium hidden sm:inline" id="view-depth-label">View Depth</span>
               <div className="flex flex-row gap-1" role="radiogroup" aria-labelledby="view-depth-label">
-                <Button
-                  variant={viewDepth === 'immediate' ? 'default' : 'secondary'}
-                  size="sm"
-                  onClick={() => setViewDepth('immediate')}
-                  data-testid="button-view-immediate"
-                  aria-label="Core family view: parents, spouse, and children only"
-                  aria-pressed={viewDepth === 'immediate'}
-                  className="h-10 sm:h-8 px-2 sm:px-3"
-                >
-                  Core
-                </Button>
-                <Button
-                  variant={viewDepth === 'extended' ? 'default' : 'secondary'}
-                  size="sm"
-                  onClick={() => setViewDepth('extended')}
-                  data-testid="button-view-extended"
-                  aria-label="Extended family view: includes grandparents, grandchildren, and siblings"
-                  aria-pressed={viewDepth === 'extended'}
-                  className="h-10 sm:h-8 px-2 sm:px-3"
-                >
-                  Extended
-                </Button>
-                <Button
-                  variant={viewDepth === 'all' ? 'default' : 'secondary'}
-                  size="sm"
-                  onClick={() => setViewDepth('all')}
-                  data-testid="button-view-all"
-                  aria-label="All family view: includes in-laws and extended family"
-                  aria-pressed={viewDepth === 'all'}
-                  className="h-10 sm:h-8 px-2 sm:px-3"
-                >
-                  All
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewDepth === 'immediate' ? 'default' : 'secondary'}
+                      size="sm"
+                      onClick={() => setViewDepth('immediate')}
+                      data-testid="button-view-immediate"
+                      aria-label="Core family view: parents, spouse, and children only"
+                      aria-pressed={viewDepth === 'immediate'}
+                    >
+                      Core
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[200px]">
+                    <p className="font-medium">Core Family</p>
+                    <p className="text-xs text-muted-foreground">Parents, spouse, co-parents, and children</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewDepth === 'extended' ? 'default' : 'secondary'}
+                      size="sm"
+                      onClick={() => setViewDepth('extended')}
+                      data-testid="button-view-extended"
+                      aria-label="Extended family view: includes grandparents, grandchildren, and siblings"
+                      aria-pressed={viewDepth === 'extended'}
+                    >
+                      Extended
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[220px]">
+                    <p className="font-medium">Extended Family</p>
+                    <p className="text-xs text-muted-foreground">+ Grandparents, grandchildren, siblings, aunts, and uncles</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewDepth === 'all' ? 'default' : 'secondary'}
+                      size="sm"
+                      onClick={() => setViewDepth('all')}
+                      data-testid="button-view-all"
+                      aria-label="All family view: includes in-laws, cousins, and extended family"
+                      aria-pressed={viewDepth === 'all'}
+                    >
+                      All
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[220px]">
+                    <p className="font-medium">Full Family Tree</p>
+                    <p className="text-xs text-muted-foreground">+ Cousins, in-laws, and everyone in your tree</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
           </div>
