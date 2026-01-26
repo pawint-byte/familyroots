@@ -292,6 +292,19 @@ export function calculateRelationship(
     };
   }
 
+  // Check for co-parent relationship BEFORE doing ancestor calculations
+  const coparentsOfA = graph.coparents.get(memberAId) || [];
+  if (coparentsOfA.includes(memberBId)) {
+    return {
+      relationshipName: "co-parent",
+      path: [memberAId, memberBId],
+      commonAncestors: [],
+      generationsFromA: 0,
+      generationsFromB: 0,
+      isDirectLine: false,
+    };
+  }
+
   const ancestorsA = getAncestors(memberAId, graph);
   const ancestorsB = getAncestors(memberBId, graph);
 
