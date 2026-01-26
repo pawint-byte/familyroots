@@ -238,6 +238,7 @@ export default function FamilyTreeVisualization({
     }
 
     const parents = childParentMap.get(focusId) || [];
+    console.log('[TreeViz] Focus:', focusId, 'Parents found:', parents.length, parents);
     if (parents.length > 0) {
       const parentY = centerY - verticalGap - nodeHeight;
       const parentStartX = centerX - ((parents.length - 1) * (nodeWidth + horizontalGap)) / 2;
@@ -258,11 +259,13 @@ export default function FamilyTreeVisualization({
           // Only show grandparents if viewDepth allows
           if (showGrandparents) {
             const grandparents = childParentMap.get(parentId) || [];
+            console.log('[TreeViz] Parent:', parentId, parent.firstName, 'Grandparents found:', grandparents.length, grandparents);
             const gpY = parentY - verticalGap - nodeHeight;
             const gpStartX = parentStartX + index * (nodeWidth + horizontalGap) - ((grandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
             
             grandparents.forEach((gpId, gpIndex) => {
               const gp = deduplicatedMembers.find(m => m.id === gpId);
+              console.log('[TreeViz] Looking for grandparent:', gpId, 'Found:', gp?.firstName, gp?.lastName);
               if (gp && !placed.has(gpId)) {
                 positioned.push({
                   x: gpStartX + gpIndex * (nodeWidth + horizontalGap / 2),
