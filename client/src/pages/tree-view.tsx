@@ -885,23 +885,15 @@ export default function TreeView() {
                     </div>
                   </div>
                 </div>
-                {/* Zoom Controls - positioned higher on mobile to avoid being cut off */}
-                <div className="absolute bottom-20 sm:bottom-4 right-2 sm:right-4 flex flex-col gap-1.5 sm:gap-2 z-10 bg-background/80 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border">
-                  <Button 
-                    variant="secondary" 
-                    size="icon" 
-                    onClick={() => setZoom(z => Math.min(z + 0.2, 2))}
-                    data-testid="button-zoom-in"
-                    className="h-10 w-10 sm:h-9 sm:w-9"
-                  >
-                    <ZoomIn className="h-5 w-5 sm:h-4 sm:w-4" />
-                  </Button>
+                {/* Zoom Controls - positioned on bottom-left to avoid overlapping view controls */}
+                <div className="absolute bottom-4 left-2 sm:left-4 flex flex-row gap-1.5 sm:gap-2 z-10 bg-background/80 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border">
                   <Button 
                     variant="secondary" 
                     size="icon" 
                     onClick={() => setZoom(z => Math.max(z - 0.2, 0.4))}
                     data-testid="button-zoom-out"
                     className="h-10 w-10 sm:h-9 sm:w-9"
+                    aria-label="Zoom out"
                   >
                     <ZoomOut className="h-5 w-5 sm:h-4 sm:w-4" />
                   </Button>
@@ -911,8 +903,19 @@ export default function TreeView() {
                     onClick={() => setZoom(1)}
                     data-testid="button-zoom-reset"
                     className="h-10 w-10 sm:h-9 sm:w-9"
+                    aria-label="Reset zoom"
                   >
                     <Maximize2 className="h-5 w-5 sm:h-4 sm:w-4" />
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    size="icon" 
+                    onClick={() => setZoom(z => Math.min(z + 0.2, 2))}
+                    data-testid="button-zoom-in"
+                    className="h-10 w-10 sm:h-9 sm:w-9"
+                    aria-label="Zoom in"
+                  >
+                    <ZoomIn className="h-5 w-5 sm:h-4 sm:w-4" />
                   </Button>
                 </div>
               </>
