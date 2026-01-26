@@ -27,17 +27,19 @@ class AuthStorage implements IAuthStorage {
       
       if (existingByEmail && existingByEmail.id !== userData.id) {
         console.log(`[auth] Email conflict detected: existing user ${existingByEmail.id} has email ${existingByEmail.email}, new login attempted with ID ${userData.id}`);
-        // Update existing user with new info but keep their ID
+        // PROTECT existing data - only fill in fields that are empty/null in the existing record
+        // Never overwrite existing user's data with new login data
         const [updated] = await db.update(users)
           .set({
-            firstName: userData.firstName || existingByEmail.firstName,
-            lastName: userData.lastName || existingByEmail.lastName,
-            profileImageUrl: userData.profileImageUrl || existingByEmail.profileImageUrl,
+            // Only update fields if existing record has no value
+            firstName: existingByEmail.firstName || userData.firstName,
+            lastName: existingByEmail.lastName || userData.lastName,
+            profileImageUrl: existingByEmail.profileImageUrl || userData.profileImageUrl,
             updatedAt: new Date(),
           })
           .where(eq(users.id, existingByEmail.id))
           .returning();
-        console.log(`[auth] Returning existing user ${updated.id} for email ${normalizedEmail}`);
+        console.log(`[auth] Returning existing user ${updated.id} for email ${normalizedEmail} - existing data preserved`);
         return updated;
       }
     }
