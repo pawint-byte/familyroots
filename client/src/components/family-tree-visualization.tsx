@@ -363,20 +363,27 @@ export default function FamilyTreeVisualization({
 
     // Get children but EXCLUDE siblings (someone can't be both a child and a sibling)
     const children = (parentChildMap.get(focusId) || []).filter(cId => !focusSiblings.has(cId));
-    const spouseChildren: string[] = [];
+    
+    // For spouse's children, only include if BOTH focus AND spouse are parents
+    // This prevents step-children from appearing as the focus person's children
+    const sharedSpouseChildren: string[] = [];
     spouses.forEach(spouseId => {
-      const sChildren = parentChildMap.get(spouseId) || [];
-      sChildren.forEach(cId => {
-        // Exclude siblings and already-listed children
-        if (!children.includes(cId) && !spouseChildren.includes(cId) && !focusSiblings.has(cId)) {
-          spouseChildren.push(cId);
+      const spouseChildList = parentChildMap.get(spouseId) || [];
+      spouseChildList.forEach(cId => {
+        // Check if focus person is ALSO a parent of this child
+        const childParents = childParentMap.get(cId) || [];
+        const focusIsParent = childParents.includes(focusId);
+        
+        // Only include if focus is a parent AND not already listed AND not a sibling
+        if (focusIsParent && !children.includes(cId) && !sharedSpouseChildren.includes(cId) && !focusSiblings.has(cId)) {
+          sharedSpouseChildren.push(cId);
         }
       });
     });
-    const allChildren = Array.from(new Set([...children, ...spouseChildren]));
+    const allChildren = Array.from(new Set([...children, ...sharedSpouseChildren]));
     
     if (process.env.NODE_ENV === 'development') {
-      console.log('[Tree Viz] Focus:', focusId, 'Children:', children, 'SpouseChildren:', spouseChildren, 'AllChildren:', allChildren);
+      console.log('[Tree Viz] Focus:', focusId, 'Children:', children, 'SharedSpouseChildren:', sharedSpouseChildren, 'AllChildren:', allChildren);
     }
     
     if (allChildren.length > 0) {
