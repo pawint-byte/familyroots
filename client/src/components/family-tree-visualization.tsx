@@ -147,6 +147,21 @@ export default function FamilyTreeVisualization({
         // Store qualifier for sibling
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-sibling`, qualifier);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-sibling`, qualifier);
+      } else if (rel.relationshipType === "coparent") {
+        // Co-parent is a bidirectional relationship (like spouse but not married)
+        if (!spouseMap.has(rel.fromMemberId)) {
+          spouseMap.set(rel.fromMemberId, []);
+        }
+        // We'll track co-parents separately using qualifier
+        spouseMap.get(rel.fromMemberId)!.push(rel.toMemberId);
+        if (!spouseMap.has(rel.toMemberId)) {
+          spouseMap.set(rel.toMemberId, []);
+        }
+        spouseMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+        
+        // Mark as co-parent specifically
+        qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-coparent`, qualifier);
+        qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-coparent`, qualifier);
       }
     });
 

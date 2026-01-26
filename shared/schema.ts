@@ -11,7 +11,7 @@ export * from "./models/chat";
 
 // Enums
 export const genderEnum = pgEnum("gender", ["male", "female", "other"]);
-export const relationshipTypeEnum = pgEnum("relationship_type", ["parent", "child", "spouse", "sibling"]);
+export const relationshipTypeEnum = pgEnum("relationship_type", ["parent", "child", "spouse", "sibling", "coparent"]);
 export const relationshipQualifierEnum = pgEnum("relationship_qualifier", ["biological", "step", "adopted", "foster", "half", "in-law"]);
 export const privacyEnum = pgEnum("privacy", ["private", "public"]);
 export const videoStatusEnum = pgEnum("video_status", ["pending", "processing", "completed", "failed"]);

@@ -17,7 +17,7 @@ interface AddRelationshipProps {
   canEdit: boolean;
 }
 
-type RelationshipType = "parent" | "child" | "spouse" | "sibling";
+type RelationshipType = "parent" | "child" | "spouse" | "sibling" | "coparent";
 type RelationshipQualifier = "biological" | "step" | "adopted" | "foster" | "half" | "in-law" | "";
 
 const relationshipLabels: Record<RelationshipType, string> = {
@@ -25,6 +25,7 @@ const relationshipLabels: Record<RelationshipType, string> = {
   child: "is a child of", 
   spouse: "is a spouse/partner of",
   sibling: "is a sibling of",
+  coparent: "is a co-parent with",
 };
 
 const qualifierLabels: Record<string, string> = {
@@ -41,6 +42,7 @@ const reverseRelationship: Record<RelationshipType, RelationshipType> = {
   child: "parent",
   spouse: "spouse",
   sibling: "sibling",
+  coparent: "coparent",
 };
 
 export function AddRelationship({ 
@@ -155,6 +157,9 @@ export function AddRelationship({
                 </SelectItem>
                 <SelectItem value="sibling">
                   {getMemberName(currentMember)} is their <strong>SIBLING</strong>
+                </SelectItem>
+                <SelectItem value="coparent">
+                  {getMemberName(currentMember)} is a <strong>CO-PARENT</strong> (shares a child with them, not married)
                 </SelectItem>
               </SelectContent>
             </Select>
