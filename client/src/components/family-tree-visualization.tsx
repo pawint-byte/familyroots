@@ -244,14 +244,35 @@ export default function FamilyTreeVisualization({
     // Also find co-parents: other parents of focus person's children who aren't spouses
     // These are people who share a child with focus but weren't defined as spouse
     // EXCLUDE focus person's own parents - they can't be co-parents of their child
+    // EXCLUDE focus person's siblings - siblings share parents with focus, not children
     const focusChildren = parentChildMap.get(focusId) || [];
     const coParentIds = new Set<string>();
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Tree Viz] Focus Children:', focusChildren);
+      console.log('[Tree Viz] Focus Parent IDs:', Array.from(focusParentIds));
+    }
+    
     focusChildren.forEach(childId => {
       const childParents = childParentMap.get(childId) || [];
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Tree Viz] Child', childId, 'has parents:', childParents);
+      }
       childParents.forEach(parentId => {
-        // Add if not the focus person, not already a defined spouse, and NOT focus's own parent
-        if (parentId !== focusId && !spouses.includes(parentId) && !focusParentIds.has(parentId)) {
+        // Add if not the focus person, not already a defined spouse, 
+        // NOT focus's own parent, and NOT a sibling of focus
+        const isFocusParent = focusParentIds.has(parentId);
+        const isFocusSibling = focusSiblings.has(parentId);
+        if (parentId !== focusId && !spouses.includes(parentId) && !isFocusParent && !isFocusSibling) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[Tree Viz] Adding co-parent:', parentId, 'from child:', childId);
+          }
           coParentIds.add(parentId);
+        } else if (process.env.NODE_ENV === 'development' && parentId !== focusId) {
+          console.log('[Tree Viz] EXCLUDING as co-parent:', parentId, 
+            '- isSpouse:', spouses.includes(parentId),
+            '- isFocusParent:', isFocusParent,
+            '- isFocusSibling:', isFocusSibling);
         }
       });
     });
@@ -343,6 +364,14 @@ export default function FamilyTreeVisualization({
     }
 
     const parents = childParentMap.get(focusId) || [];
+    
+    // Collect all grandparent IDs upfront (for cousin filtering later)
+    const allGrandparentIds = new Set<string>();
+    parents.forEach(parentId => {
+      const gps = childParentMap.get(parentId) || [];
+      gps.forEach(gpId => allGrandparentIds.add(gpId));
+    });
+    
     if (parents.length > 0) {
       const parentY = centerY - verticalGap - nodeHeight;
       const parentStartX = centerX - ((parents.length - 1) * (nodeWidth + horizontalGap)) / 2;
@@ -418,9 +447,9 @@ export default function FamilyTreeVisualization({
                       // Exclude anyone who is a parent of the focus person
                       if (parents.includes(cousinId)) return false;
                       // Exclude anyone who is a grandparent of the focus person
-                      if (grandparents.includes(cousinId)) return false;
+                      if (allGrandparentIds.has(cousinId)) return false;
                       // Exclude spouses/co-parents of focus person
-                      const focusSpouses = spouseMap.get(focusMemberId) || [];
+                      const focusSpouses = focusId ? (spouseMap.get(focusId) || []) : [];
                       if (focusSpouses.includes(cousinId)) return false;
                       
                       // Qualifier-aware filtering using ALLOWLIST approach
