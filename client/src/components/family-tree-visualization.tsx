@@ -18,7 +18,7 @@ interface NodePosition {
   x: number;
   y: number;
   member: FamilyMember;
-  branchType: 'focus' | 'parent' | 'stepparent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'unconnected';
+  branchType: 'focus' | 'parent' | 'stepparent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'auntuncle' | 'unconnected';
   qualifier?: RelationshipQualifier;
 }
 
@@ -40,6 +40,7 @@ const BRANCH_COLORS = {
   coparent: { line: 'hsl(280 60% 50%)', bg: 'bg-purple-100/50 dark:bg-purple-900/20', border: 'border-purple-300 dark:border-purple-700', ring: 'ring-purple-400/50', label: 'bg-purple-500' },
   focus: { line: 'hsl(var(--primary))', bg: 'bg-primary/20 dark:bg-primary/10', border: 'border-primary', ring: 'ring-primary', label: 'bg-primary' },
   inlaw: { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/10 dark:bg-accent/5', border: 'border-accent/30', ring: 'ring-accent/30', label: 'bg-accent' },
+  auntuncle: { line: 'hsl(45 80% 50%)', bg: 'bg-amber-100/50 dark:bg-amber-900/20', border: 'border-amber-300 dark:border-amber-700', ring: 'ring-amber-400/50', label: 'bg-amber-500' },
   'inlaw-grandparent': { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/5 dark:bg-accent/5', border: 'border-accent/20', ring: 'ring-accent/20', label: 'bg-accent' },
   unconnected: { line: 'hsl(var(--muted-foreground))', bg: 'bg-muted/30 dark:bg-muted/20', border: 'border-muted-foreground/20', ring: 'ring-muted-foreground/30', label: 'bg-muted-foreground' },
 };
@@ -375,6 +376,31 @@ export default function FamilyTreeVisualization({
                 placed.add(gpId);
               }
             });
+          }
+          
+          // Show aunts and uncles (parent's siblings) - only if extended or all view
+          if (showGrandparents) {
+            // Get parent's siblings using the getSiblings function
+            const parentSiblings = getSiblings(parentId, parentChildMap, childParentMap, siblingMap);
+            // Position them to the side of this parent at parent level
+            if (parentSiblings.length > 0) {
+              // Position aunts/uncles to the LEFT of the parent area
+              const auntUncleY = parentY;
+              const auntUncleStartX = parentStartX - (parentSiblings.length) * (nodeWidth + horizontalGap / 2);
+              
+              parentSiblings.forEach((auId, auIndex) => {
+                const auntUncle = deduplicatedMembers.find(m => m.id === auId);
+                if (auntUncle && !placed.has(auId)) {
+                  positioned.push({
+                    x: auntUncleStartX + auIndex * (nodeWidth + horizontalGap / 2),
+                    y: auntUncleY,
+                    member: auntUncle,
+                    branchType: 'auntuncle'
+                  });
+                  placed.add(auId);
+                }
+              });
+            }
           }
           
           // Also show the parent's spouse at parent level
@@ -842,6 +868,57 @@ export default function FamilyTreeVisualization({
       }
     });
 
+    // === AUNTS/UNCLES: Connect to grandparents (parent's siblings connect to their parents) ===
+    const auntUnclePositions = positions.filter(p => p.branchType === 'auntuncle');
+    const gpPositionsForAU = positions.filter(p => p.branchType === 'grandparent');
+    
+    auntUnclePositions.forEach(auPos => {
+      // Find which grandparent this aunt/uncle connects to
+      const auParents = childParentMap.get(auPos.member.id) || [];
+      const matchingGp = gpPositionsForAU.find(gp => auParents.includes(gp.member.id));
+      
+      if (matchingGp) {
+        const fromX = matchingGp.x + nodeWidth / 2;
+        const fromY = matchingGp.y + nodeHeight;
+        const toX = auPos.x + nodeWidth / 2;
+        const toY = auPos.y;
+        
+        lines.push(
+          <path
+            key={`gp-to-auntuncle-${auPos.member.id}`}
+            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+            stroke={BRANCH_COLORS.auntuncle.line}
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+            opacity="0.6"
+          />
+        );
+      } else {
+        // Fallback: connect horizontally to the nearest parent
+        const nearestParent = parentPositions.length > 0 ? parentPositions[0] : null;
+        if (nearestParent) {
+          const fromX = auPos.x + nodeWidth;
+          const fromY = auPos.y + nodeHeight / 2;
+          const toX = nearestParent.x;
+          const toY = nearestParent.y + nodeHeight / 2;
+          
+          lines.push(
+            <path
+              key={`parent-to-auntuncle-${auPos.member.id}`}
+              d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
+              stroke={BRANCH_COLORS.auntuncle.line}
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              opacity="0.5"
+              strokeDasharray="4 4"
+            />
+          );
+        }
+      }
+    });
+
     positions.forEach((pos) => {
       if (pos.branchType === 'spouse') {
         const focusPos = positions.find(p => p.branchType === 'focus');
@@ -1133,6 +1210,7 @@ export default function FamilyTreeVisualization({
                       pos.branchType === 'focus' ? 'bg-primary/20 text-primary' :
                       pos.branchType === 'spouse' ? 'bg-pink-500/20 text-pink-700 dark:text-pink-400' :
                       pos.branchType === 'coparent' ? 'bg-purple-500/20 text-purple-700 dark:text-purple-400' :
+                      pos.branchType === 'auntuncle' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' :
                       pos.branchType === 'stepparent' ? 'bg-sky-500/20 text-sky-700 dark:text-sky-400' :
                       pos.branchType === 'child' || pos.branchType === 'grandchild' ? 'bg-primary/20 text-primary' :
                       pos.branchType === 'unconnected' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' :
@@ -1143,6 +1221,7 @@ export default function FamilyTreeVisualization({
                      pos.branchType === 'focus' ? 'You' : 
                      pos.branchType === 'coparent' ? 'Co-Parent' :
                      pos.branchType === 'stepparent' ? 'Step-Parent' :
+                     pos.branchType === 'auntuncle' ? (pos.member.gender === 'female' ? 'Aunt' : pos.member.gender === 'male' ? 'Uncle' : 'Aunt/Uncle') :
                      pos.branchType === 'unconnected' ? 'Add Relationship' : 
                      // Show qualifier prefix if set (e.g., "Adopted Parent", "Step-Child", "Half-Sibling")
                      pos.qualifier && pos.qualifier !== 'biological' ? 
