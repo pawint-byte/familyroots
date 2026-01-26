@@ -31,6 +31,7 @@ export const visibilityTierEnum = pgEnum("visibility_tier", ["full", "extended",
 // Special connection types (non-blood relationships)
 export const specialConnectionTypeEnum = pgEnum("special_connection_type", [
   "godparent", "godchild", "boyfriend", "girlfriend", "fiance", "fiancee",
+  "ex_boyfriend", "ex_girlfriend", "ex_spouse",
   "best_friend", "family_friend", "mentor", "mentee", "guardian", "ward", "other"
 ]);
 
