@@ -1039,6 +1039,90 @@ export default function TreeView() {
         </Tabs>
       </div>
 
+      {/* Tree Controls - Fixed positioned outside overflow container */}
+      {activeTab === 'tree' && displayMembers.length > 0 && (
+        <>
+          {/* View Depth Controls */}
+          <div 
+            className="fixed bottom-24 sm:bottom-4 right-2 sm:right-4 z-50 bg-background/90 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border"
+            role="group"
+            aria-label="Family view depth controls"
+          >
+            <div className="flex flex-row gap-1 items-center">
+              <span className="text-xs text-muted-foreground font-medium pr-1 hidden sm:inline" id="view-depth-label">View:</span>
+              <div className="flex flex-row gap-1" role="radiogroup" aria-labelledby="view-depth-label">
+                <Button
+                  variant={viewDepth === 'immediate' ? 'default' : 'secondary'}
+                  size="sm"
+                  onClick={() => setViewDepth('immediate')}
+                  data-testid="button-view-immediate"
+                  aria-label="Core family view: parents, spouse, and children only"
+                  aria-pressed={viewDepth === 'immediate'}
+                  className="h-10 sm:h-8 px-2 sm:px-3"
+                >
+                  Core
+                </Button>
+                <Button
+                  variant={viewDepth === 'extended' ? 'default' : 'secondary'}
+                  size="sm"
+                  onClick={() => setViewDepth('extended')}
+                  data-testid="button-view-extended"
+                  aria-label="Extended family view: includes grandparents, grandchildren, and siblings"
+                  aria-pressed={viewDepth === 'extended'}
+                  className="h-10 sm:h-8 px-2 sm:px-3"
+                >
+                  Extended
+                </Button>
+                <Button
+                  variant={viewDepth === 'all' ? 'default' : 'secondary'}
+                  size="sm"
+                  onClick={() => setViewDepth('all')}
+                  data-testid="button-view-all"
+                  aria-label="All family view: includes in-laws and extended family"
+                  aria-pressed={viewDepth === 'all'}
+                  className="h-10 sm:h-8 px-2 sm:px-3"
+                >
+                  All
+                </Button>
+              </div>
+            </div>
+          </div>
+          {/* Zoom Controls */}
+          <div className="fixed bottom-24 sm:bottom-4 left-2 sm:left-4 flex flex-row gap-1 sm:gap-2 z-50 bg-background/90 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border">
+            <Button 
+              variant="secondary" 
+              size="icon" 
+              onClick={() => setZoom(z => Math.max(z - 0.2, 0.4))}
+              data-testid="button-zoom-out"
+              className="h-10 w-10 sm:h-9 sm:w-9"
+              aria-label="Zoom out"
+            >
+              <ZoomOut className="h-5 w-5 sm:h-4 sm:w-4" />
+            </Button>
+            <Button 
+              variant="secondary" 
+              size="icon" 
+              onClick={() => setZoom(1)}
+              data-testid="button-zoom-reset"
+              className="h-10 w-10 sm:h-9 sm:w-9"
+              aria-label="Reset zoom"
+            >
+              <Maximize2 className="h-5 w-5 sm:h-4 sm:w-4" />
+            </Button>
+            <Button 
+              variant="secondary" 
+              size="icon" 
+              onClick={() => setZoom(z => Math.min(z + 0.2, 2))}
+              data-testid="button-zoom-in"
+              className="h-10 w-10 sm:h-9 sm:w-9"
+              aria-label="Zoom in"
+            >
+              <ZoomIn className="h-5 w-5 sm:h-4 sm:w-4" />
+            </Button>
+          </div>
+        </>
+      )}
+
       <Sheet open={isMemberDetailOpen} onOpenChange={setIsMemberDetailOpen}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           {selectedMember && (
