@@ -14,6 +14,7 @@ interface FamilyGraph {
   children: Map<string, string[]>;
   spouses: Map<string, string[]>;
   siblings: Map<string, string[]>;
+  coparents: Map<string, string[]>;
 }
 
 function buildFamilyGraph(relationships: Relationship[]): FamilyGraph {
@@ -22,6 +23,7 @@ function buildFamilyGraph(relationships: Relationship[]): FamilyGraph {
     children: new Map(),
     spouses: new Map(),
     siblings: new Map(),
+    coparents: new Map(),
   };
 
   for (const rel of relationships) {
@@ -52,6 +54,12 @@ function buildFamilyGraph(relationships: Relationship[]): FamilyGraph {
         graph.siblings.get(from)!.push(to);
         if (!graph.siblings.has(to)) graph.siblings.set(to, []);
         graph.siblings.get(to)!.push(from);
+        break;
+      case "coparent":
+        if (!graph.coparents.has(from)) graph.coparents.set(from, []);
+        graph.coparents.get(from)!.push(to);
+        if (!graph.coparents.has(to)) graph.coparents.set(to, []);
+        graph.coparents.get(to)!.push(from);
         break;
     }
   }
@@ -126,6 +134,12 @@ function calculateRelationshipName(
 
   if (genFromA === 0 && genFromB === 0) {
     return "self";
+  }
+
+  // Check for co-parent relationship FIRST - this takes priority over generational calculations
+  const coparentsOfA = graph.coparents.get(memberA.id) || [];
+  if (coparentsOfA.includes(memberB.id)) {
+    return "co-parent";
   }
 
   const spousesOfA = graph.spouses.get(memberA.id) || [];
@@ -212,6 +226,7 @@ function findPath(
       ...(graph.children.get(id) || []),
       ...(graph.spouses.get(id) || []),
       ...(graph.siblings.get(id) || []),
+      ...(graph.coparents.get(id) || []),
     ];
 
     for (const neighbor of neighbors) {
