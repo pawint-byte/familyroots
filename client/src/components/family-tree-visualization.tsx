@@ -16,7 +16,7 @@ interface NodePosition {
   x: number;
   y: number;
   member: FamilyMember;
-  branchType: 'focus' | 'parent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'unconnected';
+  branchType: 'focus' | 'parent' | 'stepparent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'unconnected';
 }
 
 interface BranchLabel {
@@ -28,6 +28,7 @@ interface BranchLabel {
 
 const BRANCH_COLORS = {
   parent: { line: 'hsl(var(--muted-foreground))', bg: 'bg-card/80 dark:bg-card/60', border: 'border-muted-foreground/30', ring: 'ring-muted-foreground/50', label: 'bg-muted-foreground' },
+  stepparent: { line: 'hsl(200 60% 50%)', bg: 'bg-sky-100/50 dark:bg-sky-900/20', border: 'border-sky-300 dark:border-sky-700', ring: 'ring-sky-400/50', label: 'bg-sky-500' },
   grandparent: { line: 'hsl(var(--muted-foreground))', bg: 'bg-card/80 dark:bg-card/60', border: 'border-muted-foreground/30', ring: 'ring-muted-foreground/50', label: 'bg-muted-foreground' },
   sibling: { line: 'hsl(var(--accent-foreground))', bg: 'bg-accent/20 dark:bg-accent/10', border: 'border-accent/50', ring: 'ring-accent/50', label: 'bg-accent' },
   child: { line: 'hsl(var(--primary))', bg: 'bg-primary/10 dark:bg-primary/5', border: 'border-primary/30', ring: 'ring-primary/50', label: 'bg-primary' },
@@ -334,18 +335,23 @@ export default function FamilyTreeVisualization({
             });
           }
           
-          // Also show the parent's spouse (co-parent not yet placed) at parent level
+          // Also show the parent's spouse at parent level
+          // But check if they're actually the focus person's parent or just a step-parent
           const parentSpouses = spouseMap.get(parentId) || [];
           parentSpouses.forEach((psId) => {
             const ps = deduplicatedMembers.find(m => m.id === psId);
             if (ps && !placed.has(psId)) {
+              // Check if this spouse is actually a parent of the focus person
+              const isActualParent = parents.includes(psId);
+              
               // Find position next to this parent
               const lastParentX = parentStartX + (parents.length - 1) * (nodeWidth + horizontalGap);
               positioned.push({
                 x: lastParentX + (nodeWidth + horizontalGap),
                 y: parentY,
                 member: ps,
-                branchType: 'parent'
+                // If they're in focus person's parent list, they're a parent. Otherwise, step-parent.
+                branchType: isActualParent ? 'parent' : 'stepparent'
               });
               placed.add(psId);
               
@@ -625,6 +631,50 @@ export default function FamilyTreeVisualization({
               fill="none"
               strokeLinecap="round"
               opacity="0.6"
+            />
+          );
+        }
+      });
+    });
+
+    // === STEP-PARENTS: Dashed line from parent to step-parent (horizontal connection at parent level) ===
+    const stepparentPositions = positions.filter(p => p.branchType === 'stepparent');
+    stepparentPositions.forEach(spPos => {
+      // Find the parent this step-parent is married to
+      const { spouseMap } = getRelationshipMaps();
+      parentPositions.forEach(parentPos => {
+        const parentSpouses = spouseMap.get(parentPos.member.id) || [];
+        if (parentSpouses.includes(spPos.member.id)) {
+          const fromX = parentPos.x + nodeWidth;
+          const fromY = parentPos.y + nodeHeight / 2;
+          const toX = spPos.x;
+          const toY = spPos.y + nodeHeight / 2;
+          
+          lines.push(
+            <path
+              key={`parent-to-stepparent-${parentPos.member.id}-${spPos.member.id}`}
+              d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
+              stroke={BRANCH_COLORS.stepparent.line}
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              opacity="0.7"
+              strokeDasharray="6 4"
+            />
+          );
+          
+          // Marriage marker
+          const markerX = (fromX + toX) / 2;
+          const markerY = fromY;
+          lines.push(
+            <circle
+              key={`stepparent-marker-${spPos.member.id}`}
+              cx={markerX}
+              cy={markerY}
+              r="5"
+              fill={BRANCH_COLORS.stepparent.line}
+              stroke="hsl(var(--background))"
+              strokeWidth="2"
             />
           );
         }
@@ -1026,6 +1076,7 @@ export default function FamilyTreeVisualization({
                       pos.branchType === 'focus' ? 'bg-primary/20 text-primary' :
                       pos.branchType === 'spouse' ? 'bg-pink-500/20 text-pink-700 dark:text-pink-400' :
                       pos.branchType === 'coparent' ? 'bg-purple-500/20 text-purple-700 dark:text-purple-400' :
+                      pos.branchType === 'stepparent' ? 'bg-sky-500/20 text-sky-700 dark:text-sky-400' :
                       pos.branchType === 'child' || pos.branchType === 'grandchild' ? 'bg-primary/20 text-primary' :
                       pos.branchType === 'unconnected' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' :
                       'bg-muted text-muted-foreground'
@@ -1034,6 +1085,7 @@ export default function FamilyTreeVisualization({
                     {pos.member.isUnknown ? 'placeholder' : 
                      pos.branchType === 'focus' ? 'You' : 
                      pos.branchType === 'coparent' ? 'Co-Parent' :
+                     pos.branchType === 'stepparent' ? 'Step-Parent' :
                      pos.branchType === 'unconnected' ? 'Add Relationship' : 
                      pos.branchType}
                   </div>
