@@ -82,6 +82,7 @@ export default function TreeView() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const [isFocusPanelCollapsed, setIsFocusPanelCollapsed] = useState(false);
+  const [viewDepth, setViewDepth] = useState<'immediate' | 'extended' | 'all'>('all');
   const [importConnectionData, setImportConnectionData] = useState<{
     connectionId: string;
     connectorMemberId: string;
@@ -839,7 +840,50 @@ export default function TreeView() {
                     zoom={zoom}
                     onMemberClick={handleMemberClick}
                     focusMemberId={focusMemberId}
+                    viewDepth={viewDepth}
                   />
+                </div>
+                {/* View Depth Controls - show immediate, extended, or all family */}
+                <div 
+                  className="absolute bottom-44 sm:bottom-32 right-2 sm:right-4 z-10 bg-background/80 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border"
+                  role="group"
+                  aria-label="Family view depth controls"
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground text-center font-medium" id="view-depth-label">View</span>
+                    <div className="flex flex-col gap-1" role="radiogroup" aria-labelledby="view-depth-label">
+                      <Button
+                        variant={viewDepth === 'immediate' ? 'default' : 'secondary'}
+                        size="sm"
+                        onClick={() => setViewDepth('immediate')}
+                        data-testid="button-view-immediate"
+                        aria-label="Core family view: parents, spouse, and children only"
+                        aria-pressed={viewDepth === 'immediate'}
+                      >
+                        Core
+                      </Button>
+                      <Button
+                        variant={viewDepth === 'extended' ? 'default' : 'secondary'}
+                        size="sm"
+                        onClick={() => setViewDepth('extended')}
+                        data-testid="button-view-extended"
+                        aria-label="Extended family view: includes grandparents, grandchildren, and siblings"
+                        aria-pressed={viewDepth === 'extended'}
+                      >
+                        Extended
+                      </Button>
+                      <Button
+                        variant={viewDepth === 'all' ? 'default' : 'secondary'}
+                        size="sm"
+                        onClick={() => setViewDepth('all')}
+                        data-testid="button-view-all"
+                        aria-label="All family view: includes in-laws and extended family"
+                        aria-pressed={viewDepth === 'all'}
+                      >
+                        All
+                      </Button>
+                    </div>
+                  </div>
                 </div>
                 {/* Zoom Controls - positioned higher on mobile to avoid being cut off */}
                 <div className="absolute bottom-20 sm:bottom-4 right-2 sm:right-4 flex flex-col gap-1.5 sm:gap-2 z-10 bg-background/80 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border">

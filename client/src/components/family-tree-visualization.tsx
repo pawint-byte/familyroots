@@ -9,6 +9,7 @@ interface FamilyTreeVisualizationProps {
   zoom: number;
   onMemberClick: (member: FamilyMember) => void;
   focusMemberId?: string | null;
+  viewDepth?: 'immediate' | 'extended' | 'all';
 }
 
 interface NodePosition {
@@ -44,6 +45,7 @@ export default function FamilyTreeVisualization({
   zoom,
   onMemberClick,
   focusMemberId,
+  viewDepth = 'all',
 }: FamilyTreeVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -159,6 +161,15 @@ export default function FamilyTreeVisualization({
     
     if (!focusMember) return { positions: [], labels: [] };
 
+    // View depth controls which generations to show:
+    // 'immediate': only parents, spouse, children (1 generation each direction)
+    // 'extended': includes grandparents, grandchildren, siblings (2 generations)
+    // 'all': show everything including in-laws, great-grandparents, etc.
+    const showGrandparents = viewDepth !== 'immediate';
+    const showSiblings = viewDepth !== 'immediate';
+    const showGrandchildren = viewDepth !== 'immediate';
+    const showInlaws = viewDepth === 'all';
+
     const centerX = 400;
     const centerY = 400;
 
@@ -182,47 +193,49 @@ export default function FamilyTreeVisualization({
       }
     });
     
-    // Show in-laws (spouse's parents) at the parent level on the spouse's side
-    spousePositions.forEach(({ x: spouseX, spouseId }) => {
-      const spouseParents = childParentMap.get(spouseId) || [];
-      if (spouseParents.length > 0) {
-        const inLawY = centerY - verticalGap - nodeHeight;
-        const inLawStartX = spouseX - ((spouseParents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
-        
-        spouseParents.forEach((inLawId, inLawIndex) => {
-          const inLaw = deduplicatedMembers.find(m => m.id === inLawId);
-          if (inLaw && !placed.has(inLawId)) {
-            positioned.push({
-              x: inLawStartX + inLawIndex * (nodeWidth + horizontalGap / 2),
-              y: inLawY,
-              member: inLaw,
-              branchType: 'inlaw' // Use distinct type for in-laws (not 'parent')
-            });
-            placed.add(inLawId);
-            
-            // Also show in-law's parents (spouse's grandparents)
-            const inLawGrandparents = childParentMap.get(inLawId) || [];
-            if (inLawGrandparents.length > 0) {
-              const ilGpY = inLawY - verticalGap - nodeHeight;
-              const ilGpStartX = inLawStartX + inLawIndex * (nodeWidth + horizontalGap / 2) - ((inLawGrandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
-              
-              inLawGrandparents.forEach((ilGpId, ilGpIndex) => {
-                const ilGp = deduplicatedMembers.find(m => m.id === ilGpId);
-                if (ilGp && !placed.has(ilGpId)) {
-                  positioned.push({
-                    x: ilGpStartX + ilGpIndex * (nodeWidth + horizontalGap / 2),
-                    y: ilGpY,
-                    member: ilGp,
-                    branchType: 'inlaw-grandparent'
-                  });
-                  placed.add(ilGpId);
-                }
+    // Show in-laws (spouse's parents) at the parent level on the spouse's side - only if viewDepth is 'all'
+    if (showInlaws) {
+      spousePositions.forEach(({ x: spouseX, spouseId }) => {
+        const spouseParents = childParentMap.get(spouseId) || [];
+        if (spouseParents.length > 0) {
+          const inLawY = centerY - verticalGap - nodeHeight;
+          const inLawStartX = spouseX - ((spouseParents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+          
+          spouseParents.forEach((inLawId, inLawIndex) => {
+            const inLaw = deduplicatedMembers.find(m => m.id === inLawId);
+            if (inLaw && !placed.has(inLawId)) {
+              positioned.push({
+                x: inLawStartX + inLawIndex * (nodeWidth + horizontalGap / 2),
+                y: inLawY,
+                member: inLaw,
+                branchType: 'inlaw' // Use distinct type for in-laws (not 'parent')
               });
+              placed.add(inLawId);
+              
+              // Also show in-law's parents (spouse's grandparents)
+              const inLawGrandparents = childParentMap.get(inLawId) || [];
+              if (inLawGrandparents.length > 0) {
+                const ilGpY = inLawY - verticalGap - nodeHeight;
+                const ilGpStartX = inLawStartX + inLawIndex * (nodeWidth + horizontalGap / 2) - ((inLawGrandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+                
+                inLawGrandparents.forEach((ilGpId, ilGpIndex) => {
+                  const ilGp = deduplicatedMembers.find(m => m.id === ilGpId);
+                  if (ilGp && !placed.has(ilGpId)) {
+                    positioned.push({
+                      x: ilGpStartX + ilGpIndex * (nodeWidth + horizontalGap / 2),
+                      y: ilGpY,
+                      member: ilGp,
+                      branchType: 'inlaw-grandparent'
+                    });
+                    placed.add(ilGpId);
+                  }
+                });
+              }
             }
-          }
-        });
-      }
-    });
+          });
+        }
+      });
+    }
 
     const parents = childParentMap.get(focusId) || [];
     if (parents.length > 0) {
@@ -242,22 +255,25 @@ export default function FamilyTreeVisualization({
           });
           placed.add(parentId);
 
-          const grandparents = childParentMap.get(parentId) || [];
-          const gpY = parentY - verticalGap - nodeHeight;
-          const gpStartX = parentStartX + index * (nodeWidth + horizontalGap) - ((grandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
-          
-          grandparents.forEach((gpId, gpIndex) => {
-            const gp = deduplicatedMembers.find(m => m.id === gpId);
-            if (gp && !placed.has(gpId)) {
-              positioned.push({
-                x: gpStartX + gpIndex * (nodeWidth + horizontalGap / 2),
-                y: gpY,
-                member: gp,
-                branchType: 'grandparent'
-              });
-              placed.add(gpId);
-            }
-          });
+          // Only show grandparents if viewDepth allows
+          if (showGrandparents) {
+            const grandparents = childParentMap.get(parentId) || [];
+            const gpY = parentY - verticalGap - nodeHeight;
+            const gpStartX = parentStartX + index * (nodeWidth + horizontalGap) - ((grandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+            
+            grandparents.forEach((gpId, gpIndex) => {
+              const gp = deduplicatedMembers.find(m => m.id === gpId);
+              if (gp && !placed.has(gpId)) {
+                positioned.push({
+                  x: gpStartX + gpIndex * (nodeWidth + horizontalGap / 2),
+                  y: gpY,
+                  member: gp,
+                  branchType: 'grandparent'
+                });
+                placed.add(gpId);
+              }
+            });
+          }
           
           // Also show the parent's spouse (co-parent not yet placed) at parent level
           const parentSpouses = spouseMap.get(parentId) || [];
@@ -274,24 +290,26 @@ export default function FamilyTreeVisualization({
               });
               placed.add(psId);
               
-              // Show co-parent's parents as grandparents too (in-laws from the other side)
-              const coParentGrandparents = childParentMap.get(psId) || [];
-              if (coParentGrandparents.length > 0) {
-                const cpGpY = parentY - verticalGap - nodeHeight;
-                const cpGpStartX = lastParentX + (nodeWidth + horizontalGap) - ((coParentGrandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
-                
-                coParentGrandparents.forEach((cpGpId, cpGpIndex) => {
-                  const cpGp = deduplicatedMembers.find(m => m.id === cpGpId);
-                  if (cpGp && !placed.has(cpGpId)) {
-                    positioned.push({
-                      x: cpGpStartX + cpGpIndex * (nodeWidth + horizontalGap / 2),
-                      y: cpGpY,
-                      member: cpGp,
-                      branchType: 'grandparent'
-                    });
-                    placed.add(cpGpId);
-                  }
-                });
+              // Show co-parent's parents as grandparents too - only if showGrandparents
+              if (showGrandparents) {
+                const coParentGrandparents = childParentMap.get(psId) || [];
+                if (coParentGrandparents.length > 0) {
+                  const cpGpY = parentY - verticalGap - nodeHeight;
+                  const cpGpStartX = lastParentX + (nodeWidth + horizontalGap) - ((coParentGrandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+                  
+                  coParentGrandparents.forEach((cpGpId, cpGpIndex) => {
+                    const cpGp = deduplicatedMembers.find(m => m.id === cpGpId);
+                    if (cpGp && !placed.has(cpGpId)) {
+                      positioned.push({
+                        x: cpGpStartX + cpGpIndex * (nodeWidth + horizontalGap / 2),
+                        y: cpGpY,
+                        member: cpGp,
+                        branchType: 'grandparent'
+                      });
+                      placed.add(cpGpId);
+                    }
+                  });
+                }
               }
             }
           });
@@ -299,43 +317,45 @@ export default function FamilyTreeVisualization({
       });
     }
 
-    // Get siblings but ensure we exclude the focus member and anyone already placed
-    const allSiblings = getSiblings(focusId, parentChildMap, childParentMap, siblingMap);
-    const siblings = allSiblings.filter(sibId => sibId !== focusId && !placed.has(sibId));
-    if (siblings.length > 0) {
-      const leftSiblings = siblings.slice(0, Math.ceil(siblings.length / 2));
-      const rightSiblings = siblings.slice(Math.ceil(siblings.length / 2));
-      
+    // Get siblings but ensure we exclude the focus member and anyone already placed - only if showSiblings
+    if (showSiblings) {
+      const allSiblings = getSiblings(focusId, parentChildMap, childParentMap, siblingMap);
+      const siblings = allSiblings.filter(sibId => sibId !== focusId && !placed.has(sibId));
       if (siblings.length > 0) {
-        labels.push({ x: centerX - (nodeWidth + horizontalGap) * 2, y: centerY - 30, text: 'Siblings', type: 'sibling' });
+        const leftSiblings = siblings.slice(0, Math.ceil(siblings.length / 2));
+        const rightSiblings = siblings.slice(Math.ceil(siblings.length / 2));
+        
+        if (siblings.length > 0) {
+          labels.push({ x: centerX - (nodeWidth + horizontalGap) * 2, y: centerY - 30, text: 'Siblings', type: 'sibling' });
+        }
+        
+        leftSiblings.forEach((sibId, index) => {
+          const sib = deduplicatedMembers.find(m => m.id === sibId);
+          if (sib && !placed.has(sibId)) {
+            positioned.push({
+              x: centerX - (nodeWidth + horizontalGap) * (index + 1.5),
+              y: centerY,
+              member: sib,
+              branchType: 'sibling'
+            });
+            placed.add(sibId);
+          }
+        });
+        
+        const spouseOffset = spouses.length > 0 ? (spouses.length + 1) : 1;
+        rightSiblings.forEach((sibId, index) => {
+          const sib = deduplicatedMembers.find(m => m.id === sibId);
+          if (sib && !placed.has(sibId)) {
+            positioned.push({
+              x: centerX + (nodeWidth + horizontalGap) * (index + spouseOffset + 0.5),
+              y: centerY,
+              member: sib,
+              branchType: 'sibling'
+            });
+            placed.add(sibId);
+          }
+        });
       }
-      
-      leftSiblings.forEach((sibId, index) => {
-        const sib = deduplicatedMembers.find(m => m.id === sibId);
-        if (sib && !placed.has(sibId)) {
-          positioned.push({
-            x: centerX - (nodeWidth + horizontalGap) * (index + 1.5),
-            y: centerY,
-            member: sib,
-            branchType: 'sibling'
-          });
-          placed.add(sibId);
-        }
-      });
-      
-      const spouseOffset = spouses.length > 0 ? (spouses.length + 1) : 1;
-      rightSiblings.forEach((sibId, index) => {
-        const sib = deduplicatedMembers.find(m => m.id === sibId);
-        if (sib && !placed.has(sibId)) {
-          positioned.push({
-            x: centerX + (nodeWidth + horizontalGap) * (index + spouseOffset + 0.5),
-            y: centerY,
-            member: sib,
-            branchType: 'sibling'
-          });
-          placed.add(sibId);
-        }
-      });
     }
 
     const children = parentChildMap.get(focusId) || [];
@@ -372,22 +392,25 @@ export default function FamilyTreeVisualization({
           });
           placed.add(childId);
 
-          const grandchildren = parentChildMap.get(childId) || [];
-          const gcY = childY + verticalGap + nodeHeight;
-          const gcStartX = childStartX + index * (nodeWidth + horizontalGap) - ((grandchildren.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
-          
-          grandchildren.forEach((gcId, gcIndex) => {
-            const gc = deduplicatedMembers.find(m => m.id === gcId);
-            if (gc && !placed.has(gcId)) {
-              positioned.push({
-                x: gcStartX + gcIndex * (nodeWidth + horizontalGap / 2),
-                y: gcY,
-                member: gc,
-                branchType: 'grandchild'
-              });
-              placed.add(gcId);
-            }
-          });
+          // Only show grandchildren if viewDepth allows
+          if (showGrandchildren) {
+            const grandchildren = parentChildMap.get(childId) || [];
+            const gcY = childY + verticalGap + nodeHeight;
+            const gcStartX = childStartX + index * (nodeWidth + horizontalGap) - ((grandchildren.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+            
+            grandchildren.forEach((gcId, gcIndex) => {
+              const gc = deduplicatedMembers.find(m => m.id === gcId);
+              if (gc && !placed.has(gcId)) {
+                positioned.push({
+                  x: gcStartX + gcIndex * (nodeWidth + horizontalGap / 2),
+                  y: gcY,
+                  member: gc,
+                  branchType: 'grandchild'
+                });
+                placed.add(gcId);
+              }
+            });
+          }
         }
       });
     }
@@ -412,7 +435,7 @@ export default function FamilyTreeVisualization({
     });
 
     return { positions: positioned, labels };
-  }, [deduplicatedMembers, relationships, focusMemberId, getRelationshipMaps, getSiblings, nodeWidth, nodeHeight, horizontalGap, verticalGap]);
+  }, [deduplicatedMembers, relationships, focusMemberId, getRelationshipMaps, getSiblings, nodeWidth, nodeHeight, horizontalGap, verticalGap, viewDepth]);
 
   useEffect(() => {
     const result = calculateHierarchicalPositions();
