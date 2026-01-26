@@ -454,7 +454,7 @@ export default function TreeView() {
   const memberCount = treeData?.members?.length || 0;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       <SEO
         title={`${treeName} - FamilyRoots`}
         description={`Explore and manage ${treeName} with ${memberCount} family members. Add members, define relationships, and visualize your family history.`}
@@ -724,7 +724,7 @@ export default function TreeView() {
             </div>
           </div>
 
-          <TabsContent value="tree" className="flex-1 m-0 relative">
+          <TabsContent value="tree" className="flex-1 m-0 relative overflow-hidden">
             {isLoading || (showMergedView && isMergedLoading) ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
