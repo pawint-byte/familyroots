@@ -18,12 +18,22 @@ interface AddRelationshipProps {
 }
 
 type RelationshipType = "parent" | "child" | "spouse" | "sibling";
+type RelationshipQualifier = "biological" | "step" | "adopted" | "foster" | "half" | "in-law" | "";
 
 const relationshipLabels: Record<RelationshipType, string> = {
   parent: "is a parent of",
   child: "is a child of", 
   spouse: "is a spouse/partner of",
   sibling: "is a sibling of",
+};
+
+const qualifierLabels: Record<string, string> = {
+  biological: "Biological (default)",
+  step: "Step",
+  adopted: "Adopted",
+  foster: "Foster",
+  half: "Half (shares one parent)",
+  "in-law": "In-Law",
 };
 
 const reverseRelationship: Record<RelationshipType, RelationshipType> = {
@@ -43,10 +53,11 @@ export function AddRelationship({
   const [isOpen, setIsOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string>("");
   const [relationshipType, setRelationshipType] = useState<RelationshipType | "">("");
+  const [qualifier, setQualifier] = useState<RelationshipQualifier>("");
   const { toast } = useToast();
 
   const addRelationshipMutation = useMutation({
-    mutationFn: async (data: { fromMemberId: string; toMemberId: string; relationshipType: string }) => {
+    mutationFn: async (data: { fromMemberId: string; toMemberId: string; relationshipType: string; qualifier?: string }) => {
       return apiRequest("POST", `/api/trees/${treeId}/relationships`, data);
     },
     onSuccess: () => {
@@ -54,6 +65,7 @@ export function AddRelationship({
       setIsOpen(false);
       setSelectedMemberId("");
       setRelationshipType("");
+      setQualifier("");
       toast({
         title: "Success",
         description: "Relationship added successfully",
@@ -75,6 +87,8 @@ export function AddRelationship({
       fromMemberId: currentMember.id,
       toMemberId: selectedMemberId,
       relationshipType: relationshipType,
+      // Only include qualifier if it's set and not biological (biological is the default/null)
+      ...(qualifier && qualifier !== 'biological' ? { qualifier } : {}),
     });
   };
 
@@ -148,6 +162,50 @@ export function AddRelationship({
               Select what {getMemberName(currentMember)} is to the person you'll select next.
             </p>
           </div>
+
+          {relationshipType && (
+            <div className="space-y-2">
+              <Label>Relationship Type (optional)</Label>
+              <Select 
+                value={qualifier} 
+                onValueChange={(val) => setQualifier(val as RelationshipQualifier)}
+              >
+                <SelectTrigger data-testid="select-relationship-qualifier">
+                  <SelectValue placeholder="Biological (default)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="biological">{qualifierLabels.biological}</SelectItem>
+                  {relationshipType === 'parent' && (
+                    <>
+                      <SelectItem value="step">{qualifierLabels.step}</SelectItem>
+                      <SelectItem value="adopted">{qualifierLabels.adopted}</SelectItem>
+                      <SelectItem value="foster">{qualifierLabels.foster}</SelectItem>
+                    </>
+                  )}
+                  {relationshipType === 'child' && (
+                    <>
+                      <SelectItem value="step">{qualifierLabels.step}</SelectItem>
+                      <SelectItem value="adopted">{qualifierLabels.adopted}</SelectItem>
+                      <SelectItem value="foster">{qualifierLabels.foster}</SelectItem>
+                    </>
+                  )}
+                  {relationshipType === 'sibling' && (
+                    <>
+                      <SelectItem value="half">{qualifierLabels.half}</SelectItem>
+                      <SelectItem value="step">{qualifierLabels.step}</SelectItem>
+                      <SelectItem value="adopted">{qualifierLabels.adopted}</SelectItem>
+                    </>
+                  )}
+                  {relationshipType === 'spouse' && (
+                    <SelectItem value="in-law">Former Spouse (In-Law)</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Specify if this is a step, adopted, half, or other type of relationship.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Select Family Member</Label>

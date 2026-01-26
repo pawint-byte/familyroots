@@ -12,11 +12,14 @@ interface FamilyTreeVisualizationProps {
   viewDepth?: 'immediate' | 'extended' | 'all';
 }
 
+type RelationshipQualifier = 'biological' | 'step' | 'adopted' | 'foster' | 'half' | 'in-law' | null;
+
 interface NodePosition {
   x: number;
   y: number;
   member: FamilyMember;
   branchType: 'focus' | 'parent' | 'stepparent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'unconnected';
+  qualifier?: RelationshipQualifier;
 }
 
 interface BranchLabel {
@@ -81,8 +84,12 @@ export default function FamilyTreeVisualization({
     const childParentMap = new Map<string, string[]>();
     const spouseMap = new Map<string, string[]>();
     const siblingMap = new Map<string, string[]>();
+    // Map to store qualifier for each relationship: key = "fromId-toId-type", value = qualifier
+    const qualifierMap = new Map<string, RelationshipQualifier>();
 
     relationships.forEach((rel) => {
+      const qualifier = (rel.qualifier as RelationshipQualifier) || null;
+      
       if (rel.relationshipType === "parent") {
         // fromMember is the PARENT of toMember
         if (!parentChildMap.has(rel.fromMemberId)) {
@@ -94,6 +101,10 @@ export default function FamilyTreeVisualization({
           childParentMap.set(rel.toMemberId, []);
         }
         childParentMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+        
+        // Store qualifier for parent->child relationship
+        qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-parent`, qualifier);
+        qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-child`, qualifier);
       } else if (rel.relationshipType === "child") {
         // fromMember is the CHILD of toMember (reverse of parent)
         // So toMember is the parent, fromMember is the child
@@ -106,6 +117,10 @@ export default function FamilyTreeVisualization({
           childParentMap.set(rel.fromMemberId, []);
         }
         childParentMap.get(rel.fromMemberId)!.push(rel.toMemberId);
+        
+        // Store qualifier
+        qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-parent`, qualifier);
+        qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-child`, qualifier);
       } else if (rel.relationshipType === "spouse") {
         if (!spouseMap.has(rel.fromMemberId)) {
           spouseMap.set(rel.fromMemberId, []);
@@ -115,6 +130,10 @@ export default function FamilyTreeVisualization({
           spouseMap.set(rel.toMemberId, []);
         }
         spouseMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+        
+        // Store qualifier for spouse
+        qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-spouse`, qualifier);
+        qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-spouse`, qualifier);
       } else if (rel.relationshipType === "sibling") {
         if (!siblingMap.has(rel.fromMemberId)) {
           siblingMap.set(rel.fromMemberId, []);
@@ -124,10 +143,14 @@ export default function FamilyTreeVisualization({
           siblingMap.set(rel.toMemberId, []);
         }
         siblingMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+        
+        // Store qualifier for sibling
+        qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-sibling`, qualifier);
+        qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-sibling`, qualifier);
       }
     });
 
-    return { parentChildMap, childParentMap, spouseMap, siblingMap };
+    return { parentChildMap, childParentMap, spouseMap, siblingMap, qualifierMap };
   }, [relationships]);
 
   const getSiblings = useCallback((memberId: string, parentChildMap: Map<string, string[]>, childParentMap: Map<string, string[]>, siblingMap: Map<string, string[]>): string[] => {
@@ -1087,6 +1110,9 @@ export default function FamilyTreeVisualization({
                      pos.branchType === 'coparent' ? 'Co-Parent' :
                      pos.branchType === 'stepparent' ? 'Step-Parent' :
                      pos.branchType === 'unconnected' ? 'Add Relationship' : 
+                     // Show qualifier prefix if set (e.g., "Adopted Parent", "Step-Child", "Half-Sibling")
+                     pos.qualifier && pos.qualifier !== 'biological' ? 
+                       `${pos.qualifier === 'half' ? 'Half-' : pos.qualifier === 'in-law' ? 'In-Law ' : pos.qualifier.charAt(0).toUpperCase() + pos.qualifier.slice(1) + ' '}${pos.branchType}` :
                      pos.branchType}
                   </div>
                 </div>
