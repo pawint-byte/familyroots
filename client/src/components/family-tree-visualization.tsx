@@ -318,36 +318,22 @@ export default function FamilyTreeVisualization({
     }
 
     // Get siblings but ensure we exclude the focus member and anyone already placed - only if showSiblings
+    // NEW LAYOUT: All siblings go to the LEFT of focus person
+    // Spouse/partner stays on the RIGHT side (already positioned above)
+    // This keeps blood relatives (parents→focus→children) on the main vertical line
     if (showSiblings) {
       const allSiblings = getSiblings(focusId, parentChildMap, childParentMap, siblingMap);
       const siblings = allSiblings.filter(sibId => sibId !== focusId && !placed.has(sibId));
       if (siblings.length > 0) {
-        const leftSiblings = siblings.slice(0, Math.ceil(siblings.length / 2));
-        const rightSiblings = siblings.slice(Math.ceil(siblings.length / 2));
+        // Position all siblings to the LEFT of focus
+        // This clearly separates blood relatives from spouse/partner
+        labels.push({ x: centerX - (nodeWidth + horizontalGap) * ((siblings.length + 1) / 2), y: centerY - 30, text: 'Siblings', type: 'sibling' });
         
-        if (siblings.length > 0) {
-          labels.push({ x: centerX - (nodeWidth + horizontalGap) * 2, y: centerY - 30, text: 'Siblings', type: 'sibling' });
-        }
-        
-        leftSiblings.forEach((sibId, index) => {
+        siblings.forEach((sibId, index) => {
           const sib = deduplicatedMembers.find(m => m.id === sibId);
           if (sib && !placed.has(sibId)) {
             positioned.push({
-              x: centerX - (nodeWidth + horizontalGap) * (index + 1.5),
-              y: centerY,
-              member: sib,
-              branchType: 'sibling'
-            });
-            placed.add(sibId);
-          }
-        });
-        
-        const spouseOffset = spouses.length > 0 ? (spouses.length + 1) : 1;
-        rightSiblings.forEach((sibId, index) => {
-          const sib = deduplicatedMembers.find(m => m.id === sibId);
-          if (sib && !placed.has(sibId)) {
-            positioned.push({
-              x: centerX + (nodeWidth + horizontalGap) * (index + spouseOffset + 0.5),
+              x: centerX - (nodeWidth + horizontalGap) * (index + 1),
               y: centerY,
               member: sib,
               branchType: 'sibling'
