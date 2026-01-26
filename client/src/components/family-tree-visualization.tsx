@@ -32,7 +32,7 @@ const BRANCH_COLORS = {
   sibling: { line: 'hsl(var(--accent-foreground))', bg: 'bg-accent/20 dark:bg-accent/10', border: 'border-accent/50', ring: 'ring-accent/50', label: 'bg-accent' },
   child: { line: 'hsl(var(--primary))', bg: 'bg-primary/10 dark:bg-primary/5', border: 'border-primary/30', ring: 'ring-primary/50', label: 'bg-primary' },
   grandchild: { line: 'hsl(var(--primary))', bg: 'bg-primary/10 dark:bg-primary/5', border: 'border-primary/30', ring: 'ring-primary/50', label: 'bg-primary' },
-  spouse: { line: 'hsl(var(--destructive))', bg: 'bg-destructive/10 dark:bg-destructive/5', border: 'border-destructive/30', ring: 'ring-destructive/50', label: 'bg-destructive' },
+  spouse: { line: 'hsl(340 80% 60%)', bg: 'bg-pink-100/50 dark:bg-pink-900/20', border: 'border-pink-300 dark:border-pink-700', ring: 'ring-pink-400/50', label: 'bg-pink-500' },
   focus: { line: 'hsl(var(--primary))', bg: 'bg-primary/20 dark:bg-primary/10', border: 'border-primary', ring: 'ring-primary', label: 'bg-primary' },
   inlaw: { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/10 dark:bg-accent/5', border: 'border-accent/30', ring: 'ring-accent/30', label: 'bg-accent' },
   'inlaw-grandparent': { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/5 dark:bg-accent/5', border: 'border-accent/20', ring: 'ring-accent/20', label: 'bg-accent' },
@@ -611,29 +611,59 @@ export default function FamilyTreeVisualization({
       });
     });
 
-    // === SIBLINGS: Horizontal lines from sibling's SIDE to focus's SIDE ===
+    // === SIBLINGS: Connect siblings to their parents (shared parents with focus) ===
+    // This shows the proper family structure: parent → children (including focus and siblings)
     const siblingPositions = positions.filter(p => p.branchType === 'sibling');
+    const { childParentMap } = getRelationshipMaps();
+    
     siblingPositions.forEach(sibPos => {
-      const isLeftSibling = sibPos.x < focusPos.x;
+      // Find shared parent(s) with focus
+      const sibParents = childParentMap.get(sibPos.member.id) || [];
+      const focusParents = childParentMap.get(focusPos.member.id) || [];
+      const sharedParents = sibParents.filter(p => focusParents.includes(p));
       
-      // Connect from sibling's edge toward focus
-      const fromX = isLeftSibling ? sibPos.x + nodeWidth : sibPos.x; // Right or left edge
-      const fromY = sibPos.y + nodeHeight / 2; // Middle height
-      const toX = isLeftSibling ? focusPos.x : focusPos.x + nodeWidth; // Left or right edge of focus
-      const toY = focusPos.y + nodeHeight / 2; // Middle height
-      
-      lines.push(
-        <path
-          key={`sibling-${sibPos.member.id}`}
-          d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
-          stroke={BRANCH_COLORS.sibling.line}
-          strokeWidth="2"
-          fill="none"
-          strokeLinecap="round"
-          opacity="0.5"
-          strokeDasharray="6 4"
-        />
-      );
+      if (sharedParents.length > 0) {
+        // Connect sibling to the first shared parent
+        const parentPos = parentPositions.find(p => sharedParents.includes(p.member.id));
+        if (parentPos) {
+          const fromX = parentPos.x + nodeWidth / 2;
+          const fromY = parentPos.y + nodeHeight; // Bottom of parent
+          const toX = sibPos.x + nodeWidth / 2;
+          const toY = sibPos.y; // Top of sibling
+          
+          lines.push(
+            <path
+              key={`parent-to-sibling-${sibPos.member.id}`}
+              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+              stroke={BRANCH_COLORS.sibling.line}
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              opacity="0.6"
+            />
+          );
+        }
+      } else {
+        // No shared parents found - connect horizontally to focus as fallback
+        const isLeftSibling = sibPos.x < focusPos.x;
+        const fromX = isLeftSibling ? sibPos.x + nodeWidth : sibPos.x;
+        const fromY = sibPos.y + nodeHeight / 2;
+        const toX = isLeftSibling ? focusPos.x : focusPos.x + nodeWidth;
+        const toY = focusPos.y + nodeHeight / 2;
+        
+        lines.push(
+          <path
+            key={`sibling-${sibPos.member.id}`}
+            d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
+            stroke={BRANCH_COLORS.sibling.line}
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+            opacity="0.5"
+            strokeDasharray="6 4"
+          />
+        );
+      }
     });
 
     positions.forEach((pos) => {
