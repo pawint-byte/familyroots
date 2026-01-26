@@ -200,17 +200,18 @@ export function SpecialConnectionsSection({ memberId, treeId, canEdit, allMember
                   </Select>
                 </div>
 
-                {selectedConnectionType === "other" && (
-                  <div className="space-y-2">
-                    <Label>Custom Label</Label>
+                <div className="space-y-2">
+                    <Label>{selectedConnectionType === "other" ? "Custom Label" : "Custom Description (optional)"}</Label>
                     <Input 
                       value={customLabel} 
                       onChange={(e) => setCustomLabel(e.target.value)}
-                      placeholder="e.g., Childhood neighbor"
+                      placeholder={selectedConnectionType === "other" ? "e.g., Childhood neighbor" : "e.g., My college roommate"}
                       data-testid="input-custom-label"
                     />
+                    {selectedConnectionType !== "other" && (
+                      <p className="text-xs text-muted-foreground">Add your own description to personalize this connection</p>
+                    )}
                   </div>
-                )}
 
                 <div className="space-y-2">
                   <Label>Notes (optional)</Label>
