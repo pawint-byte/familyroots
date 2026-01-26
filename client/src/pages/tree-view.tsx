@@ -845,13 +845,13 @@ export default function TreeView() {
                 </div>
                 {/* View Depth Controls - show immediate, extended, or all family */}
                 <div 
-                  className="absolute bottom-44 sm:bottom-32 right-2 sm:right-4 z-10 bg-background/80 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border"
+                  className="absolute bottom-4 right-2 sm:right-4 z-10 bg-background/80 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border"
                   role="group"
                   aria-label="Family view depth controls"
                 >
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground text-center font-medium" id="view-depth-label">View</span>
-                    <div className="flex flex-col gap-1" role="radiogroup" aria-labelledby="view-depth-label">
+                  <div className="flex flex-row gap-1 items-center">
+                    <span className="text-xs text-muted-foreground font-medium pr-1 hidden sm:inline" id="view-depth-label">View:</span>
+                    <div className="flex flex-row gap-1" role="radiogroup" aria-labelledby="view-depth-label">
                       <Button
                         variant={viewDepth === 'immediate' ? 'default' : 'secondary'}
                         size="sm"
@@ -859,6 +859,7 @@ export default function TreeView() {
                         data-testid="button-view-immediate"
                         aria-label="Core family view: parents, spouse, and children only"
                         aria-pressed={viewDepth === 'immediate'}
+                        className="h-10 sm:h-8 px-2 sm:px-3"
                       >
                         Core
                       </Button>
@@ -869,6 +870,7 @@ export default function TreeView() {
                         data-testid="button-view-extended"
                         aria-label="Extended family view: includes grandparents, grandchildren, and siblings"
                         aria-pressed={viewDepth === 'extended'}
+                        className="h-10 sm:h-8 px-2 sm:px-3"
                       >
                         Extended
                       </Button>
@@ -879,6 +881,7 @@ export default function TreeView() {
                         data-testid="button-view-all"
                         aria-label="All family view: includes in-laws and extended family"
                         aria-pressed={viewDepth === 'all'}
+                        className="h-10 sm:h-8 px-2 sm:px-3"
                       >
                         All
                       </Button>
@@ -886,7 +889,7 @@ export default function TreeView() {
                   </div>
                 </div>
                 {/* Zoom Controls - positioned on bottom-left to avoid overlapping view controls */}
-                <div className="absolute bottom-4 left-2 sm:left-4 flex flex-row gap-1.5 sm:gap-2 z-10 bg-background/80 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border">
+                <div className="absolute bottom-4 left-2 sm:left-4 flex flex-row gap-1 sm:gap-2 z-10 bg-background/80 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border">
                   <Button 
                     variant="secondary" 
                     size="icon" 
