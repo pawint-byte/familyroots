@@ -585,6 +585,9 @@ export default function Landing() {
               <p className="text-sm text-muted-foreground" data-testid="text-pricing-features">
                 All plans include unlimited trees, cross-tree connections, and collaboration features.
               </p>
+              <p className="text-sm font-medium" data-testid="text-annual-discount">
+                <span className="bg-primary/10 text-foreground px-2 py-1 rounded">Save 20% with annual billing</span>
+              </p>
               <a href="/pricing" data-testid="link-view-full-pricing">
                 <Button variant="outline" data-testid="button-view-full-pricing">
                   View Full Pricing Details

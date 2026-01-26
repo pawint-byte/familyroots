@@ -4430,11 +4430,13 @@ export async function registerRoutes(
 
       const userId = req.user.claims.sub;
       const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const billingInterval = req.body.billingInterval === 'year' ? 'year' : 'month';
       
       const session = await subscriptionService.createSubscriptionCheckout(
         userId,
         `${baseUrl}/pricing?checkout=success`,
-        `${baseUrl}/pricing?checkout=cancel`
+        `${baseUrl}/pricing?checkout=cancel`,
+        billingInterval
       );
 
       res.json({ url: session.url });

@@ -6,6 +6,7 @@ import { getUncachableStripeClient } from './stripeClient';
 
 export const SUBSCRIPTION_CONFIG = {
   basePriceMonthly: 999,
+  annualDiscountPercent: 20, // 20% off when paying annually
   tiers: [
     { name: 'free', minMembers: 0, maxMembers: 24, discountPercent: 0, monthlyPrice: 999 },
     { name: 'tier_25', minMembers: 25, maxMembers: 49, discountPercent: 25, monthlyPrice: 749 },
@@ -15,6 +16,18 @@ export const SUBSCRIPTION_CONFIG = {
   ],
   milestonePaymentCents: 299,
 };
+
+// Calculate annual price with 20% discount
+export function getAnnualPrice(monthlyPrice: number): number {
+  const yearlyTotal = monthlyPrice * 12;
+  const discountedTotal = Math.round(yearlyTotal * (1 - SUBSCRIPTION_CONFIG.annualDiscountPercent / 100));
+  return discountedTotal;
+}
+
+// Calculate effective monthly price when paying annually
+export function getAnnualMonthlyEquivalent(monthlyPrice: number): number {
+  return Math.round(getAnnualPrice(monthlyPrice) / 12);
+}
 
 export type SubscriptionTier = 'free' | 'tier_25' | 'tier_50' | 'tier_75' | 'tier_100';
 
@@ -136,7 +149,7 @@ export class SubscriptionService {
     return this.getUserSubscriptionInfo(userId);
   }
 
-  async createSubscriptionCheckout(userId: string, successUrl: string, cancelUrl: string) {
+  async createSubscriptionCheckout(userId: string, successUrl: string, cancelUrl: string, billingInterval: 'month' | 'year' = 'month') {
     const stripe = await getUncachableStripeClient();
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
@@ -158,6 +171,15 @@ export class SubscriptionService {
       throw new Error('You qualify for free subscription with 100+ members!');
     }
 
+    // Calculate price based on billing interval
+    const unitAmount = billingInterval === 'year' 
+      ? getAnnualPrice(info.monthlyPrice)  // Full annual price with 20% discount
+      : info.monthlyPrice;
+
+    const intervalDescription = billingInterval === 'year'
+      ? `${info.discountPercent}% tier discount + 20% annual discount`
+      : `${info.discountPercent}% discount`;
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
@@ -167,10 +189,10 @@ export class SubscriptionService {
           currency: 'usd',
           product_data: {
             name: 'FamilyRoots Subscription',
-            description: `${info.discountPercent}% discount - ${info.totalMemberCount} family members`,
+            description: `${intervalDescription} - ${info.totalMemberCount} family members`,
           },
-          unit_amount: info.monthlyPrice,
-          recurring: { interval: 'month' },
+          unit_amount: unitAmount,
+          recurring: { interval: billingInterval },
         },
         quantity: 1,
       }],
@@ -180,11 +202,13 @@ export class SubscriptionService {
         userId,
         tier: info.currentTier,
         memberCount: info.totalMemberCount.toString(),
+        billingInterval,
       },
       subscription_data: {
         metadata: {
           userId,
           tier: info.currentTier,
+          billingInterval,
         },
       },
     });

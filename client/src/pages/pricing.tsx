@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ interface SubscriptionInfo {
   milestonePaymentRequired: boolean;
   config: {
     basePriceMonthly: number;
+    annualDiscountPercent: number;
     tiers: Array<{
       name: string;
       minMembers: number;
@@ -34,9 +36,23 @@ interface SubscriptionInfo {
   };
 }
 
+type BillingInterval = 'month' | 'year';
+
+// Calculate annual price with discount
+function getAnnualPrice(monthlyPrice: number, annualDiscountPercent: number = 20): number {
+  const yearlyTotal = monthlyPrice * 12;
+  return Math.round(yearlyTotal * (1 - annualDiscountPercent / 100));
+}
+
+// Calculate equivalent monthly when paying annually
+function getAnnualMonthlyEquivalent(monthlyPrice: number, annualDiscountPercent: number = 20): number {
+  return Math.round(getAnnualPrice(monthlyPrice, annualDiscountPercent) / 12);
+}
+
 export default function Pricing() {
   const [, navigate] = useLocation();
   const { user, isLoading: authLoading } = useAuth();
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('month');
 
   const { data: subscriptionData, isLoading: subscriptionLoading } = useQuery<SubscriptionInfo>({
     queryKey: ["/api/subscription"],
@@ -44,8 +60,8 @@ export default function Pricing() {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/subscription/checkout", {});
+    mutationFn: async (interval: BillingInterval) => {
+      const res = await apiRequest("POST", "/api/subscription/checkout", { billingInterval: interval });
       return res.json();
     },
     onSuccess: (data) => {
@@ -98,6 +114,7 @@ export default function Pricing() {
 
   const config = subscriptionData?.config || {
     basePriceMonthly: 999,
+    annualDiscountPercent: 20,
     tiers: [
       { name: 'free', minMembers: 0, maxMembers: 24, discountPercent: 0, monthlyPrice: 999 },
       { name: 'tier_25', minMembers: 25, maxMembers: 49, discountPercent: 25, monthlyPrice: 749 },
@@ -107,6 +124,8 @@ export default function Pricing() {
     ],
     milestonePaymentCents: 299,
   };
+
+  const annualDiscount = config.annualDiscountPercent || 20;
 
   const pricingStructuredData = {
     "@context": "https://schema.org",
@@ -132,7 +151,7 @@ export default function Pricing() {
       window.location.href = "/api/login";
       return;
     }
-    checkoutMutation.mutate();
+    checkoutMutation.mutate(billingInterval);
   };
 
   const handleMilestonePayment = () => {
@@ -185,9 +204,33 @@ export default function Pricing() {
           <h1 className="text-4xl font-serif font-bold mb-4" data-testid="text-pricing-title">
             Grow Your Tree, Shrink Your Bill
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6">
             The more family members you add, the bigger your discount. Reach 100 members and enjoy your subscription for free!
           </p>
+          
+          {/* Billing Interval Toggle */}
+          <div className="flex items-center justify-center gap-3" data-testid="billing-toggle-container">
+            <Button
+              variant={billingInterval === 'month' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setBillingInterval('month')}
+              data-testid="button-billing-monthly"
+            >
+              Monthly
+            </Button>
+            <Button
+              variant={billingInterval === 'year' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setBillingInterval('year')}
+              className="relative"
+              data-testid="button-billing-annual"
+            >
+              Annual
+              <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs px-1.5">
+                Save {annualDiscount}%
+              </Badge>
+            </Button>
+          </div>
         </div>
 
         {user && !subscriptionLoading && subscriptionData && (
@@ -256,21 +299,48 @@ export default function Pricing() {
               )}
 
               {!subscriptionData.isSubscriptionActive && subscriptionData.monthlyPrice > 0 && (
-                <Button 
-                  className="w-full"
-                  onClick={handleSubscribe}
-                  disabled={checkoutMutation.isPending}
-                  data-testid="button-subscribe"
-                >
-                  {checkoutMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Processing...
-                    </>
-                  ) : (
-                    `Subscribe for ${formatPrice(subscriptionData.monthlyPrice)}/month`
-                  )}
-                </Button>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Button
+                      variant={billingInterval === 'month' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setBillingInterval('month')}
+                      className="flex-1"
+                      data-testid="button-interval-monthly"
+                    >
+                      Monthly
+                    </Button>
+                    <Button
+                      variant={billingInterval === 'year' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setBillingInterval('year')}
+                      className="flex-1 relative"
+                      data-testid="button-interval-annual"
+                    >
+                      Annual
+                      <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs px-1">
+                        -{annualDiscount}%
+                      </Badge>
+                    </Button>
+                  </div>
+                  <Button 
+                    className="w-full"
+                    onClick={handleSubscribe}
+                    disabled={checkoutMutation.isPending}
+                    data-testid="button-subscribe"
+                  >
+                    {checkoutMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Processing...
+                      </>
+                    ) : billingInterval === 'year' ? (
+                      `Subscribe for ${formatPrice(getAnnualPrice(subscriptionData.monthlyPrice, annualDiscount))}/year`
+                    ) : (
+                      `Subscribe for ${formatPrice(subscriptionData.monthlyPrice)}/month`
+                    )}
+                  </Button>
+                </div>
               )}
 
               {subscriptionData.isSubscriptionActive && (
@@ -319,6 +389,13 @@ export default function Pricing() {
                   <div className="text-2xl font-bold mb-1">
                     {tier.discountPercent === 100 ? (
                       <span className="text-green-500">FREE</span>
+                    ) : billingInterval === 'year' ? (
+                      <>
+                        <span className="line-through text-muted-foreground text-sm mr-2">
+                          {formatPrice(tier.monthlyPrice * 12)}
+                        </span>
+                        {formatPrice(getAnnualPrice(tier.monthlyPrice, annualDiscount))}
+                      </>
                     ) : tier.discountPercent === 0 ? (
                       formatPrice(tier.monthlyPrice)
                     ) : (
@@ -331,9 +408,21 @@ export default function Pricing() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {tier.discountPercent > 0 && tier.discountPercent < 100 && `${tier.discountPercent}% off`}
                     {tier.discountPercent === 100 && 'Forever free!'}
-                    {tier.discountPercent === 0 && '/month'}
+                    {tier.discountPercent < 100 && billingInterval === 'year' && (
+                      <>
+                        /year
+                        <span className="block text-primary">
+                          ({formatPrice(getAnnualMonthlyEquivalent(tier.monthlyPrice, annualDiscount))}/mo)
+                        </span>
+                      </>
+                    )}
+                    {tier.discountPercent < 100 && billingInterval === 'month' && (
+                      <>
+                        /month
+                        {tier.discountPercent > 0 && <span className="block">{tier.discountPercent}% off</span>}
+                      </>
+                    )}
                   </p>
                 </CardContent>
                 <CardFooter className="pt-2">
