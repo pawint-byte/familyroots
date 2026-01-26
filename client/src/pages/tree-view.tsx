@@ -1520,6 +1520,26 @@ export default function TreeView() {
                           }
                         });
                       
+                      // Co-Parents
+                      memberRelationships
+                        .filter(r => r.relationshipType === "coparent")
+                        .forEach(r => {
+                          const coparent = getMember(r.fromMemberId === selectedMember.id ? r.toMemberId : r.fromMemberId);
+                          if (coparent) {
+                            relationshipItems.push({
+                              id: r.id,
+                              label: "Co-Parent",
+                              personName: getMemberName(coparent),
+                              description: `${getMemberName(coparent)} shares a child with ${selectedMember.firstName}`,
+                              fromMemberId: r.fromMemberId,
+                              toMemberId: r.toMemberId,
+                              relationshipType: r.relationshipType,
+                              qualifier: r.qualifier || null,
+                              otherMemberName: getMemberName(coparent)
+                            });
+                          }
+                        });
+                      
                       return (
                         <div className="space-y-2">
                           {relationshipItems.map((item) => (
