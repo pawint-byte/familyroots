@@ -139,21 +139,44 @@ export default function TreeView() {
     return membersToSearch.find(m => m.id === focusMemberId) || null;
   }, [focusMemberId, treeData?.members, showMergedView, mergedData?.members]);
 
-  // Auto-focus on viewing user's claimed member, or root member when tree loads
+  // Auto-focus on viewing user's member, or root member when tree loads
   useEffect(() => {
-    if (!focusMemberId && treeData?.members && user?.id) {
-      // First, try to find the user's claimed member in this tree
-      const usersMember = treeData.members.find(m => m.claimedByUserId === user.id);
-      if (usersMember) {
-        setFocusMemberId(usersMember.id);
+    if (!focusMemberId && treeData?.members && user) {
+      // Priority 1: Find user's claimed member in this tree
+      const claimedMember = treeData.members.find(m => m.claimedByUserId === user.id);
+      if (claimedMember) {
+        setFocusMemberId(claimedMember.id);
         return;
+      }
+      
+      // Priority 2: For tree owners, find member matching their email
+      if (treeData.tree?.ownerId === user.id && user.email) {
+        const ownerMember = treeData.members.find(m => 
+          m.email?.toLowerCase() === user.email?.toLowerCase()
+        );
+        if (ownerMember) {
+          setFocusMemberId(ownerMember.id);
+          return;
+        }
+      }
+      
+      // Priority 3: Find member matching user's name (for owners)
+      if (treeData.tree?.ownerId === user.id && user.firstName) {
+        const nameMember = treeData.members.find(m => 
+          m.firstName?.toLowerCase() === user.firstName?.toLowerCase() &&
+          (!user.lastName || m.lastName?.toLowerCase() === user.lastName?.toLowerCase())
+        );
+        if (nameMember) {
+          setFocusMemberId(nameMember.id);
+          return;
+        }
       }
     }
     // Fall back to root member
     if (treeData?.tree?.rootMemberId && !focusMemberId) {
       setFocusMemberId(treeData.tree.rootMemberId);
     }
-  }, [treeData?.tree?.rootMemberId, treeData?.members, user?.id]);
+  }, [treeData?.tree?.rootMemberId, treeData?.tree?.ownerId, treeData?.members, user?.id, user?.email, user?.firstName, user?.lastName, focusMemberId]);
 
   // Query collaborator status
   const { data: collaborators } = useQuery<Array<{userId: string; role: string}>>({
