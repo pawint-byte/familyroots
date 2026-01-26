@@ -748,6 +748,7 @@ export default function FamilyTreeVisualization({
     <div
       ref={containerRef}
       className="w-full h-full overflow-hidden cursor-grab active:cursor-grabbing bg-background"
+      style={{ touchAction: 'none' }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

@@ -68,7 +68,14 @@ export default function TreeView() {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isMemberDetailOpen, setIsMemberDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [zoom, setZoom] = useState(1);
+  // Auto-adjust initial zoom for mobile screens
+  const getInitialZoom = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return 0.6; // Start zoomed out on mobile for better overview
+    }
+    return 1;
+  };
+  const [zoom, setZoom] = useState(getInitialZoom);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [newTreeName, setNewTreeName] = useState("");
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -1111,7 +1118,7 @@ export default function TreeView() {
             <Button 
               variant="secondary" 
               size="icon" 
-              onClick={() => setZoom(1)}
+              onClick={() => setZoom(getInitialZoom())}
               data-testid="button-zoom-reset"
               className="h-10 w-10 sm:h-9 sm:w-9"
               aria-label="Reset zoom"
