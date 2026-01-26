@@ -573,7 +573,7 @@ export default function FamilyTreeVisualization({
         className="relative"
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-          transformOrigin: "center center",
+          transformOrigin: "0 0",
           width: `${svgWidth}px`,
           height: `${svgHeight}px`,
           minWidth: "100%",
