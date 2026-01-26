@@ -15,7 +15,7 @@ interface NodePosition {
   x: number;
   y: number;
   member: FamilyMember;
-  branchType: 'focus' | 'parent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'unconnected';
+  branchType: 'focus' | 'parent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'inlaw' | 'inlaw-grandparent' | 'unconnected';
 }
 
 interface BranchLabel {
@@ -33,6 +33,8 @@ const BRANCH_COLORS = {
   grandchild: { line: 'hsl(var(--primary))', bg: 'bg-primary/10 dark:bg-primary/5', border: 'border-primary/30', ring: 'ring-primary/50', label: 'bg-primary' },
   spouse: { line: 'hsl(var(--destructive))', bg: 'bg-destructive/10 dark:bg-destructive/5', border: 'border-destructive/30', ring: 'ring-destructive/50', label: 'bg-destructive' },
   focus: { line: 'hsl(var(--primary))', bg: 'bg-primary/20 dark:bg-primary/10', border: 'border-primary', ring: 'ring-primary', label: 'bg-primary' },
+  inlaw: { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/10 dark:bg-accent/5', border: 'border-accent/30', ring: 'ring-accent/30', label: 'bg-accent' },
+  'inlaw-grandparent': { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/5 dark:bg-accent/5', border: 'border-accent/20', ring: 'ring-accent/20', label: 'bg-accent' },
   unconnected: { line: 'hsl(var(--muted-foreground))', bg: 'bg-muted/30 dark:bg-muted/20', border: 'border-muted-foreground/20', ring: 'ring-muted-foreground/30', label: 'bg-muted-foreground' },
 };
 
@@ -164,16 +166,61 @@ export default function FamilyTreeVisualization({
     placed.add(focusId);
 
     const spouses = spouseMap.get(focusId) || [];
+    const spousePositions: { x: number; y: number; spouseId: string }[] = [];
     spouses.forEach((spouseId, index) => {
       const spouse = deduplicatedMembers.find(m => m.id === spouseId);
       if (spouse && !placed.has(spouseId)) {
+        const spouseX = centerX + (nodeWidth + horizontalGap) * (index + 1);
         positioned.push({
-          x: centerX + (nodeWidth + horizontalGap) * (index + 1),
+          x: spouseX,
           y: centerY,
           member: spouse,
           branchType: 'spouse'
         });
         placed.add(spouseId);
+        spousePositions.push({ x: spouseX, y: centerY, spouseId });
+      }
+    });
+    
+    // Show in-laws (spouse's parents) at the parent level on the spouse's side
+    spousePositions.forEach(({ x: spouseX, spouseId }) => {
+      const spouseParents = childParentMap.get(spouseId) || [];
+      if (spouseParents.length > 0) {
+        const inLawY = centerY - verticalGap - nodeHeight;
+        const inLawStartX = spouseX - ((spouseParents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+        
+        spouseParents.forEach((inLawId, inLawIndex) => {
+          const inLaw = deduplicatedMembers.find(m => m.id === inLawId);
+          if (inLaw && !placed.has(inLawId)) {
+            positioned.push({
+              x: inLawStartX + inLawIndex * (nodeWidth + horizontalGap / 2),
+              y: inLawY,
+              member: inLaw,
+              branchType: 'inlaw' // Use distinct type for in-laws (not 'parent')
+            });
+            placed.add(inLawId);
+            
+            // Also show in-law's parents (spouse's grandparents)
+            const inLawGrandparents = childParentMap.get(inLawId) || [];
+            if (inLawGrandparents.length > 0) {
+              const ilGpY = inLawY - verticalGap - nodeHeight;
+              const ilGpStartX = inLawStartX + inLawIndex * (nodeWidth + horizontalGap / 2) - ((inLawGrandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+              
+              inLawGrandparents.forEach((ilGpId, ilGpIndex) => {
+                const ilGp = deduplicatedMembers.find(m => m.id === ilGpId);
+                if (ilGp && !placed.has(ilGpId)) {
+                  positioned.push({
+                    x: ilGpStartX + ilGpIndex * (nodeWidth + horizontalGap / 2),
+                    y: ilGpY,
+                    member: ilGp,
+                    branchType: 'inlaw-grandparent'
+                  });
+                  placed.add(ilGpId);
+                }
+              });
+            }
+          }
+        });
       }
     });
 
@@ -209,6 +256,43 @@ export default function FamilyTreeVisualization({
                 branchType: 'grandparent'
               });
               placed.add(gpId);
+            }
+          });
+          
+          // Also show the parent's spouse (co-parent not yet placed) at parent level
+          const parentSpouses = spouseMap.get(parentId) || [];
+          parentSpouses.forEach((psId) => {
+            const ps = deduplicatedMembers.find(m => m.id === psId);
+            if (ps && !placed.has(psId)) {
+              // Find position next to this parent
+              const lastParentX = parentStartX + (parents.length - 1) * (nodeWidth + horizontalGap);
+              positioned.push({
+                x: lastParentX + (nodeWidth + horizontalGap),
+                y: parentY,
+                member: ps,
+                branchType: 'parent'
+              });
+              placed.add(psId);
+              
+              // Show co-parent's parents as grandparents too (in-laws from the other side)
+              const coParentGrandparents = childParentMap.get(psId) || [];
+              if (coParentGrandparents.length > 0) {
+                const cpGpY = parentY - verticalGap - nodeHeight;
+                const cpGpStartX = lastParentX + (nodeWidth + horizontalGap) - ((coParentGrandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+                
+                coParentGrandparents.forEach((cpGpId, cpGpIndex) => {
+                  const cpGp = deduplicatedMembers.find(m => m.id === cpGpId);
+                  if (cpGp && !placed.has(cpGpId)) {
+                    positioned.push({
+                      x: cpGpStartX + cpGpIndex * (nodeWidth + horizontalGap / 2),
+                      y: cpGpY,
+                      member: cpGp,
+                      branchType: 'grandparent'
+                    });
+                    placed.add(cpGpId);
+                  }
+                });
+              }
             }
           });
         }
@@ -542,8 +626,63 @@ export default function FamilyTreeVisualization({
               strokeWidth="2"
             />
           );
+          
+          // Connect spouse to their parents (in-laws) - shown at parent level
+          const { childParentMap } = getRelationshipMaps();
+          const spouseParents = childParentMap.get(pos.member.id) || [];
+          spouseParents.forEach(spId => {
+            const spParentPos = positions.find(p => p.member.id === spId);
+            if (spParentPos) {
+              const spFromX = pos.x + nodeWidth / 2;
+              const spFromY = pos.y; // Top of spouse
+              const spToX = spParentPos.x + nodeWidth / 2;
+              const spToY = spParentPos.y + nodeHeight; // Bottom of in-law parent
+              
+              lines.push(
+                <path
+                  key={`spouse-to-inlaw-${pos.member.id}-${spId}`}
+                  d={getCurvedPath(spToX, spToY, spFromX, spFromY, 'vertical')}
+                  stroke={BRANCH_COLORS.inlaw.line}
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                  opacity="0.6"
+                  strokeDasharray="4 2"
+                />
+              );
+            }
+          });
         }
       }
+    });
+
+    // === IN-LAW GRANDPARENTS: Lines from in-law grandparent to in-law ===
+    const inlawGrandparentPositions = positions.filter(p => p.branchType === 'inlaw-grandparent');
+    const inlawPositions = positions.filter(p => p.branchType === 'inlaw');
+    inlawGrandparentPositions.forEach(ilGpPos => {
+      const { childParentMap } = getRelationshipMaps();
+      inlawPositions.forEach(inlawPos => {
+        const inlawParents = childParentMap.get(inlawPos.member.id) || [];
+        if (inlawParents.includes(ilGpPos.member.id)) {
+          const fromX = ilGpPos.x + nodeWidth / 2;
+          const fromY = ilGpPos.y + nodeHeight;
+          const toX = inlawPos.x + nodeWidth / 2;
+          const toY = inlawPos.y;
+          
+          lines.push(
+            <path
+              key={`inlaw-gp-to-inlaw-${ilGpPos.member.id}-${inlawPos.member.id}`}
+              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+              stroke={BRANCH_COLORS['inlaw-grandparent'].line}
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              opacity="0.5"
+              strokeDasharray="4 2"
+            />
+          );
+        }
+      });
     });
 
     return lines;
