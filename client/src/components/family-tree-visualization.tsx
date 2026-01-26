@@ -16,7 +16,7 @@ interface NodePosition {
   x: number;
   y: number;
   member: FamilyMember;
-  branchType: 'focus' | 'parent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'inlaw' | 'inlaw-grandparent' | 'unconnected';
+  branchType: 'focus' | 'parent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'unconnected';
 }
 
 interface BranchLabel {
@@ -33,6 +33,7 @@ const BRANCH_COLORS = {
   child: { line: 'hsl(var(--primary))', bg: 'bg-primary/10 dark:bg-primary/5', border: 'border-primary/30', ring: 'ring-primary/50', label: 'bg-primary' },
   grandchild: { line: 'hsl(var(--primary))', bg: 'bg-primary/10 dark:bg-primary/5', border: 'border-primary/30', ring: 'ring-primary/50', label: 'bg-primary' },
   spouse: { line: 'hsl(340 80% 60%)', bg: 'bg-pink-100/50 dark:bg-pink-900/20', border: 'border-pink-300 dark:border-pink-700', ring: 'ring-pink-400/50', label: 'bg-pink-500' },
+  coparent: { line: 'hsl(280 60% 50%)', bg: 'bg-purple-100/50 dark:bg-purple-900/20', border: 'border-purple-300 dark:border-purple-700', ring: 'ring-purple-400/50', label: 'bg-purple-500' },
   focus: { line: 'hsl(var(--primary))', bg: 'bg-primary/20 dark:bg-primary/10', border: 'border-primary', ring: 'ring-primary', label: 'bg-primary' },
   inlaw: { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/10 dark:bg-accent/5', border: 'border-accent/30', ring: 'ring-accent/30', label: 'bg-accent' },
   'inlaw-grandparent': { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/5 dark:bg-accent/5', border: 'border-accent/20', ring: 'ring-accent/20', label: 'bg-accent' },
@@ -191,8 +192,33 @@ export default function FamilyTreeVisualization({
     positioned.push({ x: centerX, y: centerY, member: focusMember, branchType: 'focus' });
     placed.add(focusId);
 
+    // Get explicitly defined spouses
     const spouses = spouseMap.get(focusId) || [];
+    
+    // Also find co-parents: other parents of focus person's children who aren't spouses
+    // These are people who share a child with focus but weren't defined as spouse
+    const focusChildren = parentChildMap.get(focusId) || [];
+    const coParentIds = new Set<string>();
+    focusChildren.forEach(childId => {
+      const childParents = childParentMap.get(childId) || [];
+      childParents.forEach(parentId => {
+        // Add if not the focus person and not already a defined spouse
+        if (parentId !== focusId && !spouses.includes(parentId)) {
+          coParentIds.add(parentId);
+        }
+      });
+    });
+    const coParents = Array.from(coParentIds);
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Tree Viz] Spouses (explicit):', spouses);
+      console.log('[Tree Viz] Co-Parents (inferred):', coParents);
+    }
+    
     const spousePositions: { x: number; y: number; spouseId: string }[] = [];
+    const coParentPositions: { x: number; y: number; coParentId: string }[] = [];
+    
+    // Place explicit spouses first
     spouses.forEach((spouseId, index) => {
       const spouse = deduplicatedMembers.find(m => m.id === spouseId);
       if (spouse && !placed.has(spouseId)) {
@@ -205,6 +231,23 @@ export default function FamilyTreeVisualization({
         });
         placed.add(spouseId);
         spousePositions.push({ x: spouseX, y: centerY, spouseId });
+      }
+    });
+    
+    // Place co-parents after spouses (with offset)
+    const coParentStartOffset = spouses.length + 1;
+    coParents.forEach((coParentId, index) => {
+      const coParent = deduplicatedMembers.find(m => m.id === coParentId);
+      if (coParent && !placed.has(coParentId)) {
+        const cpX = centerX + (nodeWidth + horizontalGap) * (coParentStartOffset + index);
+        positioned.push({
+          x: cpX,
+          y: centerY,
+          member: coParent,
+          branchType: 'coparent'
+        });
+        placed.add(coParentId);
+        coParentPositions.push({ x: cpX, y: centerY, coParentId });
       }
     });
     
@@ -757,6 +800,47 @@ export default function FamilyTreeVisualization({
       }
     });
 
+    // === CO-PARENTS: Purple line from focus to co-parent (different from spouse) ===
+    positions.forEach((pos) => {
+      if (pos.branchType === 'coparent') {
+        const focusPos = positions.find(p => p.branchType === 'focus');
+        if (focusPos) {
+          const fromX = focusPos.x + nodeWidth;
+          const fromY = focusPos.y + nodeHeight / 2;
+          const toX = pos.x;
+          const toY = pos.y + nodeHeight / 2;
+          
+          lines.push(
+            <path
+              key={`coparent-${pos.member.id}`}
+              d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
+              stroke={BRANCH_COLORS.coparent.line}
+              strokeWidth="3"
+              fill="none"
+              strokeLinecap="round"
+              opacity="0.8"
+              strokeDasharray="6 4"
+              className="transition-all duration-300"
+            />
+          );
+          
+          const markerX = (fromX + toX) / 2;
+          const markerY = fromY;
+          lines.push(
+            <circle
+              key={`coparent-marker-${pos.member.id}`}
+              cx={markerX}
+              cy={markerY}
+              r="6"
+              fill={BRANCH_COLORS.coparent.line}
+              stroke="hsl(var(--background))"
+              strokeWidth="2"
+            />
+          );
+        }
+      }
+    });
+
     // === IN-LAW GRANDPARENTS: Lines from in-law grandparent to in-law ===
     const inlawGrandparentPositions = positions.filter(p => p.branchType === 'inlaw-grandparent');
     const inlawPositions = positions.filter(p => p.branchType === 'inlaw');
@@ -940,7 +1024,8 @@ export default function FamilyTreeVisualization({
                     className={`mt-2 px-2 py-0.5 rounded-full text-[9px] font-medium uppercase tracking-wider ${
                       pos.member.isUnknown ? 'bg-muted text-muted-foreground/70' :
                       pos.branchType === 'focus' ? 'bg-primary/20 text-primary' :
-                      pos.branchType === 'spouse' ? 'bg-destructive/20 text-destructive' :
+                      pos.branchType === 'spouse' ? 'bg-pink-500/20 text-pink-700 dark:text-pink-400' :
+                      pos.branchType === 'coparent' ? 'bg-purple-500/20 text-purple-700 dark:text-purple-400' :
                       pos.branchType === 'child' || pos.branchType === 'grandchild' ? 'bg-primary/20 text-primary' :
                       pos.branchType === 'unconnected' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' :
                       'bg-muted text-muted-foreground'
@@ -948,6 +1033,7 @@ export default function FamilyTreeVisualization({
                   >
                     {pos.member.isUnknown ? 'placeholder' : 
                      pos.branchType === 'focus' ? 'You' : 
+                     pos.branchType === 'coparent' ? 'Co-Parent' :
                      pos.branchType === 'unconnected' ? 'Add Relationship' : 
                      pos.branchType}
                   </div>
