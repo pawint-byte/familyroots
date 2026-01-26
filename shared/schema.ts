@@ -66,6 +66,7 @@ export const familyMembers = pgTable("family_members", {
   treeId: varchar("tree_id").notNull(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name"),
+  suffix: text("suffix"), // Jr, Sr, III, etc.
   nickname: text("nickname"),
   email: text("email"),
   gender: genderEnum("gender"),

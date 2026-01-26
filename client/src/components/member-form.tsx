@@ -18,6 +18,7 @@ const memberFormSchema = z.object({
   unknownLabel: z.string().optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
+  suffix: z.string().optional(), // Jr, Sr, III, etc.
   nickname: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
   gender: z.enum(["male", "female", "other"]).optional(),
@@ -66,6 +67,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
       unknownLabel: (initialData as any)?.unknownLabel || "",
       firstName: initialData?.firstName || "",
       lastName: initialData?.lastName || "",
+      suffix: (initialData as any)?.suffix || "",
       nickname: (initialData as any)?.nickname || "",
       email: (initialData as any)?.email || "",
       gender: initialData?.gender,
@@ -183,7 +185,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
           />
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <FormField
                 control={form.control}
                 name="firstName"
@@ -205,6 +207,19 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
                     <FormLabel>Last Name</FormLabel>
                     <FormControl>
                       <Input placeholder="Doe" {...field} data-testid="input-last-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="suffix"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Suffix</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Jr, Sr, III" {...field} data-testid="input-suffix" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

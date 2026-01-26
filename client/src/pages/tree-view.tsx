@@ -790,7 +790,7 @@ export default function TreeView() {
                     <div className="flex items-center gap-2 min-w-0">
                       <Target className="h-4 w-4 shrink-0 text-primary" />
                       <span className="text-sm font-medium truncate">
-                        {focusMember ? `${focusMember.firstName} ${focusMember.lastName}` : "Select Focus"}
+                        {focusMember ? `${focusMember.firstName} ${focusMember.lastName || ''}${focusMember.suffix ? ` ${focusMember.suffix}` : ''}` : "Select Focus"}
                       </span>
                     </div>
                     {isFocusPanelCollapsed ? (
@@ -1021,7 +1021,7 @@ export default function TreeView() {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold truncate">
-                            {member.firstName} {member.lastName || ""}
+                            {member.firstName} {member.lastName || ""}{member.suffix ? ` ${member.suffix}` : ""}
                           </h3>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             {member.birthDate && (
@@ -1197,7 +1197,7 @@ export default function TreeView() {
                   </Avatar>
                   <div className="flex-1">
                     <SheetTitle className="font-serif text-xl mb-1">
-                      {selectedMember.firstName} {selectedMember.lastName || ""}
+                      {selectedMember.firstName} {selectedMember.lastName || ""}{selectedMember.suffix ? ` ${selectedMember.suffix}` : ""}
                     </SheetTitle>
                     <div className="flex items-center gap-2 flex-wrap">
                       {selectedMember.gender && (
@@ -1380,7 +1380,7 @@ export default function TreeView() {
                     memberId={selectedMember.id}
                     treeId={treeData.tree.id}
                     canEdit={canEdit}
-                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '')}
+                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '') + (selectedMember.suffix ? ` ${selectedMember.suffix}` : '')}
                   />
                 )}
 
@@ -1433,7 +1433,7 @@ export default function TreeView() {
                         );
                       }
                       const getMember = (id: string) => treeData.members.find(m => m.id === id);
-                      const getMemberName = (m: FamilyMember | undefined) => m ? (m.lastName ? `${m.firstName} ${m.lastName}` : m.firstName) : "Unknown";
+                      const getMemberName = (m: FamilyMember | undefined) => m ? (m.lastName ? `${m.firstName} ${m.lastName}` : m.firstName) + (m.suffix ? ` ${m.suffix}` : '') : "Unknown";
                       
                       // Build list of individual relationships with their IDs
                       const relationshipItems: { id: string; label: string; personName: string; description: string; fromMemberId: string; toMemberId: string; relationshipType: string; otherMemberName: string }[] = [];

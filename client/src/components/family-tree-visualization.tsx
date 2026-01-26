@@ -1304,6 +1304,7 @@ export default function FamilyTreeVisualization({
                   )}
                   <h3 className={`font-semibold text-sm truncate w-full ${pos.member.isUnknown ? 'text-muted-foreground italic' : 'text-foreground'}`}>
                     {pos.member.isUnknown ? (pos.member.unknownLabel || 'Unknown') : pos.member.firstName}
+                    {pos.member.suffix && ` ${pos.member.suffix}`}
                   </h3>
                   {!pos.member.isUnknown && (
                     <p className="text-xs text-muted-foreground truncate w-full">

@@ -118,7 +118,8 @@ export function AddRelationship({
   });
 
   const getMemberName = (member: FamilyMember) => {
-    return member.lastName ? `${member.firstName} ${member.lastName}` : member.firstName;
+    const baseName = member.lastName ? `${member.firstName} ${member.lastName}` : member.firstName;
+    return member.suffix ? `${baseName} ${member.suffix}` : baseName;
   };
 
   if (!canEdit) return null;

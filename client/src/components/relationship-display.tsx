@@ -192,7 +192,7 @@ export function FocusMemberSelector({
         <option value="">None (click to select)</option>
         {members.map((member) => (
           <option key={member.id} value={member.id}>
-            {member.firstName} {member.lastName}
+            {member.firstName} {member.lastName}{member.suffix ? ` ${member.suffix}` : ''}
           </option>
         ))}
       </select>
