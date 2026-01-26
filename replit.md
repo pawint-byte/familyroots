@@ -90,4 +90,10 @@ The family tree visualization (`client/src/components/family-tree-visualization.
 
 4. **Centering Logic**: The useEffect that centers on focusMemberId calculates offset based on container dimensions and node positions.
 
+5. **Layout Rules** (Updated Jan 2026):
+   - **Blood relatives on vertical line**: Grandparents → Parents → Focus → Children → Grandchildren
+   - **Siblings**: ALL positioned to the LEFT of focus person
+   - **Spouse/Partner**: Positioned to the RIGHT of focus person
+   - This creates clear visual separation between bloodline and marriage connections
+
 **Why this matters**: Changes to layout (min-h-screen vs h-screen, overflow settings, transform origin) can break the alignment between connection lines and member cards. Always test tree visualization on both desktop and mobile after any layout changes.
