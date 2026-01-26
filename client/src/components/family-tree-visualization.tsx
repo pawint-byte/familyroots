@@ -444,15 +444,29 @@ export default function FamilyTreeVisualization({
   }, [calculateHierarchicalPositions]);
 
   useEffect(() => {
-    if (!focusMemberId || positions.length === 0 || !containerRef.current) return;
+    if (positions.length === 0 || !containerRef.current) return;
     
-    const focusedPosition = positions.find(p => p.member.id === focusMemberId);
-    if (!focusedPosition) return;
+    // Find the focused position, or fall back to the focus branch, or first position
+    let targetPosition = focusMemberId 
+      ? positions.find(p => p.member.id === focusMemberId)
+      : null;
+    
+    if (!targetPosition) {
+      // Try to find the focus branch member (main person in tree)
+      targetPosition = positions.find(p => p.branchType === 'focus');
+    }
+    
+    if (!targetPosition && positions.length > 0) {
+      // Fall back to first position to ensure tree is visible
+      targetPosition = positions[0];
+    }
+    
+    if (!targetPosition) return;
 
     const containerRect = containerRef.current.getBoundingClientRect();
     
-    const targetX = containerRect.width / 2 - (focusedPosition.x + nodeWidth / 2) * zoom;
-    const targetY = containerRect.height / 2 - (focusedPosition.y + nodeHeight / 2) * zoom;
+    const targetX = containerRect.width / 2 - (targetPosition.x + nodeWidth / 2) * zoom;
+    const targetY = containerRect.height / 2 - (targetPosition.y + nodeHeight / 2) * zoom;
     
     setOffset({ x: targetX, y: targetY });
   }, [focusMemberId, positions, zoom, nodeWidth, nodeHeight]);
