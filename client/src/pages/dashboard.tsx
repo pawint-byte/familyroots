@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import { PendingClaimsSection } from "@/components/pending-claims";
 import { PendingCustodianshipSection } from "@/components/pending-custodianship";
+import { PendingMatchesSection } from "@/components/pending-matches-section";
 import { PendingConnectionsSection } from "@/components/pending-connections";
 import { MyConnectionsSection } from "@/components/my-connections";
 import { ConnectTreesSection } from "@/components/connect-trees-section";
@@ -716,6 +717,11 @@ export default function Dashboard() {
         {/* Pending Custodianship Requests Section */}
         <div className="mb-8">
           <PendingCustodianshipSection />
+        </div>
+
+        {/* Potential Family Connections / Cross-Tree Matches */}
+        <div className="mb-8">
+          <PendingMatchesSection />
         </div>
 
         {/* Referral & Invite Section */}

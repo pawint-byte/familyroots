@@ -505,6 +505,78 @@ export async function registerRoutes(
         }
       }
 
+      // Trigger cross-tree match detection in the background (non-blocking)
+      (async () => {
+        try {
+          const { findPotentialCrossTreeMatches } = await import('./crossTreeMatching');
+          const matches = await findPotentialCrossTreeMatches(member, [treeId]);
+          
+          if (matches.length > 0) {
+            console.log(`Found ${matches.length} potential cross-tree matches for ${member.firstName} ${member.lastName}`);
+            
+            // Create pending match records for high-confidence matches
+            for (const match of matches.filter(m => m.score >= 0.6)) {
+              try {
+                // Check if this match already exists
+                const existingMatches = await storage.getCrossTreeMatchesForTree(treeId);
+                const alreadyExists = existingMatches.some(
+                  existing => 
+                    (existing.member1Id === member.id && existing.member2Id === match.memberId) ||
+                    (existing.member2Id === member.id && existing.member1Id === match.memberId)
+                );
+                
+                if (!alreadyExists) {
+                  const matchMember = await storage.getMember(match.memberId);
+                  const matchTree = matchMember ? await storage.getTree(matchMember.treeId) : null;
+                  
+                  await storage.createCrossTreeMatch({
+                    member1Id: member.id,
+                    tree1Id: treeId,
+                    member2Id: match.memberId,
+                    tree2Id: matchMember?.treeId || '',
+                    matchType: match.matchType,
+                    matchSource: 'auto_detection',
+                    matchScore: match.score,
+                    status: 'pending',
+                  });
+                  
+                  console.log(`Created cross-tree match record: ${member.firstName} <-> ${matchMember?.firstName}`);
+                  
+                  // Send email notification to tree owner
+                  if (matchTree && tree) {
+                    const matchTreeOwner = await storage.getUser(matchTree.ownerId);
+                    if (matchTreeOwner?.email) {
+                      const { sendCrossTreeMatchNotification } = await import('./lib/email');
+                      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+                        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+                        : process.env.REPL_SLUG 
+                          ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+                          : 'https://familyroots.replit.app';
+                      
+                      await sendCrossTreeMatchNotification(
+                        matchTreeOwner.email,
+                        matchTreeOwner.firstName || 'there',
+                        `${matchMember?.firstName} ${matchMember?.lastName}`,
+                        matchTree.name,
+                        `${member.firstName} ${member.lastName}`,
+                        tree.name,
+                        match.score,
+                        `${baseUrl}/dashboard`
+                      );
+                      console.log(`Sent match notification to ${matchTreeOwner.email}`);
+                    }
+                  }
+                }
+              } catch (matchError) {
+                console.error('Error creating cross-tree match:', matchError);
+              }
+            }
+          }
+        } catch (matchError) {
+          console.error('Error running cross-tree match detection:', matchError);
+        }
+      })();
+
       // Return member with optional email warning
       res.status(201).json({ 
         ...member, 
@@ -7068,6 +7140,74 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error rejecting cross-tree match:", error);
       res.status(500).json({ message: "Failed to reject match" });
+    }
+  });
+
+  // Get all pending cross-tree matches for the current user across all their trees
+  app.get("/api/user/pending-matches", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get all trees owned by or accessible to the user
+      const ownedTrees = await storage.getTrees(userId);
+      const collaborations = await storage.getCollaboratorsByUser(userId);
+      const collabTreeIds = collaborations.map(c => c.treeId);
+      
+      const allTreeIds = [...ownedTrees.map(t => t.id), ...collabTreeIds];
+      
+      // Get all pending matches for these trees
+      const allMatches: any[] = [];
+      for (const treeId of allTreeIds) {
+        const matches = await storage.getCrossTreeMatchesForTree(treeId);
+        const pendingMatches = matches.filter(m => m.status === 'pending');
+        allMatches.push(...pendingMatches);
+      }
+      
+      // Deduplicate matches (same match might appear for both trees)
+      const uniqueMatches = Array.from(new Map(allMatches.map(m => [m.id, m])).values());
+      
+      // Enrich with member and tree info
+      const enrichedMatches = await Promise.all(uniqueMatches.map(async (match) => {
+        const member1 = await storage.getMember(match.member1Id);
+        const member2 = await storage.getMember(match.member2Id);
+        const tree1 = await storage.getTree(match.tree1Id);
+        const tree2 = await storage.getTree(match.tree2Id);
+        
+        // Determine which tree belongs to the user
+        const userOwnsTrees = ownedTrees.map(t => t.id);
+        const isTree1Yours = userOwnsTrees.includes(match.tree1Id) || collabTreeIds.includes(match.tree1Id);
+        const isTree2Yours = userOwnsTrees.includes(match.tree2Id) || collabTreeIds.includes(match.tree2Id);
+        
+        return {
+          ...match,
+          member1: member1 ? { 
+            id: member1.id, 
+            firstName: member1.firstName, 
+            lastName: member1.lastName,
+            birthDate: member1.birthDate,
+            photoUrl: member1.photoUrl
+          } : null,
+          member2: member2 ? { 
+            id: member2.id, 
+            firstName: member2.firstName, 
+            lastName: member2.lastName,
+            birthDate: member2.birthDate,
+            photoUrl: member2.photoUrl
+          } : null,
+          tree1: tree1 ? { id: tree1.id, name: tree1.name } : null,
+          tree2: tree2 ? { id: tree2.id, name: tree2.name } : null,
+          isTree1Yours,
+          isTree2Yours,
+        };
+      }));
+      
+      // Sort by match score descending
+      enrichedMatches.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
+      
+      res.json(enrichedMatches);
+    } catch (error) {
+      console.error("Error fetching user pending matches:", error);
+      res.status(500).json({ message: "Failed to fetch pending matches" });
     }
   });
 

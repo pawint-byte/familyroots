@@ -740,3 +740,76 @@ export async function sendFamilyReferralInvite(
   `;
   return sendEmail(to, subject, html);
 }
+
+// Notify user about potential cross-tree match
+export async function sendCrossTreeMatchNotification(
+  to: string,
+  userName: string,
+  yourMemberName: string,
+  yourTreeName: string,
+  matchedMemberName: string,
+  matchedTreeName: string,
+  matchScore: number,
+  dashboardLink: string
+) {
+  const confidencePercent = Math.round(matchScore * 100);
+  const subject = `Potential family connection found on FamilyRoots`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .match-card { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border: 1px solid #e5e7eb; }
+        .match-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .confidence { background: ${matchScore >= 0.8 ? '#dcfce7' : matchScore >= 0.6 ? '#fef9c3' : '#f3f4f6'}; color: ${matchScore >= 0.8 ? '#166534' : matchScore >= 0.6 ? '#854d0e' : '#374151'}; padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+        .person { padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+        .person:last-child { border-bottom: none; }
+        .person-name { font-weight: 600; color: #4F46E5; }
+        .tree-name { font-size: 14px; color: #6b7280; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 14px 35px; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 600; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Potential Family Connection Found</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${userName},</p>
+        <p>We found someone in another family tree who might be the same person as someone in your tree. Take a look and let us know if they match!</p>
+        
+        <div class="match-card">
+          <div class="match-header">
+            <span style="font-weight: 600;">Potential Match</span>
+            <span class="confidence">${confidencePercent}% match</span>
+          </div>
+          <div class="person">
+            <div class="person-name">${yourMemberName}</div>
+            <div class="tree-name">From your tree: ${yourTreeName}</div>
+          </div>
+          <div style="text-align: center; padding: 10px; color: #9ca3af;">may be the same as</div>
+          <div class="person">
+            <div class="person-name">${matchedMemberName}</div>
+            <div class="tree-name">From tree: ${matchedTreeName}</div>
+          </div>
+        </div>
+        
+        <p>If this is the same person, connecting the trees will help both families discover more of their shared history.</p>
+        
+        <p style="text-align: center;">
+          <a href="${dashboardLink}" class="button">Review Match</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this because you have match notifications enabled.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
