@@ -53,6 +53,8 @@ PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for sc
 - **Progressive Web App (PWA)**: Full PWA support for mobile installation and offline caching.
 - **Google Analytics**: Optional integration for user engagement tracking.
 - **Reddit Pixel**: Conversion tracking for Reddit Ads campaigns (ID: a2_iepozq36wg7a). Tracks page visits and sign-up conversions.
+- **Discord Integration**: Automated notifications for new signups, tree creation, and milestone achievements sent to Discord community channel.
+- **Referral System**: User referral tracking with unique codes (format: FR{userId}{timestamp}), click tracking, and completion stats displayed on dashboard. Referral codes captured from ?ref= URL parameter and completed on signup.
 - **Automatic Maintenance Mode**: User-friendly maintenance page displayed during server unavailability with auto-retry.
 - **My Family Connections**: Dashboard section displaying approved user-to-user connections with relationship badges.
 - **Single Source of Truth (Profile Sync)**: Claimed users manage their canonical profile, syncing personal data across all claimed profiles in family trees.

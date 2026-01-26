@@ -78,6 +78,7 @@ import {
   getAllVideos, getVideoById, deleteVideo 
 } from "./heygen";
 import { postToBluesky, testBlueskyConnection } from "./bluesky";
+import { testDiscordConnection, sendDiscordNotification, notifyNewSignup, notifyNewTree, notifyMilestone } from "./discord";
 import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification } from "./lib/email";
 import { insertAccountHeirSchema } from "@shared/schema";
 import { printfulService } from "./printful";
@@ -294,6 +295,11 @@ export async function registerRoutes(
       
       const data = insertFamilyTreeSchema.parse({ ...req.body, ownerId: userId });
       const tree = await storage.createTree(data);
+      
+      // Send Discord notification for new tree (fire and forget)
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0] || 'familyroots.replit.app'}`;
+      notifyNewTree(tree.name, user?.firstName || 'A user', baseUrl).catch(() => {});
+      
       res.status(201).json(tree);
     } catch (error) {
       console.error("Error creating tree:", error);
@@ -4165,6 +4171,100 @@ export async function registerRoutes(
     }
   });
 
+  // Referral routes
+  
+  // Get user's referral code and stats
+  app.get("/api/referrals/my", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Check if user already has a referral code
+      let userReferrals = await storage.getReferralsByUser(userId);
+      
+      // If no referral code exists, create one
+      if (userReferrals.length === 0) {
+        const code = `FR${userId.slice(0, 6).toUpperCase()}${Date.now().toString(36).toUpperCase()}`;
+        await storage.createReferral(userId, code);
+        userReferrals = await storage.getReferralsByUser(userId);
+      }
+      
+      const stats = await storage.getUserReferralStats(userId);
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0] || 'familyroots.replit.app'}`;
+      const referralLink = `${baseUrl}/?ref=${userReferrals[0]?.referralCode}`;
+      
+      res.json({
+        referralCode: userReferrals[0]?.referralCode,
+        referralLink,
+        ...stats,
+        referrals: userReferrals.map(r => ({
+          id: r.id,
+          status: r.status,
+          clickCount: r.clickCount,
+          completedAt: r.completedAt,
+          createdAt: r.createdAt,
+        }))
+      });
+    } catch (error: any) {
+      console.error("Error getting referrals:", error);
+      res.status(500).json({ message: "Failed to get referral info" });
+    }
+  });
+  
+  // Track referral link click (public)
+  app.post("/api/referrals/click/:code", async (req, res) => {
+    try {
+      const { code } = req.params;
+      if (!code || code.length < 3) {
+        return res.status(400).json({ message: "Invalid referral code" });
+      }
+      const referral = await storage.getReferralByCode(code);
+      if (!referral) {
+        return res.status(404).json({ message: "Referral code not found" });
+      }
+      await storage.incrementReferralClick(code);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to track click" });
+    }
+  });
+  
+  // Complete a referral (called when new user signs up with referral code)
+  app.post("/api/referrals/complete", isAuthenticated, async (req: any, res) => {
+    try {
+      const { code } = req.body;
+      const userId = req.user.claims.sub;
+      
+      if (!code) {
+        return res.status(400).json({ message: "Referral code required" });
+      }
+      
+      const referral = await storage.getReferralByCode(code);
+      if (!referral) {
+        return res.status(404).json({ message: "Invalid referral code" });
+      }
+      
+      if (referral.referrerUserId === userId) {
+        return res.status(400).json({ message: "Cannot refer yourself" });
+      }
+      
+      if (referral.status !== "pending") {
+        return res.status(400).json({ message: "Referral already used" });
+      }
+      
+      // Check if this user has already completed any referral (prevent gaming)
+      const existingCompletion = await storage.hasUserCompletedAnyReferral(userId);
+      if (existingCompletion) {
+        return res.status(400).json({ message: "You have already used a referral code" });
+      }
+      
+      const completed = await storage.completeReferral(code, userId);
+      res.json({ success: true, referral: completed });
+    } catch (error: any) {
+      console.error("Error completing referral:", error);
+      res.status(500).json({ message: "Failed to complete referral" });
+    }
+  });
+
   // Create tiered subscription checkout
   app.post("/api/subscription/checkout", isAuthenticated, async (req: any, res) => {
     try {
@@ -4291,6 +4391,30 @@ export async function registerRoutes(
     try {
       const result = await testBlueskyConnection();
       res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Test Discord connection
+  app.get("/api/admin/test-discord", isAuthenticated, async (req: any, res) => {
+    try {
+      const result = await testDiscordConnection();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Send Discord notification (admin only)
+  app.post("/api/admin/discord/notify", isAuthenticated, async (req: any, res) => {
+    try {
+      const { channelId, message, embed } = req.body;
+      if (!channelId || !message) {
+        return res.status(400).json({ message: "channelId and message are required" });
+      }
+      await sendDiscordNotification({ channelId, message, embed });
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }

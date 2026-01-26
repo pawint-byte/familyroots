@@ -27,6 +27,7 @@ import { MyConnectionsSection } from "@/components/my-connections";
 import { ConnectTreesSection } from "@/components/connect-trees-section";
 import { NetworkRequestsSection } from "@/components/network-requests-section";
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
+import { ReferralSection } from "@/components/referral-section";
 import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
@@ -706,6 +707,11 @@ export default function Dashboard() {
         {/* Pending Custodianship Requests Section */}
         <div className="mb-8">
           <PendingCustodianshipSection />
+        </div>
+
+        {/* Referral Section */}
+        <div className="mb-8">
+          <ReferralSection />
         </div>
 
         {isLoading ? (

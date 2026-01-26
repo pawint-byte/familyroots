@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,10 +10,23 @@ import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 import { QRCodeSVG } from "qrcode.react";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Landing() {
   const [, navigate] = useLocation();
   const { t } = useI18n();
+
+  // Capture referral code from URL and store in localStorage
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get("ref");
+    if (refCode) {
+      localStorage.setItem("referralCode", refCode);
+      // Track the click
+      apiRequest("POST", `/api/referrals/click/${refCode}`).catch(() => {});
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <SEO

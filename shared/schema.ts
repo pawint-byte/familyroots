@@ -1110,3 +1110,25 @@ export type InsertUserConnection = z.infer<typeof insertUserConnectionSchema>;
 
 export type MemberMergeHistory = typeof memberMergeHistory.$inferSelect;
 export type InsertMemberMergeHistory = z.infer<typeof insertMemberMergeHistorySchema>;
+
+// Referral tracking table
+export const referrals = pgTable("referrals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerUserId: varchar("referrer_user_id").notNull(), // User who shared the referral
+  referralCode: varchar("referral_code").notNull().unique(), // Unique code for tracking
+  referredUserId: varchar("referred_user_id"), // User who signed up (null until signup)
+  status: text("status").default("pending").notNull(), // pending, completed, rewarded
+  rewardType: text("reward_type"), // e.g., "discount", "free_month", etc.
+  rewardAppliedAt: timestamp("reward_applied_at"),
+  clickCount: integer("click_count").default(0).notNull(), // How many times link was clicked
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"), // When the referred user signed up
+});
+
+export const insertReferralSchema = createInsertSchema(referrals).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Referral = typeof referrals.$inferSelect;
+export type InsertReferral = z.infer<typeof insertReferralSchema>;

@@ -6,7 +6,7 @@ import {
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
   giftRegistries, giftRegistryItems, userConnectionRequests, userConnections, memberMergeHistory,
-  externalPersonIdentifiers, pendingMemberSuggestions, crossTreeMatches,
+  externalPersonIdentifiers, pendingMemberSuggestions, crossTreeMatches, referrals,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -39,6 +39,7 @@ import {
   type ExternalPersonIdentifier, type InsertExternalPersonIdentifier,
   type PendingMemberSuggestion, type InsertPendingMemberSuggestion,
   type CrossTreeMatch, type InsertCrossTreeMatch,
+  type Referral,
   type User
 } from "@shared/schema";
 import { db } from "./db";
@@ -285,6 +286,14 @@ export interface IStorage {
   getMergeHistory(treeId: string): Promise<MemberMergeHistory[]>;
   createMergeHistory(data: InsertMemberMergeHistory): Promise<MemberMergeHistory>;
   mergeMembers(survivorId: string, mergedId: string, userId: string, notes?: string): Promise<{ success: boolean; mergeHistoryId: string }>;
+
+  // Referrals
+  createReferral(referrerUserId: string, referralCode: string): Promise<Referral>;
+  getReferralByCode(code: string): Promise<Referral | undefined>;
+  getReferralsByUser(userId: string): Promise<Referral[]>;
+  incrementReferralClick(code: string): Promise<void>;
+  completeReferral(code: string, referredUserId: string): Promise<Referral | undefined>;
+  getUserReferralStats(userId: string): Promise<{ totalReferrals: number; completedReferrals: number; pendingReferrals: number }>;
 
   // Admin methods
   getAllUsers(search?: string): Promise<User[]>;
@@ -2198,6 +2207,67 @@ export class DatabaseStorage implements IStorage {
     }
 
     return this.updateCrossTreeMatch(id, updateData);
+  }
+
+  // Referral methods
+  async createReferral(referrerUserId: string, referralCode: string): Promise<Referral> {
+    const [created] = await db.insert(referrals).values({
+      referrerUserId,
+      referralCode,
+      status: "pending",
+      clickCount: 0,
+    }).returning();
+    return created;
+  }
+
+  async getReferralByCode(code: string): Promise<Referral | undefined> {
+    const [referral] = await db.select().from(referrals)
+      .where(eq(referrals.referralCode, code));
+    return referral;
+  }
+
+  async getReferralsByUser(userId: string): Promise<Referral[]> {
+    return db.select().from(referrals)
+      .where(eq(referrals.referrerUserId, userId))
+      .orderBy(desc(referrals.createdAt));
+  }
+
+  async incrementReferralClick(code: string): Promise<void> {
+    const referral = await this.getReferralByCode(code);
+    if (referral) {
+      await db.update(referrals)
+        .set({ clickCount: referral.clickCount + 1 })
+        .where(eq(referrals.referralCode, code));
+    }
+  }
+
+  async completeReferral(code: string, referredUserId: string): Promise<Referral | undefined> {
+    const [updated] = await db.update(referrals)
+      .set({
+        referredUserId,
+        status: "completed",
+        completedAt: new Date(),
+      })
+      .where(and(
+        eq(referrals.referralCode, code),
+        eq(referrals.status, "pending")
+      ))
+      .returning();
+    return updated;
+  }
+
+  async getUserReferralStats(userId: string): Promise<{ totalReferrals: number; completedReferrals: number; pendingReferrals: number }> {
+    const userReferrals = await this.getReferralsByUser(userId);
+    const total = userReferrals.length;
+    const completed = userReferrals.filter(r => r.status === "completed").length;
+    const pending = userReferrals.filter(r => r.status === "pending").length;
+    return { totalReferrals: total, completedReferrals: completed, pendingReferrals: pending };
+  }
+
+  async hasUserCompletedAnyReferral(userId: string): Promise<boolean> {
+    const [existing] = await db.select().from(referrals)
+      .where(eq(referrals.referredUserId, userId));
+    return !!existing;
   }
 }
 
