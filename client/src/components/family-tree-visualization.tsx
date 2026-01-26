@@ -231,18 +231,22 @@ export default function FamilyTreeVisualization({
     positioned.push({ x: centerX, y: centerY, member: focusMember, branchType: 'focus' });
     placed.add(focusId);
 
-    // Get explicitly defined spouses
-    const spouses = spouseMap.get(focusId) || [];
+    // Get focus person's parents first - they should NEVER be placed as spouses/co-parents
+    const focusParentIds = new Set(childParentMap.get(focusId) || []);
+
+    // Get explicitly defined spouses - but EXCLUDE focus person's parents!
+    const spouses = (spouseMap.get(focusId) || []).filter(id => !focusParentIds.has(id));
     
     // Also find co-parents: other parents of focus person's children who aren't spouses
     // These are people who share a child with focus but weren't defined as spouse
+    // EXCLUDE focus person's own parents - they can't be co-parents of their child
     const focusChildren = parentChildMap.get(focusId) || [];
     const coParentIds = new Set<string>();
     focusChildren.forEach(childId => {
       const childParents = childParentMap.get(childId) || [];
       childParents.forEach(parentId => {
-        // Add if not the focus person and not already a defined spouse
-        if (parentId !== focusId && !spouses.includes(parentId)) {
+        // Add if not the focus person, not already a defined spouse, and NOT focus's own parent
+        if (parentId !== focusId && !spouses.includes(parentId) && !focusParentIds.has(parentId)) {
           coParentIds.add(parentId);
         }
       });
