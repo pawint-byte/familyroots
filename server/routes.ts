@@ -1089,6 +1089,52 @@ export async function registerRoutes(
   });
 
   // Delete a relationship
+  // Update a relationship (change type or qualifier)
+  app.patch("/api/trees/:treeId/relationships/:relationshipId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, relationshipId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      // Check ownership or edit permission
+      if (tree.ownerId !== userId) {
+        const collaborators = await storage.getCollaborators(treeId);
+        const canEdit = collaborators.some(c => c.userId === userId && c.canEdit);
+        if (!canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const { relationshipType, qualifier } = req.body;
+      
+      // Validate relationship type if provided
+      const validTypes = ["parent", "child", "spouse", "sibling", "coparent"];
+      if (relationshipType && !validTypes.includes(relationshipType)) {
+        return res.status(400).json({ message: "Invalid relationship type" });
+      }
+      
+      // Validate qualifier if provided
+      const validQualifiers = ["biological", "step", "adopted", "foster", "half", "in-law", null];
+      if (qualifier !== undefined && !validQualifiers.includes(qualifier)) {
+        return res.status(400).json({ message: "Invalid qualifier" });
+      }
+
+      const updated = await storage.updateRelationship(relationshipId, {
+        relationshipType,
+        qualifier: qualifier === null ? null : qualifier
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating relationship:", error);
+      res.status(500).json({ message: "Failed to update relationship" });
+    }
+  });
+
   app.delete("/api/trees/:treeId/relationships/:relationshipId", isAuthenticated, async (req: any, res) => {
     try {
       const { treeId, relationshipId } = req.params;

@@ -67,6 +67,7 @@ export interface IStorage {
   // Relationships
   getRelationships(treeId: string): Promise<Relationship[]>;
   createRelationship(rel: InsertRelationship): Promise<Relationship>;
+  updateRelationship(id: string, data: Partial<InsertRelationship>): Promise<Relationship | undefined>;
   deleteRelationship(id: string): Promise<boolean>;
 
   // Collaborators
@@ -457,6 +458,14 @@ export class DatabaseStorage implements IStorage {
   async createRelationship(rel: InsertRelationship): Promise<Relationship> {
     const [created] = await db.insert(relationships).values(rel).returning();
     return created;
+  }
+
+  async updateRelationship(id: string, data: Partial<InsertRelationship>): Promise<Relationship | undefined> {
+    const [updated] = await db.update(relationships)
+      .set(data)
+      .where(eq(relationships.id, id))
+      .returning();
+    return updated;
   }
 
   async deleteRelationship(id: string): Promise<boolean> {

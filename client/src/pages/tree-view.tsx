@@ -83,8 +83,9 @@ export default function TreeView() {
   const [showPaymentGate, setShowPaymentGate] = useState(false);
   const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit: number; current: number }>({ limit: 20, current: 20 });
   const [isExporting, setIsExporting] = useState(false);
-  const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; member1Name: string; member2Name: string; member1Id: string; member2Id: string } | null>(null);
+  const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; currentQualifier: string | null; member1Name: string; member2Name: string; member1Id: string; member2Id: string } | null>(null);
   const [newRelationshipType, setNewRelationshipType] = useState<string>("");
+  const [newRelationshipQualifier, setNewRelationshipQualifier] = useState<string | null>(null);
   const [showMergedView, setShowMergedView] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
@@ -351,20 +352,18 @@ export default function TreeView() {
   });
 
   const updateRelationshipMutation = useMutation({
-    mutationFn: async ({ oldRelationshipId, fromMemberId, toMemberId, newType }: { oldRelationshipId: string; fromMemberId: string; toMemberId: string; newType: string }) => {
-      // Delete the old relationship first
-      await apiRequest("DELETE", `/api/trees/${treeId}/relationships/${oldRelationshipId}`, undefined);
-      // Create the new relationship
-      return apiRequest("POST", `/api/trees/${treeId}/relationships`, {
-        fromMemberId,
-        toMemberId,
+    mutationFn: async ({ relationshipId, newType, newQualifier }: { relationshipId: string; newType?: string; newQualifier?: string | null }) => {
+      // Use PATCH to update the relationship in place (preserves data)
+      return apiRequest("PATCH", `/api/trees/${treeId}/relationships/${relationshipId}`, {
         relationshipType: newType,
+        qualifier: newQualifier,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
       setEditingRelationship(null);
       setNewRelationshipType("");
+      setNewRelationshipQualifier(null);
       toast({
         title: "Success",
         description: "Relationship updated",
@@ -1436,7 +1435,7 @@ export default function TreeView() {
                       const getMemberName = (m: FamilyMember | undefined) => m ? (m.lastName ? `${m.firstName} ${m.lastName}` : m.firstName) + (m.suffix ? ` ${m.suffix}` : '') : "Unknown";
                       
                       // Build list of individual relationships with their IDs
-                      const relationshipItems: { id: string; label: string; personName: string; description: string; fromMemberId: string; toMemberId: string; relationshipType: string; otherMemberName: string }[] = [];
+                      const relationshipItems: { id: string; label: string; personName: string; description: string; fromMemberId: string; toMemberId: string; relationshipType: string; qualifier: string | null; otherMemberName: string }[] = [];
                       
                       // Parents (relationships where someone else is parent of selectedMember)
                       memberRelationships
@@ -1453,6 +1452,7 @@ export default function TreeView() {
                               fromMemberId: r.fromMemberId,
                               toMemberId: r.toMemberId,
                               relationshipType: r.relationshipType,
+                              qualifier: r.qualifier || null,
                               otherMemberName: getMemberName(parent)
                             });
                           }
@@ -1473,6 +1473,7 @@ export default function TreeView() {
                               fromMemberId: r.fromMemberId,
                               toMemberId: r.toMemberId,
                               relationshipType: r.relationshipType,
+                              qualifier: r.qualifier || null,
                               otherMemberName: getMemberName(child)
                             });
                           }
@@ -1492,6 +1493,7 @@ export default function TreeView() {
                               fromMemberId: r.fromMemberId,
                               toMemberId: r.toMemberId,
                               relationshipType: r.relationshipType,
+                              qualifier: r.qualifier || null,
                               otherMemberName: getMemberName(spouse)
                             });
                           }
@@ -1512,6 +1514,7 @@ export default function TreeView() {
                               fromMemberId: r.fromMemberId,
                               toMemberId: r.toMemberId,
                               relationshipType: r.relationshipType,
+                              qualifier: r.qualifier || null,
                               otherMemberName: getMemberName(sibling)
                             });
                           }
@@ -1534,12 +1537,14 @@ export default function TreeView() {
                                       setEditingRelationship({
                                         id: item.id,
                                         currentType: item.relationshipType,
+                                        currentQualifier: item.qualifier,
                                         member1Name: selectedMember.firstName,
                                         member2Name: item.otherMemberName,
                                         member1Id: item.fromMemberId,
                                         member2Id: item.toMemberId
                                       });
                                       setNewRelationshipType(item.relationshipType);
+                                      setNewRelationshipQualifier(item.qualifier);
                                     }}
                                     data-testid={`button-edit-relationship-${item.id}`}
                                   >
@@ -1701,7 +1706,13 @@ export default function TreeView() {
       )}
 
       {/* Edit Relationship Dialog */}
-      <Dialog open={!!editingRelationship} onOpenChange={(open) => !open && setEditingRelationship(null)}>
+      <Dialog open={!!editingRelationship} onOpenChange={(open) => {
+        if (!open) {
+          setEditingRelationship(null);
+          setNewRelationshipType("");
+          setNewRelationshipQualifier(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Relationship</DialogTitle>
@@ -1728,26 +1739,56 @@ export default function TreeView() {
                   Current: {editingRelationship.currentType}
                 </p>
               </div>
+              <div className="space-y-2">
+                <Label>Relationship Qualifier</Label>
+                <Select value={newRelationshipQualifier || ""} onValueChange={(v) => setNewRelationshipQualifier(v || null)}>
+                  <SelectTrigger data-testid="select-new-relationship-qualifier">
+                    <SelectValue placeholder="Select qualifier (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="biological">Biological</SelectItem>
+                    <SelectItem value="step">Step</SelectItem>
+                    <SelectItem value="adopted">Adopted</SelectItem>
+                    <SelectItem value="foster">Foster</SelectItem>
+                    <SelectItem value="half">Half</SelectItem>
+                    <SelectItem value="in-law">In-Law</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Current: {editingRelationship.currentQualifier || "None (biological/default)"}
+                </p>
+              </div>
               <div className="flex gap-2 justify-end">
                 <Button
                   variant="outline"
-                  onClick={() => setEditingRelationship(null)}
+                  onClick={() => {
+                    setEditingRelationship(null);
+                    setNewRelationshipType("");
+                    setNewRelationshipQualifier(null);
+                  }}
                   data-testid="button-cancel-edit-relationship"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={() => {
-                    if (editingRelationship && newRelationshipType && newRelationshipType !== editingRelationship.currentType) {
-                      updateRelationshipMutation.mutate({
-                        oldRelationshipId: editingRelationship.id,
-                        fromMemberId: editingRelationship.member1Id,
-                        toMemberId: editingRelationship.member2Id,
-                        newType: newRelationshipType,
-                      });
+                    if (editingRelationship) {
+                      const hasTypeChange = newRelationshipType && newRelationshipType !== editingRelationship.currentType;
+                      const hasQualifierChange = newRelationshipQualifier !== editingRelationship.currentQualifier;
+                      if (hasTypeChange || hasQualifierChange) {
+                        updateRelationshipMutation.mutate({
+                          relationshipId: editingRelationship.id,
+                          newType: newRelationshipType || editingRelationship.currentType,
+                          newQualifier: newRelationshipQualifier,
+                        });
+                      }
                     }
                   }}
-                  disabled={!newRelationshipType || newRelationshipType === editingRelationship.currentType || updateRelationshipMutation.isPending}
+                  disabled={
+                    updateRelationshipMutation.isPending ||
+                    ((!newRelationshipType || newRelationshipType === editingRelationship.currentType) &&
+                     newRelationshipQualifier === editingRelationship.currentQualifier)
+                  }
                   data-testid="button-save-relationship"
                 >
                   {updateRelationshipMutation.isPending ? "Saving..." : "Save Changes"}
