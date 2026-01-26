@@ -161,6 +161,10 @@ export default function FamilyTreeVisualization({
     
     if (!focusMember) return { positions: [], labels: [] };
 
+    // PRE-IDENTIFY siblings to prevent them from being placed as grandparents or other roles
+    const focusSiblings = new Set<string>(getSiblings(focusId, parentChildMap, childParentMap, siblingMap));
+    focusSiblings.delete(focusId); // Remove focus from their own siblings list
+
     // View depth controls which generations to show:
     // 'immediate': only parents, spouse, children (1 generation each direction)
     // 'extended': includes grandparents, grandchildren, siblings (2 generations)
@@ -256,8 +260,9 @@ export default function FamilyTreeVisualization({
           placed.add(parentId);
 
           // Only show grandparents if viewDepth allows
+          // IMPORTANT: Exclude siblings from being placed as grandparents
           if (showGrandparents) {
-            const grandparents = childParentMap.get(parentId) || [];
+            const grandparents = (childParentMap.get(parentId) || []).filter(gpId => !focusSiblings.has(gpId));
             const gpY = parentY - verticalGap - nodeHeight;
             const gpStartX = parentStartX + index * (nodeWidth + horizontalGap) - ((grandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
             
@@ -291,8 +296,9 @@ export default function FamilyTreeVisualization({
               placed.add(psId);
               
               // Show co-parent's parents as grandparents too - only if showGrandparents
+              // IMPORTANT: Exclude siblings from being placed as grandparents
               if (showGrandparents) {
-                const coParentGrandparents = childParentMap.get(psId) || [];
+                const coParentGrandparents = (childParentMap.get(psId) || []).filter(gpId => !focusSiblings.has(gpId));
                 if (coParentGrandparents.length > 0) {
                   const cpGpY = parentY - verticalGap - nodeHeight;
                   const cpGpStartX = lastParentX + (nodeWidth + horizontalGap) - ((coParentGrandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
