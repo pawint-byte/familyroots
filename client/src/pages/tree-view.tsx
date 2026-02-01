@@ -584,10 +584,20 @@ export default function TreeView() {
                   Export GEDCOM
                 </DropdownMenuItem>
                 {canEditTree && (
-                  <DropdownMenuItem className="gap-2">
-                    <Upload className="h-4 w-4" />
-                    Import GEDCOM
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem className="gap-2">
+                      <Upload className="h-4 w-4" />
+                      Import GEDCOM
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="gap-2"
+                      onClick={() => navigate(`/familysearch/import/${treeId}`)}
+                      data-testid="menu-import-familysearch"
+                    >
+                      <Download className="h-4 w-4" />
+                      Import from FamilySearch
+                    </DropdownMenuItem>
+                  </>
                 )}
                 {(isOwner || isCoOwner) && (
                   <>

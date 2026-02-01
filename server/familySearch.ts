@@ -226,6 +226,216 @@ export function generateState(): string {
   return crypto.randomBytes(16).toString("hex");
 }
 
+// Tree data interfaces
+export interface FamilySearchTreePerson {
+  id: string;
+  name: string;
+  gender?: string;
+  birthDate?: string;
+  birthPlace?: string;
+  deathDate?: string;
+  deathPlace?: string;
+  living?: boolean;
+}
+
+export interface FamilySearchRelationship {
+  type: "parent-child" | "couple";
+  person1Id: string;
+  person2Id: string;
+}
+
+export interface FamilySearchTreeData {
+  persons: FamilySearchTreePerson[];
+  relationships: FamilySearchRelationship[];
+  rootPersonId: string;
+}
+
+// Get the current user's person ID in the tree
+export async function getCurrentUserPersonId(accessToken: string): Promise<string | null> {
+  const urls = getBaseUrls();
+  
+  try {
+    const response = await fetch(`${urls.api}/platform/tree/current-person`, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json",
+      },
+    });
+    
+    if (!response.ok) {
+      console.error("FamilySearch get current person failed:", response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    return data.persons?.[0]?.id || null;
+  } catch (error) {
+    console.error("FamilySearch get current person error:", error);
+    return null;
+  }
+}
+
+// Get ancestry (pedigree) for a person
+export async function getAncestry(
+  accessToken: string, 
+  personId: string, 
+  generations: number = 4
+): Promise<FamilySearchTreeData | null> {
+  const urls = getBaseUrls();
+  
+  try {
+    const response = await fetch(
+      `${urls.api}/platform/tree/ancestry?person=${personId}&generations=${generations}`,
+      {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Accept": "application/json",
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      console.error("FamilySearch get ancestry failed:", response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    return parseTreeResponse(data, personId);
+  } catch (error) {
+    console.error("FamilySearch get ancestry error:", error);
+    return null;
+  }
+}
+
+// Get descendants for a person
+export async function getDescendancy(
+  accessToken: string, 
+  personId: string, 
+  generations: number = 2
+): Promise<FamilySearchTreeData | null> {
+  const urls = getBaseUrls();
+  
+  try {
+    const response = await fetch(
+      `${urls.api}/platform/tree/descendancy?person=${personId}&generations=${generations}`,
+      {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Accept": "application/json",
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      console.error("FamilySearch get descendancy failed:", response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    return parseTreeResponse(data, personId);
+  } catch (error) {
+    console.error("FamilySearch get descendancy error:", error);
+    return null;
+  }
+}
+
+// Get a person with their immediate family (parents, spouses, children)
+export async function getPersonWithFamily(
+  accessToken: string,
+  personId: string
+): Promise<FamilySearchTreeData | null> {
+  const urls = getBaseUrls();
+  
+  try {
+    const response = await fetch(
+      `${urls.api}/platform/tree/persons/${personId}?relatives`,
+      {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Accept": "application/json",
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      console.error("FamilySearch get person with family failed:", response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    return parseTreeResponse(data, personId);
+  } catch (error) {
+    console.error("FamilySearch get person with family error:", error);
+    return null;
+  }
+}
+
+// Parse FamilySearch GEDCOM-X response into our simplified format
+function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeData {
+  const persons: FamilySearchTreePerson[] = [];
+  const relationships: FamilySearchRelationship[] = [];
+  
+  // Parse persons
+  if (data.persons) {
+    for (const person of data.persons) {
+      const display = person.display || {};
+      persons.push({
+        id: person.id,
+        name: display.name || "Unknown",
+        gender: display.gender?.toLowerCase(),
+        birthDate: display.birthDate,
+        birthPlace: display.birthPlace,
+        deathDate: display.deathDate,
+        deathPlace: display.deathPlace,
+        living: person.living,
+      });
+    }
+  }
+  
+  // Parse parent-child relationships
+  if (data.childAndParentsRelationships) {
+    for (const rel of data.childAndParentsRelationships) {
+      const childId = rel.child?.resourceId;
+      const fatherId = rel.father?.resourceId;
+      const motherId = rel.mother?.resourceId;
+      
+      if (childId && fatherId) {
+        relationships.push({
+          type: "parent-child",
+          person1Id: fatherId,
+          person2Id: childId,
+        });
+      }
+      if (childId && motherId) {
+        relationships.push({
+          type: "parent-child",
+          person1Id: motherId,
+          person2Id: childId,
+        });
+      }
+    }
+  }
+  
+  // Parse couple relationships
+  if (data.relationships) {
+    for (const rel of data.relationships) {
+      if (rel.type === "http://gedcomx.org/Couple") {
+        const person1Id = rel.person1?.resourceId;
+        const person2Id = rel.person2?.resourceId;
+        if (person1Id && person2Id) {
+          relationships.push({
+            type: "couple",
+            person1Id,
+            person2Id,
+          });
+        }
+      }
+    }
+  }
+  
+  return { persons, relationships, rootPersonId };
+}
+
 export function getMockSearchResults(params: {
   givenName?: string;
   surname?: string;
@@ -292,4 +502,76 @@ export function getMockSearchResults(params: {
   ];
   
   return mockResults;
+}
+
+// Mock tree data for sandbox/demo mode
+export function getMockTreeData(): FamilySearchTreeData {
+  const persons: FamilySearchTreePerson[] = [
+    // Root person (the user)
+    { id: "MOCK-ME", name: "You (FamilySearch User)", gender: "male", birthDate: "1985", birthPlace: "Los Angeles, California", living: true },
+    
+    // Parents
+    { id: "MOCK-DAD", name: "Robert Johnson", gender: "male", birthDate: "1955", birthPlace: "Chicago, Illinois", deathDate: "2020" },
+    { id: "MOCK-MOM", name: "Mary Johnson", gender: "female", birthDate: "1958", birthPlace: "Detroit, Michigan", living: true },
+    
+    // Grandparents (paternal)
+    { id: "MOCK-GDAD-P", name: "William Johnson", gender: "male", birthDate: "1925", birthPlace: "New York, New York", deathDate: "1998" },
+    { id: "MOCK-GMOM-P", name: "Dorothy Johnson", gender: "female", birthDate: "1928", birthPlace: "Boston, Massachusetts", deathDate: "2005" },
+    
+    // Grandparents (maternal)
+    { id: "MOCK-GDAD-M", name: "James Smith", gender: "male", birthDate: "1930", birthPlace: "Philadelphia, Pennsylvania", deathDate: "2010" },
+    { id: "MOCK-GMOM-M", name: "Elizabeth Smith", gender: "female", birthDate: "1932", birthPlace: "Baltimore, Maryland", deathDate: "2015" },
+    
+    // Great-grandparents (paternal father's side)
+    { id: "MOCK-GGDAD-PP", name: "Henry Johnson", gender: "male", birthDate: "1895", birthPlace: "Dublin, Ireland", deathDate: "1970" },
+    { id: "MOCK-GGMOM-PP", name: "Margaret Johnson", gender: "female", birthDate: "1898", birthPlace: "Cork, Ireland", deathDate: "1975" },
+    
+    // Siblings
+    { id: "MOCK-SIS", name: "Sarah Johnson", gender: "female", birthDate: "1988", birthPlace: "Los Angeles, California", living: true },
+    { id: "MOCK-BRO", name: "Michael Johnson", gender: "male", birthDate: "1982", birthPlace: "Los Angeles, California", living: true },
+    
+    // Spouse
+    { id: "MOCK-SPOUSE", name: "Jennifer Johnson", gender: "female", birthDate: "1987", birthPlace: "San Francisco, California", living: true },
+    
+    // Children
+    { id: "MOCK-CHILD1", name: "Emma Johnson", gender: "female", birthDate: "2015", birthPlace: "Los Angeles, California", living: true },
+    { id: "MOCK-CHILD2", name: "James Johnson", gender: "male", birthDate: "2018", birthPlace: "Los Angeles, California", living: true },
+  ];
+  
+  const relationships: FamilySearchRelationship[] = [
+    // Parent-child: Parents to root
+    { type: "parent-child", person1Id: "MOCK-DAD", person2Id: "MOCK-ME" },
+    { type: "parent-child", person1Id: "MOCK-MOM", person2Id: "MOCK-ME" },
+    
+    // Parent-child: Parents to siblings
+    { type: "parent-child", person1Id: "MOCK-DAD", person2Id: "MOCK-SIS" },
+    { type: "parent-child", person1Id: "MOCK-MOM", person2Id: "MOCK-SIS" },
+    { type: "parent-child", person1Id: "MOCK-DAD", person2Id: "MOCK-BRO" },
+    { type: "parent-child", person1Id: "MOCK-MOM", person2Id: "MOCK-BRO" },
+    
+    // Parent-child: Grandparents to parents
+    { type: "parent-child", person1Id: "MOCK-GDAD-P", person2Id: "MOCK-DAD" },
+    { type: "parent-child", person1Id: "MOCK-GMOM-P", person2Id: "MOCK-DAD" },
+    { type: "parent-child", person1Id: "MOCK-GDAD-M", person2Id: "MOCK-MOM" },
+    { type: "parent-child", person1Id: "MOCK-GMOM-M", person2Id: "MOCK-MOM" },
+    
+    // Parent-child: Great-grandparents to grandparents
+    { type: "parent-child", person1Id: "MOCK-GGDAD-PP", person2Id: "MOCK-GDAD-P" },
+    { type: "parent-child", person1Id: "MOCK-GGMOM-PP", person2Id: "MOCK-GDAD-P" },
+    
+    // Parent-child: Root to children
+    { type: "parent-child", person1Id: "MOCK-ME", person2Id: "MOCK-CHILD1" },
+    { type: "parent-child", person1Id: "MOCK-ME", person2Id: "MOCK-CHILD2" },
+    { type: "parent-child", person1Id: "MOCK-SPOUSE", person2Id: "MOCK-CHILD1" },
+    { type: "parent-child", person1Id: "MOCK-SPOUSE", person2Id: "MOCK-CHILD2" },
+    
+    // Couples
+    { type: "couple", person1Id: "MOCK-DAD", person2Id: "MOCK-MOM" },
+    { type: "couple", person1Id: "MOCK-GDAD-P", person2Id: "MOCK-GMOM-P" },
+    { type: "couple", person1Id: "MOCK-GDAD-M", person2Id: "MOCK-GMOM-M" },
+    { type: "couple", person1Id: "MOCK-GGDAD-PP", person2Id: "MOCK-GGMOM-PP" },
+    { type: "couple", person1Id: "MOCK-ME", person2Id: "MOCK-SPOUSE" },
+  ];
+  
+  return { persons, relationships, rootPersonId: "MOCK-ME" };
 }

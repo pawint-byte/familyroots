@@ -48,7 +48,7 @@ PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for sc
 - **Personal Profile QR Codes**: Unique QR codes for users' public profiles to facilitate in-person connection requests with specified relationships.
 - **Tiered Subscription Discounts**: Dynamic pricing based on total family members across all trees, including milestone payments for larger trees.
 - **Selective Branch Import**: Control which members from connected trees count towards subscription tiers, with scope options and preview.
-- **FamilySearch Integration**: OAuth-based integration for searching historical records and attaching sources (optional).
+- **FamilySearch Integration**: OAuth-based integration for searching historical records, attaching sources, and importing family tree data. Features tree browser with selectable import for ancestors/descendants, duplicate detection, and sandbox mode for testing without production API key.
 - **Comparison Page**: Marketing page comparing FamilyRoots features against Ancestry.
 - **Progressive Web App (PWA)**: Full PWA support for mobile installation and offline caching.
 - **Google Analytics**: Optional integration for user engagement tracking.

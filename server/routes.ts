@@ -6942,6 +6942,209 @@ export async function registerRoutes(
     }
   });
 
+  // Get FamilySearch tree data for import
+  app.get("/api/familysearch/tree", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const connection = await storage.getFamilySearchConnection(userId);
+      
+      // If connected and configured, use real API
+      if (connection?.accessToken && familySearchService.isConfigured()) {
+        // Get the user's person ID in FamilySearch
+        const personId = await familySearchService.getCurrentUserPersonId(connection.accessToken);
+        if (!personId) {
+          return res.status(400).json({ message: "Could not find your person record in FamilySearch" });
+        }
+        
+        // Get ancestry (4 generations up) and descendants (2 generations down)
+        const [ancestry, descendants] = await Promise.all([
+          familySearchService.getAncestry(connection.accessToken, personId, 4),
+          familySearchService.getDescendancy(connection.accessToken, personId, 2),
+        ]);
+        
+        // Merge the tree data
+        const persons = new Map<string, familySearchService.FamilySearchTreePerson>();
+        const relationships: familySearchService.FamilySearchRelationship[] = [];
+        
+        if (ancestry) {
+          ancestry.persons.forEach(p => persons.set(p.id, p));
+          relationships.push(...ancestry.relationships);
+        }
+        if (descendants) {
+          descendants.persons.forEach(p => persons.set(p.id, p));
+          descendants.relationships.forEach(r => {
+            if (!relationships.some(existing => 
+              existing.type === r.type && 
+              existing.person1Id === r.person1Id && 
+              existing.person2Id === r.person2Id
+            )) {
+              relationships.push(r);
+            }
+          });
+        }
+        
+        return res.json({
+          persons: Array.from(persons.values()),
+          relationships,
+          rootPersonId: personId,
+          isMock: false,
+        });
+      }
+      
+      // Otherwise return mock data for demonstration
+      const mockData = familySearchService.getMockTreeData();
+      res.json({ ...mockData, isMock: true });
+    } catch (error) {
+      console.error("Error getting FamilySearch tree:", error);
+      res.status(500).json({ message: "Failed to get tree data" });
+    }
+  });
+
+  // Import people from FamilySearch into a FamilyRoots tree
+  app.post("/api/familysearch/import", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId, persons, relationships } = req.body;
+      
+      if (!treeId || !persons || !Array.isArray(persons)) {
+        return res.status(400).json({ message: "Missing required fields: treeId, persons" });
+      }
+      
+      // Verify user owns or can edit the tree
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
+      const canEdit = tree.ownerId === userId || collaborator?.canEdit;
+      
+      if (!canEdit) {
+        return res.status(403).json({ message: "Permission denied" });
+      }
+      
+      // Get existing members to check for duplicates
+      const existingMembers = await storage.getMembers(treeId);
+      
+      // Map FamilySearch IDs to created FamilyRoots member IDs
+      const fsIdToMemberId = new Map<string, string>();
+      const createdMembers: any[] = [];
+      const skippedDuplicates: string[] = [];
+      
+      // Import each person
+      for (const person of persons) {
+        // Parse the name into first and last name
+        const nameParts = (person.name || "Unknown").split(" ");
+        const firstName = nameParts[0] || "Unknown";
+        const lastName = nameParts.slice(1).join(" ") || null;
+        
+        // Check for potential duplicates by name and birth year
+        const birthYear = person.birthDate?.slice(0, 4);
+        const duplicate = existingMembers.find((m: any) => {
+          const existingBirthYear = m.birthDate?.slice(0, 4);
+          return m.firstName.toLowerCase() === firstName.toLowerCase() &&
+            m.lastName?.toLowerCase() === lastName?.toLowerCase() &&
+            existingBirthYear === birthYear;
+        });
+        
+        if (duplicate) {
+          // Map to existing member, don't create duplicate
+          fsIdToMemberId.set(person.id, duplicate.id);
+          skippedDuplicates.push(person.name);
+          continue;
+        }
+        
+        // Parse birth/death dates (FamilySearch dates can be like "1955" or "15 March 1955")
+        let birthDate = null;
+        let deathDate = null;
+        
+        if (person.birthDate) {
+          const yearMatch = person.birthDate.match(/\d{4}/);
+          if (yearMatch) {
+            birthDate = `${yearMatch[0]}-01-01`;
+          }
+        }
+        
+        if (person.deathDate) {
+          const yearMatch = person.deathDate.match(/\d{4}/);
+          if (yearMatch) {
+            deathDate = `${yearMatch[0]}-01-01`;
+          }
+        }
+        
+        const newMember = await storage.createMember({
+          treeId,
+          firstName,
+          lastName,
+          gender: person.gender === "male" ? "male" : person.gender === "female" ? "female" : null,
+          birthDate,
+          birthPlace: person.birthPlace || null,
+          deathDate,
+          isLiving: person.living ?? !person.deathDate,
+        });
+        
+        fsIdToMemberId.set(person.id, newMember.id);
+        createdMembers.push(newMember);
+      }
+      
+      // Create relationships
+      const createdRelationships: any[] = [];
+      
+      if (relationships && Array.isArray(relationships)) {
+        for (const rel of relationships) {
+          const member1Id = fsIdToMemberId.get(rel.person1Id);
+          const member2Id = fsIdToMemberId.get(rel.person2Id);
+          
+          if (!member1Id || !member2Id) continue;
+          
+          // Check if relationship already exists
+          const existingRels = await storage.getRelationships(treeId);
+          const alreadyExists = existingRels.some((r: any) => 
+            (r.fromMemberId === member1Id && r.toMemberId === member2Id) ||
+            (r.fromMemberId === member2Id && r.toMemberId === member1Id)
+          );
+          
+          if (alreadyExists) continue;
+          
+          if (rel.type === "parent-child") {
+            // person1 is parent, person2 is child
+            const relationship = await storage.createRelationship({
+              treeId,
+              fromMemberId: member1Id,
+              toMemberId: member2Id,
+              relationshipType: "parent",
+            });
+            createdRelationships.push(relationship);
+          } else if (rel.type === "couple") {
+            // Create spouse relationship
+            const relationship = await storage.createRelationship({
+              treeId,
+              fromMemberId: member1Id,
+              toMemberId: member2Id,
+              relationshipType: "spouse",
+            });
+            createdRelationships.push(relationship);
+          }
+        }
+      }
+      
+      res.json({
+        success: true,
+        imported: {
+          members: createdMembers.length,
+          relationships: createdRelationships.length,
+        },
+        skipped: {
+          duplicates: skippedDuplicates.length,
+          names: skippedDuplicates,
+        },
+      });
+    } catch (error) {
+      console.error("Error importing from FamilySearch:", error);
+      res.status(500).json({ message: "Failed to import tree data" });
+    }
+  });
+
   // Attach a source to a family member
   app.post("/api/members/:memberId/sources", isAuthenticated, async (req: any, res) => {
     try {
