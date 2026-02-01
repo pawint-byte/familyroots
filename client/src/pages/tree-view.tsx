@@ -890,6 +890,20 @@ export default function TreeView() {
                           No connected trees yet.
                         </p>
                       )}
+                      
+                      {/* FamilySearch Import Button */}
+                      <div className="mt-3 pt-3 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-2"
+                          onClick={() => navigate(`/familysearch/import?treeId=${treeId}`)}
+                          data-testid="button-import-familysearch"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span className="text-xs">Import from FamilySearch</span>
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -986,6 +1000,20 @@ export default function TreeView() {
                               No connected trees yet.
                             </p>
                           )}
+                          
+                          {/* FamilySearch Import Button */}
+                          <div className="mt-3 pt-3 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full gap-2"
+                              onClick={() => navigate(`/familysearch/import?treeId=${treeId}`)}
+                              data-testid="button-import-familysearch-empty"
+                            >
+                              <Download className="h-4 w-4" />
+                              <span className="text-xs">Import from FamilySearch</span>
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
