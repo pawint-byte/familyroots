@@ -57,7 +57,11 @@ export default function FamilySearchImportPage() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const params = useParams<{ treeId?: string }>();
+  const routeParams = useParams<{ treeId?: string }>();
+  
+  // Get treeId from route params or URL query params
+  const urlParams = new URLSearchParams(window.location.search);
+  const treeId = routeParams.treeId || urlParams.get("treeId") || undefined;
   
   const [selectedPersons, setSelectedPersons] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["ancestors", "descendants", "self"]));
@@ -106,7 +110,7 @@ export default function FamilySearchImportPage() {
         description: `Imported ${result.imported.members} people and ${result.imported.relationships} relationships.${result.skipped.duplicates > 0 ? ` Skipped ${result.skipped.duplicates} duplicates.` : ""}`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
-      const targetTreeId = params.treeId || trees[0]?.id;
+      const targetTreeId = treeId || trees[0]?.id;
       if (targetTreeId) {
         navigate(`/tree/${targetTreeId}`);
       }
@@ -213,7 +217,7 @@ export default function FamilySearchImportPage() {
   };
 
   const handleImport = () => {
-    const targetTreeId = params.treeId || trees[0]?.id;
+    const targetTreeId = treeId || trees[0]?.id;
     if (!targetTreeId) {
       toast({
         title: "No Tree Selected",
@@ -337,7 +341,7 @@ export default function FamilySearchImportPage() {
       <div className="mb-6">
         <Button 
           variant="ghost" 
-          onClick={() => navigate(params.treeId ? `/tree/${params.treeId}` : "/dashboard")}
+          onClick={() => navigate(treeId ? `/tree/${treeId}` : "/dashboard")}
           className="mb-4"
           data-testid="button-back"
         >
@@ -473,7 +477,7 @@ export default function FamilySearchImportPage() {
                       </p>
                       {trees.length > 0 && (
                         <p className="text-sm text-muted-foreground">
-                          Importing to: <strong>{trees.find(t => t.id === (params.treeId || trees[0]?.id))?.name || "Your tree"}</strong>
+                          Importing to: <strong>{trees.find(t => t.id === (treeId || trees[0]?.id))?.name || "Your tree"}</strong>
                         </p>
                       )}
                     </div>

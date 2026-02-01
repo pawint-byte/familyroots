@@ -662,6 +662,18 @@ export default function TreeView() {
                     <div className="text-xs text-muted-foreground">Create wishlists for birthdays, showers</div>
                   </div>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="flex items-start gap-2"
+                  onClick={() => navigate(`/familysearch/import?treeId=${treeId}`)}
+                  data-testid="menu-import-familysearch"
+                >
+                  <Download className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-medium">Import from FamilySearch</div>
+                    <div className="text-xs text-muted-foreground">Pull ancestors from your FamilySearch tree</div>
+                  </div>
+                </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="gap-2"
                   onClick={() => navigate("/share")}
