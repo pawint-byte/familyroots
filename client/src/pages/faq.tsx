@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -59,66 +59,112 @@ export default function FAQ() {
       ]
     },
     {
-      title: "FamilyRoots vs Ancestry",
-      icon: <Scale className="h-5 w-5" />,
+      title: "Why FamilyRoots",
+      icon: <Heart className="h-5 w-5" />,
       items: [
         {
+          question: "Why should I use FamilyRoots instead of other family tree apps?",
+          answer: <>Most family tree platforms are built around dead ancestors and historical records. FamilyRoots is built for your living family. We're the only platform where family members can claim their own profiles, collaborate in real time, connect across separate trees, and actually stay in touch. Other platforms treat your family like a research project. We treat it like a living network. Visit our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for a full side-by-side breakdown.</>
+        },
+        {
           question: "How is FamilyRoots different from Ancestry?",
-          answer: <>FamilyRoots focuses on living family connections and collaboration, while Ancestry focuses on historical research and DNA testing. We help families collaborate on trees together, claim their own profiles, and connect with living relatives. Visit our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for a detailed feature matrix.</>
+          answer: <>Ancestry charges $20-$50/month and focuses on DNA testing, ethnicity estimates, and searching historical records from the 1800s. FamilyRoots starts free, costs a fraction of the price, and focuses on what Ancestry ignores: connecting the family members who are alive right now. We offer profile claiming, real-time collaboration, cross-tree connections, QR code sharing for reunions, gift registries, custom merchandise, and privacy controls that actually put your family in charge of their own data. If you want to research great-great-grandparents, use Ancestry. If you want to build a living, breathing family network, use FamilyRoots. Many families use both.</>
         },
         {
-          question: "What unique features does FamilyRoots offer?",
-          answer: <>FamilyRoots offers features designed for connecting living families: Export tree as image, Education & career history tracking, Profile claiming, Custodianship for deceased members, Three-tier privacy visibility, Account heir (deadman switch), Special connections (godparents, friends), Location sharing, Cross-tree connections, Network discovery, AI video generation, QR code sharing, Tiered subscription discounts (FREE at 100+ members), and Custom merchandise. See our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for the full feature matrix.</>
+          question: "How is FamilyRoots different from MyHeritage?",
+          answer: "MyHeritage ($11-$25/month) offers DNA testing, photo animation, and historical record searches, similar to Ancestry. FamilyRoots doesn't compete on DNA or old records. Instead, we offer things neither MyHeritage nor Ancestry has: profile claiming so family members own their own data, a deadman switch so your trees survive you, QR codes for instant family reunion connections, cross-tree linking when families merge, custodianship for managing deceased relatives' profiles, and gift registries tied directly to your tree. We're complementary, not a replacement, for historical research tools."
         },
         {
-          question: "What does Ancestry offer that FamilyRoots doesn't?",
-          answer: <>Ancestry focuses on historical research and DNA: DNA testing & matching, Ethnicity estimates, Cemetery records, and Newspaper archives. FamilyRoots focuses on connecting living families. Both platforms share core tree-building features. See our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for details.</>
+          question: "How is FamilyRoots different from FamilySearch?",
+          answer: <>FamilySearch is free and has incredible historical records, and we're actually working on integrating with them so you can search their records right from FamilyRoots. But FamilySearch's tree is one giant shared tree where anyone can edit anyone, which leads to conflicts and errors. FamilyRoots gives each family their own private tree with clear ownership, role-based permissions, and the ability to connect trees when families want to share. You get the benefits of connection without losing control.</>
         },
         {
-          question: "How does FamilyRoots pricing work?",
-          answer: <>FamilyRoots lets you start for free with your first 20 family members. Need more? Grab a member pack: Starter (10 for $7.99), Growth (25 for $14.99), or Family (50 for $24.99). Credits never expire. Active users earn discounts: add 5+ members in a month for 20% off your next pack, and get a free 10-pack when you reach 100 members. Optional Premium ($4.99/mo) unlocks unlimited media and advanced features. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for details.</>
+          question: "What can I do on FamilyRoots that I can't do anywhere else?",
+          answer: <>Several things are unique to FamilyRoots: (1) Profile claiming, where family members take ownership of their own entry and keep it up to date themselves. (2) Cross-tree connections, where separate families can link their trees when they discover shared members. (3) QR code profiles for instant in-person connections at reunions. (4) A deadman switch that transfers your trees to a chosen heir if something happens to you. (5) Custodianship requests so relatives can care for a deceased member's profile. (6) Gift registries built right into the tree for birthdays, weddings, and holidays. (7) Custom merchandise: print your actual family tree on mugs, shirts, and posters. No other platform offers this combination.</>
         },
         {
-          question: "Should I use FamilyRoots or Ancestry?",
-          answer: "It depends on your goals. FamilyRoots is ideal for: living family connections, collaboration, privacy controls, profile ownership, growing discounts, special connections, location sharing, and custom merchandise. Ancestry is ideal for: DNA testing and historical records. Many families use both platforms together."
+          question: "How does FamilyRoots pricing compare to competitors?",
+          answer: <>Ancestry costs $20-$50/month. MyHeritage costs $11-$25/month. FamilySearch is free but limited in collaboration. FamilyRoots starts free with your first 20 family members, and after that you buy member packs: 10 credits for $7.99, 25 for $14.99, or 50 for $24.99. Credits never expire, so you pay only when you grow. Active users earn rewards: 20% off for adding 5+ members in a month, and a free 10-pack when you hit 100 members. Optional Premium ($4.99/mo) adds unlimited media uploads and advanced features. No surprise charges, no annual lock-ins. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for details.</>
         },
         {
-          question: "Where can I see the full comparison?",
-          answer: <>Visit our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for a complete side-by-side feature matrix covering: Tree Building, Collaboration, Privacy & Security, Connections, AI & Technology, and Monetization. You can also click 'Compare to Ancestry' from our <Link href="/" className="text-primary hover:underline font-medium">home page</Link>.</>
+          question: "Can I use FamilyRoots alongside Ancestry or FamilySearch?",
+          answer: "Absolutely, and many families do. Use Ancestry or FamilySearch for researching ancestors and historical records. Use FamilyRoots to manage the living side of your family: collaboration, privacy, profile ownership, event tracking, gift registries, and staying connected. We're building FamilySearch integration so you can search historical records directly from FamilyRoots without switching platforms."
         },
         {
-          question: "Is FamilySearch integration coming to FamilyRoots?",
-          answer: "Yes! We're working on integrating with FamilySearch to bring historical records search to FamilyRoots. This will let you search billions of birth, marriage, death, census, immigration, and military records directly from your family tree. You'll be able to attach verified historical sources to your family members, adding depth and documentation to your family history. Stay tuned for this exciting feature!"
+          question: "Where can I see the full feature comparison?",
+          answer: <>Visit our <Link href="/comparison" className="text-primary hover:underline font-medium">Comparison page</Link> for a complete side-by-side feature matrix covering Tree Building, Collaboration, Privacy & Security, Connections, AI & Technology, and Pricing. You can also click 'Compare to Ancestry' from our <Link href="/" className="text-primary hover:underline font-medium">home page</Link>.</>
         }
       ]
     },
     {
-      title: "Account & Subscription",
+      title: "Features You Won't Find Elsewhere",
+      icon: <Zap className="h-5 w-5" />,
+      items: [
+        {
+          question: "What is Profile Claiming and why does it matter?",
+          answer: "On every other family tree platform, the tree owner enters everyone's information and it stays that way unless they update it. FamilyRoots is different. Family members can claim their own profiles and keep their own information current: their photo, bio, contact details, career, and more. The tree owner still controls the tree structure and relationships, but each person is responsible for their own data. This means your family tree stays accurate without one person doing all the work."
+        },
+        {
+          question: "How does the Deadman Switch protect my family tree?",
+          answer: "On other platforms, if the account holder passes away or becomes inactive, the tree is essentially frozen or lost. FamilyRoots lets you designate an heir who will automatically inherit all your trees after a period of inactivity (6 to 24 months, you choose). You'll get a reminder email with 30 days to respond before anything happens. This guarantees your family history is never lost."
+        },
+        {
+          question: "What are Cross-Tree Connections?",
+          answer: "Most platforms keep every tree completely isolated. FamilyRoots lets separate family trees connect when they discover shared members. When your daughter marries and her in-laws have their own tree, you can link the trees together and see the full extended family across both. Smart Matching can even detect shared members automatically. Each family keeps full control of their own tree while seeing how the families connect."
+        },
+        {
+          question: "How do QR Code Profiles work at family reunions?",
+          answer: <>Every FamilyRoots user gets a personal QR code that links to their profile. At a family reunion, instead of exchanging phone numbers or emails, relatives scan each other's QR codes to instantly connect on the platform. Print them on name tags, display them on your phone, or include them on reunion invitations. Each person adds their own branch, and the tree grows as a team effort. Get yours at <Link href="/my-qr" className="text-primary hover:underline font-medium">My QR Code</Link>.</>
+        },
+        {
+          question: "What is Custodianship?",
+          answer: "When a family member passes away, their profile still needs care. A direct relative (parent, child, spouse, or sibling) can request custodianship of a deceased member's profile. After a 30-day approval window, the custodian can update memorial information, death dates, and biographical details. If the tree owner doesn't respond within 30 days, the request is auto-approved so profiles are never left unmanaged."
+        },
+        {
+          question: "Can I print my family tree on actual products?",
+          answer: <>Yes. FamilyRoots is the only family tree platform that lets you put your actual tree on merchandise: mugs, t-shirts, hoodies, posters, and canvas prints. Your tree is printed and shipped directly to you through our print partner. It's a popular gift for family reunions, holidays, and milestones. Visit the <Link href="/merchandise" className="text-primary hover:underline font-medium">Merchandise page</Link> to see options.</>
+        },
+        {
+          question: "How do Gift Registries work inside a family tree?",
+          answer: "FamilyRoots lets you create wishlists tied directly to family members and occasions: birthdays, weddings, baby showers, graduations, holidays. Add items from any online store with links and prices. Family members can see what's needed and mark items as purchased to avoid duplicates. It's built into the tree, so everyone in the family has access without needing a separate app or website."
+        },
+        {
+          question: "What privacy controls does FamilyRoots offer?",
+          answer: "FamilyRoots has three-tier privacy visibility (Full Access, Extended Family View, Limited) that controls how much information different family members can see. Immediate family always has full access. Tree owners can set defaults and override visibility for individual members. Family members who claim their profiles can also control their own visibility. No other platform gives this level of granular control to both the tree owner and the individual family members."
+        }
+      ]
+    },
+    {
+      title: "Pricing & Credits",
       icon: <CreditCard className="h-5 w-5" />,
       items: [
         {
-          question: "How does the discount system work?",
-          answer: <>The more family members you add, the bigger your discount! At 25 members you get 25% off ($7.49/month), at 50 members you get 50% off ($4.99/month), at 75 members you get 75% off ($2.50/month), and at 100+ members your subscription is FREE! Your discount tier updates automatically as your family tree grows. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for all tiers.</>
+          question: "How does the credit system work?",
+          answer: <>Your first 20 family members are completely free, no credit card needed. After that, you purchase member packs: Starter (10 credits for $7.99), Growth (25 credits for $14.99), or Family (50 credits for $24.99). Each credit lets you add one family member. Credits never expire, so you only buy when you're ready to grow. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for details.</>
         },
         {
-          question: "What happens when I reach 100+ members?",
-          answer: "Congratulations! Your subscription becomes free when you reach 100 family members. For every additional 25 members you add beyond 100, there's a small one-time payment of $2.99 to unlock that milestone. This helps us maintain quality service while rewarding your dedication to preserving family history."
+          question: "Do credits expire?",
+          answer: "No. Credits never expire. Once you purchase a member pack, those credits are yours to use whenever you want. There's no monthly deadline, no use-it-or-lose-it pressure. Add members at your own pace."
         },
         {
-          question: "Does my discount apply across all my trees?",
-          answer: "Yes! Your total member count includes all family members across all your trees combined. Whether you have one large tree or several smaller ones, every member counts toward your discount tier."
+          question: "How do activity rewards work?",
+          answer: "We reward families who are actively building their trees. Add 5 or more family members in a single month and you'll get 20% off your next member pack purchase. Reach the milestone of 100 total members and you'll receive a free Starter Pack (10 credits) as a thank-you for your dedication to preserving your family history."
         },
         {
-          question: "What happens if I stop paying my monthly subscription?",
-          answer: "Your family tree data is never deleted when you stop paying. You'll be moved to our Free plan, which allows you to view 1 tree with up to 20 members. All your connections, relationships, and family history remain intact and preserved. You simply won't be able to add new members or trees beyond the free limits until you resubscribe."
+          question: "Do credits apply across all my trees?",
+          answer: "Yes. Your credit balance is tied to your account, not a specific tree. You can create unlimited trees for free and use your credits to add members to any of them. Your total member count across all trees determines when your 20 free slots are used up."
         },
         {
-          question: "Can my family access our shared tree if I cancel my subscription?",
-          answer: "Yes! Family connections persist regardless of subscription status. If you've shared your tree with family members who have their own accounts, they retain access based on their own subscription level. Collaborators with Premium accounts can continue to edit and expand the tree."
+          question: "What is Premium and do I need it?",
+          answer: <>Premium ($4.99/month) is entirely optional. Most families don't need it. It unlocks unlimited media uploads for life events, gift registries, advanced tree analytics, and priority support. The core experience, including unlimited trees, collaboration, privacy controls, profile claiming, and all relationship features, is available to every user regardless of Premium status.</>
         },
         {
-          question: "Can I cancel my subscription anytime?",
-          answer: "Absolutely! You can cancel your subscription at any time. You'll continue to have access until the end of your current billing period. After that, you'll be moved to the Free plan but your data stays safe and accessible within Free plan limits."
+          question: "What happens to my data if I stop buying credits?",
+          answer: "Nothing changes. Your trees, members, relationships, photos, and everything you've built stays exactly as it is. You just won't be able to add new members beyond your free slots until you purchase more credits. Your family can still view, collaborate on, and interact with existing trees."
+        },
+        {
+          question: "Can I cancel Premium anytime?",
+          answer: "Yes. You can cancel Premium at any time and you'll keep access through the end of your billing period. After that, you'll lose access to Premium-only features like unlimited media uploads and gift registries, but all your trees, members, and data remain intact."
         }
       ]
     },
@@ -148,11 +194,11 @@ export default function FAQ() {
         },
         {
           question: "What is Selective Branch Import?",
-          answer: "Selective Branch Import lets you control which members from connected trees count toward your subscription. When you connect to another tree, you can choose to import just specific branches (like immediate family or descendants) rather than the entire tree. Only imported members count toward your pricing tier - the rest remain viewable but don't affect your cost."
+          answer: "Selective Branch Import lets you control which members from connected trees count toward your member total. When you connect to another tree, you can choose to import just specific branches (like immediate family or descendants) rather than the entire tree. Only imported members use your credits. The rest remain viewable but don't cost you anything."
         },
         {
-          question: "How does importing branches affect my pricing?",
-          answer: "Only your own tree members plus imported members from connected trees count toward your subscription tier. When you connect to another tree with 59 members, you don't automatically pay for all 59 - you choose which branches to import. For example, you might import just your mother-in-law's immediate family (8 members) and view the rest for free. This gives you control over costs while still seeing the full extended family."
+          question: "How does importing branches affect my credits?",
+          answer: "Only your own tree members plus imported members from connected trees count toward your total. When you connect to another tree with 59 members, you don't automatically use credits for all 59. You choose which branches to import. For example, you might import just your mother-in-law's immediate family (8 members) and view the rest for free. This gives you control over costs while still seeing the full extended family."
         },
         {
           question: "Can I import different amounts from different connected trees?",
