@@ -46,6 +46,11 @@ export const userRelationshipTypeEnum = pgEnum("user_relationship_type", [
   "cousin", "in_law", "step_relative", "other"
 ]);
 
+// Tree type enum for multi-tree-type support
+export const treeTypeEnum = pgEnum("tree_type", [
+  "family", "church", "sports", "fraternity", "friends", "professional", "custom"
+]);
+
 // Family Trees table
 export const familyTrees = pgTable("family_trees", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -56,6 +61,9 @@ export const familyTrees = pgTable("family_trees", {
   rootMemberId: varchar("root_member_id"),
   // Privacy visibility default for non-immediate family members
   visibilityDefault: visibilityTierEnum("visibility_default").default("extended"),
+  treeType: treeTypeEnum("tree_type").default("family").notNull(),
+  treeTypeLabel: text("tree_type_label"),
+  customRelationshipTypes: jsonb("custom_relationship_types").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -99,7 +107,7 @@ export const relationships = pgTable("relationships", {
   treeId: varchar("tree_id").notNull(),
   fromMemberId: varchar("from_member_id").notNull(),
   toMemberId: varchar("to_member_id").notNull(),
-  relationshipType: relationshipTypeEnum("relationship_type").notNull(),
+  relationshipType: text("relationship_type").notNull(),
   qualifier: relationshipQualifierEnum("qualifier"), // biological, step, adopted, foster, half, in-law (null = biological/default)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -2,7 +2,7 @@
 
 ## Overview
 
-FamilyRoots is a full-stack web application for creating, managing, and visualizing interactive family trees. It allows users to build comprehensive family histories with detailed profiles, define relationships, and explore ancestry through dynamic timelines. The platform emphasizes user collaboration, robust privacy controls, and secure authentication, aiming to be a leading tool for genealogical research and connection.
+FamilyRoots is a full-stack web application for creating, managing, and visualizing interactive trees for families and communities. While family trees remain the flagship, the platform now supports multiple tree types: church/faith groups, sports teams, fraternities/sororities, friend circles, professional networks, and custom groups. Each tree type has its own relationship types and terminology, with the user as the common anchor across all their trees. The platform emphasizes user collaboration, robust privacy controls, and secure authentication.
 
 ## User Preferences
 
@@ -23,6 +23,7 @@ PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for sc
 
 - **Authentication**: Secure login via Replit Auth (OpenID Connect) with PostgreSQL session management.
 - **Collaboration**: Users can share family trees with defined roles (Viewer, Editor, Co-owner) via invitation links and link co-owned trees.
+- **Multi-Tree-Type Support**: Supports family, church, sports, fraternity/sorority, friends, professional, and custom tree types. Each type has its own relationship types and terminology. Configured via `shared/treeTypes.ts`. Schema uses `treeType`, `treeTypeLabel`, and `customRelationshipTypes` columns on `family_trees` table. The `relationships.relationship_type` column is `text` (not enum) to support dynamic types.
 - **Relationship Management**: Comprehensive control over family relationships, allowing manual additions and definitions.
 - **Profile Claiming**: Family members can claim their profiles in trees they don't own, gaining limited editing rights upon owner approval.
 - **Life Events Recording**: Track significant life events with dates, descriptions, locations, and media attachments, including email notifications for collaborators.

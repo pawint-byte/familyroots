@@ -43,6 +43,7 @@ import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import TimelineView from "@/components/timeline-view";
 import { RelationshipDisplay, FocusMemberSelector } from "@/components/relationship-display";
 import { AddRelationship } from "@/components/add-relationship";
+import { getTreeTypeConfig, getRelationshipTypesForTree, type TreeType } from "@shared/treeTypes";
 import { ProfileClaimSection } from "@/components/profile-claim-section";
 import { LifeEventsSection } from "@/components/life-events-section";
 import { CustodianshipSection } from "@/components/custodianship-section";
@@ -695,7 +696,9 @@ export default function TreeView() {
                 </DialogTrigger>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle className="font-serif">Add Family Member</DialogTitle>
+                  <DialogTitle className="font-serif">
+                  {treeData ? getTreeTypeConfig((treeData.tree.treeType || "family") as TreeType).addMemberLabel : "Add Member"}
+                </DialogTitle>
                 </DialogHeader>
                 <MemberForm 
                   treeId={treeId!}
@@ -1024,7 +1027,7 @@ export default function TreeView() {
                     </div>
                     <h3 className="text-lg font-semibold mb-2">Start Your Family Tree</h3>
                     <p className="text-muted-foreground mb-4">
-                      Add your first family member to begin building your tree
+                      Add your first {treeData ? getTreeTypeConfig((treeData.tree.treeType || "family") as TreeType).memberLabel.toLowerCase() : "member"} to begin building your tree
                     </p>
                     <Button onClick={() => setIsAddMemberOpen(true)} className="gap-2" data-testid="button-add-first-member">
                       <Plus className="h-4 w-4" />
@@ -1648,6 +1651,8 @@ export default function TreeView() {
                   <div className="pt-4 border-t border-border">
                     <AddRelationship
                       treeId={treeData.tree.id}
+                      treeType={(treeData.tree.treeType || "family") as any}
+                      customRelationshipTypes={treeData.tree.customRelationshipTypes as string[] | null}
                       currentMember={selectedMember}
                       allMembers={treeData.members}
                       existingRelationships={treeData.relationships}
@@ -1738,7 +1743,7 @@ export default function TreeView() {
       <Dialog open={isEditMemberOpen} onOpenChange={setIsEditMemberOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Family Member</DialogTitle>
+            <DialogTitle>Edit {treeData ? getTreeTypeConfig((treeData.tree.treeType || "family") as TreeType).memberLabel : "Member"}</DialogTitle>
           </DialogHeader>
           {selectedMember && treeData?.tree && (
             <MemberForm
@@ -1799,10 +1804,14 @@ export default function TreeView() {
                     <SelectValue placeholder="Select relationship type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="parent">Parent/Child</SelectItem>
-                    <SelectItem value="spouse">Spouse/Partner</SelectItem>
-                    <SelectItem value="sibling">Sibling</SelectItem>
-                    <SelectItem value="coparent">Co-Parent (shares child, not married)</SelectItem>
+                    {treeData && getRelationshipTypesForTree(
+                      (treeData.tree.treeType || "family") as TreeType,
+                      treeData.tree.customRelationshipTypes as string[] | null
+                    ).map((relType) => (
+                      <SelectItem key={relType.value} value={relType.value}>
+                        {relType.label}{relType.description ? ` - ${relType.description}` : ''}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">

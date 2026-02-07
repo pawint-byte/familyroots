@@ -54,6 +54,10 @@ const features: FeatureRow[] = [
   { category: "AI & Technology", feature: "Multi-language support", familyRoots: true, ancestry: true },
   { category: "AI & Technology", feature: "QR code sharing", familyRoots: true, ancestry: false },
   
+  { category: "Beyond Family", feature: "Multi-type trees (church, sports, Greek life)", familyRoots: true, ancestry: false },
+  { category: "Beyond Family", feature: "Custom relationship types per tree", familyRoots: true, ancestry: false },
+  { category: "Beyond Family", feature: "Professional network trees", familyRoots: true, ancestry: false },
+  
   { category: "Monetization", feature: "Credit-based member packs (no expiry)", familyRoots: true, ancestry: false },
   { category: "Monetization", feature: "Activity rewards & milestones", familyRoots: true, ancestry: false },
   { category: "Monetization", feature: "Custom merchandise (print-on-demand)", familyRoots: true, ancestry: false },
@@ -68,6 +72,7 @@ const categoryIcons: Record<string, any> = {
   "Records & Research": MapPin,
   "DNA": Sparkles,
   "AI & Technology": Bot,
+  "Beyond Family": Sparkles,
   "Monetization": ShoppingBag,
 };
 

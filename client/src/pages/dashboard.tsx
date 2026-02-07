@@ -15,7 +15,9 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { trackTreeCreation } from "@/lib/tracking";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -47,6 +49,10 @@ export default function Dashboard() {
   const [newTreeName, setNewTreeName] = useState("");
   const [newTreeDescription, setNewTreeDescription] = useState("");
   const [newTreePrivacy, setNewTreePrivacy] = useState<"private" | "public">("private");
+  const [newTreeType, setNewTreeType] = useState<TreeType>("family");
+  const [customTypeLabel, setCustomTypeLabel] = useState("");
+  const [customRelTypes, setCustomRelTypes] = useState<string[]>([]);
+  const [customRelTypeInput, setCustomRelTypeInput] = useState("");
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [renameTreeId, setRenameTreeId] = useState<string | null>(null);
   const [renameTreeName, setRenameTreeName] = useState("");
@@ -138,7 +144,7 @@ export default function Dashboard() {
   });
 
   const createTreeMutation = useMutation({
-    mutationFn: async (data: { name: string; description?: string; privacy: "private" | "public" }) => {
+    mutationFn: async (data: { name: string; description?: string; privacy: "private" | "public"; treeType?: TreeType; treeTypeLabel?: string; customRelationshipTypes?: string[] }) => {
       const res = await fetch("/api/trees", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,10 +166,14 @@ export default function Dashboard() {
       setNewTreeName("");
       setNewTreeDescription("");
       setNewTreePrivacy("private");
+      setNewTreeType("family");
+      setCustomTypeLabel("");
+      setCustomRelTypes([]);
+      setCustomRelTypeInput("");
       trackTreeCreation();
       toast({
         title: "Success",
-        description: "Family tree created successfully!",
+        description: "Tree created successfully!",
       });
     },
     onError: (error: any) => {
@@ -174,7 +184,7 @@ export default function Dashboard() {
       } else {
         toast({
           title: "Error",
-          description: error.message || "Failed to create family tree",
+          description: error.message || "Failed to create tree",
           variant: "destructive",
         });
       }
@@ -185,12 +195,27 @@ export default function Dashboard() {
     tree.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const treeTypeIcons: Record<TreeType, typeof Users> = {
+    family: Users,
+    church: Church,
+    sports: Trophy,
+    fraternity: GraduationCap,
+    friends: Heart,
+    professional: Briefcase,
+    custom: Sparkles,
+  };
+
   const handleCreateTree = () => {
     if (!newTreeName.trim()) return;
     createTreeMutation.mutate({
       name: newTreeName,
       description: newTreeDescription || undefined,
       privacy: newTreePrivacy,
+      treeType: newTreeType,
+      ...(newTreeType === "custom" ? {
+        treeTypeLabel: customTypeLabel || undefined,
+        customRelationshipTypes: customRelTypes.length > 0 ? customRelTypes : undefined,
+      } : {}),
     });
   };
 
@@ -683,16 +708,119 @@ export default function Dashboard() {
                   New Tree
                 </Button>
               </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle className="font-serif">Create New Family Tree</DialogTitle>
+                <DialogTitle className="font-serif">Create New Tree</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Tree Type</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Object.keys(TREE_TYPE_CONFIGS) as TreeType[]).map((type) => {
+                      const config = TREE_TYPE_CONFIGS[type];
+                      const IconComponent = treeTypeIcons[type];
+                      const isSelected = newTreeType === type;
+                      return (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setNewTreeType(type)}
+                          className={`flex items-center gap-3 p-3 rounded-md border text-left transition-colors ${
+                            isSelected
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover-elevate"
+                          }`}
+                          data-testid={`button-tree-type-${type}`}
+                        >
+                          <IconComponent className={`h-5 w-5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                          <div className="min-w-0">
+                            <div className={`text-sm font-medium truncate ${isSelected ? "text-primary" : ""}`}>
+                              {config.label}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {TREE_TYPE_CONFIGS[newTreeType].description}
+                  </p>
+                </div>
+                {newTreeType === "custom" && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-type-label">Group Type Name (optional)</Label>
+                      <Input
+                        id="custom-type-label"
+                        placeholder="e.g., Book Club, Neighborhood, Band"
+                        value={customTypeLabel}
+                        onChange={(e) => setCustomTypeLabel(e.target.value)}
+                        data-testid="input-custom-type-label"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Custom Relationship Types (optional)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="e.g., Organizer, Participant"
+                          value={customRelTypeInput}
+                          onChange={(e) => setCustomRelTypeInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && customRelTypeInput.trim()) {
+                              e.preventDefault();
+                              if (!customRelTypes.includes(customRelTypeInput.trim())) {
+                                setCustomRelTypes([...customRelTypes, customRelTypeInput.trim()]);
+                              }
+                              setCustomRelTypeInput("");
+                            }
+                          }}
+                          data-testid="input-custom-rel-type"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (customRelTypeInput.trim() && !customRelTypes.includes(customRelTypeInput.trim())) {
+                              setCustomRelTypes([...customRelTypes, customRelTypeInput.trim()]);
+                              setCustomRelTypeInput("");
+                            }
+                          }}
+                          data-testid="button-add-custom-rel-type"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      {customRelTypes.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {customRelTypes.map((type) => (
+                            <Badge key={type} variant="secondary" className="gap-1">
+                              {type}
+                              <button
+                                type="button"
+                                onClick={() => setCustomRelTypes(customRelTypes.filter(t => t !== type))}
+                                className="ml-1 hover-elevate rounded-full"
+                                data-testid={`button-remove-rel-type-${type}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {customRelTypes.length === 0
+                          ? "Default types (Leader, Member, Connected) will be used if none added"
+                          : `${customRelTypes.length} custom type${customRelTypes.length !== 1 ? "s" : ""} defined`}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="tree-name">Tree Name</Label>
                   <Input
                     id="tree-name"
-                    placeholder="e.g., Smith Family Tree"
+                    placeholder={newTreeType === "family" ? "e.g., Smith Family Tree" : `e.g., ${TREE_TYPE_CONFIGS[newTreeType].label}`}
                     value={newTreeName}
                     onChange={(e) => setNewTreeName(e.target.value)}
                     data-testid="input-tree-name"
@@ -702,7 +830,7 @@ export default function Dashboard() {
                   <Label htmlFor="tree-description">Description (optional)</Label>
                   <Textarea
                     id="tree-description"
-                    placeholder="Add a description for your family tree..."
+                    placeholder={`Add a description for your ${TREE_TYPE_CONFIGS[newTreeType].label.toLowerCase()}...`}
                     value={newTreeDescription}
                     onChange={(e) => setNewTreeDescription(e.target.value)}
                     data-testid="input-tree-description"
@@ -908,7 +1036,7 @@ export default function Dashboard() {
                 <CardHeader className="flex flex-row items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <CardTitle className="font-serif truncate">{tree.name}</CardTitle>
-                    <CardDescription className="flex items-center gap-2 mt-1">
+                    <CardDescription className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
                         tree.privacy === "private" 
                           ? "bg-muted text-muted-foreground" 
@@ -916,6 +1044,16 @@ export default function Dashboard() {
                       }`}>
                         {tree.privacy === "private" ? "Private" : "Public"}
                       </span>
+                      {tree.treeType && tree.treeType !== "family" && (() => {
+                        const TreeIcon = treeTypeIcons[(tree.treeType as TreeType) || "family"];
+                        const config = TREE_TYPE_CONFIGS[(tree.treeType as TreeType) || "family"];
+                        return (
+                          <Badge variant="secondary" className="text-xs gap-1">
+                            <TreeIcon className="h-3 w-3" />
+                            {config.label}
+                          </Badge>
+                        );
+                      })()}
                     </CardDescription>
                   </div>
                   <DropdownMenu>
@@ -972,7 +1110,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Users className="h-4 w-4" />
-                      <span>{tree.memberCount ?? 0} {(tree.memberCount ?? 0) === 1 ? 'member' : 'members'}</span>
+                      <span>{tree.memberCount ?? 0} {(tree.memberCount ?? 0) === 1 ? TREE_TYPE_CONFIGS[(tree.treeType as TreeType) || "family"].memberLabel.toLowerCase() : TREE_TYPE_CONFIGS[(tree.treeType as TreeType) || "family"].membersLabel.toLowerCase()}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />

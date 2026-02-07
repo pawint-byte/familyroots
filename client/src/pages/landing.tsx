@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
 import { useI18n } from "@/lib/i18n";
-import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone } from "lucide-react";
+import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 import { QRCodeSVG } from "qrcode.react";
@@ -32,8 +32,8 @@ export default function Landing() {
     <div className="min-h-screen bg-background">
       <SEO
         title="FamilyRoots - Build Your Family's Living Legacy"
-        description="Create beautiful, interactive family trees that connect generations. Start your household's tree and watch as relatives across the country connect their branches automatically."
-        keywords="family tree, genealogy, ancestry, family history, interactive family tree, family members, heritage, household, family connections"
+        description="Create beautiful, interactive trees that connect generations and communities. Build family trees, church groups, sports teams, Greek life chapters, and professional networks - all in one place."
+        keywords="family tree, genealogy, ancestry, family history, interactive family tree, church group, sports team, fraternity, sorority, professional network, friend circle, connections"
         ogType="website"
         structuredData={defaultStructuredData}
       />
@@ -298,6 +298,62 @@ export default function Landing() {
               <a href="/api/login">
                 <Button size="lg" className="gap-2" data-testid="button-demo-cta">
                   Start Building Your Tree
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* Beyond Family Trees Section */}
+        <section id="tree-types" className="py-24 bg-card/50">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+                <Sparkles className="h-4 w-4" />
+                <span>More than genealogy</span>
+              </div>
+              <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4" data-testid="text-tree-types-title">
+                One Platform, Every Connection
+              </h2>
+              <p className="text-muted-foreground text-lg max-w-2xl mx-auto" data-testid="text-tree-types-subtitle">
+                FamilyRoots started with family trees, but your connections go further. 
+                Build trees for every group that matters to you - all connected through you.
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+              {[
+                { icon: Users, title: "Family Trees", desc: "Your core anchor. Track blood relatives, in-laws, and extended family across generations.", badge: "Flagship", highlight: true },
+                { icon: Church, title: "Church & Faith", desc: "Organize congregations, ministries, and spiritual mentorship connections.", badge: "New" },
+                { icon: Trophy, title: "Sports Teams", desc: "Manage rosters, coaching staff, and alumni networks across seasons.", badge: "New" },
+                { icon: GraduationCap, title: "Greek Life", desc: "Connect pledge classes, big/little pairs, and alumni chapters.", badge: "New" },
+                { icon: Heart, title: "Friend Circles", desc: "Map your social connections, roommates, and friend groups.", badge: "New" },
+                { icon: Briefcase, title: "Professional", desc: "Track colleagues, mentors, and career connections over time.", badge: "New" },
+              ].map((item, i) => (
+                <Card key={i} className={`hover-elevate ${item.highlight ? "border-primary" : ""}`} data-testid={`card-tree-type-${i}`}>
+                  <CardContent className="p-6 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <item.icon className="h-5 w-5 text-primary" />
+                      </div>
+                      <Badge variant={item.highlight ? "default" : "secondary"} className="text-xs">
+                        {item.badge}
+                      </Badge>
+                    </div>
+                    <h3 className="font-semibold text-lg">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground">{item.desc}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <div className="text-center mt-10">
+              <p className="text-muted-foreground mb-4">
+                You are the common anchor across all your trees. 
+                Each tree has its own roles and relationships, but they're all yours.
+              </p>
+              <a href="/api/login">
+                <Button size="lg" className="gap-2" data-testid="button-tree-types-cta">
+                  Start Building
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </a>

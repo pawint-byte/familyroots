@@ -10,6 +10,8 @@ import {
   insertCustodianshipRequestSchema
 } from "@shared/schema";
 import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
+import { getValidRelationshipValues } from "@shared/treeTypes";
+import type { TreeType } from "@shared/treeTypes";
 import { z } from "zod";
 import crypto from "crypto";
 import { calculateRelationship, getSubtreeBetweenMembers } from "./lib/relationship-calculator";
@@ -1035,7 +1037,15 @@ export async function registerRoutes(
 
       const data = insertRelationshipSchema.parse({ ...req.body, treeId });
       
-      // Age validation for parent/child relationships
+      // Validate relationship type against tree type
+      const treeTypeForValidation = (tree.treeType || "family") as TreeType;
+      const customTypesForValidation = tree.customRelationshipTypes as string[] | null;
+      const validRelTypes = getValidRelationshipValues(treeTypeForValidation, customTypesForValidation);
+      if (!validRelTypes.includes(data.relationshipType)) {
+        return res.status(400).json({ message: `Invalid relationship type '${data.relationshipType}' for this tree type` });
+      }
+      
+      // Age validation for parent/child relationships (family trees only)
       if (data.relationshipType === "parent" || data.relationshipType === "child") {
         const members = await storage.getMembers(treeId);
         const fromMember = members.find(m => m.id === data.fromMemberId);
@@ -1100,8 +1110,10 @@ export async function registerRoutes(
 
       const { relationshipType, qualifier } = req.body;
       
-      // Validate relationship type if provided
-      const validTypes = ["parent", "child", "spouse", "sibling", "coparent"];
+      // Validate relationship type dynamically based on tree type
+      const treeType = (tree.treeType || "family") as TreeType;
+      const customTypes = tree.customRelationshipTypes as string[] | null;
+      const validTypes = getValidRelationshipValues(treeType, customTypes);
       if (relationshipType && !validTypes.includes(relationshipType)) {
         return res.status(400).json({ message: "Invalid relationship type" });
       }

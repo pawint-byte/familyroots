@@ -8,36 +8,21 @@ import { Link2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { FamilyMember, Relationship } from "@shared/schema";
+import { getTreeTypeConfig, getRelationshipTypesForTree, getReverseRelationshipType, type TreeType, type RelationshipTypeConfig } from "@shared/treeTypes";
 
 interface AddRelationshipProps {
   treeId: string;
+  treeType?: TreeType;
+  customRelationshipTypes?: string[] | null;
   currentMember: FamilyMember;
   allMembers: FamilyMember[];
   existingRelationships: Relationship[];
   canEdit: boolean;
 }
 
-type RelationshipType = "parent" | "child" | "spouse" | "sibling" | "coparent";
 type RelationshipQualifier = "biological" | "step" | "adopted" | "foster" | "half" | "in-law" | "";
 
-const relationshipLabels: Record<RelationshipType, string> = {
-  parent: "is a parent of",
-  child: "is a child of", 
-  spouse: "is a spouse/partner of",
-  sibling: "is a sibling of",
-  coparent: "is a co-parent with",
-};
-
-const qualifierLabels: Record<string, string> = {
-  biological: "Biological (default)",
-  step: "Step",
-  adopted: "Adopted",
-  foster: "Foster",
-  half: "Half (shares one parent)",
-  "in-law": "In-Law",
-};
-
-const reverseRelationship: Record<RelationshipType, RelationshipType> = {
+const familyReverseRelationship: Record<string, string> = {
   parent: "child",
   child: "parent",
   spouse: "spouse",
@@ -47,6 +32,8 @@ const reverseRelationship: Record<RelationshipType, RelationshipType> = {
 
 export function AddRelationship({ 
   treeId, 
+  treeType = "family",
+  customRelationshipTypes,
   currentMember, 
   allMembers, 
   existingRelationships,
@@ -54,9 +41,13 @@ export function AddRelationship({
 }: AddRelationshipProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string>("");
-  const [relationshipType, setRelationshipType] = useState<RelationshipType | "">("");
+  const [relationshipType, setRelationshipType] = useState<string>("");
   const [qualifier, setQualifier] = useState<RelationshipQualifier>("");
   const { toast } = useToast();
+  
+  const treeConfig = getTreeTypeConfig(treeType);
+  const availableRelTypes = getRelationshipTypesForTree(treeType, customRelationshipTypes);
+  const isFamily = treeType === "family";
 
   const addRelationshipMutation = useMutation({
     mutationFn: async (data: { fromMemberId: string; toMemberId: string; relationshipType: string; qualifier?: string }) => {
@@ -109,7 +100,8 @@ export function AddRelationship({
       if (r.fromMemberId === currentMember.id) {
         return r.relationshipType === relationshipType;
       } else {
-        return r.relationshipType === reverseRelationship[relationshipType as RelationshipType];
+        const reverse = getReverseRelationshipType(treeType, relationshipType, customRelationshipTypes);
+        return r.relationshipType === (reverse || relationshipType);
       }
     })) {
       return false;
@@ -138,38 +130,40 @@ export function AddRelationship({
         </DialogHeader>
         <div className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label>Who is {getMemberName(currentMember)} to the other person?</Label>
+            <Label>{isFamily ? `Who is ${getMemberName(currentMember)} to the other person?` : "Select role/relationship"}</Label>
             <Select 
               value={relationshipType} 
-              onValueChange={(val) => setRelationshipType(val as RelationshipType)}
+              onValueChange={(val) => setRelationshipType(val)}
             >
               <SelectTrigger data-testid="select-relationship-type">
                 <SelectValue placeholder="Select relationship type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="parent">
-                  {getMemberName(currentMember)} is their <strong>PARENT</strong> (they are {getMemberName(currentMember)}'s child)
-                </SelectItem>
-                <SelectItem value="child">
-                  {getMemberName(currentMember)} is their <strong>CHILD</strong> (they are {getMemberName(currentMember)}'s parent)
-                </SelectItem>
-                <SelectItem value="spouse">
-                  {getMemberName(currentMember)} is their <strong>SPOUSE/PARTNER</strong>
-                </SelectItem>
-                <SelectItem value="sibling">
-                  {getMemberName(currentMember)} is their <strong>SIBLING</strong>
-                </SelectItem>
-                <SelectItem value="coparent">
-                  {getMemberName(currentMember)} is a <strong>CO-PARENT</strong> (shares a child with them, not married)
-                </SelectItem>
+                {availableRelTypes.map((relType) => (
+                  <SelectItem key={relType.value} value={relType.value}>
+                    {isFamily ? (
+                      <>
+                        {getMemberName(currentMember)} is their <strong>{relType.label.toUpperCase()}</strong>
+                        {relType.reverseLabel && ` (they are ${getMemberName(currentMember)}'s ${relType.reverseLabel.toLowerCase()})`}
+                      </>
+                    ) : (
+                      <>
+                        <strong>{relType.label}</strong>
+                        {relType.description && ` - ${relType.description}`}
+                      </>
+                    )}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Select what {getMemberName(currentMember)} is to the person you'll select next.
+              {isFamily 
+                ? `Select what ${getMemberName(currentMember)} is to the person you'll select next.`
+                : `Select the role of ${getMemberName(currentMember)} relative to the other ${treeConfig.memberLabel.toLowerCase()}.`}
             </p>
           </div>
 
-          {relationshipType && (
+          {isFamily && relationshipType && (
             <div className="space-y-2">
               <Label>Relationship Type (optional)</Label>
               <Select 
@@ -180,31 +174,15 @@ export function AddRelationship({
                   <SelectValue placeholder="Biological (default)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="biological">{qualifierLabels.biological}</SelectItem>
-                  {relationshipType === 'parent' && (
-                    <>
-                      <SelectItem value="step">{qualifierLabels.step}</SelectItem>
-                      <SelectItem value="adopted">{qualifierLabels.adopted}</SelectItem>
-                      <SelectItem value="foster">{qualifierLabels.foster}</SelectItem>
-                    </>
-                  )}
-                  {relationshipType === 'child' && (
-                    <>
-                      <SelectItem value="step">{qualifierLabels.step}</SelectItem>
-                      <SelectItem value="adopted">{qualifierLabels.adopted}</SelectItem>
-                      <SelectItem value="foster">{qualifierLabels.foster}</SelectItem>
-                    </>
-                  )}
-                  {relationshipType === 'sibling' && (
-                    <>
-                      <SelectItem value="half">{qualifierLabels.half}</SelectItem>
-                      <SelectItem value="step">{qualifierLabels.step}</SelectItem>
-                      <SelectItem value="adopted">{qualifierLabels.adopted}</SelectItem>
-                    </>
-                  )}
-                  {relationshipType === 'spouse' && (
-                    <SelectItem value="in-law">Former Spouse (In-Law)</SelectItem>
-                  )}
+                  {(treeConfig.qualifiers || []).map((q) => {
+                    if (relationshipType === 'spouse' && !['biological', 'in-law'].includes(q.value)) return null;
+                    if (relationshipType === 'sibling' && !['biological', 'half', 'step', 'adopted'].includes(q.value)) return null;
+                    if (['parent', 'child'].includes(relationshipType) && !['biological', 'step', 'adopted', 'foster'].includes(q.value)) return null;
+                    if (relationshipType === 'coparent' && q.value !== 'biological') return null;
+                    return (
+                      <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
@@ -214,14 +192,14 @@ export function AddRelationship({
           )}
 
           <div className="space-y-2">
-            <Label>Select Family Member</Label>
+            <Label>Select {treeConfig.memberLabel}</Label>
             <Select 
               value={selectedMemberId} 
               onValueChange={setSelectedMemberId}
               disabled={!relationshipType}
             >
               <SelectTrigger data-testid="select-related-member">
-                <SelectValue placeholder={relationshipType ? "Select a family member" : "First select a relationship type"} />
+                <SelectValue placeholder={relationshipType ? `Select a ${treeConfig.memberLabel.toLowerCase()}` : "First select a relationship type"} />
               </SelectTrigger>
               <SelectContent>
                 {availableMembers.map((member) => (
@@ -231,7 +209,7 @@ export function AddRelationship({
                 ))}
                 {availableMembers.length === 0 && relationshipType && (
                   <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    No available members for this relationship type
+                    No available {treeConfig.membersLabel.toLowerCase()} for this relationship type
                   </div>
                 )}
               </SelectContent>
@@ -242,16 +220,21 @@ export function AddRelationship({
             <div className="bg-muted p-3 rounded-md text-sm space-y-2">
               <div className="font-medium text-center">
                 <strong>{getMemberName(currentMember)}</strong>{" "}
-                {relationshipLabels[relationshipType as RelationshipType]}{" "}
+                {(() => {
+                  const relConfig = availableRelTypes.find(r => r.value === relationshipType);
+                  return isFamily 
+                    ? `is ${relConfig?.label.toLowerCase()} of`
+                    : `is ${relConfig?.label || relationshipType} of`;
+                })()}{" "}
                 <strong>{getMemberName(allMembers.find(m => m.id === selectedMemberId)!)}</strong>
               </div>
-              {relationshipType === "parent" && (
+              {isFamily && relationshipType === "parent" && (
                 <p className="text-xs text-muted-foreground text-center">
                   This means {getMemberName(currentMember)} is the parent, 
                   and {getMemberName(allMembers.find(m => m.id === selectedMemberId)!)} is their child.
                 </p>
               )}
-              {relationshipType === "child" && (
+              {isFamily && relationshipType === "child" && (
                 <p className="text-xs text-muted-foreground text-center">
                   This means {getMemberName(currentMember)} is the child, 
                   and {getMemberName(allMembers.find(m => m.id === selectedMemberId)!)} is their parent.

@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -131,6 +131,32 @@ export default function FAQ() {
         {
           question: "What privacy controls does FamilyRoots offer?",
           answer: "FamilyRoots has three-tier privacy visibility (Full Access, Extended Family View, Limited) that controls how much information different family members can see. Immediate family always has full access. Tree owners can set defaults and override visibility for individual members. Family members who claim their profiles can also control their own visibility. No other platform gives this level of granular control to both the tree owner and the individual family members."
+        }
+      ]
+    },
+    {
+      title: "Beyond Family Trees",
+      icon: <Briefcase className="h-5 w-5" />,
+      items: [
+        {
+          question: "Can I create trees for groups other than family?",
+          answer: "Yes! FamilyRoots now supports multiple tree types beyond traditional family trees. You can create trees for church congregations, sports teams, fraternities and sororities, friend circles, professional networks, or even custom groups. Each tree type comes with its own set of relationship types appropriate to that community."
+        },
+        {
+          question: "What tree types are available?",
+          answer: "We currently support: Family Trees (our flagship), Church/Faith Groups (with roles like Pastor, Elder, Ministry Leader), Sports Teams (Coach, Captain, Player, Alumni), Fraternity/Sorority (Big, Little, Pledge Class, Officers), Friend Circles (Best Friend, Roommate, Neighbor), Professional Networks (Manager, Colleague, Mentor), and Custom Groups where you define your own roles."
+        },
+        {
+          question: "How do different tree types work compared to family trees?",
+          answer: "Each tree type has its own terminology and relationship types. For example, a church tree uses roles like Pastor, Elder, and Ministry Member instead of Parent, Child, and Spouse. A sports team uses Coach, Captain, and Player. The tree visualization, member profiles, and collaboration features work the same way across all types."
+        },
+        {
+          question: "Are non-family trees connected to my family tree?",
+          answer: "All your trees are independent of each other, but you are the common anchor across all of them. Your family tree remains your core tree, and other trees exist alongside it. This means your church group doesn't mix with your sports team roster, but you can manage everything from one dashboard."
+        },
+        {
+          question: "Do credits work across all tree types?",
+          answer: "Yes, member credits work the same way regardless of tree type. Your first 20 members are free across all trees combined, and credit packs can be used for any tree type."
         }
       ]
     },
