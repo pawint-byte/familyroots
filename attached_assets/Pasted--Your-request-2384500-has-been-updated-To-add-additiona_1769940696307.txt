@@ -1,0 +1,43 @@
+
+Your request (2384500) has been updated. To add additional comments, reply to this email.
+
+Tiffany Voorhees (FamilySearch)
+Jan 29, 2026, 13:06 MST
+
+We appreciate your interest in leveraging images, historical records or indexed data.  We understand the value that indexed or AI generated search results of historical records can enrich user experiences.
+Currently, our API provides access to person information, including relationships, events, and memories and only obtainable through an authenticated end-user. This does not support retrieval from indexed records, historical records or other external sources.
+Given this limitation, we’d like to understand your goals more clearly. Do you believe that the available person information is sufficient to power a “Smart Search” experience? Or are there specific use cases where indexed records are essential?
+Your feedback will help us better align our capabilities with your needs.
+Microsoft Power Apps and Power Automate
+Jan 23, 2026, 09:08 MST
+
+[External Email]
+
+1. Name: Peter Wint
+
+2. Email: Pawint@me.com
+
+3. Company: Wint Ent
+4. Phone: 9199618308
+
+5. Country or State: USA
+
+6. Website URL: https://kinship.pawint-app.com/
+
+
+7. Detailed Description of Solution: FamilyRoots - Family Tree Management Platform FamilyRoots is a web-based genealogy platform that helps users create, manage, and visualize interactive family trees. We're integrating FamilySearch to enhance our users' research capabilities by: Historical Records Search - Users can search FamilySearch's billions of records (birth, marriage, death, census, immigration, military) directly within our app to discover ancestors. Source Documentation - Users can attach FamilySearch records as sources to family members in their trees, providing verifiable documentation for their genealogical research. Research Workflow - The integration streamlines the research process by allowing users to find records and immediately connect them to the relevant person in their family tree. Commercial Model: Tiered subscription pricing ($2.50-$9.99/month) with discounts based on family tree size Custom merchandise (family tree prints on mugs, t-shirts, posters) via Printful integration Affiliate marketplace for genealogy-related gifts The FamilySearch integration is a core research feature that adds significant value to our subscription offering, helping users discover their heritage while maintaining proper source documentation for their family histories
+
+
+8. Marketing Strategy Outline: Marketing Strategy for FamilyRoots with FamilySearch Integration 1. Content Marketing Blog posts on genealogy tips, research techniques, and family history preservation "How to trace your ancestry" guides featuring FamilySearch as a key resource Success stories from users who discovered family connections 2. Social Media Share family history content on Facebook groups dedicated to genealogy Pinterest boards featuring family tree designs and heritage content Integration with Bluesky for sharing milestone discoveries 3. SEO Strategy Target keywords: "family tree maker," "genealogy app," "ancestry alternative" Comparison page (already built) highlighting FamilyRoots features vs competitors Landing page optimized for genealogy-related searches 4. Referral Program Tiered discount system rewards users who grow their trees (25-100+ members) Users at 100+ members get free subscriptions, incentivizing family invitations Shareable QR codes and invite links for easy family onboarding 5. Partnership Marketing Highlight FamilySearch integration as a key differentiator Cross-promote with family reunion planners and heritage tourism Collaborate with genealogy societies and family history organizations 6. Freemium Model Free tier allows basic tree creation to attract users FamilySearch integration showcased as a premium research feature
+
+
+9. Business, Technical, FamilySearch Resources: Business Resources: Established subscription-based revenue model with tiered pricing Stripe payment integration for sustainable funding Existing user base building family trees who need research tools Technical Resources: Full-stack web application (React, Node.js, PostgreSQL) OAuth 2.0 implementation for secure authentication Secure token storage with PostgreSQL database Experience integrating third-party APIs (Stripe, OpenAI, Printful) FamilySearch Resources: FamilySearch API documentation and developer guides OAuth authentication flow for user consent Public tree data endpoints for deceased individuals Developer sandbox environment for testing How We'll Use the Data: Since the API provides public tree data for deceased individuals (not historical records or living person data), we will use this to: Allow users to view and reference public family tree data Help users discover potential ancestor connections Enable importing of deceased ancestor information into their private trees Display public genealogical data with proper attribution to FamilySearch We understand the API limitations and will clearly communicate to users that historical record searches require them to use FamilySearch.org directly.
+
+
+10. Benefits to FamilySearch: FamilySearch will benefit from FamilyRoots in several ways: • Data Enrichment and Contributions: The app enables users to add new records, sources, photos, and stories directly to FamilySearch’s shared tree via write-enabled API endpoints (e.g., creating persons, relationships, and sources). This prioritizes writing data, crowdsourcing improvements and expanding the database with user-generated content like living family legacies. • Increased User Engagement: By integrating seamless read/write access, FamilyRoots attracts new users to FamilySearch, boosting platform activity and community growth—potentially adding thousands of contributors through our marketing to the 10M+ genealogy market. • Improved Data Quality: AI-assisted tools in the app help users verify and correct inaccuracies, syncing updates back to FamilySearch for a more accurate, comprehensive global tree. • Promotion and Visibility: FamilyRoots prominently credits FamilySearch as the core data provider, driving traffic and awareness via app promotions, partnerships, and premium features like exportable reports. Overall, this creates a symbiotic relationship: FamilyRoots monetizes enhanced tools while feeding valuable write-back contributions to enrich FamilySearch’s ecosystem.
+
+If you want to unsubscribe from these emails, please use this form.
+
+
+
+[05ENZL-JWGWX]
