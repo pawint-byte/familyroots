@@ -81,7 +81,7 @@ export default function TreeView() {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
   const [showPaymentGate, setShowPaymentGate] = useState(false);
-  const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit: number; current: number }>({ limit: 20, current: 20 });
+  const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit?: number; current: number; credits?: number }>({ current: 0 });
   const [isExporting, setIsExporting] = useState(false);
   const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; currentQualifier: string | null; member1Name: string; member2Name: string; member1Id: string; member2Id: string } | null>(null);
   const [newRelationshipType, setNewRelationshipType] = useState<string>("");
@@ -213,7 +213,7 @@ export default function TreeView() {
       });
       if (!res.ok) {
         const errorData = await res.json();
-        if (res.status === 402 && errorData.code === "FREE_TIER_MEMBER_LIMIT") {
+        if (res.status === 402 && (errorData.code === "FREE_TIER_MEMBER_LIMIT" || errorData.code === "NO_CREDITS")) {
           throw { isPaymentGate: true, ...errorData };
         }
         throw new Error(errorData.message || "Failed to add member");
@@ -232,7 +232,7 @@ export default function TreeView() {
     onError: (error: any) => {
       if (error.isPaymentGate) {
         setIsAddMemberOpen(false);
-        setPaymentGateInfo({ limit: error.limit, current: error.current });
+        setPaymentGateInfo({ current: error.current || 0, credits: error.credits || 0 });
         setShowPaymentGate(true);
       } else {
         toast({
@@ -1872,9 +1872,9 @@ export default function TreeView() {
       <PaymentGateDialog
         open={showPaymentGate}
         onOpenChange={setShowPaymentGate}
-        type="member"
-        limit={paymentGateInfo.limit}
+        type="credits"
         current={paymentGateInfo.current}
+        credits={paymentGateInfo.credits}
       />
 
       {importConnectionData && treeId && (

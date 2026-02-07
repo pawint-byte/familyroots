@@ -76,7 +76,7 @@ export default function FAQ() {
         },
         {
           question: "How does FamilyRoots pricing work?",
-          answer: <>FamilyRoots offers family-size discounts: $9.99/month base price, 25% off at 25 members ($7.49/month), 50% off at 50 members ($4.99/month), 75% off at 75 members ($2.50/month), and completely FREE at 100+ members. The more family you add, the less you pay! See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for details.</>
+          answer: <>FamilyRoots lets you start for free with your first 20 family members. Need more? Grab a member pack: Starter (10 for $7.99), Growth (25 for $14.99), or Family (50 for $24.99). Credits never expire. Active users earn discounts: add 5+ members in a month for 20% off your next pack, and get a free 10-pack when you reach 100 members. Optional Premium ($4.99/mo) unlocks unlimited media and advanced features. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for details.</>
         },
         {
           question: "Should I use FamilyRoots or Ancestry?",

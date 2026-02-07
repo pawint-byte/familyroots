@@ -58,7 +58,7 @@ export default function Dashboard() {
   const [settingsPrivacy, setSettingsPrivacy] = useState<"private" | "public">("private");
   const [pendingConnectionInfo, setPendingConnectionInfo] = useState<{ userId: string; redirectUrl: string } | null>(null);
   const [showPaymentGate, setShowPaymentGate] = useState(false);
-  const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit: number; current: number }>({ limit: 1, current: 1 });
+  const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit?: number; current: number; credits?: number }>({ current: 0 });
 
   // Check for pending profile redirect (from QR code scan before login)
   // Improved: Immediately redirect to complete the connection flow
@@ -103,7 +103,7 @@ export default function Dashboard() {
       });
       if (!res.ok) {
         const errorData = await res.json();
-        if (res.status === 402 && errorData.code === "FREE_TIER_TREE_LIMIT") {
+        if (res.status === 402) {
           throw { isPaymentGate: true, ...errorData };
         }
         throw new Error(errorData.message || "Failed to create tree");
@@ -125,7 +125,7 @@ export default function Dashboard() {
     onError: (error: any) => {
       if (error.isPaymentGate) {
         setIsCreateDialogOpen(false);
-        setPaymentGateInfo({ limit: error.limit, current: error.current });
+        setPaymentGateInfo({ current: error.current || 0, credits: error.credits || 0 });
         setShowPaymentGate(true);
       } else {
         toast({
@@ -1059,9 +1059,9 @@ export default function Dashboard() {
       <PaymentGateDialog
         open={showPaymentGate}
         onOpenChange={setShowPaymentGate}
-        type="tree"
-        limit={paymentGateInfo.limit}
+        type="credits"
         current={paymentGateInfo.current}
+        credits={paymentGateInfo.credits}
       />
     </div>
   );

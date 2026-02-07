@@ -54,8 +54,8 @@ const features: FeatureRow[] = [
   { category: "AI & Technology", feature: "Multi-language support", familyRoots: true, ancestry: true },
   { category: "AI & Technology", feature: "QR code sharing", familyRoots: true, ancestry: false },
   
-  { category: "Monetization", feature: "Tiered subscription discounts", familyRoots: true, ancestry: false },
-  { category: "Monetization", feature: "Free tier for large families", familyRoots: "100+ members", ancestry: false },
+  { category: "Monetization", feature: "Credit-based member packs (no expiry)", familyRoots: true, ancestry: false },
+  { category: "Monetization", feature: "Activity rewards & milestones", familyRoots: true, ancestry: false },
   { category: "Monetization", feature: "Custom merchandise (print-on-demand)", familyRoots: true, ancestry: false },
   { category: "Monetization", feature: "Gift marketplace", familyRoots: true, ancestry: false },
 ];

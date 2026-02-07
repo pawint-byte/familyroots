@@ -82,7 +82,7 @@ import { testDiscordConnection, sendDiscordNotification, notifyNewSignup, notify
 import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification } from "./lib/email";
 import { insertAccountHeirSchema } from "@shared/schema";
 import { printfulService } from "./printful";
-import { subscriptionService, SUBSCRIPTION_CONFIG } from "./subscriptionService";
+import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG } from "./subscriptionService";
 import * as familySearchService from "./familySearch";
 
 // Privacy visibility filtering for family members
@@ -273,25 +273,8 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       
-      // Check free tier limits: 1 tree without subscription
+      // Trees are now free and unlimited for all users
       const user = await storage.getUser(userId);
-      let hasActiveSubscription = false;
-      if (user?.stripeCustomerId) {
-        const subscription = await stripeService.getCustomerSubscription(user.stripeCustomerId);
-        hasActiveSubscription = subscription !== null;
-      }
-      
-      if (!hasActiveSubscription) {
-        const existingTrees = await storage.getTrees(userId);
-        if (existingTrees.length >= 1) {
-          return res.status(402).json({ 
-            message: "Free tier limit reached. Subscribe to create more family trees.",
-            code: "FREE_TIER_TREE_LIMIT",
-            limit: 1,
-            current: existingTrees.length
-          });
-        }
-      }
       
       const data = insertFamilyTreeSchema.parse({ ...req.body, ownerId: userId });
       const tree = await storage.createTree(data);
@@ -390,22 +373,20 @@ export async function registerRoutes(
         }
       }
       
-      // Check free tier limits: 20 members per tree without subscription
+      // Credit-based member limits: first 20 members free, then requires credits
       const treeOwner = await storage.getUser(tree.ownerId);
-      let ownerHasSubscription = false;
-      if (treeOwner?.stripeCustomerId) {
-        const subscription = await stripeService.getCustomerSubscription(treeOwner.stripeCustomerId);
-        ownerHasSubscription = subscription !== null;
-      }
+      const totalMemberCount = await subscriptionService.calculateTotalMemberCount(tree.ownerId);
+      const freeLimit = PRICING_CONFIG.freeTierCredits;
       
-      if (!ownerHasSubscription) {
-        const existingMembers = await storage.getMembers(treeId);
-        if (existingMembers.length >= 20) {
+      if (totalMemberCount >= freeLimit) {
+        const ownerCredits = treeOwner?.memberCredits || 0;
+        if (ownerCredits <= 0) {
           return res.status(402).json({ 
-            message: "Free tier limit reached. The tree owner needs to subscribe to add more family members.",
-            code: "FREE_TIER_MEMBER_LIMIT",
-            limit: 20,
-            current: existingMembers.length
+            message: "You've used all your free member slots. Purchase a member pack to add more family members.",
+            code: "NO_CREDITS",
+            freeLimit,
+            current: totalMemberCount,
+            credits: 0
           });
         }
       }
@@ -584,6 +565,14 @@ export async function registerRoutes(
           console.error('Error running cross-tree match detection:', matchError);
         }
       })();
+
+      // Deduct credit if beyond free limit, track activity, check milestones
+      const updatedMemberCount = await subscriptionService.calculateTotalMemberCount(tree.ownerId);
+      if (updatedMemberCount > PRICING_CONFIG.freeTierCredits) {
+        await subscriptionService.deductCredit(tree.ownerId);
+      }
+      await subscriptionService.incrementMonthlyAdds(tree.ownerId);
+      await subscriptionService.checkAndGrantMilestoneReward(tree.ownerId);
 
       // Return member with optional email warning
       res.status(201).json({ 
@@ -4576,6 +4565,87 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error getting milestones:", error);
       res.status(500).json({ message: "Failed to get milestone history" });
+    }
+  });
+
+  // ==================== NEW PRICING MODEL ROUTES ====================
+
+  // Get pricing config (public)
+  app.get("/api/pricing/config", async (req, res) => {
+    res.json(PRICING_CONFIG);
+  });
+
+  // Get user credits and pricing info
+  app.get("/api/pricing/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscriptionInfo = await subscriptionService.getUserSubscriptionInfo(userId);
+      const purchases = await subscriptionService.getUserPurchaseHistory(userId);
+      const rewards = await subscriptionService.getUserRewards(userId);
+      const activeReward = await subscriptionService.getActiveReward(userId);
+
+      res.json({
+        ...subscriptionInfo,
+        config: PRICING_CONFIG,
+        purchases,
+        rewards,
+        activeReward,
+      });
+    } catch (error) {
+      console.error("Error getting pricing status:", error);
+      res.status(500).json({ message: "Failed to get pricing status" });
+    }
+  });
+
+  // Purchase bulk add pack
+  app.post("/api/pricing/bulk-pack/checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const userId = req.user.claims.sub;
+      const { packType } = req.body;
+
+      if (!['starter_10', 'growth_25', 'family_50'].includes(packType)) {
+        return res.status(400).json({ message: "Invalid pack type" });
+      }
+
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const session = await subscriptionService.createBulkPackCheckout(
+        userId,
+        packType,
+        `${baseUrl}/pricing?purchase=success`,
+        `${baseUrl}/pricing?purchase=cancel`
+      );
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating bulk pack checkout:", error);
+      res.status(500).json({ message: error.message || "Failed to create checkout session" });
+    }
+  });
+
+  // Purchase premium subscription
+  app.post("/api/pricing/premium/checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const userId = req.user.claims.sub;
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+
+      const session = await subscriptionService.createPremiumCheckout(
+        userId,
+        `${baseUrl}/pricing?premium=success`,
+        `${baseUrl}/pricing?premium=cancel`
+      );
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating premium checkout:", error);
+      res.status(500).json({ message: error.message || "Failed to create checkout session" });
     }
   });
 
