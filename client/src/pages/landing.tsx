@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
 import { useI18n } from "@/lib/i18n";
-import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase } from "lucide-react";
+import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase, Lock, Eye, EyeOff, Globe, UserCheck } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 import { QRCodeSVG } from "qrcode.react";
@@ -31,9 +31,9 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background">
       <SEO
-        title="FamilyRoots - Build Your Family's Living Legacy"
-        description="Create beautiful, interactive trees that connect generations and communities. Build family trees, church groups, sports teams, Greek life chapters, and professional networks - all in one place."
-        keywords="family tree, genealogy, ancestry, family history, interactive family tree, church group, sports team, fraternity, sorority, professional network, friend circle, connections"
+        title="FamilyRoots - Your Private Network for Real Connections"
+        description="Build private, members-only networks where every connection means something. Family trees, church groups, sports teams, Greek life chapters, and professional networks - all in one secure, invitation-only platform."
+        keywords="private network, members only, family tree, church group, sports team, fraternity, sorority, professional network, private connections, invitation only, genealogy"
         ogType="website"
         structuredData={defaultStructuredData}
       />
@@ -44,7 +44,7 @@ export default function Landing() {
             <span className="font-serif text-xl font-semibold">FamilyRoots</span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-how-it-works">{t.nav.howItWorks}</a>
+            <a href="#why-private" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-why-private">Why Private</a>
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features">{t.nav.features}</a>
             <a href="#testimonials" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-testimonials">{t.nav.testimonials}</a>
             <a href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">{t.nav.pricing}</a>
@@ -89,16 +89,20 @@ export default function Landing() {
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   </a>
-                  <a href="#how-it-works">
+                  <a href="#why-private">
                     <Button size="lg" variant="outline" data-testid="button-hero-how">
-                      {t.landing.watchDemo}
+                      Why Private Networks?
                     </Button>
                   </a>
                 </div>
-                <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-primary" />
+                    <span>Invitation Only</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4 text-primary" />
-                    <span>{t.landing.gdprCompliant}</span>
+                    <span>Members-Only Access</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-primary" />
@@ -183,7 +187,7 @@ export default function Landing() {
                     {/* Caption */}
                     <div className="mt-6 pt-4 border-t border-border text-center">
                       <p className="text-sm text-muted-foreground">
-                        <span className="text-primary font-medium">3 {t.landing.heroVisualHouseholds}</span> {t.landing.heroVisualConnected}
+                        <span className="text-primary font-medium">3 private groups</span> connected through you - visible only to members
                       </p>
                     </div>
                   </div>
@@ -261,8 +265,90 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Why Private Networks Section */}
+        <section id="why-private" className="py-24">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+                <Lock className="h-4 w-4" />
+                <span>The Private Network Difference</span>
+              </div>
+              <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4" data-testid="text-why-private-title">
+                Not Another Social Network
+              </h2>
+              <p className="text-muted-foreground text-lg max-w-2xl mx-auto" data-testid="text-why-private-subtitle">
+                On social media, "connections" are meaningless. Anyone can follow you, and nobody knows how you're actually related. FamilyRoots is different.
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+              <Card className="border-destructive/30" data-testid="card-public-network">
+                <CardContent className="p-8 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
+                      <Globe className="h-5 w-5 text-destructive" />
+                    </div>
+                    <h3 className="font-semibold text-lg">Public Social Networks</h3>
+                  </div>
+                  <div className="space-y-4">
+                    {[
+                      { icon: Eye, text: "Anyone can see who you're connected to" },
+                      { icon: Users, text: "\"Friends\" and \"Followers\" with no real meaning" },
+                      { icon: Globe, text: "Your connections are public by default" },
+                      { icon: Share2, text: "No way to label how you actually know someone" },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <div className="mt-0.5 w-6 h-6 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                          <item.icon className="h-3.5 w-3.5 text-destructive" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">{item.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-primary" data-testid="card-private-network">
+                <CardContent className="p-8 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Shield className="h-5 w-5 text-primary" />
+                    </div>
+                    <h3 className="font-semibold text-lg">FamilyRoots Private Networks</h3>
+                  </div>
+                  <div className="space-y-4">
+                    {[
+                      { icon: Lock, text: "Only members you invite can see inside your group" },
+                      { icon: UserCheck, text: "Every connection has a real label: parent, coach, pastor, mentor" },
+                      { icon: EyeOff, text: "Three tiers of privacy: Full, Extended, Limited access" },
+                      { icon: Shield, text: "You control exactly who sees what, with role-based permissions" },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <div className="mt-0.5 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <item.icon className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">{item.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="text-center mt-10">
+              <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
+                Your family knows you're their cousin. Your church knows you're their pastor. Your team knows you're the captain. But outsiders? They see nothing.
+              </p>
+              <a href="/api/login">
+                <Button size="lg" className="gap-2" data-testid="button-private-cta">
+                  Build Your Private Network
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </a>
+            </div>
+          </div>
+        </section>
+
         {/* Demo Family Tree Section */}
-        <section id="demo-tree" className="py-24">
+        <section id="demo-tree" className="py-24 bg-card/50">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
               <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4" data-testid="text-demo-tree-title">See Your Family Tree Come to Life</h2>
@@ -314,21 +400,21 @@ export default function Landing() {
                 <span>More than genealogy</span>
               </div>
               <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4" data-testid="text-tree-types-title">
-                One Platform, Every Connection
+                One Platform, Every Private Circle
               </h2>
               <p className="text-muted-foreground text-lg max-w-2xl mx-auto" data-testid="text-tree-types-subtitle">
-                FamilyRoots started with family trees, but your connections go further. 
-                Build trees for every group that matters to you - all connected through you.
+                Each group gets its own private space with roles that actually make sense. 
+                Your church group doesn't need "friends" - they need "pastor" and "member." Build the network your group deserves.
               </p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
               {[
-                { icon: Users, title: "Family Trees", desc: "Your core anchor. Track blood relatives, in-laws, and extended family across generations.", badge: "Flagship", highlight: true },
-                { icon: Church, title: "Church & Faith", desc: "Organize congregations, ministries, and spiritual mentorship connections.", badge: "New" },
-                { icon: Trophy, title: "Sports Teams", desc: "Manage rosters, coaching staff, and alumni networks across seasons.", badge: "New" },
-                { icon: GraduationCap, title: "Greek Life", desc: "Connect pledge classes, big/little pairs, and alumni chapters.", badge: "New" },
-                { icon: Heart, title: "Friend Circles", desc: "Map your social connections, roommates, and friend groups.", badge: "New" },
-                { icon: Briefcase, title: "Professional", desc: "Track colleagues, mentors, and career connections over time.", badge: "New" },
+                { icon: Users, title: "Family Trees", desc: "Private family networks where only relatives see the full picture. Track blood, in-laws, and extended family across generations.", badge: "Flagship", highlight: true },
+                { icon: Church, title: "Church & Faith", desc: "A members-only space for your congregation. Organize ministries, leadership, and mentorship - visible only to your flock.", badge: "New" },
+                { icon: Trophy, title: "Sports Teams", desc: "Private team rosters with real roles - coach, captain, player. Keep your team's connections off public social media.", badge: "New" },
+                { icon: GraduationCap, title: "Greek Life", desc: "Chapter networks with big/little pairs, pledge classes, and alumni - all behind closed doors where they belong.", badge: "New" },
+                { icon: Heart, title: "Friend Circles", desc: "Map your real inner circle. Best friends, close friends, roommates - without broadcasting it to the world.", badge: "New" },
+                { icon: Briefcase, title: "Professional", desc: "A private directory of your actual working relationships. Manager, mentor, colleague - not just LinkedIn connections.", badge: "New" },
               ].map((item, i) => (
                 <Card key={i} className={`hover-elevate ${item.highlight ? "border-primary" : ""}`} data-testid={`card-tree-type-${i}`}>
                   <CardContent className="p-6 space-y-3">
@@ -348,8 +434,8 @@ export default function Landing() {
             </div>
             <div className="text-center mt-10">
               <p className="text-muted-foreground mb-4">
-                You are the common anchor across all your trees. 
-                Each tree has its own roles and relationships, but they're all yours.
+                You are the common anchor across all your private networks. 
+                Each group has its own roles and relationships, all members-only, and all under your control.
               </p>
               <a href="/api/login">
                 <Button size="lg" className="gap-2" data-testid="button-tree-types-cta">

@@ -30,7 +30,11 @@ const features: FeatureRow[] = [
   { category: "Collaboration", feature: "Custodianship for deceased", familyRoots: true, ancestry: false },
   { category: "Collaboration", feature: "Invitation links with expiry", familyRoots: true, ancestry: true },
   
+  { category: "Privacy & Security", feature: "Members-only private networks", familyRoots: true, ancestry: false },
   { category: "Privacy & Security", feature: "Three-tier visibility controls", familyRoots: true, ancestry: false },
+  { category: "Privacy & Security", feature: "Invitation-only group access", familyRoots: true, ancestry: false },
+  { category: "Privacy & Security", feature: "Role-based privacy per member", familyRoots: true, ancestry: false },
+  { category: "Privacy & Security", feature: "Labeled, meaningful connections", familyRoots: true, ancestry: false },
   { category: "Privacy & Security", feature: "Private trees", familyRoots: true, ancestry: true },
   { category: "Privacy & Security", feature: "Account heir (deadman switch)", familyRoots: true, ancestry: false },
   
@@ -102,8 +106,8 @@ export default function ComparisonPage() {
   return (
     <>
       <SEO
-        title="FamilyRoots vs Ancestry - Feature Comparison"
-        description="See how FamilyRoots compares to Ancestry.com. Compare features, pricing, and capabilities for managing your family tree."
+        title="FamilyRoots vs Ancestry - Private Networks vs Traditional Genealogy"
+        description="See how FamilyRoots private networks compare to Ancestry.com. Members-only access, labeled connections, and multi-group support vs traditional genealogy."
       />
       <div className="min-h-screen bg-background">
         <header className="border-b border-border sticky top-0 z-[100] bg-background/95 backdrop-blur">
@@ -125,7 +129,7 @@ export default function ComparisonPage() {
               FamilyRoots vs Ancestry
             </h1>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Compare features side-by-side to see which platform is right for your family tree journey.
+              FamilyRoots is a private, members-only network where connections are labeled and meaningful. See how it compares to traditional genealogy platforms.
             </p>
           </div>
 
