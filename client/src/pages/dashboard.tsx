@@ -15,7 +15,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { trackTreeCreation } from "@/lib/tracking";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -91,6 +91,50 @@ export default function Dashboard() {
   const { data: referralData } = useQuery<{ referralCode: string; referralLink: string }>({
     queryKey: ["/api/referrals/my"],
     enabled: !!user,
+  });
+
+  // Get pricing/credit status
+  const { data: pricingStatus, isLoading: pricingLoading } = useQuery<{
+    totalMemberCount: number;
+    memberCredits: number;
+    isPremium: boolean;
+    monthlyAddsCount: number;
+    hasActiveReward: boolean;
+    activeRewardDiscount: number;
+    config: {
+      freeTierCredits: number;
+      packs: Array<{ type: string; credits: number; priceCents: number; label: string }>;
+      rewards: { monthlyAddsThreshold: number; monthlyDiscountPercent: number; milestoneFreePack: { memberCount: number; freeCredits: number } };
+    };
+  }>({
+    queryKey: ["/api/pricing/status"],
+    enabled: !!user,
+  });
+
+  const totalMembers = pricingStatus?.totalMemberCount || 0;
+  const memberCredits = pricingStatus?.memberCredits || 0;
+  const freeLimit = pricingStatus?.config?.freeTierCredits || 20;
+  const freeRemaining = Math.max(0, freeLimit - totalMembers);
+  const monthlyAdds = pricingStatus?.monthlyAddsCount || 0;
+  const rewardThreshold = pricingStatus?.config?.rewards?.monthlyAddsThreshold || 5;
+
+  const bulkPackMutation = useMutation({
+    mutationFn: async (packType: string) => {
+      const res = await apiRequest("POST", "/api/pricing/bulk-pack/checkout", { packType });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to start checkout. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const createTreeMutation = useMutation({
@@ -696,6 +740,92 @@ export default function Dashboard() {
             <RevenueForecastSection />
           </div>
         )}
+
+        {/* Member Credits & Pricing Card - always show for authenticated users */}
+        <Card className="mb-8" data-testid="card-credit-balance">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Package className="h-5 w-5 text-primary" />
+              Member Credits
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pricingLoading && !pricingStatus ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="space-y-1">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-8 w-12" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Total Members</p>
+                  <p className="text-2xl font-bold" data-testid="text-total-members">{totalMembers}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Free Slots Left</p>
+                  <p className="text-2xl font-bold" data-testid="text-free-remaining">{freeRemaining}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Credits Owned</p>
+                  <p className="text-2xl font-bold" data-testid="text-credits-owned">{memberCredits}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Added This Month</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-2xl font-bold" data-testid="text-monthly-adds">{monthlyAdds}</p>
+                    {monthlyAdds >= rewardThreshold && (
+                      <span className="text-xs text-primary font-medium">20% off next pack</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="gap-2" data-testid="button-buy-credits">
+                    <CreditCard className="h-4 w-4" />
+                    Buy Member Pack
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {(pricingStatus?.config?.packs || [
+                    { type: 'starter_10', credits: 10, priceCents: 799, label: 'Starter Pack' },
+                    { type: 'growth_25', credits: 25, priceCents: 1499, label: 'Growth Pack' },
+                    { type: 'family_50', credits: 50, priceCents: 2499, label: 'Family Pack' },
+                  ]).map((pack) => (
+                    <DropdownMenuItem
+                      key={pack.type}
+                      onClick={() => bulkPackMutation.mutate(pack.type)}
+                      disabled={bulkPackMutation.isPending}
+                      data-testid={`menu-pack-${pack.type}`}
+                    >
+                      <div className="flex items-center justify-between w-full gap-4">
+                        <span className="font-medium">{pack.label}</span>
+                        <span className="text-muted-foreground">
+                          {pack.credits} credits &middot; ${(pack.priceCents / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="outline" onClick={() => navigate("/pricing")} data-testid="button-view-pricing">
+                View All Plans
+              </Button>
+              {pricingStatus?.hasActiveReward && (
+                <span className="flex items-center gap-1 text-sm text-primary font-medium">
+                  <Award className="h-4 w-4" />
+                  {pricingStatus.activeRewardDiscount}% discount available
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Pending Family Connection Requests Section */}
         <div className="mb-8">
