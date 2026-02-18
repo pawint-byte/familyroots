@@ -1,9 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { toPng } from "html-to-image";
-import { Download, ShoppingBag, Users, Eye, Share2, Loader2 } from "lucide-react";
-import { ArrowLeft } from "lucide-react";
+import { Download, ShoppingBag, Users, Eye, Share2, Loader2, Filter, ArrowLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -61,6 +60,7 @@ export default function NetworkOverview() {
   const [activeTab, setActiveTab] = useState("hub");
   const [selectedTreeId, setSelectedTreeId] = useState<string>("");
   const [isExporting, setIsExporting] = useState(false);
+  const [visibleTreeIds, setVisibleTreeIds] = useState<Set<string> | null>(null);
 
   const hubRef = useRef<HTMLDivElement>(null);
   const expandedRef = useRef<HTMLDivElement>(null);
@@ -69,6 +69,32 @@ export default function NetworkOverview() {
   const { data: trees, isLoading: treesLoading } = useQuery<TreeItem[]>({
     queryKey: ["/api/trees"],
   });
+
+  const activeVisibleIds = useMemo(() => {
+    if (!trees) return new Set<string>();
+    if (visibleTreeIds === null) return new Set(trees.map(t => t.id));
+    return visibleTreeIds;
+  }, [trees, visibleTreeIds]);
+
+  const filteredTrees = useMemo(() => {
+    return trees?.filter(t => activeVisibleIds.has(t.id)) ?? [];
+  }, [trees, activeVisibleIds]);
+
+  const toggleTreeVisibility = (treeId: string) => {
+    setVisibleTreeIds(prev => {
+      const current = prev ?? new Set(trees?.map(t => t.id) ?? []);
+      const next = new Set(current);
+      if (next.has(treeId)) {
+        next.delete(treeId);
+      } else {
+        next.add(treeId);
+      }
+      return next;
+    });
+  };
+
+  const showAll = () => setVisibleTreeIds(null);
+  const isAllVisible = visibleTreeIds === null || (trees && visibleTreeIds.size === trees.length);
 
   const { data: treeDetail, isLoading: treeDetailLoading } = useQuery<TreeDetailData>({
     queryKey: ["/api/trees", selectedTreeId],
@@ -126,6 +152,16 @@ export default function NetworkOverview() {
     }
   };
 
+  const filteredSharedConnections = useMemo(() => {
+    if (!sharedConnections) return [];
+    return sharedConnections
+      .map(conn => ({
+        ...conn,
+        appearances: conn.appearances.filter(app => activeVisibleIds.has(app.treeId)),
+      }))
+      .filter(conn => conn.appearances.length >= 2);
+  }, [sharedConnections, activeVisibleIds]);
+
   const selectedTree = trees?.find((t) => t.id === selectedTreeId);
   const selectedTreeConfig = selectedTree?.treeType
     ? getTreeTypeConfig(selectedTree.treeType as TreeType)
@@ -170,6 +206,46 @@ export default function NetworkOverview() {
           </Link>
         </div>
 
+        {trees && trees.length > 1 && (
+          <div className="mb-4" data-testid="tree-filter-bar">
+            <div className="flex items-center gap-2 mb-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">Focus on:</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={showAll}
+                className={isAllVisible ? "text-primary" : "text-muted-foreground"}
+                data-testid="button-show-all-trees"
+              >
+                All
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {trees.map(tree => {
+                const config = getTreeTypeConfig((tree.treeType || "custom") as TreeType);
+                const isVisible = activeVisibleIds.has(tree.id);
+                return (
+                  <Badge
+                    key={tree.id}
+                    variant="outline"
+                    className={`cursor-pointer transition-opacity toggle-elevate ${isVisible ? "toggle-elevated" : ""}`}
+                    style={{
+                      borderColor: config.visual.accentColor,
+                      color: isVisible ? config.visual.accentColor : undefined,
+                      opacity: isVisible ? 1 : 0.4,
+                    }}
+                    onClick={() => toggleTreeVisibility(tree.id)}
+                    data-testid={`filter-tree-${tree.id}`}
+                  >
+                    {tree.name}
+                  </Badge>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="hub" data-testid="tab-hub">
@@ -192,14 +268,14 @@ export default function NetworkOverview() {
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : !trees || trees.length === 0 ? (
+              ) : !filteredTrees || filteredTrees.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                   <Users className="h-12 w-12 mb-4" />
-                  <p className="text-lg font-medium">No trees yet</p>
-                  <p className="text-sm">Create a tree from the dashboard to see your network.</p>
+                  <p className="text-lg font-medium">{trees && trees.length > 0 ? "No trees selected" : "No trees yet"}</p>
+                  <p className="text-sm">{trees && trees.length > 0 ? "Use the filter above to choose which trees to display." : "Create a tree from the dashboard to see your network."}</p>
                 </div>
               ) : (
-                <HubVisualization trees={trees} />
+                <HubVisualization trees={filteredTrees} />
               )}
             </div>
           </TabsContent>
@@ -212,7 +288,7 @@ export default function NetworkOverview() {
                     <SelectValue placeholder="Select a tree to view" />
                   </SelectTrigger>
                   <SelectContent>
-                    {trees?.map((tree) => (
+                    {filteredTrees.map((tree) => (
                       <SelectItem key={tree.id} value={tree.id}>
                         {tree.name}
                       </SelectItem>
@@ -291,18 +367,19 @@ export default function NetworkOverview() {
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : !sharedConnections || sharedConnections.length === 0 ? (
+              ) : filteredSharedConnections.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                   <Share2 className="h-10 w-10 mb-3" />
                   <p className="text-lg font-medium">No shared connections found</p>
                   <p className="text-sm text-center max-w-md mt-1">
-                    Shared connections appear when the same person shows up in multiple trees.
-                    Add more members to your trees to discover connections.
+                    {sharedConnections && sharedConnections.length > 0
+                      ? "Try selecting more trees in the filter above to see cross-tree matches."
+                      : "Shared connections appear when the same person shows up in multiple trees. Add more members to your trees to discover connections."}
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {sharedConnections.map((connection, idx) => {
+                  {filteredSharedConnections.map((connection, idx) => {
                     const initials = connection.name
                       .split(" ")
                       .map((w) => w[0])
