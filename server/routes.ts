@@ -6836,6 +6836,113 @@ export async function registerRoutes(
     }
   });
 
+  // Get shared connections across user's trees (members appearing in multiple trees)
+  app.get("/api/network/shared", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ownedTrees = await storage.getTrees(userId);
+      const { collaboratedTrees } = await storage.getCollaboratedTrees(userId);
+      const allTrees = [...ownedTrees, ...collaboratedTrees];
+
+      if (allTrees.length < 2) {
+        return res.json([]);
+      }
+
+      const treeMembersMap = new Map<string, { tree: typeof allTrees[0]; members: any[] }>();
+      for (const tree of allTrees) {
+        const members = await storage.getMembers(tree.id);
+        treeMembersMap.set(tree.id, { tree, members });
+      }
+
+      const emailIndex = new Map<string, { memberId: string; treeId: string; treeName: string; treeType: string; firstName: string; lastName: string; photoUrl: string | null }[]>();
+      const nameIndex = new Map<string, { memberId: string; treeId: string; treeName: string; treeType: string; firstName: string; lastName: string; birthDate: string | null; photoUrl: string | null }[]>();
+
+      for (const [treeId, { tree, members }] of treeMembersMap) {
+        for (const m of members) {
+          if (m.email) {
+            const key = m.email.toLowerCase().trim();
+            if (!emailIndex.has(key)) emailIndex.set(key, []);
+            emailIndex.get(key)!.push({
+              memberId: m.id,
+              treeId,
+              treeName: tree.name,
+              treeType: tree.treeType || "family",
+              firstName: m.firstName,
+              lastName: m.lastName || "",
+              photoUrl: m.photoUrl,
+            });
+          }
+          const nameKey = `${(m.firstName || "").toLowerCase().trim()}|${(m.lastName || "").toLowerCase().trim()}`;
+          if (nameKey !== "|") {
+            if (!nameIndex.has(nameKey)) nameIndex.set(nameKey, []);
+            nameIndex.get(nameKey)!.push({
+              memberId: m.id,
+              treeId,
+              treeName: tree.name,
+              treeType: tree.treeType || "family",
+              firstName: m.firstName,
+              lastName: m.lastName || "",
+              birthDate: m.birthDate,
+              photoUrl: m.photoUrl,
+            });
+          }
+        }
+      }
+
+      const sharedConnections: {
+        name: string;
+        photoUrl: string | null;
+        matchType: "email" | "name_and_date" | "name_only";
+        appearances: { treeId: string; treeName: string; treeType: string; memberId: string }[];
+      }[] = [];
+      const seenGroups = new Set<string>();
+
+      for (const [, entries] of emailIndex) {
+        const uniqueTrees = new Map<string, typeof entries[0]>();
+        for (const e of entries) uniqueTrees.set(e.treeId, e);
+        if (uniqueTrees.size >= 2) {
+          const sorted = Array.from(uniqueTrees.values()).sort((a, b) => a.treeId.localeCompare(b.treeId));
+          const groupKey = sorted.map(s => s.memberId).join("|");
+          if (!seenGroups.has(groupKey)) {
+            seenGroups.add(groupKey);
+            const first = sorted[0];
+            sharedConnections.push({
+              name: `${first.firstName} ${first.lastName}`.trim(),
+              photoUrl: first.photoUrl,
+              matchType: "email",
+              appearances: sorted.map(s => ({ treeId: s.treeId, treeName: s.treeName, treeType: s.treeType, memberId: s.memberId })),
+            });
+          }
+        }
+      }
+
+      for (const [, entries] of nameIndex) {
+        const uniqueTrees = new Map<string, typeof entries[0]>();
+        for (const e of entries) uniqueTrees.set(e.treeId, e);
+        if (uniqueTrees.size >= 2) {
+          const sorted = Array.from(uniqueTrees.values()).sort((a, b) => a.treeId.localeCompare(b.treeId));
+          const groupKey = sorted.map(s => s.memberId).join("|");
+          if (!seenGroups.has(groupKey)) {
+            seenGroups.add(groupKey);
+            const first = sorted[0];
+            const hasBirthMatch = sorted.some(a => a.birthDate && sorted.some(b => b !== a && b.birthDate === a.birthDate));
+            sharedConnections.push({
+              name: `${first.firstName} ${first.lastName}`.trim(),
+              photoUrl: first.photoUrl,
+              matchType: hasBirthMatch ? "name_and_date" : "name_only",
+              appearances: sorted.map(s => ({ treeId: s.treeId, treeName: s.treeName, treeType: s.treeType, memberId: s.memberId })),
+            });
+          }
+        }
+      }
+
+      res.json(sharedConnections);
+    } catch (error) {
+      console.error("Error fetching shared connections:", error);
+      res.status(500).json({ message: "Failed to fetch shared connections" });
+    }
+  });
+
   // Search members by location
   app.get("/api/members/search/location", isAuthenticated, async (req: any, res) => {
     try {
