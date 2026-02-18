@@ -32,6 +32,7 @@ import { toPng } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from "@shared/schema";
 import FamilyTreeVisualization from "@/components/family-tree-visualization";
+import GroupVisualization from "@/components/group-visualization";
 import MemberForm from "@/components/member-form";
 import { NameHistorySection } from "@/components/name-history";
 import { MemberDiscoverability } from "@/components/member-discoverability";
@@ -911,14 +912,25 @@ export default function TreeView() {
                   )}
                 </div>
                 <div ref={treeContainerRef} className="w-full h-full">
-                  <FamilyTreeVisualization
-                    members={displayMembers}
-                    relationships={displayRelationships}
-                    zoom={zoom}
-                    onMemberClick={handleMemberClick}
-                    focusMemberId={focusMemberId}
-                    viewDepth={viewDepth}
-                  />
+                  {(treeData?.tree.treeType || "family") === "family" ? (
+                    <FamilyTreeVisualization
+                      members={displayMembers}
+                      relationships={displayRelationships}
+                      zoom={zoom}
+                      onMemberClick={handleMemberClick}
+                      focusMemberId={focusMemberId}
+                      viewDepth={viewDepth}
+                    />
+                  ) : (
+                    <GroupVisualization
+                      members={displayMembers}
+                      relationships={displayRelationships}
+                      zoom={zoom}
+                      onMemberClick={handleMemberClick}
+                      focusMemberId={focusMemberId}
+                      treeType={(treeData?.tree.treeType || "family") as TreeType}
+                    />
+                  )}
                 </div>
               </>
             ) : (

@@ -1,5 +1,19 @@
 export type TreeType = "family" | "church" | "sports" | "fraternity" | "friends" | "professional" | "custom";
 
+export type LayoutShape = "tree" | "circle" | "radial" | "grid" | "arc" | "network";
+
+export type LineStyle = "solid" | "dashed" | "dotted";
+
+export interface TreeVisualConfig {
+  layoutShape: LayoutShape;
+  accentColor: string;
+  accentColorLight: string;
+  lineStyle: LineStyle;
+  lineColor: string;
+  nodeShape: "rounded" | "circle" | "hexagon";
+  shapeName: string;
+}
+
 export interface RelationshipTypeConfig {
   value: string;
   label: string;
@@ -18,6 +32,7 @@ export interface TreeTypeConfig {
   defaultRelationshipTypes: RelationshipTypeConfig[];
   qualifiersEnabled: boolean;
   qualifiers?: { value: string; label: string }[];
+  visual: TreeVisualConfig;
 }
 
 export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
@@ -45,6 +60,15 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "sibling", label: "Sibling", description: "Brother/sister relationship" },
       { value: "coparent", label: "Co-Parent", description: "Shares a child, not married" },
     ],
+    visual: {
+      layoutShape: "tree",
+      accentColor: "hsl(142 60% 45%)",
+      accentColorLight: "hsl(142 60% 90%)",
+      lineStyle: "solid",
+      lineColor: "hsl(142 60% 45%)",
+      nodeShape: "rounded",
+      shapeName: "Family Tree",
+    },
   },
   church: {
     type: "church",
@@ -64,6 +88,15 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "mentor", label: "Mentor", reverseLabel: "Mentee", description: "Spiritual mentorship" },
       { value: "mentee", label: "Mentee", reverseLabel: "Mentor", description: "Being mentored" },
     ],
+    visual: {
+      layoutShape: "radial",
+      accentColor: "hsl(265 60% 55%)",
+      accentColorLight: "hsl(265 60% 92%)",
+      lineStyle: "solid",
+      lineColor: "hsl(265 60% 55%)",
+      nodeShape: "rounded",
+      shapeName: "Faith Constellation",
+    },
   },
   sports: {
     type: "sports",
@@ -82,6 +115,15 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "teammate", label: "Teammate", description: "Fellow team member" },
       { value: "alumni", label: "Alumni", description: "Former team member" },
     ],
+    visual: {
+      layoutShape: "grid",
+      accentColor: "hsl(25 90% 55%)",
+      accentColorLight: "hsl(25 90% 92%)",
+      lineStyle: "solid",
+      lineColor: "hsl(25 90% 55%)",
+      nodeShape: "rounded",
+      shapeName: "Team Formation",
+    },
   },
   fraternity: {
     type: "fraternity",
@@ -101,6 +143,15 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "active", label: "Active Member", description: "Current active member" },
       { value: "alumni", label: "Alumni", description: "Graduated alumni" },
     ],
+    visual: {
+      layoutShape: "arc",
+      accentColor: "hsl(340 75% 55%)",
+      accentColorLight: "hsl(340 75% 92%)",
+      lineStyle: "solid",
+      lineColor: "hsl(340 75% 55%)",
+      nodeShape: "rounded",
+      shapeName: "Chapter Chain",
+    },
   },
   friends: {
     type: "friends",
@@ -119,6 +170,15 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "neighbor", label: "Neighbor", description: "Lives nearby" },
       { value: "acquaintance", label: "Acquaintance", description: "Casual connection" },
     ],
+    visual: {
+      layoutShape: "circle",
+      accentColor: "hsl(200 80% 50%)",
+      accentColorLight: "hsl(200 80% 92%)",
+      lineStyle: "dashed",
+      lineColor: "hsl(200 80% 50%)",
+      nodeShape: "circle",
+      shapeName: "Friend Circle",
+    },
   },
   professional: {
     type: "professional",
@@ -138,6 +198,15 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "client", label: "Client", description: "Business client" },
       { value: "partner", label: "Business Partner", description: "Business partnership" },
     ],
+    visual: {
+      layoutShape: "network",
+      accentColor: "hsl(210 70% 50%)",
+      accentColorLight: "hsl(210 70% 92%)",
+      lineStyle: "dotted",
+      lineColor: "hsl(210 70% 50%)",
+      nodeShape: "rounded",
+      shapeName: "Professional Network",
+    },
   },
   custom: {
     type: "custom",
@@ -153,6 +222,15 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "member", label: "Member", description: "Group member" },
       { value: "connected", label: "Connected", description: "General connection" },
     ],
+    visual: {
+      layoutShape: "circle",
+      accentColor: "hsl(170 60% 45%)",
+      accentColorLight: "hsl(170 60% 92%)",
+      lineStyle: "dashed",
+      lineColor: "hsl(170 60% 45%)",
+      nodeShape: "rounded",
+      shapeName: "Custom Circle",
+    },
   },
 };
 
