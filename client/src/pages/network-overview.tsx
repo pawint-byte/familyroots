@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import { getTreeTypeConfig, type TreeType } from "@shared/treeTypes";
 
 interface TreeItem {
@@ -97,6 +96,14 @@ export default function NetworkOverview() {
         quality: 1.0,
         pixelRatio: 2,
         cacheBust: true,
+        skipAutoScale: true,
+        fetchRequestInit: { mode: "cors" } as any,
+        filter: (node: HTMLElement) => {
+          if (node.tagName === "IMG") {
+            (node as HTMLImageElement).crossOrigin = "anonymous";
+          }
+          return true;
+        },
       });
 
       const link = document.createElement("a");
@@ -320,7 +327,7 @@ export default function NetworkOverview() {
                             </div>
                             <div className="flex flex-wrap gap-1 mt-2">
                               {connection.appearances.map((app) => {
-                                const config = getTreeTypeConfig(app.treeType as TreeType);
+                                const config = getTreeTypeConfig((app.treeType || "custom") as TreeType);
                                 return (
                                   <Badge
                                     key={`${app.treeId}-${app.memberId}`}

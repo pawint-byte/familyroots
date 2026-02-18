@@ -239,6 +239,26 @@ export const familyEvents = pgTable("family_events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const announcements = pgTable("announcements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  createdBy: varchar("created_by").notNull(),
+  sourceTreeId: varchar("source_tree_id").notNull(),
+  eventId: varchar("event_id"),
+  title: text("title").notNull(),
+  message: text("message"),
+  eventType: text("event_type").notNull(),
+  targetTreeIds: jsonb("target_tree_ids").$type<string[]>().notNull(),
+  notificationsSent: boolean("notifications_sent").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
+export type Announcement = typeof announcements.$inferSelect;
+
 // HeyGen Generated Videos
 export const generatedVideos = pgTable("generated_videos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

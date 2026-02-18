@@ -82,7 +82,7 @@ import {
 import { postToBluesky, testBlueskyConnection } from "./bluesky";
 import { testDiscordConnection, sendDiscordNotification, notifyNewSignup, notifyNewTree, notifyMilestone } from "./discord";
 import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification } from "./lib/email";
-import { insertAccountHeirSchema } from "@shared/schema";
+import { insertAccountHeirSchema, insertAnnouncementSchema } from "@shared/schema";
 import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG } from "./subscriptionService";
 import * as familySearchService from "./familySearch";
@@ -2391,6 +2391,151 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error updating event:", error);
       res.status(400).json({ message: error?.message || "Failed to update event" });
+    }
+  });
+
+  // ==================== ANNOUNCEMENT BROADCAST ROUTES ====================
+
+  app.post("/api/announcements/broadcast", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sourceTreeId, targetTreeIds, title, message, eventType, eventId } = req.body;
+
+      if (!sourceTreeId || !targetTreeIds || !title || !eventType) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const sourceTree = await storage.getTree(sourceTreeId);
+      if (!sourceTree) {
+        return res.status(404).json({ message: "Source tree not found" });
+      }
+      if (sourceTree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, sourceTreeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied to source tree" });
+        }
+      }
+
+      if (eventId) {
+        const event = await storage.getEvent(eventId);
+        if (!event || event.treeId !== sourceTreeId) {
+          return res.status(400).json({ message: "Event does not belong to source tree" });
+        }
+      }
+
+      const verifiedTargetIds: string[] = [];
+      for (const treeId of targetTreeIds) {
+        const tree = await storage.getTree(treeId);
+        if (!tree) continue;
+        if (tree.ownerId === userId) {
+          verifiedTargetIds.push(treeId);
+          continue;
+        }
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (collab) {
+          verifiedTargetIds.push(treeId);
+        }
+      }
+
+      if (verifiedTargetIds.length === 0) {
+        return res.status(400).json({ message: "No valid target trees" });
+      }
+
+      const announcement = await storage.createAnnouncement({
+        createdBy: userId,
+        sourceTreeId,
+        eventId: eventId || null,
+        title,
+        message: message || null,
+        eventType,
+        targetTreeIds: verifiedTargetIds,
+        notificationsSent: false,
+      });
+
+      const eventTypeToPreference: Record<string, string> = {
+        'birth': 'births',
+        'death': 'deaths',
+        'marriage': 'marriages',
+        'divorce': 'divorces',
+        'milestone': 'milestones',
+        'graduation': 'milestones',
+        'achievement': 'milestones',
+        'general': 'milestones',
+      };
+
+      let emailsSent = 0;
+      try {
+        const prefKey = eventTypeToPreference[eventType] || 'milestones';
+        const allTreeIds = [sourceTreeId, ...verifiedTargetIds];
+        const seenUserIds = new Set<string>();
+        seenUserIds.add(userId);
+
+        for (const treeId of allTreeIds) {
+          const tree = await storage.getTree(treeId);
+          if (!tree) continue;
+          const treeUsers = await storage.getTreeMembersWithNotificationPrefs(treeId);
+
+          for (const treeUser of treeUsers) {
+            if (seenUserIds.has(treeUser.id)) continue;
+            seenUserIds.add(treeUser.id);
+
+            const prefs = treeUser.notificationPreferences;
+            if (treeUser.email && prefs?.emailEnabled && (prefs as any)[prefKey]) {
+              await sendLifeEventNotification(
+                treeUser.email,
+                treeUser.firstName || 'Member',
+                sourceTree.name,
+                eventType,
+                title,
+                new Date().toISOString(),
+                tree.name,
+                treeId
+              );
+              emailsSent++;
+            }
+          }
+        }
+      } catch (notificationError) {
+        console.error("Error sending broadcast notifications:", notificationError);
+      }
+
+      res.status(201).json({ ...announcement, emailsSent });
+    } catch (error: any) {
+      console.error("Error broadcasting announcement:", error);
+      res.status(400).json({ message: error?.message || "Failed to broadcast" });
+    }
+  });
+
+  app.get("/api/announcements", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const result = await storage.getAnnouncementsByUser(userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch announcements" });
+    }
+  });
+
+  app.get("/api/trees/:treeId/announcements", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const result = await storage.getAnnouncementsForTree(treeId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch announcements" });
     }
   });
 

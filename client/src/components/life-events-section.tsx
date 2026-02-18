@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, MapPin, Image, Film, Trash2 } from "lucide-react";
-import type { FamilyEvent, EventMediaAttachment } from "@shared/schema";
+import { Plus, Calendar, MapPin, Image, Film, Trash2, Megaphone, Send } from "lucide-react";
+import type { FamilyEvent, FamilyTree, EventMediaAttachment } from "@shared/schema";
 
 interface LifeEventsSectionProps {
   memberId: string;
@@ -33,6 +34,10 @@ const EVENT_TYPES = [
 export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: LifeEventsSectionProps) {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+  const [broadcastEvent, setBroadcastEvent] = useState<FamilyEvent | null>(null);
+  const [selectedTreeIds, setSelectedTreeIds] = useState<string[]>([]);
+  const [broadcastMessage, setBroadcastMessage] = useState("");
   const [eventType, setEventType] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [title, setTitle] = useState("");
@@ -72,6 +77,57 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
       toast({ title: "Error", description: "Failed to delete event", variant: "destructive" });
     },
   });
+
+  const { data: userTrees = [] } = useQuery<FamilyTree[]>({
+    queryKey: ['/api/trees'],
+  });
+
+  const otherTrees = userTrees.filter(t => t.id !== treeId);
+
+  const broadcastMutation = useMutation({
+    mutationFn: async (data: { sourceTreeId: string; targetTreeIds: string[]; title: string; message: string; eventType: string; eventId?: string }) => {
+      return apiRequest('POST', '/api/announcements/broadcast', data);
+    },
+    onSuccess: async (response) => {
+      const result = await response.json();
+      setIsBroadcastOpen(false);
+      setBroadcastEvent(null);
+      setSelectedTreeIds([]);
+      setBroadcastMessage("");
+      toast({
+        title: "Announcement sent",
+        description: `Broadcast to ${result.targetTreeIds?.length || 0} group(s). ${result.emailsSent || 0} email(s) sent.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to broadcast", variant: "destructive" });
+    },
+  });
+
+  const handleBroadcast = () => {
+    if (!broadcastEvent || selectedTreeIds.length === 0) return;
+    broadcastMutation.mutate({
+      sourceTreeId: treeId,
+      targetTreeIds: selectedTreeIds,
+      title: broadcastEvent.title,
+      message: broadcastMessage || broadcastEvent.description || "",
+      eventType: broadcastEvent.eventType,
+      eventId: broadcastEvent.id,
+    });
+  };
+
+  const openBroadcast = (event: FamilyEvent) => {
+    setBroadcastEvent(event);
+    setSelectedTreeIds([]);
+    setBroadcastMessage(event.description || "");
+    setIsBroadcastOpen(true);
+  };
+
+  const toggleTreeSelection = (id: string) => {
+    setSelectedTreeIds(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    );
+  };
 
   const resetForm = () => {
     setEventType("");
@@ -278,23 +334,115 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
                       </div>
                     )}
                   </div>
-                  {canEdit && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteEventMutation.mutate(event.id)}
-                      data-testid={`button-delete-event-${event.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <div className="flex flex-col gap-1">
+                    {canEdit && otherTrees.length > 0 && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openBroadcast(event)}
+                        data-testid={`button-broadcast-event-${event.id}`}
+                      >
+                        <Megaphone className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canEdit && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteEventMutation.mutate(event.id)}
+                        data-testid={`button-delete-event-${event.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </CardContent>
+
+      <Dialog open={isBroadcastOpen} onOpenChange={setIsBroadcastOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Megaphone className="h-5 w-5" />
+              Broadcast Announcement
+            </DialogTitle>
+          </DialogHeader>
+          {broadcastEvent && (
+            <div className="space-y-4 py-2">
+              <div className="p-3 rounded-md border bg-muted/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="secondary" className={getEventTypeConfig(broadcastEvent.eventType).color}>
+                    {getEventTypeConfig(broadcastEvent.eventType).label}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">{formatDate(broadcastEvent.eventDate)}</span>
+                </div>
+                <p className="font-medium text-sm">{broadcastEvent.title}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Select groups to notify</Label>
+                {otherTrees.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">You don't have any other trees to broadcast to.</p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {otherTrees.map(tree => (
+                      <label
+                        key={tree.id}
+                        className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover-elevate"
+                        data-testid={`checkbox-tree-${tree.id}`}
+                      >
+                        <Checkbox
+                          checked={selectedTreeIds.includes(tree.id)}
+                          onCheckedChange={() => toggleTreeSelection(tree.id)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{tree.name}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{tree.treeType || "family"}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-message">Message (optional)</Label>
+                <Textarea
+                  id="broadcast-message"
+                  placeholder="Add a personal message to go with this announcement..."
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  rows={3}
+                  data-testid="input-broadcast-message"
+                />
+              </div>
+
+              {selectedTreeIds.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Members of {selectedTreeIds.length} selected group(s) who have notifications enabled will receive an email.
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBroadcastOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBroadcast}
+              disabled={broadcastMutation.isPending || selectedTreeIds.length === 0}
+              data-testid="button-send-broadcast"
+            >
+              <Send className="h-4 w-4 mr-1" />
+              {broadcastMutation.isPending ? "Sending..." : "Send Broadcast"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

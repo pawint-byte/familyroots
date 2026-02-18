@@ -56,6 +56,8 @@ PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for sc
 - **Google Analytics**: Optional integration for user engagement tracking.
 - **Reddit Pixel**: Conversion tracking for Reddit Ads campaigns (ID: a2_iepozq36wg7a). Tracks page visits and sign-up conversions.
 - **Discord Integration**: Automated notifications for new signups, tree creation, and milestone achievements sent to Discord community channel.
+- **Network Overview**: Visual hub showing all user's trees, expanded member grids, and cross-tree shared connections at /network-overview.
+- **Life Event Broadcasting**: Cross-tree announcement system allowing users to broadcast life events from one tree to selected other trees, with email notifications to opted-in members.
 - **Referral System**: User referral tracking with unique codes (format: FR{userId}{timestamp}), click tracking, and completion stats displayed on dashboard. Referral codes captured from ?ref= URL parameter and completed on signup.
 - **Automatic Maintenance Mode**: User-friendly maintenance page displayed during server unavailability with auto-retry.
 - **My Family Connections**: Dashboard section displaying approved user-to-user connections with relationship badges.

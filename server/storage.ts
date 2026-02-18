@@ -40,7 +40,9 @@ import {
   type PendingMemberSuggestion, type InsertPendingMemberSuggestion,
   type CrossTreeMatch, type InsertCrossTreeMatch,
   type Referral,
-  type User
+  type User,
+  announcements,
+  type Announcement, type InsertAnnouncement,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, ilike, desc, lt, inArray } from "drizzle-orm";
@@ -223,6 +225,11 @@ export interface IStorage {
   getEvent(id: string): Promise<FamilyEvent | undefined>;
   updateEvent(id: string, data: Partial<InsertFamilyEvent>): Promise<FamilyEvent | undefined>;
   getEventsByMember(memberId: string): Promise<FamilyEvent[]>;
+
+  // Announcements
+  createAnnouncement(data: InsertAnnouncement): Promise<Announcement>;
+  getAnnouncementsByUser(userId: string): Promise<Announcement[]>;
+  getAnnouncementsForTree(treeId: string): Promise<Announcement[]>;
 
   // User notification preferences
   updateUserNotificationPreferences(userId: string, preferences: any): Promise<User | undefined>;
@@ -1289,6 +1296,26 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(familyEvents)
       .where(eq(familyEvents.memberId, memberId))
       .orderBy(desc(familyEvents.eventDate));
+  }
+
+  async createAnnouncement(data: InsertAnnouncement): Promise<Announcement> {
+    const [announcement] = await db.insert(announcements).values(data).returning();
+    return announcement;
+  }
+
+  async getAnnouncementsByUser(userId: string): Promise<Announcement[]> {
+    return db.select().from(announcements)
+      .where(eq(announcements.createdBy, userId))
+      .orderBy(desc(announcements.createdAt));
+  }
+
+  async getAnnouncementsForTree(treeId: string): Promise<Announcement[]> {
+    const all = await db.select().from(announcements)
+      .orderBy(desc(announcements.createdAt));
+    return all.filter(a => 
+      a.sourceTreeId === treeId || 
+      (a.targetTreeIds as string[]).includes(treeId)
+    );
   }
 
   // User notification preferences
