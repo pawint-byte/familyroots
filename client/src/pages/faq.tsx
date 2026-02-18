@@ -135,28 +135,56 @@ export default function FAQ() {
       ]
     },
     {
-      title: "Beyond Family Trees",
+      title: "Organizations & Groups",
       icon: <Briefcase className="h-5 w-5" />,
       items: [
         {
-          question: "Can I create trees for groups other than family?",
-          answer: "Yes! FamilyRoots now supports multiple tree types beyond traditional family trees. You can create trees for church congregations, sports teams, fraternities and sororities, friend circles, professional networks, or even custom groups. Each tree type comes with its own set of relationship types appropriate to that community."
+          question: "Can organizations build their entire membership on FamilyRoots?",
+          answer: "Absolutely. FamilyRoots isn't just for families. Sororities, fraternities, churches, sports clubs, professional groups, and friend circles can use FamilyRoots to map out every member and every connection in their organization. Think of it as a private, invitation-only network where every relationship has real meaning: Big/Little, Coach/Player, Pastor/Elder, Mentor/Mentee. No public followers, no strangers, just the people who actually matter to your group."
+        },
+        {
+          question: "How would a sorority or fraternity use FamilyRoots?",
+          answer: "Imagine your entire sorority: every chapter, every pledge class, every Big/Little pair, all in one private network. Each chapter builds its own tree with roles like Chapter President, Big, Little, Pledge Brother/Sister, and Officers. Chapters can connect to each other through cross-tree links, so the bigger picture of your sisterhood or brotherhood starts to take shape across campuses. Every member claims their own profile, keeps their info updated after graduation, and stays connected for life. No more lost contact lists or outdated spreadsheets."
+        },
+        {
+          question: "How would a church or faith community use FamilyRoots?",
+          answer: "A church can map its entire congregation with meaningful roles: Pastor, Elder, Deacon, Ministry Leader, Ministry Member, Mentor, and Mentee. See who leads which ministry, who mentors whom, and how your community is truly connected. Small groups, youth ministry, worship teams, they can all get their own structure within one private network. Members can share QR codes for easy profile connections. The tree owner controls visibility with three-tier privacy settings, so you decide who sees what level of detail."
+        },
+        {
+          question: "How would a sports team or club use FamilyRoots?",
+          answer: "Build your entire roster with real roles: Coach, Assistant Coach, Captain, Player, and Alumni. A youth league can create trees for every season and connect them, so you can trace a player's journey from little league to varsity. Booster clubs, travel teams, and recreational leagues all fit. Coaches manage the roster, players claim their profiles and keep their own information current, and alumni stay connected long after their playing days. It's a living record of your team's history that the team itself owns."
+        },
+        {
+          question: "How would a professional network use FamilyRoots?",
+          answer: "Map your professional relationships the way they actually work: Manager, Direct Report, Colleague, Mentor, Mentee, Client, Business Partner. Unlike LinkedIn where connections are shallow and public, FamilyRoots lets you build a private network where every connection is labeled with what it really means. Startup teams, consulting firms, mentorship programs, and mastermind groups can use it to visualize how their professional world is structured. You own your network, and it's nobody else's business."
+        },
+        {
+          question: "What does it mean that I'm at the center of all my trees?",
+          answer: "You are the common thread across every tree you belong to. Your family tree, your sorority, your church, your professional network, they're all separate and private, but you're the anchor in each one. Open your dashboard and you see everything: every group, every role, every connection. Nobody else sees this combined view. It's your personal map of every meaningful relationship in your life, and you own it completely."
+        },
+        {
+          question: "How is this different from a Facebook group or GroupMe?",
+          answer: "Social media groups are flat: everyone is just a \"member\" with no structure. FamilyRoots gives every connection a real label. In a sorority tree, you're not just a member, you're someone's Big, someone's Little, a Pledge Class sister, a Chapter President. In a church, you're not just in the group, you're a Deacon who mentors three young leaders. These labeled connections create a living map of how your organization actually works. Plus it's completely private. No ads, no algorithms, no strangers. Just your people."
+        },
+        {
+          question: "Can different chapters or branches of the same organization connect?",
+          answer: "Yes, and this is where FamilyRoots really shines for organizations. Each chapter, branch, or local group builds their own tree independently. Then they can connect through shared members or cross-tree links when they discover people in common. A sorority with multiple chapter trees, each with their own Big/Little lines and pledge classes, can start linking them together as members transfer or connect across campuses. Each chapter keeps full control of their own tree while being able to see how they link to others."
         },
         {
           question: "What tree types are available?",
-          answer: "We currently support: Family Trees (our flagship), Church/Faith Groups (with roles like Pastor, Elder, Ministry Leader), Sports Teams (Coach, Captain, Player, Alumni), Fraternity/Sorority (Big, Little, Pledge Class, Officers), Friend Circles (Best Friend, Roommate, Neighbor), Professional Networks (Manager, Colleague, Mentor), and Custom Groups where you define your own roles."
+          answer: "We currently support: Family Trees (our flagship), Church/Faith Groups (Pastor, Elder, Deacon, Ministry Leader, Mentor), Sports Teams (Coach, Captain, Player, Alumni), Fraternity/Sorority (Big, Little, Pledge Class, Chapter President, Officers), Friend Circles (Best Friend, Roommate, Neighbor), Professional Networks (Manager, Colleague, Mentor, Client), and Custom Groups where you define your own roles and relationship types from scratch."
         },
         {
-          question: "How do different tree types work compared to family trees?",
-          answer: "Each tree type has its own terminology and relationship types. For example, a church tree uses roles like Pastor, Elder, and Ministry Member instead of Parent, Child, and Spouse. A sports team uses Coach, Captain, and Player. The tree visualization, member profiles, and collaboration features work the same way across all types."
-        },
-        {
-          question: "Are non-family trees connected to my family tree?",
-          answer: "All your trees are independent of each other, but you are the common anchor across all of them. Your family tree remains your core tree, and other trees exist alongside it. This means your church group doesn't mix with your sports team roster, but you can manage everything from one dashboard."
+          question: "Does each group type look different visually?",
+          answer: "Yes! Each tree type has its own unique visual layout so you can instantly tell what kind of group you're looking at. Family trees use the classic hierarchical tree shape. Friend circles arrange members in a ring. Churches use a radial starburst with leadership at the center. Sports teams use a grid formation. Fraternities and sororities use a sweeping arc chain. Professional networks use a web-style graph. Each type also has its own accent colors and connection line styles."
         },
         {
           question: "Do credits work across all tree types?",
-          answer: "Yes, member credits work the same way regardless of tree type. Your first 20 members are free across all trees combined, and credit packs can be used for any tree type."
+          answer: "Yes. Your credit balance works for any tree type. Your first 20 members are free across all your trees combined, whether those members are family, sorority sisters, church members, or teammates. When you need more, credit packs can be used for any tree. One account, one balance, unlimited possibilities."
+        },
+        {
+          question: "Why should our organization choose FamilyRoots over a spreadsheet or social media?",
+          answer: "Spreadsheets go stale the moment someone graduates, moves, or changes roles. Social media groups are public, noisy, and treat everyone the same. FamilyRoots gives your organization a private, structured, living network where members own their own profiles, connections are labeled with real meaning, leadership roles are visible, and the whole history is preserved. When a new pledge, player, or member joins, they see exactly where they fit. When an alumni comes back, their legacy is still there. It's the difference between a contact list and a real network."
         }
       ]
     },
