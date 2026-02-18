@@ -2,13 +2,17 @@ import crypto from "crypto";
 
 const FAMILYSEARCH_API_URL = "https://api.familysearch.org";
 const FAMILYSEARCH_IDENT_URL = "https://ident.familysearch.org";
+const FAMILYSEARCH_BETA_API_URL = "https://apibeta.familysearch.org";
+const FAMILYSEARCH_BETA_IDENT_URL = "https://identbeta.familysearch.org";
 const FAMILYSEARCH_SANDBOX_API_URL = "https://sandbox.familysearch.org";
 const FAMILYSEARCH_SANDBOX_IDENT_URL = "https://integration.familysearch.org";
+
+type FamilySearchEnvironment = "production" | "beta" | "sandbox";
 
 interface FamilySearchConfig {
   appKey: string;
   redirectUri: string;
-  useSandbox: boolean;
+  environment: FamilySearchEnvironment;
 }
 
 interface FamilySearchTokenResponse {
@@ -62,17 +66,31 @@ function getConfig(): FamilySearchConfig {
   const appKey = process.env.FAMILYSEARCH_APP_KEY || "";
   const redirectUri = process.env.FAMILYSEARCH_REDIRECT_URI || 
     `${process.env.REPL_URL || "http://localhost:5000"}/api/familysearch/callback`;
-  const useSandbox = process.env.FAMILYSEARCH_USE_SANDBOX === "true" || !process.env.FAMILYSEARCH_APP_KEY;
   
-  return { appKey, redirectUri, useSandbox };
+  let environment: FamilySearchEnvironment = "production";
+  if (process.env.FAMILYSEARCH_USE_SANDBOX === "true" || !process.env.FAMILYSEARCH_APP_KEY) {
+    environment = "sandbox";
+  } else if (process.env.FAMILYSEARCH_USE_BETA === "true") {
+    environment = "beta";
+  }
+  
+  return { appKey, redirectUri, environment };
 }
 
 function getBaseUrls() {
   const config = getConfig();
-  return {
-    api: config.useSandbox ? FAMILYSEARCH_SANDBOX_API_URL : FAMILYSEARCH_API_URL,
-    ident: config.useSandbox ? FAMILYSEARCH_SANDBOX_IDENT_URL : FAMILYSEARCH_IDENT_URL,
-  };
+  switch (config.environment) {
+    case "beta":
+      return { api: FAMILYSEARCH_BETA_API_URL, ident: FAMILYSEARCH_BETA_IDENT_URL };
+    case "sandbox":
+      return { api: FAMILYSEARCH_SANDBOX_API_URL, ident: FAMILYSEARCH_SANDBOX_IDENT_URL };
+    default:
+      return { api: FAMILYSEARCH_API_URL, ident: FAMILYSEARCH_IDENT_URL };
+  }
+}
+
+export function getEnvironment(): string {
+  return getConfig().environment;
 }
 
 export function isConfigured(): boolean {

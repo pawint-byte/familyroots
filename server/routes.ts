@@ -6898,6 +6898,7 @@ export async function registerRoutes(
         connected: !!connection,
         displayName: connection?.displayName || null,
         connectedAt: connection?.connectedAt || null,
+        environment: familySearchService.getEnvironment(),
       });
     } catch (error) {
       console.error("Error getting FamilySearch status:", error);
