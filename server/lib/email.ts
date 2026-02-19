@@ -45,7 +45,7 @@ async function getResendClient() {
 export async function sendEmail(to: string, subject: string, html: string) {
   const { client, fromEmail } = await getResendClient();
   const result = await client.emails.send({
-    from: fromEmail || 'FamilyRoots <noreply@familyroots.app>',
+    from: fromEmail || 'FamilyRoots <noreply@familyroots.family>',
     to,
     subject,
     html

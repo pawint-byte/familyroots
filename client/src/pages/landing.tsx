@@ -826,7 +826,7 @@ export default function Landing() {
                   <div className="bg-white p-8 flex items-center justify-center">
                     <div className="text-center">
                       <QRCodeSVG
-                        value={typeof window !== "undefined" ? window.location.origin : "https://familyroots.app"}
+                        value={typeof window !== "undefined" ? window.location.origin : "https://familyroots.family"}
                         size={180}
                         level="H"
                         includeMargin

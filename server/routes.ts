@@ -4427,7 +4427,7 @@ export async function registerRoutes(
       let customerId = user?.stripeCustomerId;
       if (!customerId) {
         const customer = await stripeService.createCustomer(
-          user?.email || `user-${userId}@familyroots.app`,
+          user?.email || `user-${userId}@familyroots.family`,
           userId
         );
         await storage.updateUserStripeInfo(userId, { stripeCustomerId: customer.id });
@@ -5817,7 +5817,7 @@ export async function registerRoutes(
 
       if (!customerId) {
         const customer = await stripeService.createCustomer(
-          user?.email || `user-${userId}@familyroots.app`,
+          user?.email || `user-${userId}@familyroots.family`,
           userId
         );
         await storage.updateUserStripeInfo(userId, { stripeCustomerId: customer.id });
