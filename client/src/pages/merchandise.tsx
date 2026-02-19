@@ -128,6 +128,91 @@ function ProductCard({
   );
 }
 
+function MiniTreePreview({ members, relationships, treeName }: { members: any[]; relationships: any[]; treeName: string }) {
+  const width = 300;
+  const height = 300;
+  const nodeRadius = 12;
+  const maxDisplay = 30;
+  const displayMembers = members.slice(0, maxDisplay);
+  const count = displayMembers.length;
+
+  const parentChildPairs = relationships
+    .filter((r: any) => r.relationshipType === "parent" || r.relationshipType === "child")
+    .map((r: any) => ({ from: r.memberId, to: r.relatedMemberId }));
+
+  const memberIdToIndex = new Map<number, number>();
+  displayMembers.forEach((m, i) => memberIdToIndex.set(m.id, i));
+
+  const depths = new Map<number, number>();
+  const childrenOf = new Map<number, number[]>();
+  displayMembers.forEach(m => childrenOf.set(m.id, []));
+  parentChildPairs.forEach(({ from, to }) => {
+    if (childrenOf.has(from)) {
+      childrenOf.get(from)!.push(to);
+    }
+  });
+
+  const parentIds = new Set(parentChildPairs.map(p => p.from));
+  const childIds = new Set(parentChildPairs.map(p => p.to));
+  const roots = displayMembers.filter(m => parentIds.has(m.id) && !childIds.has(m.id));
+  if (roots.length === 0 && displayMembers.length > 0) {
+    roots.push(displayMembers[0]);
+  }
+
+  const assignDepth = (id: number, d: number) => {
+    if (depths.has(id)) return;
+    depths.set(id, d);
+    (childrenOf.get(id) || []).forEach(cid => assignDepth(cid, d + 1));
+  };
+  roots.forEach(r => assignDepth(r.id, 0));
+  displayMembers.forEach(m => { if (!depths.has(m.id)) depths.set(m.id, 0); });
+
+  const maxDepth = Math.max(0, ...Array.from(depths.values()));
+  const depthRows = new Map<number, any[]>();
+  displayMembers.forEach(m => {
+    const d = depths.get(m.id) ?? 0;
+    if (!depthRows.has(d)) depthRows.set(d, []);
+    depthRows.get(d)!.push(m);
+  });
+
+  const positions = new Map<number, { x: number; y: number }>();
+  const rowCount = maxDepth + 1;
+  const ySpacing = height / (rowCount + 1);
+  depthRows.forEach((row, depth) => {
+    const xSpacing = width / (row.length + 1);
+    row.forEach((m: any, i: number) => {
+      positions.set(m.id, { x: xSpacing * (i + 1), y: ySpacing * (depth + 1) });
+    });
+  });
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" data-testid="mini-tree-preview">
+      <text x={width / 2} y={14} textAnchor="middle" fontSize={10} fontWeight="bold" fill="#374151">{treeName}</text>
+      {parentChildPairs.map(({ from, to }, i) => {
+        const p1 = positions.get(from);
+        const p2 = positions.get(to);
+        if (!p1 || !p2) return null;
+        return <line key={`edge-${i}`} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#94a3b8" strokeWidth={1.5} />;
+      })}
+      {displayMembers.map(m => {
+        const pos = positions.get(m.id);
+        if (!pos) return null;
+        const initials = `${(m.firstName || "")[0] || ""}${(m.lastName || "")[0] || ""}`.toUpperCase();
+        return (
+          <g key={m.id}>
+            <circle cx={pos.x} cy={pos.y} r={nodeRadius} fill="#3b82f6" stroke="#1d4ed8" strokeWidth={1} />
+            <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="central" fontSize={7} fontWeight="600" fill="white">{initials}</text>
+            <text x={pos.x} y={pos.y + nodeRadius + 9} textAnchor="middle" fontSize={6} fill="#374151">{m.firstName || ""}</text>
+          </g>
+        );
+      })}
+      {members.length > maxDisplay && (
+        <text x={width / 2} y={height - 6} textAnchor="middle" fontSize={8} fill="#6b7280">+{members.length - maxDisplay} more</text>
+      )}
+    </svg>
+  );
+}
+
 interface ShippingAddressForm {
   name: string;
   address1: string;
@@ -173,13 +258,14 @@ function ProductCustomizer({
     enabled: !!product.id,
   });
 
-  const { data: treeMembers = [] } = useQuery<{ id: number }[]>({
-    queryKey: ["/api/trees", selectedTreeId, "members"],
+  const { data: treeDetail } = useQuery<{ tree: any; members: any[]; relationships: any[] }>({
+    queryKey: ["/api/trees", selectedTreeId],
     enabled: !!selectedTreeId,
   });
 
   const selectedVariant = variants.find(v => v.id === selectedVariantId);
   const selectedTree = trees.find(t => t.id === selectedTreeId);
+  const treeMembers = treeDetail?.members ?? [];
   const treeMemberCount = treeMembers.length;
 
   const subtotal = selectedVariant 
@@ -207,7 +293,7 @@ function ProductCustomizer({
         throw new Error("Please complete all required shipping fields");
       }
 
-      const treeImageUrl = `${window.location.origin}/api/trees/${selectedTreeId}/export`;
+      const treeImageUrl = `${window.location.origin}/tree/${selectedTreeId}`;
 
       return apiRequest("POST", "/api/merchandise/orders", {
         treeId: selectedTreeId,
@@ -262,7 +348,7 @@ function ProductCustomizer({
               alt={product.name}
               className="w-full h-full object-cover"
             />
-            {selectedTree && selectedTreeId && (
+            {selectedTree && selectedTreeId && treeMemberCount > 0 && (
               <div className="absolute inset-0 flex items-center justify-center p-4">
                 <div 
                   className={`bg-white/90 dark:bg-gray-900/90 rounded-lg shadow-lg overflow-hidden ${
@@ -271,14 +357,7 @@ function ProductCustomizer({
                     'w-3/4 h-3/4'
                   }`}
                 >
-                  <img 
-                    src={`/api/trees/${selectedTreeId}/export`}
-                    alt="Tree Preview"
-                    className="w-full h-full object-contain p-2"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
+                  <MiniTreePreview members={treeMembers} relationships={treeDetail?.relationships ?? []} treeName={selectedTree.name} />
                 </div>
               </div>
             )}
