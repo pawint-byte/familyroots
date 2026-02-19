@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { getTreeTypeConfig, type TreeType } from "@shared/treeTypes";
+import { getTreeTypeConfig, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
 
 interface TreeItem {
   id: string;
@@ -494,36 +494,11 @@ export default function NetworkOverview() {
                   {treeDetail.members.length === 0 ? (
                     <p className="text-muted-foreground text-center py-8">No members in this tree yet.</p>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {treeDetail.members.map((member) => {
-                        const initials = `${member.firstName?.[0] || ""}${member.lastName?.[0] || ""}`.toUpperCase();
-                        return (
-                          <Card
-                            key={member.id}
-                            data-testid={`member-card-${member.id}`}
-                            style={{
-                              borderColor: selectedTreeConfig?.visual.accentColor,
-                              borderWidth: "1px",
-                            }}
-                          >
-                            <CardContent className="flex flex-col items-center p-4 gap-2">
-                              <Avatar className="h-12 w-12">
-                                {member.photoUrl && (
-                                  <AvatarImage src={member.photoUrl} alt={member.firstName} />
-                                )}
-                                <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-                              </Avatar>
-                              <div className="text-center">
-                                <p className="text-sm font-medium leading-tight">{member.firstName}</p>
-                                {member.lastName && (
-                                  <p className="text-xs text-muted-foreground">{member.lastName}</p>
-                                )}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
+                    <ExpandedTreeVisualization
+                      members={treeDetail.members}
+                      relationships={treeDetail.relationships}
+                      config={selectedTreeConfig!}
+                    />
                   )}
                 </div>
               ) : null}
@@ -707,6 +682,167 @@ export default function NetworkOverview() {
             </div>
           </TabsContent>
         </Tabs>
+      </div>
+    </div>
+  );
+}
+
+function ExpandedTreeVisualization({ members, relationships, config }: {
+  members: any[];
+  relationships: any[];
+  config: TreeTypeConfig;
+}) {
+  const { layoutShape, accentColor, accentColorLight, lineStyle, lineColor, nodeShape } = config.visual;
+  const maxDisplay = 50;
+  const displayMembers = members.slice(0, maxDisplay);
+  const count = displayMembers.length;
+
+  const computePositions = () => {
+    const w = 800;
+    const h = 600;
+    const cx = w / 2;
+    const cy = h / 2;
+    const nodeR = 24;
+    const pos = new Map<number, { x: number; y: number }>();
+
+    if (count === 0) return { pos, w, h, nodeR };
+
+    if (layoutShape === "circle") {
+      const circleR = Math.min(cx, cy) - 60;
+      displayMembers.forEach((m, i) => {
+        const angle = (2 * Math.PI * i) / count - Math.PI / 2;
+        pos.set(m.id, { x: cx + circleR * Math.cos(angle), y: cy + circleR * Math.sin(angle) });
+      });
+    } else if (layoutShape === "radial") {
+      if (count > 0) {
+        pos.set(displayMembers[0].id, { x: cx, y: cy });
+        const rings = Math.ceil((count - 1) / 8);
+        let idx = 1;
+        for (let ring = 1; ring <= rings && idx < count; ring++) {
+          const ringR = (Math.min(cx, cy) - 50) * (ring / rings);
+          const spotsInRing = Math.min(count - idx, ring * 8);
+          for (let s = 0; s < spotsInRing && idx < count; s++, idx++) {
+            const angle = (2 * Math.PI * s) / spotsInRing - Math.PI / 2;
+            pos.set(displayMembers[idx].id, { x: cx + ringR * Math.cos(angle), y: cy + ringR * Math.sin(angle) });
+          }
+        }
+      }
+    } else if (layoutShape === "grid") {
+      const cols = Math.ceil(Math.sqrt(count * 1.5));
+      const cellW = (w - 80) / cols;
+      const rows = Math.ceil(count / cols);
+      const cellH = (h - 80) / Math.max(rows, 1);
+      displayMembers.forEach((m, i) => {
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const rowCnt = Math.min(cols, count - row * cols);
+        const offsetX = (cols - rowCnt) * cellW / 2;
+        pos.set(m.id, { x: 40 + offsetX + col * cellW + cellW / 2, y: 40 + row * cellH + cellH / 2 });
+      });
+    } else if (layoutShape === "arc") {
+      const arcR = Math.min(cx, cy) - 40;
+      const arcSpan = Math.PI * 0.85;
+      const startAngle = Math.PI / 2 - arcSpan / 2;
+      displayMembers.forEach((m, i) => {
+        const angle = count > 1 ? startAngle + (arcSpan * i) / (count - 1) : Math.PI / 2;
+        pos.set(m.id, { x: cx + arcR * Math.cos(angle), y: cy + arcR * Math.sin(angle) * 0.7 });
+      });
+    } else if (layoutShape === "network") {
+      const seed = count;
+      displayMembers.forEach((m, i) => {
+        const golden = (i * 137.508 + seed) % 360;
+        const r = 30 + ((i * 53 + seed * 3) % (Math.min(cx, cy) - 60));
+        const angle = (golden * Math.PI) / 180;
+        pos.set(m.id, { x: cx + r * Math.cos(angle) * 0.85, y: cy + r * Math.sin(angle) * 0.85 });
+      });
+    } else {
+      const parentChildPairs = relationships
+        .filter((r: any) => r.relationshipType === "parent" || r.relationshipType === "child")
+        .map((r: any) => ({ from: r.memberId, to: r.relatedMemberId }));
+      const childrenOf = new Map<number, number[]>();
+      displayMembers.forEach(m => childrenOf.set(m.id, []));
+      parentChildPairs.forEach(({ from, to }) => { if (childrenOf.has(from)) childrenOf.get(from)!.push(to); });
+      const parentIds = new Set(parentChildPairs.map(p => p.from));
+      const childIds = new Set(parentChildPairs.map(p => p.to));
+      const roots = displayMembers.filter(m => parentIds.has(m.id) && !childIds.has(m.id));
+      if (roots.length === 0 && count > 0) roots.push(displayMembers[0]);
+      const depths = new Map<number, number>();
+      const assignDepth = (id: number, d: number) => { if (depths.has(id)) return; depths.set(id, d); (childrenOf.get(id) || []).forEach(cid => assignDepth(cid, d + 1)); };
+      roots.forEach(r => assignDepth(r.id, 0));
+      displayMembers.forEach(m => { if (!depths.has(m.id)) depths.set(m.id, 0); });
+      const maxDepth = Math.max(0, ...Array.from(depths.values()));
+      const depthRows = new Map<number, any[]>();
+      displayMembers.forEach(m => { const d = depths.get(m.id) ?? 0; if (!depthRows.has(d)) depthRows.set(d, []); depthRows.get(d)!.push(m); });
+      const rowCount = maxDepth + 1;
+      const ySpace = h / (rowCount + 1);
+      depthRows.forEach((row, depth) => {
+        const xSpace = w / (row.length + 1);
+        row.forEach((m: any, i: number) => pos.set(m.id, { x: xSpace * (i + 1), y: ySpace * (depth + 1) }));
+      });
+    }
+    return { pos, w, h, nodeR };
+  };
+
+  const { pos, w, h, nodeR } = computePositions();
+
+  const connectionPairs = relationships
+    .map((r: any) => ({ from: r.memberId, to: r.relatedMemberId }))
+    .filter(({ from, to }: any) => pos.has(from) && pos.has(to));
+  const seen = new Set<string>();
+  const uniqueConnections = connectionPairs.filter(({ from, to }: any) => {
+    const key = [Math.min(from, to), Math.max(from, to)].join("-");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const strokeDasharray = lineStyle === "dashed" ? "6,4" : lineStyle === "dotted" ? "3,3" : undefined;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+        <Badge variant="outline" style={{ borderColor: accentColor, color: accentColor }}>
+          {config.visual.shapeName}
+        </Badge>
+        <span>{count} {config.membersLabel.toLowerCase()}</span>
+        {members.length > maxDisplay && <span>(showing first {maxDisplay})</span>}
+      </div>
+      <div className="rounded-lg border overflow-hidden">
+        <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxHeight: "600px" }} data-testid="expanded-tree-svg">
+          {layoutShape === "circle" && count > 1 && (
+            <circle cx={w / 2} cy={h / 2} r={Math.min(w / 2, h / 2) - 60} fill="none" stroke={lineColor} strokeWidth={1.5} strokeDasharray={strokeDasharray} opacity={0.2} />
+          )}
+          {uniqueConnections.map(({ from, to }: any, i: number) => {
+            const p1 = pos.get(from)!;
+            const p2 = pos.get(to)!;
+            return <line key={`edge-${i}`} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={lineColor} strokeWidth={1.5} strokeDasharray={strokeDasharray} opacity={0.4} />;
+          })}
+          {displayMembers.map(m => {
+            const p = pos.get(m.id);
+            if (!p) return null;
+            const initials = `${(m.firstName || "")[0] || ""}${(m.lastName || "")[0] || ""}`.toUpperCase();
+            const fullName = [m.firstName, m.lastName].filter(Boolean).join(" ");
+            return (
+              <g key={m.id} data-testid={`expanded-member-node-${m.id}`}>
+                {nodeShape === "hexagon" ? (
+                  <polygon
+                    points={Array.from({ length: 6 }, (_, i) => {
+                      const a = (Math.PI / 3) * i - Math.PI / 6;
+                      return `${p.x + nodeR * Math.cos(a)},${p.y + nodeR * Math.sin(a)}`;
+                    }).join(" ")}
+                    fill={accentColorLight} stroke={accentColor} strokeWidth={2}
+                  />
+                ) : nodeShape === "rounded" ? (
+                  <rect x={p.x - nodeR} y={p.y - nodeR * 0.8} width={nodeR * 2} height={nodeR * 1.6} rx={6} fill={accentColorLight} stroke={accentColor} strokeWidth={2} />
+                ) : (
+                  <circle cx={p.x} cy={p.y} r={nodeR} fill={accentColorLight} stroke={accentColor} strokeWidth={2} />
+                )}
+                <text x={p.x} y={p.y + 1} textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="600" fill={accentColor}>{initials}</text>
+                <text x={p.x} y={p.y + nodeR + 14} textAnchor="middle" fontSize={9} fill="currentColor" opacity={0.8}>{fullName.length > 14 ? fullName.slice(0, 13) + "..." : fullName}</text>
+              </g>
+            );
+          })}
+        </svg>
       </div>
     </div>
   );

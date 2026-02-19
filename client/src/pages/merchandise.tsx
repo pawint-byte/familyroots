@@ -128,86 +128,183 @@ function ProductCard({
   );
 }
 
-function MiniTreePreview({ members, relationships, treeName }: { members: any[]; relationships: any[]; treeName: string }) {
+function MiniTreePreview({ members, relationships, treeName, treeType }: { members: any[]; relationships: any[]; treeName: string; treeType: string }) {
+  const config = getTreeTypeConfig((treeType || "custom") as TreeType);
+  const { layoutShape, accentColor, lineStyle, lineColor, nodeShape } = config.visual;
   const width = 300;
   const height = 300;
+  const cx = width / 2;
+  const cy = height / 2;
   const nodeRadius = 12;
   const maxDisplay = 30;
   const displayMembers = members.slice(0, maxDisplay);
   const count = displayMembers.length;
 
-  const parentChildPairs = relationships
-    .filter((r: any) => r.relationshipType === "parent" || r.relationshipType === "child")
-    .map((r: any) => ({ from: r.memberId, to: r.relatedMemberId }));
+  const positions = new Map<number, { x: number; y: number }>();
 
-  const memberIdToIndex = new Map<number, number>();
-  displayMembers.forEach((m, i) => memberIdToIndex.set(m.id, i));
-
-  const depths = new Map<number, number>();
-  const childrenOf = new Map<number, number[]>();
-  displayMembers.forEach(m => childrenOf.set(m.id, []));
-  parentChildPairs.forEach(({ from, to }) => {
-    if (childrenOf.has(from)) {
-      childrenOf.get(from)!.push(to);
-    }
-  });
-
-  const parentIds = new Set(parentChildPairs.map(p => p.from));
-  const childIds = new Set(parentChildPairs.map(p => p.to));
-  const roots = displayMembers.filter(m => parentIds.has(m.id) && !childIds.has(m.id));
-  if (roots.length === 0 && displayMembers.length > 0) {
-    roots.push(displayMembers[0]);
+  if (count === 0) {
+    return (
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" data-testid="mini-tree-preview">
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={10} fill="#6b7280">No members</text>
+      </svg>
+    );
   }
 
-  const assignDepth = (id: number, d: number) => {
-    if (depths.has(id)) return;
-    depths.set(id, d);
-    (childrenOf.get(id) || []).forEach(cid => assignDepth(cid, d + 1));
-  };
-  roots.forEach(r => assignDepth(r.id, 0));
-  displayMembers.forEach(m => { if (!depths.has(m.id)) depths.set(m.id, 0); });
-
-  const maxDepth = Math.max(0, ...Array.from(depths.values()));
-  const depthRows = new Map<number, any[]>();
-  displayMembers.forEach(m => {
-    const d = depths.get(m.id) ?? 0;
-    if (!depthRows.has(d)) depthRows.set(d, []);
-    depthRows.get(d)!.push(m);
-  });
-
-  const positions = new Map<number, { x: number; y: number }>();
-  const rowCount = maxDepth + 1;
-  const ySpacing = height / (rowCount + 1);
-  depthRows.forEach((row, depth) => {
-    const xSpacing = width / (row.length + 1);
-    row.forEach((m: any, i: number) => {
-      positions.set(m.id, { x: xSpacing * (i + 1), y: ySpacing * (depth + 1) });
+  if (layoutShape === "circle") {
+    const circleRadius = Math.min(cx, cy) - 40;
+    displayMembers.forEach((m, i) => {
+      const angle = (2 * Math.PI * i) / count - Math.PI / 2;
+      positions.set(m.id, {
+        x: cx + circleRadius * Math.cos(angle),
+        y: cy + circleRadius * Math.sin(angle),
+      });
     });
+  } else if (layoutShape === "radial") {
+    if (count > 0) {
+      positions.set(displayMembers[0].id, { x: cx, y: cy });
+      const rings = Math.ceil((count - 1) / 8);
+      let idx = 1;
+      for (let ring = 1; ring <= rings && idx < count; ring++) {
+        const ringRadius = (Math.min(cx, cy) - 30) * (ring / rings);
+        const spotsInRing = Math.min(count - idx, ring * 8);
+        for (let s = 0; s < spotsInRing && idx < count; s++, idx++) {
+          const angle = (2 * Math.PI * s) / spotsInRing - Math.PI / 2;
+          positions.set(displayMembers[idx].id, {
+            x: cx + ringRadius * Math.cos(angle),
+            y: cy + ringRadius * Math.sin(angle),
+          });
+        }
+      }
+    }
+  } else if (layoutShape === "grid") {
+    const cols = Math.ceil(Math.sqrt(count * 1.5));
+    const rows = Math.ceil(count / cols);
+    const cellW = (width - 40) / cols;
+    const cellH = (height - 60) / Math.max(rows, 1);
+    displayMembers.forEach((m, i) => {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const rowCount = Math.min(cols, count - row * cols);
+      const offsetX = (cols - rowCount) * cellW / 2;
+      positions.set(m.id, {
+        x: 20 + offsetX + col * cellW + cellW / 2,
+        y: 30 + row * cellH + cellH / 2,
+      });
+    });
+  } else if (layoutShape === "arc") {
+    const arcRadius = Math.min(cx, cy) - 30;
+    const arcSpan = Math.PI * 0.8;
+    const startAngle = Math.PI / 2 - arcSpan / 2;
+    displayMembers.forEach((m, i) => {
+      const angle = count > 1
+        ? startAngle + (arcSpan * i) / (count - 1)
+        : Math.PI / 2;
+      positions.set(m.id, {
+        x: cx + arcRadius * Math.cos(angle),
+        y: cy + arcRadius * Math.sin(angle) * 0.6,
+      });
+    });
+  } else if (layoutShape === "network") {
+    const seed = treeName.length;
+    displayMembers.forEach((m, i) => {
+      const golden = (i * 137.508 + seed) % 360;
+      const r = 20 + ((i * 47 + seed * 3) % ((Math.min(cx, cy) - 40)));
+      const angle = (golden * Math.PI) / 180;
+      positions.set(m.id, {
+        x: cx + r * Math.cos(angle) * 0.8,
+        y: cy + r * Math.sin(angle) * 0.8,
+      });
+    });
+  } else {
+    const parentChildPairs = relationships
+      .filter((r: any) => r.relationshipType === "parent" || r.relationshipType === "child")
+      .map((r: any) => ({ from: r.memberId, to: r.relatedMemberId }));
+    const childrenOf = new Map<number, number[]>();
+    displayMembers.forEach(m => childrenOf.set(m.id, []));
+    parentChildPairs.forEach(({ from, to }) => {
+      if (childrenOf.has(from)) childrenOf.get(from)!.push(to);
+    });
+    const parentIds = new Set(parentChildPairs.map(p => p.from));
+    const childIds = new Set(parentChildPairs.map(p => p.to));
+    const roots = displayMembers.filter(m => parentIds.has(m.id) && !childIds.has(m.id));
+    if (roots.length === 0 && count > 0) roots.push(displayMembers[0]);
+    const depths = new Map<number, number>();
+    const assignDepth = (id: number, d: number) => {
+      if (depths.has(id)) return;
+      depths.set(id, d);
+      (childrenOf.get(id) || []).forEach(cid => assignDepth(cid, d + 1));
+    };
+    roots.forEach(r => assignDepth(r.id, 0));
+    displayMembers.forEach(m => { if (!depths.has(m.id)) depths.set(m.id, 0); });
+    const maxDepth = Math.max(0, ...Array.from(depths.values()));
+    const depthRows = new Map<number, any[]>();
+    displayMembers.forEach(m => {
+      const d = depths.get(m.id) ?? 0;
+      if (!depthRows.has(d)) depthRows.set(d, []);
+      depthRows.get(d)!.push(m);
+    });
+    const rowCount = maxDepth + 1;
+    const ySpacing = height / (rowCount + 1);
+    depthRows.forEach((row, depth) => {
+      const xSpacing = width / (row.length + 1);
+      row.forEach((m: any, i: number) => {
+        positions.set(m.id, { x: xSpacing * (i + 1), y: ySpacing * (depth + 1) });
+      });
+    });
+  }
+
+  const connectionPairs = relationships
+    .map((r: any) => ({ from: r.memberId, to: r.relatedMemberId }))
+    .filter(({ from, to }: any) => positions.has(from) && positions.has(to));
+  const seen = new Set<string>();
+  const uniqueConnections = connectionPairs.filter(({ from, to }: any) => {
+    const key = [Math.min(from, to), Math.max(from, to)].join("-");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
+
+  const strokeDasharray = lineStyle === "dashed" ? "4,3" : lineStyle === "dotted" ? "2,2" : undefined;
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" data-testid="mini-tree-preview">
-      <text x={width / 2} y={14} textAnchor="middle" fontSize={10} fontWeight="bold" fill="#374151">{treeName}</text>
-      {parentChildPairs.map(({ from, to }, i) => {
-        const p1 = positions.get(from);
-        const p2 = positions.get(to);
-        if (!p1 || !p2) return null;
-        return <line key={`edge-${i}`} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#94a3b8" strokeWidth={1.5} />;
+      <text x={cx} y={14} textAnchor="middle" fontSize={10} fontWeight="bold" fill="#374151">{treeName}</text>
+      <text x={cx} y={height - 6} textAnchor="middle" fontSize={8} fill="#6b7280">{config.visual.shapeName}</text>
+      {layoutShape === "circle" && count > 1 && (
+        <circle cx={cx} cy={cy} r={Math.min(cx, cy) - 40} fill="none" stroke={lineColor} strokeWidth={1} strokeDasharray={strokeDasharray} opacity={0.3} />
+      )}
+      {uniqueConnections.map(({ from, to }: any, i: number) => {
+        const p1 = positions.get(from)!;
+        const p2 = positions.get(to)!;
+        return <line key={`edge-${i}`} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={lineColor} strokeWidth={1.5} strokeDasharray={strokeDasharray} opacity={0.5} />;
       })}
       {displayMembers.map(m => {
         const pos = positions.get(m.id);
         if (!pos) return null;
         const initials = `${(m.firstName || "")[0] || ""}${(m.lastName || "")[0] || ""}`.toUpperCase();
+        const r = nodeRadius;
         return (
           <g key={m.id}>
-            <circle cx={pos.x} cy={pos.y} r={nodeRadius} fill="#3b82f6" stroke="#1d4ed8" strokeWidth={1} />
+            {nodeShape === "hexagon" ? (
+              <polygon
+                points={Array.from({ length: 6 }, (_, i) => {
+                  const a = (Math.PI / 3) * i - Math.PI / 6;
+                  return `${pos.x + r * Math.cos(a)},${pos.y + r * Math.sin(a)}`;
+                }).join(" ")}
+                fill={accentColor} stroke={accentColor} strokeWidth={1}
+              />
+            ) : nodeShape === "rounded" ? (
+              <rect x={pos.x - r} y={pos.y - r * 0.8} width={r * 2} height={r * 1.6} rx={4} fill={accentColor} stroke={accentColor} strokeWidth={1} />
+            ) : (
+              <circle cx={pos.x} cy={pos.y} r={r} fill={accentColor} stroke={accentColor} strokeWidth={1} />
+            )}
             <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="central" fontSize={7} fontWeight="600" fill="white">{initials}</text>
-            <text x={pos.x} y={pos.y + nodeRadius + 9} textAnchor="middle" fontSize={6} fill="#374151">{m.firstName || ""}</text>
+            <text x={pos.x} y={pos.y + r + 9} textAnchor="middle" fontSize={6} fill="#374151">{m.firstName || ""}</text>
           </g>
         );
       })}
       {members.length > maxDisplay && (
-        <text x={width / 2} y={height - 6} textAnchor="middle" fontSize={8} fill="#6b7280">+{members.length - maxDisplay} more</text>
+        <text x={cx} y={height - 16} textAnchor="middle" fontSize={8} fill="#6b7280">+{members.length - maxDisplay} more</text>
       )}
     </svg>
   );
@@ -357,7 +454,7 @@ function ProductCustomizer({
                     'w-3/4 h-3/4'
                   }`}
                 >
-                  <MiniTreePreview members={treeMembers} relationships={treeDetail?.relationships ?? []} treeName={selectedTree.name} />
+                  <MiniTreePreview members={treeMembers} relationships={treeDetail?.relationships ?? []} treeName={selectedTree.name} treeType={selectedTree.treeType || "family"} />
                 </div>
               </div>
             )}
