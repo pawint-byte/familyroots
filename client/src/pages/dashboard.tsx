@@ -15,7 +15,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { trackTreeCreation } from "@/lib/tracking";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -447,6 +447,17 @@ export default function Dashboard() {
             </DropdownMenu>
             <Tooltip>
               <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/network-overview")} className="hidden md:flex gap-1" data-testid="link-network-overview">
+                  <Globe className="h-4 w-4" />
+                  <span className="hidden lg:inline">My Network</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>See all your trees and connections in one view</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
                 <Button variant="ghost" size="sm" onClick={() => navigate("/merchandise")} className="hidden md:flex gap-1" data-testid="link-merchandise">
                   <ShoppingBag className="h-4 w-4" />
                   <span className="hidden lg:inline">Print Tree</span>
@@ -527,6 +538,14 @@ export default function Dashboard() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 sm:hidden"
+                  onClick={() => navigate("/network-overview")}
+                  data-testid="menu-network-overview"
+                >
+                  <Globe className="h-4 w-4" />
+                  <span>My Network</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-center gap-2 sm:hidden"
                   onClick={() => navigate("/merchandise")}
