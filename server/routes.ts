@@ -5203,7 +5203,6 @@ export async function registerRoutes(
   // List of admin emails - only these users can access admin routes
   const ADMIN_EMAILS = [
     "pawint@me.com",
-    "andrew.wint@gmail.com",
   ];
   
   // Also allow if the user ID matches known admin IDs
