@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useCallback } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { toPng } from "html-to-image";
 import { Download, ShoppingBag, Users, Eye, Share2, Loader2, Filter, ArrowLeft, List, Printer, Copy, Check, Search, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -713,6 +713,7 @@ export default function NetworkOverview() {
 }
 
 function HubVisualization({ trees }: { trees: TreeItem[] }) {
+  const [, navigate] = useLocation();
   const cx = 400;
   const cy = 400;
   const radius = 280;
@@ -764,7 +765,12 @@ function HubVisualization({ trees }: { trees: TreeItem[] }) {
           tree.name.length > 12 ? tree.name.slice(0, 11) + "..." : tree.name;
 
         return (
-          <g key={`node-${tree.id}`}>
+          <g
+            key={`node-${tree.id}`}
+            onClick={() => navigate(`/tree/${tree.id}`)}
+            style={{ cursor: "pointer" }}
+            data-testid={`hub-tree-node-${tree.id}`}
+          >
             <circle
               cx={tx}
               cy={ty}
