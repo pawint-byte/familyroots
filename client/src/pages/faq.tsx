@@ -496,7 +496,7 @@ export default function FAQ() {
         },
         {
           question: "How does the merchandise ordering work?",
-          answer: "It's simple: 1) View your family tree, 2) Click 'Create Merchandise', 3) Choose a product (mug, shirt, poster, etc.), 4) Preview how your tree looks on the item, 5) Checkout securely with your card. We handle production and shipping through our print partner."
+          answer: "It's simple: 1) Go to the Merchandise page, 2) Choose a product (mug, shirt, poster, etc.), 3) Click Customize and select your tree, 4) Preview how your tree looks on the item, 5) Checkout securely with your card. We handle production and shipping through our print partner. Tip: For the best experience previewing and customizing your tree on products, we recommend using a desktop or tablet - the preview is easier to see on a larger screen."
         },
         {
           question: "What products can I put my family tree on?",

@@ -141,7 +141,7 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
   const displayMembers = members.slice(0, maxDisplay);
   const count = displayMembers.length;
 
-  const positions = new Map<number, { x: number; y: number }>();
+  const positions = new Map<string, { x: number; y: number }>();
 
   if (count === 0) {
     return (
@@ -218,19 +218,23 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
     });
   } else {
     const parentChildPairs = relationships
-      .filter((r: any) => r.relationshipType === "parent" || r.relationshipType === "child")
-      .map((r: any) => ({ from: r.memberId, to: r.relatedMemberId }));
-    const childrenOf = new Map<number, number[]>();
+      .filter((r: any) => r.relationshipType === "parent")
+      .map((r: any) => ({ from: r.fromMemberId, to: r.toMemberId }));
+    const childPairs = relationships
+      .filter((r: any) => r.relationshipType === "child")
+      .map((r: any) => ({ from: r.toMemberId, to: r.fromMemberId }));
+    const allPairs = [...parentChildPairs, ...childPairs];
+    const childrenOf = new Map<string, string[]>();
     displayMembers.forEach(m => childrenOf.set(m.id, []));
-    parentChildPairs.forEach(({ from, to }) => {
+    allPairs.forEach(({ from, to }) => {
       if (childrenOf.has(from)) childrenOf.get(from)!.push(to);
     });
-    const parentIds = new Set(parentChildPairs.map(p => p.from));
-    const childIds = new Set(parentChildPairs.map(p => p.to));
+    const parentIds = new Set(allPairs.map(p => p.from));
+    const childIds = new Set(allPairs.map(p => p.to));
     const roots = displayMembers.filter(m => parentIds.has(m.id) && !childIds.has(m.id));
     if (roots.length === 0 && count > 0) roots.push(displayMembers[0]);
-    const depths = new Map<number, number>();
-    const assignDepth = (id: number, d: number) => {
+    const depths = new Map<string, number>();
+    const assignDepth = (id: string, d: number) => {
       if (depths.has(id)) return;
       depths.set(id, d);
       (childrenOf.get(id) || []).forEach(cid => assignDepth(cid, d + 1));
@@ -255,7 +259,7 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
   }
 
   const connectionPairs = relationships
-    .map((r: any) => ({ from: r.memberId, to: r.relatedMemberId }))
+    .map((r: any) => ({ from: r.fromMemberId, to: r.toMemberId }))
     .filter(({ from, to }: any) => positions.has(from) && positions.has(to));
   const seen = new Set<string>();
   const uniqueConnections = connectionPairs.filter(({ from, to }: any) => {
