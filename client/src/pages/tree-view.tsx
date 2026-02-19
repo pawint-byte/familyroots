@@ -47,6 +47,7 @@ import { AddRelationship } from "@/components/add-relationship";
 import { getTreeTypeConfig, getRelationshipTypesForTree, type TreeType } from "@shared/treeTypes";
 import { ProfileClaimSection } from "@/components/profile-claim-section";
 import { LifeEventsSection } from "@/components/life-events-section";
+import { GiftRegistrySection } from "@/components/gift-registry-section";
 import { CustodianshipSection } from "@/components/custodianship-section";
 import { SpecialConnectionsSection, LocationSection } from "@/components/special-connections";
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
@@ -1454,6 +1455,16 @@ export default function TreeView() {
                     member={selectedMember}
                     currentUserId={user.id}
                     isTreeOwner={treeData.tree.ownerId === user.id}
+                  />
+                )}
+
+                {/* Gift Registry Section */}
+                {treeData && (
+                  <GiftRegistrySection
+                    memberId={selectedMember.id}
+                    treeId={treeData.tree.id}
+                    canEdit={canEdit}
+                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '')}
                   />
                 )}
 
