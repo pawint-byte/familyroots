@@ -45,5 +45,5 @@ integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_database:1.0.
 
 [userenv.shared]
 VITE_GA_MEASUREMENT_ID = "G-WHS17V1WFW"
-FAMILYSEARCH_REDIRECT_URI = "https://familyroots.replit.app/api/familysearch/callback"
+FAMILYSEARCH_REDIRECT_URI = "https://familyroots.family/api/familysearch/callback"
 FAMILYSEARCH_USE_BETA = "true"

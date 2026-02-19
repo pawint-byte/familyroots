@@ -7178,22 +7178,33 @@ export async function registerRoutes(
   // FamilySearch OAuth callback
   app.get("/api/familysearch/callback", isAuthenticated, async (req: any, res) => {
     try {
-      const { code, state } = req.query;
+      const { code, state, error: fsError } = req.query;
       const userId = req.user.claims.sub;
+      
+      // Handle FamilySearch error responses (e.g., user denied access)
+      if (fsError) {
+        console.error("FamilySearch returned error:", fsError);
+        return res.redirect("/records?error=callback_failed");
+      }
       
       // Verify state - require it exists and matches
       const storedState = req.session?.familySearchState;
+      console.log("[FamilySearch] Callback received - state match:", storedState === state, "has stored state:", !!storedState);
       if (!storedState || storedState !== state) {
+        console.error("[FamilySearch] State mismatch - stored:", storedState, "received:", state);
         return res.redirect("/records?error=invalid_state");
       }
       // Clear state after use to prevent reuse
       delete req.session.familySearchState;
       
       // Exchange code for token
+      console.log("[FamilySearch] Exchanging code for token...");
       const tokenResponse = await familySearchService.exchangeCodeForToken(code as string);
       if (!tokenResponse) {
+        console.error("[FamilySearch] Token exchange returned null");
         return res.redirect("/records?error=token_exchange_failed");
       }
+      console.log("[FamilySearch] Token exchange successful");
       
       // Get user info
       const fsUser = await familySearchService.getCurrentUser(tokenResponse.access_token);

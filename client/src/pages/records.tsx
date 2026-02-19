@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -58,6 +58,33 @@ export default function RecordsPage() {
     deathPlace: "",
   });
   const [activeSearch, setActiveSearch] = useState(false);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get("error");
+    const connected = urlParams.get("connected");
+    
+    if (error) {
+      const errorMessages: Record<string, string> = {
+        invalid_state: "The connection request expired or was invalid. Please try connecting again.",
+        token_exchange_failed: "FamilySearch rejected the connection. This may happen if the redirect URL hasn't been approved yet. Please try again later.",
+        callback_failed: "Something went wrong while connecting to FamilySearch. Please try again.",
+      };
+      toast({
+        title: "Connection Failed",
+        description: errorMessages[error] || "Could not connect to FamilySearch. Please try again.",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/records");
+    } else if (connected === "true") {
+      queryClient.invalidateQueries({ queryKey: ["/api/familysearch/status"] });
+      toast({
+        title: "Connected!",
+        description: "Your FamilySearch account has been connected. You can now search historical records.",
+      });
+      window.history.replaceState({}, "", "/records");
+    }
+  }, [toast]);
 
   const { data: status, isLoading: statusLoading } = useQuery<FamilySearchStatus>({
     queryKey: ["/api/familysearch/status"],
