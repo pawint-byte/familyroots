@@ -351,7 +351,7 @@ export default function Dashboard() {
                   <Menu className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-48 max-h-[70vh] overflow-y-auto">
                 <DropdownMenuItem 
                   className="flex items-start gap-2"
                   onClick={() => navigate("/merchandise")}

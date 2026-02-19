@@ -146,7 +146,7 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
   if (count === 0) {
     return (
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" data-testid="mini-tree-preview">
-        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={10} fill="#6b7280">No members</text>
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={10} className="fill-gray-500 dark:fill-gray-400">No members</text>
       </svg>
     );
   }
@@ -269,8 +269,8 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" data-testid="mini-tree-preview">
-      <text x={cx} y={14} textAnchor="middle" fontSize={10} fontWeight="bold" fill="#374151">{treeName}</text>
-      <text x={cx} y={height - 6} textAnchor="middle" fontSize={8} fill="#6b7280">{config.visual.shapeName}</text>
+      <text x={cx} y={14} textAnchor="middle" fontSize={10} fontWeight="bold" className="fill-gray-700 dark:fill-gray-200">{treeName}</text>
+      <text x={cx} y={height - 6} textAnchor="middle" fontSize={8} className="fill-gray-500 dark:fill-gray-400">{config.visual.shapeName}</text>
       {layoutShape === "circle" && count > 1 && (
         <circle cx={cx} cy={cy} r={Math.min(cx, cy) - 40} fill="none" stroke={lineColor} strokeWidth={1} strokeDasharray={strokeDasharray} opacity={0.3} />
       )}
@@ -300,12 +300,12 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
               <circle cx={pos.x} cy={pos.y} r={r} fill={accentColor} stroke={accentColor} strokeWidth={1} />
             )}
             <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="central" fontSize={7} fontWeight="600" fill="white">{initials}</text>
-            <text x={pos.x} y={pos.y + r + 9} textAnchor="middle" fontSize={6} fill="#374151">{m.firstName || ""}</text>
+            <text x={pos.x} y={pos.y + r + 9} textAnchor="middle" fontSize={6} className="fill-gray-700 dark:fill-gray-200">{m.firstName || ""}</text>
           </g>
         );
       })}
       {members.length > maxDisplay && (
-        <text x={cx} y={height - 16} textAnchor="middle" fontSize={8} fill="#6b7280">+{members.length - maxDisplay} more</text>
+        <text x={cx} y={height - 16} textAnchor="middle" fontSize={8} className="fill-gray-500 dark:fill-gray-400">+{members.length - maxDisplay} more</text>
       )}
     </svg>
   );
@@ -356,7 +356,7 @@ function ProductCustomizer({
     enabled: !!product.id,
   });
 
-  const { data: treeDetail } = useQuery<{ tree: any; members: any[]; relationships: any[] }>({
+  const { data: treeDetail, isLoading: loadingTreeDetail } = useQuery<{ tree: any; members: any[]; relationships: any[] }>({
     queryKey: ["/api/trees", selectedTreeId],
     enabled: !!selectedTreeId,
   });
@@ -446,7 +446,15 @@ function ProductCustomizer({
               alt={product.name}
               className="w-full h-full object-cover"
             />
-            {selectedTree && selectedTreeId && treeMemberCount > 0 && (
+            {selectedTree && selectedTreeId && loadingTreeDetail && (
+              <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/20">
+                <div className="bg-white/90 dark:bg-gray-900/90 rounded-lg shadow-lg p-6 flex flex-col items-center gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="text-xs text-muted-foreground">Loading tree preview...</span>
+                </div>
+              </div>
+            )}
+            {selectedTree && selectedTreeId && !loadingTreeDetail && treeMemberCount > 0 && (
               <div className="absolute inset-0 flex items-center justify-center p-4">
                 <div 
                   className={`bg-white/90 dark:bg-gray-900/90 rounded-lg shadow-lg overflow-hidden ${
