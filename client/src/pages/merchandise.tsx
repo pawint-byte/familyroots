@@ -20,6 +20,7 @@ import {
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
+import { getTreeTypeConfig, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
 
 interface Product {
   id: number;
