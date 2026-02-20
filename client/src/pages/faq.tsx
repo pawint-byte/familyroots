@@ -144,19 +144,19 @@ export default function FAQ() {
         },
         {
           question: "How would a sorority or fraternity use FamilyRoots?",
-          answer: "Imagine your entire sorority: every chapter, every pledge class, every Big/Little pair, all in one private network. Each chapter builds its own tree with roles like Chapter President, Big, Little, Pledge Brother/Sister, and Officers. Chapters can connect to each other through cross-tree links, so the bigger picture of your sisterhood or brotherhood starts to take shape across campuses. Every member claims their own profile, keeps their info updated after graduation, and stays connected for life. No more lost contact lists or outdated spreadsheets."
+          answer: "Imagine your entire sorority: every chapter, every pledge class, every Big/Little pair, all in one private network. When you create a fraternity/sorority tree, the relationship structure is laid out upfront: Big/Little mentor pairs, Pledge Class, Chapter President, Officer, Faculty Advisor, Active Member, and Alumni. Each member gets tagged with their class year (Class of 2024 through 2030), pledge status, or honorary designation. Chapters can connect through cross-tree links so the bigger picture takes shape across campuses. Every member claims their own profile, keeps their info updated after graduation, and stays connected for life. No more lost contact lists or outdated spreadsheets."
         },
         {
           question: "How would a church or faith community use FamilyRoots?",
-          answer: "A church can map its entire congregation with meaningful roles: Pastor, Elder, Deacon, Ministry Leader, Ministry Member, Mentor, and Mentee. See who leads which ministry, who mentors whom, and how your community is truly connected. Small groups, youth ministry, worship teams, they can all get their own structure within one private network. Members can share QR codes for easy profile connections. The tree owner controls visibility with three-tier privacy settings, so you decide who sees what level of detail."
+          answer: "A church can map its entire congregation with meaningful roles defined upfront: Pastor/Leader, Elder/Deacon, Ministry Leader/Member, Teacher/Student, Worship Leader, Volunteer, and Mentor/Mentee. Each relationship can be tagged with a ministry assignment: Youth Ministry, Worship Team, Sunday School, Bible Study, Choir, or Outreach. See who leads which ministry, who mentors whom, and how your community is truly connected. Members can share QR codes for easy profile connections. The tree owner controls visibility with three-tier privacy settings, so you decide who sees what level of detail."
         },
         {
           question: "How would a sports team or club use FamilyRoots?",
-          answer: "Build your entire roster with real roles: Coach, Assistant Coach, Captain, Player, and Alumni. A youth league can create trees for every season and connect them, so you can trace a player's journey from little league to varsity. Booster clubs, travel teams, and recreational leagues all fit. Coaches manage the roster, players claim their profiles and keep their own information current, and alumni stay connected long after their playing days. It's a living record of your team's history that the team itself owns."
+          answer: "Build your entire roster with roles defined from the start: Head Coach, Assistant Coach, Captain, Player, Trainer/Physio, Manager/Staff, Teammate, and Alumni. Tag each member with their status: Starter, Reserve, Varsity, JV, Injured Reserve, or Retired. Need something specific like 'Water Boy' or 'Team Parent'? Add your own roles during creation. A youth league can create trees for every season and connect them, so you can trace a player's journey from little league to varsity. Coaches manage the roster, players claim their profiles and keep their own information current, and alumni stay connected long after their playing days."
         },
         {
           question: "How would a professional network use FamilyRoots?",
-          answer: "Map your professional relationships the way they actually work: Manager, Direct Report, Colleague, Mentor, Mentee, Client, Business Partner. Unlike LinkedIn where connections are shallow and public, FamilyRoots lets you build a private network where every connection is labeled with what it really means. Startup teams, consulting firms, mentorship programs, and mastermind groups can use it to visualize how their professional world is structured. You own your network, and it's nobody else's business."
+          answer: "Map your professional relationships the way they actually work: Manager/Direct Report, Colleague, Mentor/Mentee, Client, Business Partner, Intern/Supervisor. Tag each connection with their department: Engineering, Design, Marketing, Sales, Operations, HR, Finance, or Executive. Unlike LinkedIn where connections are shallow and public, FamilyRoots lets you build a private network where every connection is labeled with what it really means. Startup teams, consulting firms, mentorship programs, and mastermind groups can use it to visualize how their professional world is structured. You own your network, and it's nobody else's business."
         },
         {
           question: "What does it mean that I'm at the center of all my trees?",
@@ -164,15 +164,42 @@ export default function FAQ() {
         },
         {
           question: "How is this different from a Facebook group or GroupMe?",
-          answer: "Social media groups are flat: everyone is just a \"member\" with no structure. FamilyRoots gives every connection a real label. In a sorority tree, you're not just a member, you're someone's Big, someone's Little, a Pledge Class sister, a Chapter President. In a church, you're not just in the group, you're a Deacon who mentors three young leaders. These labeled connections create a living map of how your organization actually works. Plus it's completely private. No ads, no algorithms, no strangers. Just your people."
+          answer: "Social media groups are flat: everyone is just a \"member\" with no structure. FamilyRoots defines the structure before you even add the first person. In a sorority tree, you're not just a member — you're someone's Big, someone's Little, Class of 2027, a Chapter President. In a church, you're not just in the group — you're a Deacon tagged to Youth Ministry who mentors three young leaders. In a sports team, you're a Varsity Starter, not just another name on a list. These labeled connections with qualifier tags create a living map of how your organization actually works. Plus it's completely private. No ads, no algorithms, no strangers. Just your people."
         },
         {
           question: "Can different chapters or branches of the same organization connect?",
           answer: "Yes, and this is where FamilyRoots really shines for organizations. Each chapter, branch, or local group builds their own tree independently. Then they can connect through shared members or cross-tree links when they discover people in common. A sorority with multiple chapter trees, each with their own Big/Little lines and pledge classes, can start linking them together as members transfer or connect across campuses. Each chapter keeps full control of their own tree while being able to see how they link to others."
         },
         {
-          question: "What tree types are available?",
-          answer: "We currently support: Family Trees (our flagship), Church/Faith Groups (Pastor, Elder, Deacon, Ministry Leader, Mentor), Sports Teams (Coach, Captain, Player, Alumni), Fraternity/Sorority (Big, Little, Pledge Class, Chapter President, Officers), Friend Circles (Best Friend, Roommate, Neighbor), Professional Networks (Manager, Colleague, Mentor, Client), and Custom Groups where you define your own roles and relationship types from scratch."
+          question: "What tree types are available and what roles come with each?",
+          answer: <>We support seven tree types, each with its own built-in relationship structure:
+            <ul className="list-disc pl-5 mt-2 space-y-2 text-sm">
+              <li><strong>Family Tree</strong> — Parent/Child, Spouse/Partner, Sibling, Co-Parent. Qualifiers: Biological, Step, Adopted, Foster, Half, In-Law.</li>
+              <li><strong>Church / Faith Group</strong> — Pastor/Leader, Elder/Deacon, Ministry Leader/Member, Teacher/Student, Worship Leader, Volunteer, Mentor/Mentee. Tags: Youth Ministry, Worship Team, Sunday School, Bible Study, Choir, Outreach.</li>
+              <li><strong>Sports Team</strong> — Head Coach/Player, Assistant Coach, Captain, Player, Trainer/Physio, Manager/Staff, Teammate, Alumni. Tags: Starter, Reserve, Varsity, JV, Injured Reserve, Retired.</li>
+              <li><strong>Fraternity / Sorority</strong> — Big/Little (mentor pairs), Pledge Class, Chapter President, Officer, Faculty Advisor, Active Member, Alumni. Tags: Class of 2024–2030, Active, Pledge, Honorary.</li>
+              <li><strong>Friend Circle</strong> — Best Friend, Close Friend, Friend, Roommate, Neighbor, Acquaintance. Tags: School, Work, Neighborhood, Online, Childhood, Mutual Friends.</li>
+              <li><strong>Professional Network</strong> — Manager/Direct Report, Colleague, Mentor/Mentee, Client, Business Partner, Intern/Supervisor. Tags: Engineering, Design, Marketing, Sales, Finance, HR, Executive.</li>
+              <li><strong>Custom Group</strong> — The catch-all. Starts with Leader, Co-Leader, Member, Teacher/Student, Mentor/Mentee, Connected. But you can replace or add any roles you need. Perfect for book clubs, bands, study groups, neighborhood watches, or anything else that doesn't fit the above.</li>
+            </ul>
+            <p className="mt-2 text-sm">Every type also lets you add your own custom roles on top of the defaults during creation.</p>
+          </>
+        },
+        {
+          question: "How are relationships defined when I create a tree?",
+          answer: "When you create a new tree, we show you the full relationship structure upfront before you even name it. You'll see every role people can have: Coach and Player for sports, Big and Little for fraternities, Teacher and Student for church groups, and so on. If something's missing, there's an input right there to add your own. Type in 'Referee', 'Team Mom', 'Drum Major', whatever fits your group. These custom roles get saved to your tree and show up whenever you connect members later. You see the complete picture before you start building."
+        },
+        {
+          question: "What if none of the tree types fit my group?",
+          answer: "That's what Custom Group is for. It's the catch-all for anything that doesn't fit Family, Church, Sports, Fraternity, Friends, or Professional. You can name it anything (Book Club, Dance Crew, Neighborhood Watch, Study Group, HOA, Band), define your own roles from scratch (like Organizer, Participant, Sponsor, Instructor), and tag members however you want (Founding Member, New, Inactive, Honorary). There's no limit on what you can create. If you can describe the relationships between people, FamilyRoots can map it."
+        },
+        {
+          question: "What are qualifier tags and how do they work?",
+          answer: "Qualifier tags add extra context to a relationship. They answer 'what kind?' or 'which group?' For example, on a sports team you might mark someone as a Player and tag them 'Varsity' or 'JV'. In a fraternity, you'd tag members with their graduation year like 'Class of 2028'. In a church, you'd tag someone's ministry: 'Youth Ministry' or 'Worship Team'. In a professional network, it's the department: 'Engineering' or 'Marketing'. For friend circles, it's how you met: 'School', 'Work', or 'Childhood'. Tags are optional but help you organize and understand your group at a glance."
+        },
+        {
+          question: "Can I add my own roles to a built-in tree type like Sports or Church?",
+          answer: "Yes. Every tree type lets you add custom roles on top of the defaults. If you're building a sports team and need 'Water Boy', 'Team Parent', or 'Statistician', just type it in during creation. These custom roles are saved to that specific tree and show up alongside the built-in ones whenever you connect members. You get the convenience of a pre-built structure with the flexibility to customize it for your exact situation."
         },
         {
           question: "Does each group type look different visually?",
@@ -184,7 +211,7 @@ export default function FAQ() {
         },
         {
           question: "Why should our organization choose FamilyRoots over a spreadsheet or social media?",
-          answer: "Spreadsheets go stale the moment someone graduates, moves, or changes roles. Social media groups are public, noisy, and treat everyone the same. FamilyRoots gives your organization a private, structured, living network where members own their own profiles, connections are labeled with real meaning, leadership roles are visible, and the whole history is preserved. When a new pledge, player, or member joins, they see exactly where they fit. When an alumni comes back, their legacy is still there. It's the difference between a contact list and a real network."
+          answer: "Spreadsheets go stale the moment someone graduates, moves, or changes roles. Social media groups are public, noisy, and treat everyone the same. FamilyRoots defines your organization's structure upfront — every role, every position, every qualifier — and then members fill in the map. Members own their own profiles, connections are labeled with real meaning (Coach/Player, not just 'member'), qualifier tags add context (Varsity, Class of 2028, Youth Ministry), leadership roles are visible, and the whole history is preserved. When a new pledge, player, or member joins, they see exactly where they fit. When an alumni comes back, their legacy is still there. It's the difference between a contact list and a real network."
         }
       ]
     },
