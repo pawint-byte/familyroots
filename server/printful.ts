@@ -143,11 +143,11 @@ class PrintfulService {
 
   async getCatalogProducts(): Promise<PrintfulProduct[]> {
     const productIds = [
-      19,  // Unisex Staple T-Shirt
-      71,  // Ceramic Mug 11oz
+      19,  // White Glossy Mug
+      71,  // Cotton T-Shirt
       1,   // Enhanced Matte Paper Poster
-      380, // Premium Pillow
-      181, // All-Over Print Tote Bag
+      214, // All-Over Print Premium Pillow
+      84,  // All-Over Print Tote Bag
     ];
 
     const products: PrintfulProduct[] = [];
@@ -383,9 +383,9 @@ class PrintfulService {
         ],
       },
       {
-        id: 623,
+        id: 300,
         name: 'Classroom Connection Mug',
-        description: 'A 15oz ceramic mug for teachers, coaches, and group leaders. Print your class, team, or group tree on one side and a QR code on the other — students or members scan to stay connected all year.',
+        description: 'A glossy black ceramic mug for teachers, coaches, and group leaders. Print your class, team, or group tree on one side and a QR code on the other — students or members scan to stay connected all year.',
         category: 'drinkware',
         basePrice: 8.95,
         image: '/images/products/classroom-mug.jpg',
@@ -399,15 +399,15 @@ class PrintfulService {
         ],
       },
       {
-        id: 145,
+        id: 77,
         name: 'Snapback Hat',
-        description: 'Rock your crew everywhere you go. Front-embroidered group name with your personal QR code on the side — anyone who scans it connects with you instantly.',
+        description: 'Rock your crew everywhere you go. Structured high-profile snapback with embroidered group name on the front — classic look that shows off your network.',
         category: 'apparel',
         basePrice: 16.00,
         image: '/images/products/snapback-hat.jpg',
         maxMembers: 1,
         printArea: 'front',
-        recommendation: 'Your personal walking introduction. QR code on the side lets anyone scan and connect with you.',
+        recommendation: 'Classic structured snapback with embroidered design. Flat visor, plastic snap closure.',
         isFeatured: true,
         featuredScenario: 'walking-intro',
         placements: [
@@ -416,15 +416,15 @@ class PrintfulService {
       },
       
       {
-        id: 327,
-        name: 'Premium Fleece Blanket',
-        description: 'Your whole team at their positions, laid out on a cozy 60"×80" blanket. Hang it in the locker room, bring it to tailgates, or drape it over the couch — everyone sees where they stand.',
+        id: 395,
+        name: 'Premium Throw Blanket',
+        description: 'Your whole team laid out on a soft silk-touch throw blanket. Hang it in the locker room, bring it to tailgates, or drape it over the couch — everyone sees where they stand.',
         category: 'home-decor',
         basePrice: 32.00,
         image: '/images/products/fleece-blanket.jpg',
         maxMembers: 200,
         printArea: 'full',
-        recommendation: 'Perfect for sports teams & large groups. Full edge-to-edge layout shows every member in their position.',
+        recommendation: 'Perfect for sports teams & large groups. Full edge-to-edge sublimation print shows every member.',
         isFeatured: true,
         featuredScenario: 'team-blanket',
         placements: [
@@ -460,23 +460,23 @@ class PrintfulService {
         ],
       },
       {
-        id: 380,
+        id: 214,
         name: 'Premium Pillow',
-        description: 'A cozy pillow featuring your family tree for home comfort.',
+        description: 'A premium shape-retaining pillow featuring your family tree or group — add a splash of personality to any room.',
         category: 'home-decor',
         basePrice: 16.95,
         image: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?w=400&h=400&fit=crop&q=80',
         maxMembers: 20,
         printArea: 'front',
-        recommendation: 'Best for small-medium trees (up to 20 members). Printed on pillow face.',
+        recommendation: 'Best for small-medium trees (up to 20 members). All-over print on pillow face.',
         placements: [
           { id: 'front', label: 'Front Face', printfulType: 'default', description: 'Pillow front face' },
         ],
       },
       {
-        id: 181,
+        id: 84,
         name: 'All-Over Print Tote Bag',
-        description: 'Carry your family pride everywhere with a stylish tote bag.',
+        description: 'Carry your family pride everywhere with a spacious, all-over-print tote bag. 100% polyester, holds up to 44 lbs.',
         category: 'accessories',
         basePrice: 13.95,
         image: '/images/products/tote-bag.jpg',
