@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Copy, Link, Trash2, Users, Crown, Edit, Eye } from "lucide-react";
+import { Copy, Link, Trash2, Users, Crown, Edit, Eye, QrCode, Download } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import type { TreeInvitation, TreeCollaborator } from "@shared/schema";
 
 interface ShareTreeDialogProps {
@@ -127,8 +128,12 @@ export function ShareTreeDialog({ open, onOpenChange, treeId, treeName }: ShareT
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="invite" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="qr" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="qr" data-testid="tab-qr-code">
+              <QrCode className="h-4 w-4 mr-2" />
+              QR Code
+            </TabsTrigger>
             <TabsTrigger value="invite" data-testid="tab-invite">
               <Link className="h-4 w-4 mr-2" />
               Invite Links
@@ -138,6 +143,97 @@ export function ShareTreeDialog({ open, onOpenChange, treeId, treeName }: ShareT
               Collaborators
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="qr" className="space-y-4 mt-4">
+            {(() => {
+              const activeInvite = invitations?.find(inv => inv.role === "viewer") || invitations?.[0];
+              const qrLink = activeInvite 
+                ? `${window.location.origin}/join/${activeInvite.inviteCode}`
+                : null;
+
+              if (invitationsLoading) {
+                return <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>;
+              }
+
+              if (!qrLink) {
+                return (
+                  <div className="text-center py-6 space-y-3">
+                    <QrCode className="h-12 w-12 mx-auto text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">
+                      Create an invite link first, then a scannable QR code will appear here.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => createInviteMutation.mutate("viewer")}
+                      disabled={createInviteMutation.isPending}
+                      data-testid="button-create-invite-for-qr"
+                    >
+                      <Link className="h-4 w-4 mr-2" />
+                      Create Viewer Invite
+                    </Button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="bg-white p-4 rounded-xl" data-testid="tree-qr-code">
+                    <QRCodeSVG
+                      value={qrLink}
+                      size={200}
+                      level="H"
+                      includeMargin={false}
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center max-w-xs">
+                    Scan this QR code to join <strong>"{treeName}"</strong> as a {activeInvite?.role === "co_owner" ? "Co-Owner" : activeInvite?.role === "editor" ? "Editor" : "Viewer"}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(qrLink);
+                        toast({ title: "Copied!", description: "Invite link copied to clipboard" });
+                      }}
+                      data-testid="button-copy-qr-link"
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy Link
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const svg = document.querySelector('[data-testid="tree-qr-code"] svg');
+                        if (!svg) return;
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const data = new XMLSerializer().serializeToString(svg);
+                        const img = new Image();
+                        img.onload = () => {
+                          canvas.width = 400;
+                          canvas.height = 400;
+                          ctx!.fillStyle = 'white';
+                          ctx!.fillRect(0, 0, 400, 400);
+                          ctx!.drawImage(img, 0, 0, 400, 400);
+                          const link = document.createElement('a');
+                          link.download = `${treeName.replace(/\s+/g, '-')}-qr-code.png`;
+                          link.href = canvas.toDataURL('image/png');
+                          link.click();
+                        };
+                        img.src = 'data:image/svg+xml;base64,' + btoa(data);
+                      }}
+                      data-testid="button-download-qr"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+          </TabsContent>
 
           <TabsContent value="invite" className="space-y-4 mt-4">
             <div className="flex gap-2">

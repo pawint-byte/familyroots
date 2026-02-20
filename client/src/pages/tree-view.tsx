@@ -679,10 +679,18 @@ export default function TreeView() {
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="gap-2"
+                  onClick={() => setIsShareOpen(true)}
+                  data-testid="menu-tree-qr"
+                >
+                  <QrCode className="h-4 w-4" />
+                  Tree QR Code
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="gap-2"
                   onClick={() => navigate("/share")}
                   data-testid="menu-share-app"
                 >
-                  <QrCode className="h-4 w-4" />
+                  <Link2 className="h-4 w-4" />
                   Share App
                 </DropdownMenuItem>
               </DropdownMenuContent>
