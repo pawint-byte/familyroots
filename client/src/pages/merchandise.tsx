@@ -16,7 +16,7 @@ import {
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
   AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
-  Users, Scan, Heart, ArrowRight, User, Crown, Plus
+  Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy
 } from "lucide-react";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
@@ -1625,186 +1625,187 @@ export default function MerchandisePage() {
                 </p>
               </div>
 
-              {!loadingProducts && products.filter(p => p.isFeatured).length > 0 && (
-                <div className="mb-10" data-testid="featured-products-section">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Heart className="h-5 w-5 text-rose-500" />
-                    <h3 className="text-xl font-bold">Bring Your People Into the Real World</h3>
+              {!loadingProducts && products.length > 0 && (
+                <div className="mb-10 space-y-10" data-testid="featured-products-section">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Heart className="h-5 w-5 text-rose-500" />
+                      <h3 className="text-xl font-bold">Bring Your People Into the Real World</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-5">
+                      Your connections deserve more than a screen. Wear them, share them, show them off — and let anyone scan to join your circle.
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-5">
-                    Your connections deserve more than a screen. Wear them, share them, show them off — and let anyone scan to join your circle.
-                  </p>
-                  <div className="grid sm:grid-cols-3 gap-5">
-                    {(() => {
-                      const previewMembers = firstTreeDetail?.members ?? [];
-                      const previewRelationships = firstTreeDetail?.relationships ?? [];
-                      const previewTreeName = firstTree?.name ?? "My Tree";
-                      const previewTreeType = (firstTree as any)?.treeType ?? "family";
-                      const hasTree = previewMembers.length > 0;
-                      const tType = previewTreeType as string;
-                      const shirtTaglines: Record<string, { tagline: string; scene: string; badge: string }> = {
-                        family: { tagline: 'The Reunion Conversation Starter', scene: 'Your family tree on the front, QR on the back. Relatives scan to join — the reunion starts with what you\'re wearing.', badge: 'Family Tree + QR' },
-                        church: { tagline: 'The Ministry Connector', scene: 'Wear it to service — newcomers scan the QR and join your ministry group on the spot.', badge: 'Church Group + QR' },
-                        sports: { tagline: 'The Team Spirit Shirt', scene: 'Your whole roster on the front, team QR on the back. Fans and recruits scan to connect.', badge: 'Team Roster + QR' },
-                        fraternity: { tagline: 'The Rush Week Essential', scene: 'Your chapter on the front, rush QR on the back. Potential new members scan and connect instantly.', badge: 'Chapter + QR' },
-                        friends: { tagline: 'The Friend Group Uniform', scene: 'Your circle on the shirt — wear matching ones to events. Friends scan the QR to join the crew.', badge: 'Friend Circle + QR' },
-                        professional: { tagline: 'The Networking Power Move', scene: 'Your professional network on display. Colleagues scan the QR at conferences to connect.', badge: 'Network + QR' },
-                      };
-                      const hatTaglines: Record<string, { tagline: string; scene: string }> = {
-                        family: { tagline: 'The Family Name Hat', scene: 'Your family name embroidered front and center — wear it at reunions, holidays, or just around town.' },
-                        sports: { tagline: 'The Team Rep Hat', scene: 'Rock your team name every day — at practice, at games, or just walking around campus.' },
-                        fraternity: { tagline: 'The Greek Life Snapback', scene: 'Your chapter name across the front — the classic way to rep your letters everywhere.' },
-                        friends: { tagline: 'The Crew Cap', scene: 'Your friend group name on a hat — everyone in the crew wears one.' },
-                        church: { tagline: 'The Ministry Hat', scene: 'Your youth group or ministry name on a hat — wear it and start conversations.' },
-                        professional: { tagline: 'The Company Hat', scene: 'Your company or team name embroidered — subtle and professional.' },
-                      };
-                      const blanketTaglines: Record<string, { tagline: string; scene: string; badge: string }> = {
-                        sports: { tagline: 'Every Player in Their Position', scene: 'Your whole squad on a 60"×80" blanket. Locker rooms, tailgates, or the couch — everyone sees where they belong.', badge: 'Team Layout' },
-                        family: { tagline: 'The Whole Family in One Place', scene: 'Your entire family tree on a cozy throw blanket — drape it on the couch or hang it on the wall.', badge: 'Family Tree' },
-                        church: { tagline: 'Your Congregation, Together', scene: 'Every ministry and member on a blanket — hang it in the fellowship hall or take it to retreats.', badge: 'Congregation' },
-                        fraternity: { tagline: 'The Chapter Blanket', scene: 'Every brother or sister on a keepsake blanket — the centerpiece of any chapter house.', badge: 'Chapter Roster' },
-                        friends: { tagline: 'Your Whole Circle', scene: 'All your friends on a cozy blanket — the ultimate friendiversary gift or movie night essential.', badge: 'Friend Circle' },
-                        professional: { tagline: 'The Team Roster Blanket', scene: 'Your whole department or team on a premium blanket — perfect office wall art.', badge: 'Team Roster' },
-                      };
-                      const shirtCopy = shirtTaglines[tType] || shirtTaglines.family!;
-                      const hatCopy = hatTaglines[tType] || hatTaglines.family!;
-                      const blanketCopy = blanketTaglines[tType] || blanketTaglines.family!;
-                      const scenarios = [
-                        {
-                          key: 'walking-intro',
-                          icon: <Scan className="h-5 w-5" />,
-                          tagline: hatCopy.tagline,
-                          scene: hatCopy.scene,
-                          accentFrom: 'from-sky-50 dark:from-sky-950/30',
-                          accentBorder: 'border-sky-200 dark:border-sky-800/50',
-                          accentBadge: 'bg-sky-500',
-                          badgeText: 'Scan & Connect',
-                          showQR: true,
-                          showTree: false,
-                          mockupStyle: 'hat',
-                        },
-                        {
-                          key: 'connection-shirt',
-                          icon: <TreeDeciduous className="h-5 w-5" />,
-                          tagline: shirtCopy.tagline,
-                          scene: shirtCopy.scene,
-                          accentFrom: 'from-emerald-50 dark:from-emerald-950/30',
-                          accentBorder: 'border-emerald-200 dark:border-emerald-800/50',
-                          accentBadge: 'bg-emerald-500',
-                          badgeText: shirtCopy.badge,
-                          showQR: true,
-                          showTree: true,
-                          mockupStyle: 'shirt',
-                        },
-                        {
-                          key: 'team-blanket',
-                          icon: <Users className="h-5 w-5" />,
-                          tagline: blanketCopy.tagline,
-                          scene: blanketCopy.scene,
-                          accentFrom: 'from-amber-50 dark:from-amber-950/30',
-                          accentBorder: 'border-amber-200 dark:border-amber-800/50',
-                          accentBadge: 'bg-amber-500',
-                          badgeText: blanketCopy.badge,
-                          showQR: false,
-                          showTree: true,
-                          mockupStyle: 'blanket',
-                        },
-                      ];
-                      const featuredProducts = products.filter(p => p.isFeatured);
-                      const handleQuickOrder = (product: Product, includeQR: boolean) => {
-                        if (firstTreeId && trees.length > 0) {
-                          setProductPrefill({ treeId: firstTreeId, includeQR, skipToShipping: true });
-                        }
-                        setDialogKey(k => k + 1);
-                        setSelectedProduct(product);
-                      };
-                      return scenarios.map(scenario => {
-                        const product = featuredProducts.find(p => p.featuredScenario === scenario.key);
-                        if (!product) return null;
-                        return (
-                          <Card 
-                            key={scenario.key}
-                            className={`overflow-hidden hover-elevate cursor-pointer ${scenario.accentBorder} bg-gradient-to-b ${scenario.accentFrom} to-background`}
-                            onClick={() => handleQuickOrder(product, scenario.showQR)}
-                            data-testid={`card-featured-${product.id}`}
-                          >
-                            <div className="relative">
-                              <div className="aspect-[4/3] overflow-hidden relative bg-gray-100 dark:bg-gray-800">
-                                <img 
-                                  src={product.image}
-                                  alt={product.name}
-                                  className="w-full h-full object-cover"
-                                  loading="lazy"
-                                />
-                                {hasTree && scenario.showTree && (
-                                  <div className={`absolute ${
-                                    scenario.mockupStyle === 'shirt' ? 'top-[15%] left-[25%] w-[50%] h-[50%]' :
-                                    scenario.mockupStyle === 'blanket' ? 'top-[10%] left-[10%] w-[80%] h-[75%]' :
-                                    'top-[20%] left-[20%] w-[60%] h-[60%]'
-                                  }`}>
-                                    <div className="w-full h-full bg-white/85 dark:bg-gray-900/85 rounded-md shadow-md overflow-hidden p-1">
-                                      <MiniTreePreview 
-                                        members={previewMembers} 
-                                        relationships={previewRelationships} 
-                                        treeName={previewTreeName} 
-                                        treeType={previewTreeType} 
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                                {scenario.showQR && user && (
-                                  <div className={`absolute ${
-                                    scenario.mockupStyle === 'hat' ? 'top-[25%] left-[30%] w-auto' :
-                                    'bottom-3 right-3'
-                                  }`}>
-                                    <div className="bg-white p-1.5 rounded shadow-lg border">
-                                      <QRCodeSVG
-                                        value={`${window.location.protocol}//${window.location.host}/profile/${user.id}`}
-                                        size={scenario.mockupStyle === 'hat' ? 56 : 40}
-                                        level="M"
-                                      />
-                                      <p className="text-[5px] text-center text-gray-500 mt-0.5">Scan me</p>
-                                    </div>
-                                  </div>
-                                )}
-                                {!hasTree && (
-                                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                                    <div className="bg-white/90 dark:bg-gray-900/90 rounded-lg px-3 py-2 text-center">
-                                      <TreeDeciduous className="h-5 w-5 mx-auto text-primary mb-1" />
-                                      <p className="text-[10px] text-muted-foreground">Your tree appears here</p>
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
-                                <div className="absolute bottom-3 left-3">
-                                  <Badge className={`${scenario.accentBadge} text-white text-[11px] px-2 py-0.5`}>
-                                    {scenario.icon}
-                                    <span className="ml-1">{scenario.badgeText}</span>
-                                  </Badge>
-                                </div>
-                              </div>
+
+                  {(() => {
+                    const previewMembers = firstTreeDetail?.members ?? [];
+                    const previewRelationships = firstTreeDetail?.relationships ?? [];
+                    const previewTreeName = firstTree?.name ?? "My Tree";
+                    const previewTreeType = (firstTree as any)?.treeType ?? "family";
+                    const hasTree = previewMembers.length > 0;
+
+                    const handleQuickOrder = (product: Product, includeQR: boolean) => {
+                      if (firstTreeId && trees.length > 0) {
+                        setProductPrefill({ treeId: firstTreeId, includeQR, skipToShipping: true });
+                      }
+                      setDialogKey(k => k + 1);
+                      setSelectedProduct(product);
+                    };
+
+                    const themeGroups = [
+                      {
+                        id: 'family',
+                        icon: <TreeDeciduous className="h-5 w-5" />,
+                        title: 'Family Tree',
+                        subtitle: 'Reunions, holidays, and everyday pride',
+                        accentColor: 'emerald',
+                        items: [
+                          { productId: 395, tagline: 'The Whole Family in One Place', scene: 'Your entire family tree on a cozy throw blanket — drape it on the couch or hang it on the wall.', badge: 'Family Keepsake', showTree: true, showQR: false },
+                          { productId: 71, tagline: 'The Reunion Conversation Starter', scene: 'Your family tree on the front, QR on the back. Relatives scan to join — the reunion starts with what you\'re wearing.', badge: 'Family Tree + QR', showTree: true, showQR: true },
+                          { productId: 19, tagline: 'Morning Coffee with the Family', scene: 'Your family tree wraps around a classic white mug — start every morning looking at the people who matter most.', badge: 'Daily Reminder', showTree: true, showQR: false },
+                        ],
+                      },
+                      {
+                        id: 'basketball',
+                        icon: <Trophy className="h-5 w-5" />,
+                        title: 'Basketball Team',
+                        subtitle: 'Locker rooms, game days, and team pride',
+                        accentColor: 'orange',
+                        items: [
+                          { productId: 77, tagline: 'The Team Rep Snapback', scene: 'Your team name embroidered on a structured snapback — rock it at practice, games, and everywhere in between.', badge: 'Team Spirit', showTree: false, showQR: true },
+                          { productId: 395, tagline: 'Every Player in Their Position', scene: 'Your full roster on a throw blanket — hang it in the locker room, bring it to tailgates, or drape it on the bench.', badge: 'Team Roster', showTree: true, showQR: false },
+                          { productId: 1, tagline: 'The Roster Poster', scene: 'Museum-quality poster with your entire team laid out — frame it for the gym wall or the athletic hall of fame.', badge: 'Wall Display', showTree: true, showQR: false },
+                        ],
+                      },
+                      {
+                        id: 'friends',
+                        icon: <Heart className="h-5 w-5" />,
+                        title: 'Circle of Friends',
+                        subtitle: 'Birthday gifts, group trips, and inside jokes',
+                        accentColor: 'pink',
+                        items: [
+                          { productId: 214, tagline: 'Your Whole Circle on a Pillow', scene: 'All your friends on a cozy pillow — the perfect birthday gift, housewarming present, or friendiversary keepsake.', badge: 'Best Gift', showTree: true, showQR: false },
+                          { productId: 84, tagline: 'The Squad Tote', scene: 'Your friend circle printed all over a spacious tote — carry your people with you everywhere you go.', badge: 'Everyday Carry', showTree: true, showQR: false },
+                          { productId: 505, tagline: 'Invite the Whole World', scene: 'Die-cut stickers with your group QR — hand them out at parties, stick them on laptops, and grow your circle.', badge: 'Spread the Word', showTree: false, showQR: true },
+                        ],
+                      },
+                      {
+                        id: 'school',
+                        icon: <GraduationCap className="h-5 w-5" />,
+                        title: 'School Group',
+                        subtitle: 'Classrooms, clubs, and end-of-year gifts',
+                        accentColor: 'blue',
+                        items: [
+                          { productId: 300, tagline: 'The Teacher\'s Mug', scene: 'Every student in the class printed on a glossy black mug — the perfect end-of-year gift for your favorite teacher or coach.', badge: 'Teacher Gift', showTree: true, showQR: false },
+                          { productId: 505, tagline: 'Club Recruitment Stickers', scene: 'Hand out QR stickers at club fairs, in hallways, or stuff them in welcome packets — new members scan and join instantly.', badge: 'Recruitment', showTree: false, showQR: true },
+                          { productId: 71, tagline: 'The Class Shirt', scene: 'Your class or club on the front, join QR on the back — everyone wears one on field trips, spirit days, and class photos.', badge: 'Class Spirit', showTree: true, showQR: true },
+                        ],
+                      },
+                    ];
+
+                    const accentClasses: Record<string, { from: string; border: string; badge: string }> = {
+                      emerald: { from: 'from-emerald-50 dark:from-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800/50', badge: 'bg-emerald-500' },
+                      orange: { from: 'from-orange-50 dark:from-orange-950/30', border: 'border-orange-200 dark:border-orange-800/50', badge: 'bg-orange-500' },
+                      pink: { from: 'from-pink-50 dark:from-pink-950/30', border: 'border-pink-200 dark:border-pink-800/50', badge: 'bg-pink-500' },
+                      blue: { from: 'from-blue-50 dark:from-blue-950/30', border: 'border-blue-200 dark:border-blue-800/50', badge: 'bg-blue-500' },
+                    };
+
+                    return themeGroups.map(group => {
+                      const accent = accentClasses[group.accentColor]!;
+                      return (
+                        <div key={group.id} data-testid={`theme-group-${group.id}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className={`p-1.5 rounded-lg ${accent.badge} text-white`}>
+                              {group.icon}
                             </div>
-                            <div className="p-4">
-                              <h4 className="font-bold text-sm mb-1">{scenario.tagline}</h4>
-                              <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-                                {scenario.scene}
-                              </p>
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="text-[11px] text-muted-foreground">{product.name}</p>
-                                  <p className="font-semibold text-sm">From ${product.basePrice.toFixed(2)}</p>
-                                </div>
-                                <Button size="sm" className="h-8 text-xs gap-1.5" data-testid={`button-quick-order-${product.id}`}>
-                                  <Zap className="h-3 w-3" />
-                                  {trees.length > 0 ? "One-Click Order" : "Make It"}
-                                </Button>
-                              </div>
+                            <div>
+                              <h4 className="font-bold text-base">{group.title}</h4>
+                              <p className="text-xs text-muted-foreground">{group.subtitle}</p>
                             </div>
-                          </Card>
-                        );
-                      });
-                    })()}
-                  </div>
+                          </div>
+                          <div className="grid sm:grid-cols-3 gap-4 mt-3">
+                            {group.items.map((item) => {
+                              const product = products.find(p => p.id === item.productId);
+                              if (!product) return null;
+                              return (
+                                <Card
+                                  key={`${group.id}-${item.productId}`}
+                                  className={`overflow-hidden hover-elevate cursor-pointer ${accent.border} bg-gradient-to-b ${accent.from} to-background`}
+                                  onClick={() => handleQuickOrder(product, item.showQR)}
+                                  data-testid={`card-theme-${group.id}-${product.id}`}
+                                >
+                                  <div className="relative">
+                                    <div className="aspect-[4/3] overflow-hidden relative bg-gray-100 dark:bg-gray-800">
+                                      <img
+                                        src={product.image}
+                                        alt={product.name}
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                      />
+                                      {hasTree && item.showTree && (
+                                        <div className="absolute top-[12%] left-[15%] w-[70%] h-[65%]">
+                                          <div className="w-full h-full bg-white/85 dark:bg-gray-900/85 rounded-md shadow-md overflow-hidden p-1">
+                                            <MiniTreePreview
+                                              members={previewMembers}
+                                              relationships={previewRelationships}
+                                              treeName={previewTreeName}
+                                              treeType={previewTreeType}
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                      {item.showQR && user && (
+                                        <div className="absolute bottom-8 right-3">
+                                          <div className="bg-white p-1.5 rounded shadow-lg border">
+                                            <QRCodeSVG
+                                              value={`${window.location.protocol}//${window.location.host}/profile/${user.id}`}
+                                              size={36}
+                                              level="M"
+                                            />
+                                            <p className="text-[5px] text-center text-gray-500 mt-0.5">Scan me</p>
+                                          </div>
+                                        </div>
+                                      )}
+                                      {!hasTree && item.showTree && (
+                                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                          <div className="bg-white/90 dark:bg-gray-900/90 rounded-lg px-3 py-2 text-center">
+                                            <TreeDeciduous className="h-5 w-5 mx-auto text-primary mb-1" />
+                                            <p className="text-[10px] text-muted-foreground">Your group appears here</p>
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                                      <div className="absolute bottom-3 left-3">
+                                        <Badge variant="secondary" className={`${accent.badge} text-white border-0`}>
+                                          {item.badge}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="p-4">
+                                    <h4 className="font-bold text-sm mb-1">{item.tagline}</h4>
+                                    <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                                      {item.scene}
+                                    </p>
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-[11px] text-muted-foreground">{product.name}</p>
+                                        <p className="font-semibold text-sm">From ${product.basePrice.toFixed(2)}</p>
+                                      </div>
+                                      <Button size="sm" variant="default" data-testid={`button-theme-order-${group.id}-${product.id}`}>
+                                        <Zap className="h-3 w-3 mr-1" />
+                                        Make It
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </Card>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
 
@@ -1814,9 +1815,9 @@ export default function MerchandisePage() {
                     <div className="flex items-start gap-3">
                       <TreeDeciduous className="h-5 w-5 text-primary mt-0.5" />
                       <div>
-                        <p className="font-medium">Create a Family Tree First</p>
+                        <p className="font-medium">Create a Group First</p>
                         <p className="text-sm text-muted-foreground">
-                          You need at least one family tree to create custom merchandise.
+                          You need at least one family tree, team, or group to create custom merchandise.
                         </p>
                         <Button 
                           variant="ghost" 
@@ -1917,9 +1918,9 @@ export default function MerchandisePage() {
         ) : (
           <div>
             <div className="mb-6">
-              <h2 className="text-2xl font-bold mb-2">Print Your Family Tree</h2>
+              <h2 className="text-2xl font-bold mb-2">Custom Merchandise</h2>
               <p className="text-muted-foreground">
-                Turn your family tree into beautiful custom products. Perfect for gifts or keeping your heritage close.
+                Put your family tree, sports team, friend circle, or school group on real products — perfect for gifts, events, and everyday pride.
               </p>
             </div>
 
@@ -1927,7 +1928,7 @@ export default function MerchandisePage() {
               <Star className="h-4 w-4" />
               <AlertTitle>Sign In to Order</AlertTitle>
               <AlertDescription>
-                Sign in to customize products with your family tree and place orders.
+                Sign in to customize products with your group and place orders.
                 <Button 
                   variant="ghost" 
                   className="px-1 text-primary underline"
@@ -1958,28 +1959,28 @@ export default function MerchandisePage() {
             <div className="mt-12 grid md:grid-cols-3 gap-6">
               <Card>
                 <CardContent className="pt-6 text-center">
-                  <Package className="h-8 w-8 mx-auto mb-2 text-primary" />
-                  <h3 className="font-semibold">Quality Products</h3>
+                  <Check className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                  <h3 className="font-semibold">Premium Quality</h3>
                   <p className="text-sm text-muted-foreground">
-                    Premium merchandise printed with care
+                    All products are made with high-quality materials
                   </p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-6 text-center">
-                  <Truck className="h-8 w-8 mx-auto mb-2 text-primary" />
-                  <h3 className="font-semibold">Fast Shipping</h3>
+                  <Truck className="h-8 w-8 mx-auto mb-2 text-blue-500" />
+                  <h3 className="font-semibold">Global Shipping</h3>
                   <p className="text-sm text-muted-foreground">
-                    Ships directly to your door
+                    We ship to most countries worldwide
                   </p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-6 text-center">
-                  <Star className="h-8 w-8 mx-auto mb-2 text-primary" />
-                  <h3 className="font-semibold">Your Family Story</h3>
+                  <Star className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
+                  <h3 className="font-semibold">Perfect Gift</h3>
                   <p className="text-sm text-muted-foreground">
-                    Preserve your heritage beautifully
+                    Personalized gifts for families, teams, and every group
                   </p>
                 </CardContent>
               </Card>
