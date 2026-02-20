@@ -504,31 +504,33 @@ export default function TreeView() {
         keywords="family tree, genealogy, ancestry, family members, relationships"
       />
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <Button 
               variant="ghost" 
               size="icon" 
+              className="shrink-0"
               onClick={() => navigate("/")}
               data-testid="button-back"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <div>
+            <div className="min-w-0">
               {isLoading ? (
                 <Skeleton className="h-6 w-40" />
               ) : (
                 <>
-                  <div className="flex items-center gap-2">
-                    <h1 className="font-serif text-lg font-semibold">{treeData?.tree.name}</h1>
+                  <div className="flex items-center gap-1">
+                    <h1 className="font-serif text-base sm:text-lg font-semibold truncate">{treeData?.tree.name}</h1>
                     {(isOwner || isCoOwner) && (
                       <Button 
                         variant="ghost" 
                         size="icon"
+                        className="shrink-0 h-7 w-7"
                         onClick={handleRenameOpen}
                         data-testid="button-rename-tree"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3.5 w-3.5" />
                       </Button>
                     )}
                   </div>
@@ -544,7 +546,7 @@ export default function TreeView() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -556,20 +558,19 @@ export default function TreeView() {
                 data-testid="input-search-members"
               />
             </div>
-            {(isOwner || isCoOwner) && (
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={() => setIsShareOpen(true)}
-                data-testid="button-share"
-              >
-                <Share2 className="h-4 w-4" />
-              </Button>
-            )}
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => setIsShareOpen(true)}
+              data-testid="button-share"
+              title="Share & QR Code"
+            >
+              <QrCode className="h-4 w-4" />
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" data-testid="button-more-options">
-                  <Filter className="h-4 w-4" />
+                  <Menu className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
