@@ -1,5 +1,7 @@
 import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { subscriptionService } from './subscriptionService';
+import { storage } from './storage';
+import { printfulService } from './printful';
 
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
@@ -48,6 +50,64 @@ export class WebhookHandlers {
             parseInt(metadata.milestone, 10),
             session.payment_intent
           );
+        } else if (metadata.type === 'merchandise') {
+          console.log(`Merchandise payment completed for order ${metadata.orderId}, session ${session.id}`);
+          try {
+            let order = metadata.orderId ? await storage.getMerchandiseOrder(metadata.orderId) : undefined;
+            if (!order) {
+              order = await storage.getMerchandiseOrderByStripeSession(session.id);
+              if (order) {
+                console.log(`Found merchandise order ${order.id} by session ID fallback`);
+              } else {
+                console.error(`No merchandise order found for orderId=${metadata.orderId} or session=${session.id}`);
+              }
+            }
+            if (order && order.status === 'pending') {
+              await storage.updateMerchandiseOrder(order.id, { status: "paid" });
+
+              if (order.shippingAddress) {
+                const shippingAddr = order.shippingAddress as any;
+                const printfulAddress = {
+                  name: shippingAddr.name,
+                  address1: shippingAddr.address1,
+                  address2: shippingAddr.address2 || '',
+                  city: shippingAddr.city,
+                  state_code: shippingAddr.stateCode,
+                  country_code: shippingAddr.countryCode,
+                  zip: shippingAddr.zip,
+                  email: shippingAddr.email,
+                  phone: shippingAddr.phone,
+                };
+
+                const printfulResult = await printfulService.createOrder(
+                  printfulAddress,
+                  [{
+                    variant_id: order.variantId,
+                    quantity: order.quantity,
+                    files: [{
+                      type: 'default',
+                      url: order.treeImageUrl,
+                    }],
+                  }],
+                  true
+                );
+
+                if (printfulResult) {
+                  await storage.updateMerchandiseOrder(order.id, {
+                    status: "submitted",
+                    printfulOrderId: String(printfulResult.orderId),
+                  });
+                  console.log(`Merchandise order ${order.id} submitted to Printful: ${printfulResult.orderId}`);
+                } else {
+                  console.error(`Failed to submit merchandise order ${order.id} to Printful, keeping as paid`);
+                }
+              }
+            } else if (order) {
+              console.log(`Merchandise order ${order.id} already processed (status: ${order.status})`);
+            }
+          } catch (merchError) {
+            console.error('Error processing merchandise webhook:', merchError);
+          }
         }
       } else if (event.type === 'customer.subscription.deleted') {
         const subscription = event.data.object;

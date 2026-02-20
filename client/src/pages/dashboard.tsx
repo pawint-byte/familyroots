@@ -577,6 +577,14 @@ export default function Dashboard() {
                   <span>Shop Merchandise</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/merchandise?tab=orders")}
+                  data-testid="menu-my-orders"
+                >
+                  <Package className="h-4 w-4" />
+                  <span>My Orders</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
                   className="flex items-center gap-2 sm:hidden"
                   onClick={() => navigate("/gifts")}
                   data-testid="menu-gifts"

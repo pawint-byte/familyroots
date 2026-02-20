@@ -857,7 +857,14 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
             order.status === "failed" || order.status === "cancelled" ? "destructive" :
             "outline"
           }>
-            {order.status === "pending" ? "Awaiting Payment" : order.status}
+            {order.status === "pending" ? "Awaiting Payment" : 
+             order.status === "paid" ? "Payment Received" :
+             order.status === "submitted" ? "Being Printed" :
+             order.status === "shipped" ? "Shipped" :
+             order.status === "delivered" ? "Delivered" :
+             order.status === "failed" ? "Failed" :
+             order.status === "cancelled" ? "Cancelled" :
+             order.status}
           </Badge>
         </div>
       </CardHeader>
@@ -940,6 +947,14 @@ export default function MerchandisePage() {
   const urlParams = new URLSearchParams(window.location.search);
   const checkoutStatus = urlParams.get("checkout");
   const orderId = urlParams.get("order");
+  const tabParam = urlParams.get("tab");
+
+  useEffect(() => {
+    if (tabParam === "orders") {
+      setActiveTab("orders");
+      window.history.replaceState({}, '', '/merchandise');
+    }
+  }, [tabParam]);
 
   const { data: products = [], isLoading: loadingProducts } = useQuery<Product[]>({
     queryKey: ["/api/merchandise/products"],
@@ -964,24 +979,29 @@ export default function MerchandisePage() {
     enabled: !!user,
   });
 
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmedOrderId, setConfirmedOrderId] = useState<string | null>(null);
+
   const confirmPaymentMutation = useMutation({
     mutationFn: async (orderId: string) => {
       return apiRequest("POST", `/api/merchandise/orders/${orderId}/confirm-payment`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
-      toast({
-        title: "Payment Confirmed",
-        description: "Your order has been paid and will be processed soon.",
-      });
-      window.history.replaceState({}, '', '/merchandise');
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
     },
   });
 
   useEffect(() => {
     if (checkoutStatus === "success" && orderId) {
-      setActiveTab("orders");
-      confirmPaymentMutation.mutate(orderId);
+      setShowConfirmation(true);
+      setConfirmedOrderId(orderId);
+      if (user) {
+        confirmPaymentMutation.mutate(orderId);
+      }
+      window.history.replaceState({}, '', '/merchandise');
     } else if (checkoutStatus === "cancel") {
       toast({
         title: "Checkout Cancelled",
@@ -1033,7 +1053,57 @@ export default function MerchandisePage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {user ? (
+        {showConfirmation ? (
+          <div className="max-w-lg mx-auto text-center py-12" data-testid="order-confirmation">
+            <div className="mb-6">
+              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Order Confirmed!</h2>
+              <p className="text-muted-foreground">
+                Your payment was successful. Your custom merchandise is being prepared and will be shipped to you soon.
+              </p>
+            </div>
+            <Card className="mb-6 text-left">
+              <CardContent className="pt-6 space-y-3">
+                <div className="flex items-center gap-3">
+                  <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <span>Payment processed</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Package className="h-5 w-5 text-primary" />
+                  <span>Order sent to our print partner</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Truck className="h-5 w-5 text-muted-foreground" />
+                  <span>Tracking info will be emailed when shipped</span>
+                </div>
+              </CardContent>
+            </Card>
+            <div className="flex gap-3 justify-center">
+              <Button
+                onClick={() => {
+                  setShowConfirmation(false);
+                  setActiveTab("orders");
+                }}
+                data-testid="button-view-order-details"
+              >
+                <Package className="h-4 w-4 mr-2" />
+                View My Orders
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowConfirmation(false);
+                  setActiveTab("products");
+                }}
+                data-testid="button-continue-shopping"
+              >
+                Continue Shopping
+              </Button>
+            </div>
+          </div>
+        ) : user ? (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-6">
               <TabsTrigger value="products" data-testid="tab-products">
