@@ -16,7 +16,7 @@ import {
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
   AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
-  Users, Scan, Heart, ArrowRight
+  Users, Scan, Heart, ArrowRight, User, Crown
 } from "lucide-react";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
@@ -44,6 +44,18 @@ interface Product {
   isFeatured?: boolean;
   featuredScenario?: string;
   placements?: PrintPlacement[];
+  isConnectionShirt?: boolean;
+}
+
+type QRCodeType = 'site' | 'profile' | 'tree';
+
+interface QRCodeOption {
+  type: QRCodeType;
+  label: string;
+  description: string;
+  treeId?: string;
+  treeName?: string;
+  url: string;
 }
 
 interface Variant {
@@ -94,7 +106,13 @@ function ProductCard({
           loading="lazy"
         />
         <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-          {product.isFeatured && (
+          {product.isConnectionShirt && (
+            <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+              <Crown className="h-3 w-3 mr-1" />
+              Fan Favorite
+            </Badge>
+          )}
+          {product.isFeatured && !product.isConnectionShirt && (
             <Badge className="bg-orange-500 text-white">
               <Flame className="h-3 w-3 mr-1" />
               Most Popular
@@ -404,6 +422,8 @@ function ProductCustomizer({
   const [showShipping, setShowShipping] = useState(false);
   const [treePlacement, setTreePlacement] = useState<string>(product.placements?.[0]?.id || "front");
   const [qrPlacement, setQrPlacement] = useState<string>("");
+  const [selectedQRType, setSelectedQRType] = useState<QRCodeType>(product.isConnectionShirt ? 'site' : 'profile');
+  const [selectedQRTreeId, setSelectedQRTreeId] = useState<string>("");
   const [shippingAddress, setShippingAddress] = useState<ShippingAddressForm>({
     name: "",
     address1: "",
@@ -461,28 +481,53 @@ function ProductCustomizer({
 
   const createOrderMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedTreeId || !selectedVariantId || !selectedVariant) {
-        throw new Error("Please select a tree and product variant");
+      if (!selectedVariantId || !selectedVariant) {
+        throw new Error("Please select a product variant");
+      }
+
+      if (!product.isConnectionShirt && !selectedTreeId) {
+        throw new Error("Please select a tree");
+      }
+
+      if (product.isConnectionShirt) {
+        if (selectedQRType === 'profile' && !userId) {
+          throw new Error("You must be logged in to use the Profile QR code");
+        }
+        if (selectedQRType === 'tree' && !selectedQRTreeId) {
+          throw new Error("Please select which tree or group the QR code should link to");
+        }
       }
 
       if (!isShippingValid()) {
         throw new Error("Please complete all required shipping fields");
       }
 
-      const treeImageUrl = `${window.location.origin}/tree/${selectedTreeId}`;
+      const baseUrl = window.location.origin;
+      const treeImageUrl = selectedTreeId ? `${baseUrl}/tree/${selectedTreeId}` : '';
 
       const treePrintPlacement = product.placements?.find(p => p.id === treePlacement);
       const qrPrintPlacement = qrPlacement ? product.placements?.find(p => p.id === qrPlacement) : null;
 
+      let qrUrl: string | undefined;
+      if (product.isConnectionShirt) {
+        if (selectedQRType === 'site') qrUrl = baseUrl;
+        else if (selectedQRType === 'profile' && userId) qrUrl = `${baseUrl}/profile/${userId}`;
+        else if (selectedQRType === 'tree' && selectedQRTreeId) qrUrl = `${baseUrl}/join/${selectedQRTreeId}`;
+        else qrUrl = baseUrl;
+      } else {
+        qrUrl = includeQR && userId ? `${baseUrl}/profile/${userId}` : undefined;
+      }
+
       return apiRequest("POST", "/api/merchandise/orders", {
-        treeId: selectedTreeId,
+        treeId: selectedTreeId || undefined,
         productId: product.id,
         variantId: selectedVariantId,
         productName: product.name,
         variantName: selectedVariant.name,
         quantity,
-        includeQR,
-        treeImageUrl,
+        includeQR: product.isConnectionShirt ? true : includeQR,
+        qrUrl,
+        treeImageUrl: treeImageUrl || undefined,
         treePlacement: treePrintPlacement?.printfulType || 'default',
         qrPlacement: qrPrintPlacement?.printfulType || null,
         shippingAddress: {
@@ -556,24 +601,38 @@ function ProductCustomizer({
                 </div>
               </div>
             )}
-            {includeQR && userId && (
-              <div 
-                className={`absolute bg-white p-1.5 rounded shadow-lg border ${
-                  qrPlacement === 'front_left' ? 'top-4 left-4' :
-                  qrPlacement === 'back' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-60' :
-                  qrPlacement === 'front' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
-                  'bottom-12 right-3'
-                }`}
-                data-testid="qr-preview-overlay"
-              >
-                <QRCodeSVG
-                  value={`${window.location.protocol}//${window.location.host}/profile/${userId}`}
-                  size={qrPlacement === 'front_left' ? 40 : 48}
-                  level="M"
-                />
-                <p className="text-[6px] text-center text-gray-500 mt-0.5">Scan to connect</p>
-              </div>
-            )}
+            {((product.isConnectionShirt) || (includeQR && userId)) && (() => {
+              const baseUrl = `${window.location.protocol}//${window.location.host}`;
+              const qrValue = product.isConnectionShirt
+                ? selectedQRType === 'site' ? baseUrl
+                  : selectedQRType === 'profile' && userId ? `${baseUrl}/profile/${userId}`
+                  : selectedQRType === 'tree' && selectedQRTreeId ? `${baseUrl}/join/${selectedQRTreeId}`
+                  : baseUrl
+                : `${baseUrl}/profile/${userId}`;
+              const qrLabel = product.isConnectionShirt
+                ? selectedQRType === 'site' ? 'Scan to sign up'
+                  : selectedQRType === 'profile' ? 'Scan to connect'
+                  : 'Scan to join'
+                : 'Scan to connect';
+              return (
+                <div 
+                  className={`absolute bg-white p-1.5 rounded shadow-lg border ${
+                    qrPlacement === 'front_left' ? 'top-4 left-4' :
+                    qrPlacement === 'back' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-60' :
+                    qrPlacement === 'front' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
+                    'bottom-12 right-3'
+                  }`}
+                  data-testid="qr-preview-overlay"
+                >
+                  <QRCodeSVG
+                    value={qrValue}
+                    size={qrPlacement === 'front_left' ? 40 : 48}
+                    level="M"
+                  />
+                  <p className="text-[6px] text-center text-gray-500 mt-0.5">{qrLabel}</p>
+                </div>
+              );
+            })()}
             {selectedTree && (
               <div className="absolute bottom-2 left-2 right-2">
                 <Badge variant="secondary" className="text-xs">
@@ -623,6 +682,7 @@ function ProductCustomizer({
           </div>
 
           <div className="space-y-3">
+            {!product.isConnectionShirt && (
             <div>
               <Label htmlFor="tree-select">Select Family Tree</Label>
               <Select value={selectedTreeId} onValueChange={setSelectedTreeId}>
@@ -638,6 +698,7 @@ function ProductCustomizer({
                 </SelectContent>
               </Select>
             </div>
+            )}
 
             {loadingVariants ? (
               <div className="flex items-center gap-2 text-muted-foreground">
@@ -716,7 +777,7 @@ function ProductCustomizer({
               />
             </div>
 
-            {product.placements && product.placements.length > 1 && (
+            {!product.isConnectionShirt && product.placements && product.placements.length > 1 && (
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <TreeDeciduous className="h-4 w-4" />
@@ -745,26 +806,101 @@ function ProductCustomizer({
               </div>
             )}
 
-            <div className="border rounded-lg p-3 bg-muted/30">
-              <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-qr-code">
-                <input
-                  type="checkbox"
-                  checked={includeQR}
-                  onChange={(e) => {
-                    setIncludeQR(e.target.checked);
-                    if (!e.target.checked) setQrPlacement("");
-                  }}
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <QrCode className="h-4 w-4 text-primary shrink-0" />
-                <div>
-                  <span className="text-sm font-medium">Include my QR code</span>
-                  <p className="text-xs text-muted-foreground">Add a scannable QR code linking to your profile so people can connect with you</p>
+            {product.isConnectionShirt ? (
+              <div className="space-y-3">
+                <Label className="flex items-center gap-1.5">
+                  <QrCode className="h-4 w-4 text-primary" />
+                  Choose Your QR Code
+                </Label>
+                <p className="text-xs text-muted-foreground -mt-1">Pick what happens when someone scans the code on your shirt</p>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    onClick={() => { setSelectedQRType('site'); setSelectedQRTreeId(''); }}
+                    className={`text-left p-3 rounded-lg border transition-all ${
+                      selectedQRType === 'site'
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                    data-testid="qr-type-site"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${selectedQRType === 'site' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium">Site Signup</span>
+                        <p className="text-xs text-muted-foreground">Links to FamilyRoots signup — anyone can join the platform</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setSelectedQRType('profile'); setSelectedQRTreeId(''); }}
+                    className={`text-left p-3 rounded-lg border transition-all ${
+                      selectedQRType === 'profile'
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                    data-testid="qr-type-profile"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${selectedQRType === 'profile' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium">My Profile</span>
+                        <p className="text-xs text-muted-foreground">Links to your profile — scanner sends you a connection request</p>
+                      </div>
+                    </div>
+                  </button>
+                  {trees.map(tree => {
+                    const treeConfig = getTreeTypeConfig((tree.treeType || "family") as TreeType);
+                    return (
+                      <button
+                        key={tree.id}
+                        onClick={() => { setSelectedQRType('tree'); setSelectedQRTreeId(tree.id); setSelectedTreeId(tree.id); }}
+                        className={`text-left p-3 rounded-lg border transition-all ${
+                          selectedQRType === 'tree' && selectedQRTreeId === tree.id
+                            ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                            : "border-border hover:border-primary/40"
+                        }`}
+                        data-testid={`qr-type-tree-${tree.id}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${selectedQRType === 'tree' && selectedQRTreeId === tree.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                            <TreeDeciduous className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium">{tree.name}</span>
+                            <p className="text-xs text-muted-foreground">Links to your {treeConfig.label.toLowerCase()} — scanner can request to join</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              </label>
-            </div>
+              </div>
+            ) : (
+              <div className="border rounded-lg p-3 bg-muted/30">
+                <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-qr-code">
+                  <input
+                    type="checkbox"
+                    checked={includeQR}
+                    onChange={(e) => {
+                      setIncludeQR(e.target.checked);
+                      if (!e.target.checked) setQrPlacement("");
+                    }}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <QrCode className="h-4 w-4 text-primary shrink-0" />
+                  <div>
+                    <span className="text-sm font-medium">Include my QR code</span>
+                    <p className="text-xs text-muted-foreground">Add a scannable QR code linking to your profile so people can connect with you</p>
+                  </div>
+                </label>
+              </div>
+            )}
 
-            {includeQR && product.placements && product.placements.length > 1 && (
+            {((includeQR && !product.isConnectionShirt) || product.isConnectionShirt) && product.placements && product.placements.length > 1 && (
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <QrCode className="h-4 w-4" />
@@ -816,7 +952,7 @@ function ProductCustomizer({
                 className="w-full"
                 size="lg"
                 onClick={() => setShowShipping(true)}
-                disabled={!selectedTreeId || !selectedVariantId}
+                disabled={(!product.isConnectionShirt && !selectedTreeId) || !selectedVariantId}
                 data-testid="button-continue-shipping"
               >
                 Continue to Shipping

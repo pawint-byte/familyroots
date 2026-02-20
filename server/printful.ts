@@ -347,6 +347,25 @@ class PrintfulService {
   private getRecommendedProductsSync() {
     return [
       {
+        id: 71,
+        name: 'The Connection Shirt',
+        description: 'The shirt that grows your network. Pick a QR code — site signup, a specific tree or group, or your personal profile — and wear it anywhere. Anyone who scans it connects instantly.',
+        category: 'apparel',
+        basePrice: 11.69,
+        image: '/images/products/cotton-tee.jpg',
+        maxMembers: 25,
+        printArea: 'front',
+        recommendation: 'Fan Favorite! Choose which QR code to print — site signup, your tree/group invite, or your profile link.',
+        isFeatured: true,
+        featuredScenario: 'connection-shirt',
+        isConnectionShirt: true,
+        placements: [
+          { id: 'front', label: 'Front', printfulType: 'front', description: 'Full front chest area' },
+          { id: 'back', label: 'Back', printfulType: 'back', description: 'Full back area' },
+          { id: 'front_left', label: 'Front Left (Over Heart)', printfulType: 'label_outside', description: 'Small print over the heart area' },
+        ],
+      },
+      {
         id: 145,
         name: 'Snapback Hat',
         description: 'Rock your crew everywhere you go. Front-embroidered group name with your personal QR code on the side — anyone who scans it connects with you instantly.',
@@ -362,24 +381,7 @@ class PrintfulService {
           { id: 'front', label: 'Front', printfulType: 'front', description: 'Center front panel' },
         ],
       },
-      {
-        id: 71,
-        name: 'Unisex T-Shirt',
-        description: 'Your family tree printed on the front, your personal QR code on the back. Wear it to reunions, cookouts, or just around town — let the world see where you come from.',
-        category: 'apparel',
-        basePrice: 11.69,
-        image: '/images/products/cotton-tee.jpg',
-        maxMembers: 25,
-        printArea: 'front',
-        recommendation: 'Family tree on front, QR on back. Perfect for reunions — relatives scan to join your tree.',
-        isFeatured: true,
-        featuredScenario: 'reunion-shirt',
-        placements: [
-          { id: 'front', label: 'Front', printfulType: 'front', description: 'Full front chest area' },
-          { id: 'back', label: 'Back', printfulType: 'back', description: 'Full back area' },
-          { id: 'front_left', label: 'Front Left (Over Heart)', printfulType: 'label_outside', description: 'Small print over the heart area' },
-        ],
-      },
+      
       {
         id: 327,
         name: 'Premium Fleece Blanket',
