@@ -15,7 +15,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
-  AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap
+  AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
+  Users, Scan, Heart, ArrowRight
 } from "lucide-react";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
@@ -34,6 +35,7 @@ interface Product {
   printArea?: string;
   recommendation?: string;
   isFeatured?: boolean;
+  featuredScenario?: string;
 }
 
 interface Variant {
@@ -1157,58 +1159,102 @@ export default function MerchandisePage() {
 
             <TabsContent value="products">
               <div className="mb-6">
-                <h2 className="text-2xl font-bold mb-2">Print Your Family Tree</h2>
+                <h2 className="text-2xl font-bold mb-2">Custom Merchandise</h2>
                 <p className="text-muted-foreground">
-                  Turn your family tree into beautiful custom products. Perfect for gifts or keeping your heritage close.
+                  Put your people on something real. Family trees, team rosters, group circles — printed on products you can wear, hang, and share with the world.
                 </p>
               </div>
 
               {!loadingProducts && products.filter(p => p.isFeatured).length > 0 && (
-                <div className="mb-8" data-testid="featured-products-section">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Zap className="h-5 w-5 text-orange-500" />
-                    <h3 className="text-lg font-semibold">Quick Order — Popular Picks</h3>
+                <div className="mb-10" data-testid="featured-products-section">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Heart className="h-5 w-5 text-rose-500" />
+                    <h3 className="text-xl font-bold">Bring Your People Into the Real World</h3>
                   </div>
-                  <div className="grid sm:grid-cols-3 gap-4">
-                    {products.filter(p => p.isFeatured).map(product => (
-                      <Card 
-                        key={`featured-${product.id}`}
-                        className="overflow-hidden hover-elevate cursor-pointer border-orange-200 dark:border-orange-800/50 bg-gradient-to-br from-orange-50/50 to-background dark:from-orange-950/20 dark:to-background"
-                        onClick={() => setSelectedProduct(product)}
-                        data-testid={`card-featured-${product.id}`}
-                      >
-                        <div className="flex items-center gap-4 p-4">
-                          <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted shrink-0 relative">
-                            <img 
-                              src={product.image}
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                              <div className="w-12 h-12 bg-white/90 dark:bg-gray-900/90 rounded-full flex items-center justify-center">
-                                <TreeDeciduous className="h-6 w-6 text-primary" />
+                  <p className="text-sm text-muted-foreground mb-5">
+                    Your connections deserve more than a screen. Wear them, share them, show them off — and let anyone scan to join your circle.
+                  </p>
+                  <div className="grid sm:grid-cols-3 gap-5">
+                    {(() => {
+                      const scenarios = [
+                        {
+                          key: 'walking-intro',
+                          icon: <Scan className="h-5 w-5" />,
+                          tagline: 'Your Walking Introduction',
+                          scene: 'At the gym, at a game, on a walk — someone asks about your hat. They scan the QR and instantly see who you are and what you\'re about.',
+                          accentFrom: 'from-sky-50 dark:from-sky-950/30',
+                          accentBorder: 'border-sky-200 dark:border-sky-800/50',
+                          accentBadge: 'bg-sky-500',
+                          badgeText: 'Scan & Connect',
+                        },
+                        {
+                          key: 'reunion-shirt',
+                          icon: <TreeDeciduous className="h-5 w-5" />,
+                          tagline: 'The Reunion Conversation Starter',
+                          scene: 'You show up to the family reunion wearing your tree. Cousins crowd around. "Where am I on there?" They flip you around, scan the QR, and request to join.',
+                          accentFrom: 'from-emerald-50 dark:from-emerald-950/30',
+                          accentBorder: 'border-emerald-200 dark:border-emerald-800/50',
+                          accentBadge: 'bg-emerald-500',
+                          badgeText: 'Family Tree + QR',
+                        },
+                        {
+                          key: 'team-blanket',
+                          icon: <Users className="h-5 w-5" />,
+                          tagline: 'Every Player in Their Position',
+                          scene: 'Your whole team laid out at their positions on a 60"×80" blanket. Hang it in the locker room, bring it to tailgates — everyone sees exactly where they stand.',
+                          accentFrom: 'from-amber-50 dark:from-amber-950/30',
+                          accentBorder: 'border-amber-200 dark:border-amber-800/50',
+                          accentBadge: 'bg-amber-500',
+                          badgeText: 'Team Layout',
+                        },
+                      ];
+                      const featuredProducts = products.filter(p => p.isFeatured);
+                      return scenarios.map(scenario => {
+                        const product = featuredProducts.find(p => p.featuredScenario === scenario.key);
+                        if (!product) return null;
+                        return (
+                          <Card 
+                            key={scenario.key}
+                            className={`overflow-hidden hover-elevate cursor-pointer ${scenario.accentBorder} bg-gradient-to-b ${scenario.accentFrom} to-background`}
+                            onClick={() => setSelectedProduct(product)}
+                            data-testid={`card-featured-${product.id}`}
+                          >
+                            <div className="relative">
+                              <div className="aspect-[4/3] overflow-hidden bg-muted relative">
+                                <img 
+                                  src={product.image}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                                <div className="absolute bottom-3 left-3 right-3">
+                                  <Badge className={`${scenario.accentBadge} text-white text-[11px] px-2 py-0.5`}>
+                                    {scenario.icon}
+                                    <span className="ml-1">{scenario.badgeText}</span>
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0">
-                                <Flame className="h-2.5 w-2.5 mr-0.5" />
-                                Popular
-                              </Badge>
+                            <div className="p-4">
+                              <h4 className="font-bold text-sm mb-1.5">{scenario.tagline}</h4>
+                              <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                                {scenario.scene}
+                              </p>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-[11px] text-muted-foreground">{product.name}</p>
+                                  <p className="font-semibold text-sm">From ${product.basePrice.toFixed(2)}</p>
+                                </div>
+                                <Button size="sm" className="h-8 text-xs gap-1" data-testid={`button-quick-order-${product.id}`}>
+                                  Make It <ArrowRight className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
-                            <h4 className="font-semibold text-sm truncate">{product.name}</h4>
-                            <p className="text-xs text-muted-foreground line-clamp-1">{product.description}</p>
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="font-semibold text-sm">From ${product.basePrice.toFixed(2)}</span>
-                              <Button size="sm" variant="outline" className="h-7 text-xs" data-testid={`button-quick-order-${product.id}`}>
-                                Customize <ChevronRight className="h-3 w-3 ml-1" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
+                          </Card>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}
