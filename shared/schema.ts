@@ -108,7 +108,7 @@ export const relationships = pgTable("relationships", {
   fromMemberId: varchar("from_member_id").notNull(),
   toMemberId: varchar("to_member_id").notNull(),
   relationshipType: text("relationship_type").notNull(),
-  qualifier: relationshipQualifierEnum("qualifier"), // biological, step, adopted, foster, half, in-law (null = biological/default)
+  qualifier: text("qualifier"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

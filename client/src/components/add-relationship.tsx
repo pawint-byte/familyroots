@@ -20,7 +20,7 @@ interface AddRelationshipProps {
   canEdit: boolean;
 }
 
-type RelationshipQualifier = "biological" | "step" | "adopted" | "foster" | "half" | "in-law" | "";
+type RelationshipQualifier = string;
 
 const familyReverseRelationship: Record<string, string> = {
   parent: "child",
@@ -163,22 +163,24 @@ export function AddRelationship({
             </p>
           </div>
 
-          {isFamily && relationshipType && (
+          {treeConfig.qualifiersEnabled && treeConfig.qualifiers && treeConfig.qualifiers.length > 0 && relationshipType && (
             <div className="space-y-2">
-              <Label>Relationship Type (optional)</Label>
+              <Label>{treeConfig.qualifierLabel || "Qualifier"} (optional)</Label>
               <Select 
                 value={qualifier} 
                 onValueChange={(val) => setQualifier(val as RelationshipQualifier)}
               >
                 <SelectTrigger data-testid="select-relationship-qualifier">
-                  <SelectValue placeholder="Biological (default)" />
+                  <SelectValue placeholder={treeConfig.qualifierPlaceholder || "Select..."} />
                 </SelectTrigger>
                 <SelectContent>
                   {(treeConfig.qualifiers || []).map((q) => {
-                    if (relationshipType === 'spouse' && !['biological', 'in-law'].includes(q.value)) return null;
-                    if (relationshipType === 'sibling' && !['biological', 'half', 'step', 'adopted'].includes(q.value)) return null;
-                    if (['parent', 'child'].includes(relationshipType) && !['biological', 'step', 'adopted', 'foster'].includes(q.value)) return null;
-                    if (relationshipType === 'coparent' && q.value !== 'biological') return null;
+                    if (isFamily) {
+                      if (relationshipType === 'spouse' && !['biological', 'in-law'].includes(q.value)) return null;
+                      if (relationshipType === 'sibling' && !['biological', 'half', 'step', 'adopted'].includes(q.value)) return null;
+                      if (['parent', 'child'].includes(relationshipType) && !['biological', 'step', 'adopted', 'foster'].includes(q.value)) return null;
+                      if (relationshipType === 'coparent' && q.value !== 'biological') return null;
+                    }
                     return (
                       <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
                     );
@@ -186,7 +188,9 @@ export function AddRelationship({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Specify if this is a step, adopted, half, or other type of relationship.
+                {isFamily 
+                  ? "Specify if this is a step, adopted, half, or other type of relationship."
+                  : `Add extra detail to this ${treeConfig.memberLabel.toLowerCase()}'s role.`}
               </p>
             </div>
           )}

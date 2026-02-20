@@ -32,6 +32,8 @@ export interface TreeTypeConfig {
   defaultRelationshipTypes: RelationshipTypeConfig[];
   qualifiersEnabled: boolean;
   qualifiers?: { value: string; label: string }[];
+  qualifierLabel?: string;
+  qualifierPlaceholder?: string;
   visual: TreeVisualConfig;
 }
 
@@ -45,6 +47,8 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
     membersLabel: "Family Members",
     addMemberLabel: "Add Family Member",
     qualifiersEnabled: true,
+    qualifierLabel: "Relationship Qualifier",
+    qualifierPlaceholder: "Biological (default)",
     qualifiers: [
       { value: "biological", label: "Biological (default)" },
       { value: "step", label: "Step" },
@@ -78,7 +82,19 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
     memberLabel: "Member",
     membersLabel: "Members",
     addMemberLabel: "Add Member",
-    qualifiersEnabled: false,
+    qualifiersEnabled: true,
+    qualifierLabel: "Ministry / Group",
+    qualifierPlaceholder: "Select ministry or group",
+    qualifiers: [
+      { value: "general", label: "General Congregation" },
+      { value: "youth", label: "Youth Ministry" },
+      { value: "worship", label: "Worship Team" },
+      { value: "outreach", label: "Outreach / Missions" },
+      { value: "sunday_school", label: "Sunday School" },
+      { value: "bible_study", label: "Bible Study" },
+      { value: "choir", label: "Choir" },
+      { value: "volunteer", label: "Volunteer" },
+    ],
     defaultRelationshipTypes: [
       { value: "pastor", label: "Pastor/Leader", reverseLabel: "Congregation Member", description: "Pastoral leadership" },
       { value: "elder", label: "Elder/Deacon", description: "Church leadership role" },
@@ -87,6 +103,10 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "ministry_member", label: "Ministry Member", reverseLabel: "Ministry Leader", description: "Participates in a ministry" },
       { value: "mentor", label: "Mentor", reverseLabel: "Mentee", description: "Spiritual mentorship" },
       { value: "mentee", label: "Mentee", reverseLabel: "Mentor", description: "Being mentored" },
+      { value: "worship_leader", label: "Worship Leader", description: "Leads worship services" },
+      { value: "volunteer", label: "Volunteer", description: "Serves in a volunteer role" },
+      { value: "teacher", label: "Teacher", reverseLabel: "Student", description: "Teaches classes or groups" },
+      { value: "student", label: "Student", reverseLabel: "Teacher", description: "Attends classes or groups" },
     ],
     visual: {
       layoutShape: "radial",
@@ -106,12 +126,24 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
     memberLabel: "Team Member",
     membersLabel: "Team Members",
     addMemberLabel: "Add Team Member",
-    qualifiersEnabled: false,
+    qualifiersEnabled: true,
+    qualifierLabel: "Role Detail",
+    qualifierPlaceholder: "Select position or status",
+    qualifiers: [
+      { value: "starter", label: "Starter" },
+      { value: "reserve", label: "Reserve / Bench" },
+      { value: "varsity", label: "Varsity" },
+      { value: "jv", label: "Junior Varsity (JV)" },
+      { value: "injured", label: "Injured Reserve" },
+      { value: "retired", label: "Retired" },
+    ],
     defaultRelationshipTypes: [
-      { value: "coach", label: "Coach", reverseLabel: "Player", description: "Head or assistant coach" },
+      { value: "coach", label: "Head Coach", reverseLabel: "Player", description: "Head coach of the team" },
+      { value: "assistant_coach", label: "Assistant Coach", reverseLabel: "Player", description: "Assistant or position coach" },
       { value: "captain", label: "Captain", description: "Team captain" },
-      { value: "player", label: "Player", reverseLabel: "Coach", description: "Active player" },
-      { value: "manager", label: "Manager/Staff", description: "Team management" },
+      { value: "player", label: "Player", reverseLabel: "Head Coach", description: "Active player on roster" },
+      { value: "trainer", label: "Trainer/Physio", description: "Athletic trainer or physiotherapist" },
+      { value: "manager", label: "Manager/Staff", description: "Team management or support staff" },
       { value: "teammate", label: "Teammate", description: "Fellow team member" },
       { value: "alumni", label: "Alumni", description: "Former team member" },
     ],
@@ -133,13 +165,29 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
     memberLabel: "Member",
     membersLabel: "Members",
     addMemberLabel: "Add Member",
-    qualifiersEnabled: false,
+    qualifiersEnabled: true,
+    qualifierLabel: "Class / Status",
+    qualifierPlaceholder: "Select class year or status",
+    qualifiers: [
+      { value: "active", label: "Active" },
+      { value: "pledge", label: "Pledge / New Member" },
+      { value: "alumni", label: "Alumni" },
+      { value: "class_2024", label: "Class of 2024" },
+      { value: "class_2025", label: "Class of 2025" },
+      { value: "class_2026", label: "Class of 2026" },
+      { value: "class_2027", label: "Class of 2027" },
+      { value: "class_2028", label: "Class of 2028" },
+      { value: "class_2029", label: "Class of 2029" },
+      { value: "class_2030", label: "Class of 2030" },
+      { value: "honorary", label: "Honorary Member" },
+    ],
     defaultRelationshipTypes: [
       { value: "big", label: "Big (Mentor)", reverseLabel: "Little", description: "Big brother/sister mentor" },
       { value: "little", label: "Little (Mentee)", reverseLabel: "Big", description: "Little brother/sister mentee" },
       { value: "pledge_class", label: "Pledge Class", description: "Same pledge/initiation class" },
       { value: "chapter_president", label: "Chapter President", description: "Chapter leadership" },
       { value: "officer", label: "Officer", description: "Elected or appointed officer" },
+      { value: "advisor", label: "Faculty Advisor", reverseLabel: "Active Member", description: "Faculty or alumni advisor" },
       { value: "active", label: "Active Member", description: "Current active member" },
       { value: "alumni", label: "Alumni", description: "Graduated alumni" },
     ],
@@ -161,7 +209,18 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
     memberLabel: "Friend",
     membersLabel: "Friends",
     addMemberLabel: "Add Friend",
-    qualifiersEnabled: false,
+    qualifiersEnabled: true,
+    qualifierLabel: "How You Met",
+    qualifierPlaceholder: "Select how you know each other",
+    qualifiers: [
+      { value: "school", label: "School / College" },
+      { value: "work", label: "Work" },
+      { value: "neighborhood", label: "Neighborhood" },
+      { value: "online", label: "Online / Social Media" },
+      { value: "sports_rec", label: "Sports / Recreation" },
+      { value: "mutual_friend", label: "Through Mutual Friends" },
+      { value: "childhood", label: "Childhood" },
+    ],
     defaultRelationshipTypes: [
       { value: "best_friend", label: "Best Friend", description: "Closest friend" },
       { value: "close_friend", label: "Close Friend", description: "Inner circle friend" },
@@ -188,7 +247,20 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
     memberLabel: "Contact",
     membersLabel: "Contacts",
     addMemberLabel: "Add Contact",
-    qualifiersEnabled: false,
+    qualifiersEnabled: true,
+    qualifierLabel: "Department / Context",
+    qualifierPlaceholder: "Select department or context",
+    qualifiers: [
+      { value: "engineering", label: "Engineering" },
+      { value: "design", label: "Design" },
+      { value: "marketing", label: "Marketing" },
+      { value: "sales", label: "Sales" },
+      { value: "operations", label: "Operations" },
+      { value: "hr", label: "Human Resources" },
+      { value: "finance", label: "Finance" },
+      { value: "executive", label: "Executive / Leadership" },
+      { value: "external", label: "External / Vendor" },
+    ],
     defaultRelationshipTypes: [
       { value: "manager", label: "Manager", reverseLabel: "Direct Report", description: "Direct supervisor" },
       { value: "direct_report", label: "Direct Report", reverseLabel: "Manager", description: "Reports to you" },
@@ -197,6 +269,8 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "mentee", label: "Mentee", reverseLabel: "Mentor", description: "Being mentored" },
       { value: "client", label: "Client", description: "Business client" },
       { value: "partner", label: "Business Partner", description: "Business partnership" },
+      { value: "intern", label: "Intern", reverseLabel: "Supervisor", description: "Intern or trainee" },
+      { value: "supervisor", label: "Supervisor", reverseLabel: "Intern", description: "Oversees intern or trainee" },
     ],
     visual: {
       layoutShape: "network",
@@ -216,10 +290,23 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
     memberLabel: "Member",
     membersLabel: "Members",
     addMemberLabel: "Add Member",
-    qualifiersEnabled: false,
+    qualifiersEnabled: true,
+    qualifierLabel: "Tag / Detail",
+    qualifierPlaceholder: "Select a tag",
+    qualifiers: [
+      { value: "founding", label: "Founding Member" },
+      { value: "new", label: "New Member" },
+      { value: "inactive", label: "Inactive" },
+      { value: "honorary", label: "Honorary" },
+    ],
     defaultRelationshipTypes: [
-      { value: "leader", label: "Leader", description: "Group leader" },
+      { value: "leader", label: "Leader", reverseLabel: "Member", description: "Group leader or organizer" },
+      { value: "co_leader", label: "Co-Leader", description: "Assists the leader" },
       { value: "member", label: "Member", description: "Group member" },
+      { value: "teacher", label: "Teacher", reverseLabel: "Student", description: "Teaches or instructs" },
+      { value: "student", label: "Student", reverseLabel: "Teacher", description: "Learns from a teacher" },
+      { value: "mentor", label: "Mentor", reverseLabel: "Mentee", description: "Guides or advises" },
+      { value: "mentee", label: "Mentee", reverseLabel: "Mentor", description: "Receives guidance" },
       { value: "connected", label: "Connected", description: "General connection" },
     ],
     visual: {
@@ -243,14 +330,25 @@ export function getRelationshipTypesForTree(
   customRelationshipTypes?: string[] | null
 ): RelationshipTypeConfig[] {
   const config = getTreeTypeConfig(treeType);
-  if (treeType === "custom" && customRelationshipTypes && customRelationshipTypes.length > 0) {
-    return customRelationshipTypes.map(t => ({
+  const defaults = config.defaultRelationshipTypes;
+
+  if (customRelationshipTypes && customRelationshipTypes.length > 0) {
+    const customTypes = customRelationshipTypes.map(t => ({
       value: t.toLowerCase().replace(/\s+/g, '_'),
       label: t,
       description: `Custom: ${t}`,
     }));
+
+    if (treeType === "custom") {
+      return customTypes;
+    }
+
+    const existingValues = new Set(defaults.map(d => d.value));
+    const newTypes = customTypes.filter(ct => !existingValues.has(ct.value));
+    return [...defaults, ...newTypes];
   }
-  return config.defaultRelationshipTypes;
+
+  return defaults;
 }
 
 export function getValidRelationshipValues(

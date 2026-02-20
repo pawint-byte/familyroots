@@ -214,7 +214,9 @@ export default function Dashboard() {
       treeType: newTreeType,
       ...(newTreeType === "custom" ? {
         treeTypeLabel: customTypeLabel || undefined,
-        customRelationshipTypes: customRelTypes.length > 0 ? customRelTypes : undefined,
+      } : {}),
+      ...(customRelTypes.length > 0 ? {
+        customRelationshipTypes: customRelTypes,
       } : {}),
     });
   };
@@ -784,7 +786,7 @@ export default function Dashboard() {
                   New Tree
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="font-serif">Create New Tree</DialogTitle>
               </DialogHeader>
@@ -800,7 +802,7 @@ export default function Dashboard() {
                         <button
                           key={type}
                           type="button"
-                          onClick={() => setNewTreeType(type)}
+                          onClick={() => { setNewTreeType(type); setCustomRelTypes([]); setCustomRelTypeInput(""); }}
                           className={`flex items-center gap-3 p-3 rounded-md border text-left transition-colors ${
                             isSelected
                               ? "border-primary bg-primary/5"
@@ -823,75 +825,99 @@ export default function Dashboard() {
                   </p>
                 </div>
                 {newTreeType === "custom" && (
-                  <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="custom-type-label">Group Type Name (optional)</Label>
-                      <Input
-                        id="custom-type-label"
-                        placeholder="e.g., Book Club, Neighborhood, Band"
-                        value={customTypeLabel}
-                        onChange={(e) => setCustomTypeLabel(e.target.value)}
-                        data-testid="input-custom-type-label"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Custom Relationship Types (optional)</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="e.g., Organizer, Participant"
-                          value={customRelTypeInput}
-                          onChange={(e) => setCustomRelTypeInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && customRelTypeInput.trim()) {
-                              e.preventDefault();
-                              if (!customRelTypes.includes(customRelTypeInput.trim())) {
-                                setCustomRelTypes([...customRelTypes, customRelTypeInput.trim()]);
-                              }
-                              setCustomRelTypeInput("");
-                            }
-                          }}
-                          data-testid="input-custom-rel-type"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (customRelTypeInput.trim() && !customRelTypes.includes(customRelTypeInput.trim())) {
-                              setCustomRelTypes([...customRelTypes, customRelTypeInput.trim()]);
-                              setCustomRelTypeInput("");
-                            }
-                          }}
-                          data-testid="button-add-custom-rel-type"
-                        >
-                          Add
-                        </Button>
-                      </div>
-                      {customRelTypes.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {customRelTypes.map((type) => (
-                            <Badge key={type} variant="secondary" className="gap-1">
-                              {type}
-                              <button
-                                type="button"
-                                onClick={() => setCustomRelTypes(customRelTypes.filter(t => t !== type))}
-                                className="ml-1 hover-elevate rounded-full"
-                                data-testid={`button-remove-rel-type-${type}`}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {customRelTypes.length === 0
-                          ? "Default types (Leader, Member, Connected) will be used if none added"
-                          : `${customRelTypes.length} custom type${customRelTypes.length !== 1 ? "s" : ""} defined`}
-                      </p>
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-type-label">Group Type Name (optional)</Label>
+                    <Input
+                      id="custom-type-label"
+                      placeholder="e.g., Book Club, Neighborhood, Band"
+                      value={customTypeLabel}
+                      onChange={(e) => setCustomTypeLabel(e.target.value)}
+                      data-testid="input-custom-type-label"
+                    />
                   </div>
                 )}
+                <div className="space-y-3 bg-muted/50 rounded-lg p-3 border border-border">
+                  <div>
+                    <Label className="text-sm font-medium">Relationship Structure</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      These are the roles people can have in your {TREE_TYPE_CONFIGS[newTreeType].label.toLowerCase()}. You can add more.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {TREE_TYPE_CONFIGS[newTreeType].defaultRelationshipTypes.map((rel) => (
+                      <span
+                        key={rel.value}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-xs"
+                        title={rel.description}
+                      >
+                        {rel.label}
+                        {rel.reverseLabel && (
+                          <span className="text-muted-foreground">/ {rel.reverseLabel}</span>
+                        )}
+                      </span>
+                    ))}
+                    {customRelTypes.map((type) => (
+                      <Badge key={type} variant="secondary" className="gap-1 text-xs">
+                        {type}
+                        <button
+                          type="button"
+                          onClick={() => setCustomRelTypes(customRelTypes.filter(t => t !== type))}
+                          className="ml-0.5 hover-elevate rounded-full"
+                          data-testid={`button-remove-rel-type-${type}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder={newTreeType === "custom" ? "e.g., Organizer, Participant" : `e.g., ${newTreeType === "sports" ? "Water Boy, Referee" : newTreeType === "church" ? "Usher, Greeter" : "Custom Role"}`}
+                      value={customRelTypeInput}
+                      onChange={(e) => setCustomRelTypeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && customRelTypeInput.trim()) {
+                          e.preventDefault();
+                          if (!customRelTypes.includes(customRelTypeInput.trim())) {
+                            setCustomRelTypes([...customRelTypes, customRelTypeInput.trim()]);
+                          }
+                          setCustomRelTypeInput("");
+                        }
+                      }}
+                      className="text-sm"
+                      data-testid="input-custom-rel-type"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (customRelTypeInput.trim() && !customRelTypes.includes(customRelTypeInput.trim())) {
+                          setCustomRelTypes([...customRelTypes, customRelTypeInput.trim()]);
+                          setCustomRelTypeInput("");
+                        }
+                      }}
+                      data-testid="button-add-custom-rel-type"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+                  {TREE_TYPE_CONFIGS[newTreeType].qualifiersEnabled && TREE_TYPE_CONFIGS[newTreeType].qualifiers && newTreeType !== "family" && (
+                    <div className="pt-1 border-t border-border">
+                      <p className="text-xs text-muted-foreground mb-1.5">
+                        <strong>{TREE_TYPE_CONFIGS[newTreeType].qualifierLabel || "Qualifiers"}</strong> — extra detail you can tag on each relationship
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {TREE_TYPE_CONFIGS[newTreeType].qualifiers!.map((q) => (
+                          <span key={q.value} className="inline-flex px-2 py-0.5 rounded bg-background border border-border text-[11px] text-muted-foreground">
+                            {q.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="tree-name">Tree Name</Label>
                   <Input
