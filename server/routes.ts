@@ -2098,6 +2098,40 @@ export async function registerRoutes(
 
   // ==================== USER PROFILE ROUTES (Single Source of Truth) ====================
 
+  app.get("/api/user/badge-stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const trees = await storage.getTrees(userId);
+      const { collaboratedTrees } = await storage.getCollaboratedTrees(userId);
+      const allTrees = [...trees, ...collaboratedTrees];
+      let totalMembers = 0;
+      const treeNames: string[] = [];
+      for (const tree of allTrees) {
+        const members = await storage.getMembers(tree.id);
+        totalMembers += members.length;
+        treeNames.push(tree.name);
+      }
+
+      const referrals = await storage.getUserReferrals(userId);
+      const completedReferrals = referrals.filter(r => r.completedAt).length;
+
+      res.json({
+        treeCount: allTrees.length,
+        totalMembers,
+        treeNames: treeNames.slice(0, 5),
+        completedReferrals,
+        memberSince: user.createdAt,
+        referralCode: referrals[0]?.referralCode || null,
+      });
+    } catch (error) {
+      console.error("Error fetching badge stats:", error);
+      res.status(500).json({ message: "Failed to fetch badge stats" });
+    }
+  });
+
   // Get current user's profile
   app.get("/api/user/profile", isAuthenticated, async (req: any, res) => {
     try {
