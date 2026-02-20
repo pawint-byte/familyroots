@@ -224,36 +224,73 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
       .filter((r: any) => r.relationshipType === "child")
       .map((r: any) => ({ from: r.toMemberId, to: r.fromMemberId }));
     const allPairs = [...parentChildPairs, ...childPairs];
+
+    const spouseMap = new Map<string, string>();
+    relationships
+      .filter((r: any) => r.relationshipType === "spouse")
+      .forEach((r: any) => {
+        const memberIds = new Set(displayMembers.map(m => m.id));
+        if (memberIds.has(r.fromMemberId) && memberIds.has(r.toMemberId)) {
+          if (!spouseMap.has(r.fromMemberId)) spouseMap.set(r.fromMemberId, r.toMemberId);
+          if (!spouseMap.has(r.toMemberId)) spouseMap.set(r.toMemberId, r.fromMemberId);
+        }
+      });
+
     const childrenOf = new Map<string, string[]>();
     displayMembers.forEach(m => childrenOf.set(m.id, []));
     allPairs.forEach(({ from, to }) => {
-      if (childrenOf.has(from)) childrenOf.get(from)!.push(to);
+      if (childrenOf.has(from) && !childrenOf.get(from)!.includes(to)) {
+        childrenOf.get(from)!.push(to);
+      }
     });
+
     const parentIds = new Set(allPairs.map(p => p.from));
     const childIds = new Set(allPairs.map(p => p.to));
     const roots = displayMembers.filter(m => parentIds.has(m.id) && !childIds.has(m.id));
-    if (roots.length === 0 && count > 0) roots.push(displayMembers[0]);
+    if (roots.length === 0 && count > 0) {
+      const anyParent = displayMembers.find(m => parentIds.has(m.id));
+      roots.push(anyParent || displayMembers[0]);
+    }
+
     const depths = new Map<string, number>();
     const assignDepth = (id: string, d: number) => {
       if (depths.has(id)) return;
       depths.set(id, d);
+      const spouse = spouseMap.get(id);
+      if (spouse && !depths.has(spouse)) depths.set(spouse, d);
       (childrenOf.get(id) || []).forEach(cid => assignDepth(cid, d + 1));
     };
     roots.forEach(r => assignDepth(r.id, 0));
     displayMembers.forEach(m => { if (!depths.has(m.id)) depths.set(m.id, 0); });
+
     const maxDepth = Math.max(0, ...Array.from(depths.values()));
     const depthRows = new Map<number, any[]>();
+    const placed = new Set<string>();
     displayMembers.forEach(m => {
+      if (placed.has(m.id)) return;
       const d = depths.get(m.id) ?? 0;
       if (!depthRows.has(d)) depthRows.set(d, []);
       depthRows.get(d)!.push(m);
+      placed.add(m.id);
+      const spouse = spouseMap.get(m.id);
+      if (spouse && !placed.has(spouse)) {
+        const spouseMember = displayMembers.find(dm => dm.id === spouse);
+        if (spouseMember) {
+          depthRows.get(d)!.push(spouseMember);
+          placed.add(spouse);
+        }
+      }
     });
+
     const rowCount = maxDepth + 1;
-    const ySpacing = height / (rowCount + 1);
+    const topMargin = 24;
+    const bottomMargin = 16;
+    const usableHeight = height - topMargin - bottomMargin;
+    const ySpacing = usableHeight / (rowCount + 1);
     depthRows.forEach((row, depth) => {
       const xSpacing = width / (row.length + 1);
       row.forEach((m: any, i: number) => {
-        positions.set(m.id, { x: xSpacing * (i + 1), y: ySpacing * (depth + 1) });
+        positions.set(m.id, { x: xSpacing * (i + 1), y: topMargin + ySpacing * (depth + 1) });
       });
     });
   }
@@ -263,7 +300,7 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
     .filter(({ from, to }: any) => positions.has(from) && positions.has(to));
   const seen = new Set<string>();
   const uniqueConnections = connectionPairs.filter(({ from, to }: any) => {
-    const key = [Math.min(from, to), Math.max(from, to)].join("-");
+    const key = from < to ? `${from}-${to}` : `${to}-${from}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
