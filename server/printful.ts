@@ -80,9 +80,46 @@ interface OrderItem {
 
 class PrintfulService {
   private apiKey: string;
+  private imageCache: Map<number, string> = new Map();
+  private imageCacheTime: number = 0;
+  private readonly IMAGE_CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
   constructor() {
     this.apiKey = process.env.PRINTFUL_API_KEY || '';
+  }
+
+  async fetchCatalogImage(productId: number): Promise<string | null> {
+    try {
+      const response = await fetch(`${PRINTFUL_API_URL}/products/${productId}`, {
+        headers: this.getHeaders(),
+      });
+      if (!response.ok) return null;
+      const data = await response.json() as { result: { product: { image: string } } };
+      return data.result.product.image || null;
+    } catch (error) {
+      console.error(`Failed to fetch catalog image for product ${productId}:`, error);
+      return null;
+    }
+  }
+
+  async fetchAllCatalogImages(productIds: number[]): Promise<void> {
+    const now = Date.now();
+    if (this.imageCache.size > 0 && (now - this.imageCacheTime) < this.IMAGE_CACHE_TTL) {
+      return;
+    }
+
+    if (!this.apiKey) return;
+
+    const results = await Promise.allSettled(
+      productIds.map(async (id) => {
+        const image = await this.fetchCatalogImage(id);
+        if (image) {
+          this.imageCache.set(id, image);
+        }
+      })
+    );
+    this.imageCacheTime = now;
+    console.log(`[printful] Fetched catalog images for ${this.imageCache.size}/${productIds.length} products`);
   }
 
   private getHeaders() {
@@ -297,7 +334,17 @@ class PrintfulService {
     }
   }
 
-  getRecommendedProducts() {
+  async getRecommendedProducts() {
+    const products = this.getRecommendedProductsSync();
+    const productIds = products.map(p => p.id);
+    await this.fetchAllCatalogImages(productIds);
+    return products.map(p => ({
+      ...p,
+      image: this.imageCache.get(p.id) || p.image,
+    }));
+  }
+
+  private getRecommendedProductsSync() {
     return [
       {
         id: 145,

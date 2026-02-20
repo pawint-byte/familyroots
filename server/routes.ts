@@ -5677,7 +5677,7 @@ export async function registerRoutes(
   // Get recommended products for merchandise
   app.get("/api/merchandise/products", async (req, res) => {
     try {
-      const products = printfulService.getRecommendedProducts();
+      const products = await printfulService.getRecommendedProducts();
       res.json(products);
     } catch (error: any) {
       console.error("Error fetching products:", error);
