@@ -81,7 +81,7 @@ import {
 } from "./heygen";
 import { postToBluesky, testBlueskyConnection } from "./bluesky";
 import { testDiscordConnection, sendDiscordNotification, notifyNewSignup, notifyNewTree, notifyMilestone } from "./discord";
-import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification, sendRegistryAnnouncementEmail, sendRegistryItemPurchasedEmail } from "./lib/email";
+import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification, sendRegistryAnnouncementEmail, sendRegistryItemPurchasedEmail, sendTreeUpdateNotification } from "./lib/email";
 import { insertAccountHeirSchema, insertAnnouncementSchema } from "@shared/schema";
 import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG } from "./subscriptionService";
@@ -575,6 +575,55 @@ export async function registerRoutes(
       }
       await subscriptionService.incrementMonthlyAdds(tree.ownerId);
       await subscriptionService.checkAndGrantMilestoneReward(tree.ownerId);
+
+      // Notify tree owner and collaborators about new member (non-blocking)
+      (async () => {
+        try {
+          const adderUser = await storage.getUser(userId);
+          const adderName = adderUser?.firstName 
+            ? `${adderUser.firstName}${adderUser.lastName ? ' ' + adderUser.lastName : ''}` 
+            : 'A collaborator';
+          const memberName = `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}`;
+          const description = `${adderName} added a new member: ${memberName}`;
+
+          const sentEmails = new Set<string>();
+          const notifyTargets: { email: string; name: string }[] = [];
+
+          if (tree.ownerId !== userId) {
+            const owner = await storage.getUser(tree.ownerId);
+            if (owner?.email) {
+              const prefs = owner.notificationPreferences as any;
+              if (!prefs || prefs.emailEnabled !== false) {
+                notifyTargets.push({ email: owner.email, name: owner.firstName || 'there' });
+                sentEmails.add(owner.email.toLowerCase());
+              }
+            }
+          }
+
+          const collaborators = await storage.getCollaborators(tree.id);
+          for (const collab of collaborators) {
+            if (collab.userId === userId) continue;
+            const collabUser = await storage.getUser(collab.userId);
+            if (collabUser?.email && !sentEmails.has(collabUser.email.toLowerCase())) {
+              const prefs = collabUser.notificationPreferences as any;
+              if (!prefs || prefs.emailEnabled !== false) {
+                notifyTargets.push({ email: collabUser.email, name: collabUser.firstName || 'there' });
+                sentEmails.add(collabUser.email.toLowerCase());
+              }
+            }
+          }
+
+          for (const target of notifyTargets) {
+            try {
+              await sendTreeUpdateNotification(target.email, target.name, tree.name, adderName, description);
+            } catch (e) {
+              console.error(`Failed to send new member notification to ${target.email}:`, e);
+            }
+          }
+        } catch (err) {
+          console.error('Error sending new member notifications:', err);
+        }
+      })();
 
       // Return member with optional email warning
       res.status(201).json({ 
@@ -1370,6 +1419,32 @@ export async function registerRoutes(
           acceptedAt: new Date(),
         });
 
+        // Notify tree owner that someone joined (non-blocking)
+        (async () => {
+          try {
+            const joiningUser = await storage.getUser(userId);
+            const owner = await storage.getUser(tree.ownerId);
+            if (owner?.email && owner.id !== userId) {
+              const ownerPrefs = owner.notificationPreferences as any;
+              if (!ownerPrefs || ownerPrefs.emailEnabled !== false) {
+                const joinerName = joiningUser?.firstName 
+                  ? `${joiningUser.firstName}${joiningUser.lastName ? ' ' + joiningUser.lastName : ''}` 
+                  : joiningUser?.email || 'Someone';
+                const roleName = invitation.role === 'co_owner' ? 'Co-owner' : invitation.role === 'editor' ? 'Editor' : 'Viewer';
+                await sendTreeUpdateNotification(
+                  owner.email,
+                  owner.firstName || 'there',
+                  tree.name,
+                  joinerName,
+                  `${joinerName} accepted your invitation and joined as ${roleName}`
+                );
+              }
+            }
+          } catch (e) {
+            console.error('Error sending join notification:', e);
+          }
+        })();
+
         res.status(201).json({ collaborator, treeName: tree.name });
       } catch (collaboratorError) {
         // Roll back the increment if collaborator insert fails
@@ -1709,6 +1784,34 @@ export async function registerRoutes(
         message: message || undefined,
         status: 'pending',
       });
+
+      // Notify tree owner about the claim request (non-blocking)
+      (async () => {
+        try {
+          const tree = await storage.getTree(member.treeId);
+          if (tree) {
+            const owner = await storage.getUser(tree.ownerId);
+            if (owner?.email && owner.id !== userId) {
+              const ownerPrefs = owner.notificationPreferences as any;
+              if (!ownerPrefs || ownerPrefs.emailEnabled !== false) {
+                const claimerName = currentUser?.firstName 
+                  ? `${currentUser.firstName}${currentUser.lastName ? ' ' + currentUser.lastName : ''}` 
+                  : currentUser?.email || 'Someone';
+                const memberName = `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}`;
+                await sendTreeUpdateNotification(
+                  owner.email,
+                  owner.firstName || 'there',
+                  tree.name,
+                  claimerName,
+                  `${claimerName} is requesting to claim the profile of ${memberName}. Please review this request on your dashboard.`
+                );
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error sending claim notification:', e);
+        }
+      })();
       
       res.status(201).json(claimRequest);
     } catch (error: any) {

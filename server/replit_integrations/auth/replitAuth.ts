@@ -67,8 +67,22 @@ async function upsertUser(claims: any): Promise<{ id: string }> {
   if (claims["profile_image_url"]) {
     userData.profileImageUrl = claims["profile_image_url"];
   }
+
+  const existingUser = await authStorage.getUser(claims["sub"]);
   
   const user = await authStorage.upsertUser(userData);
+
+  const isNewUser = !existingUser && user.id === claims["sub"];
+  if (isNewUser && user.email) {
+    try {
+      const { sendWelcomeEmail } = await import('../../lib/email');
+      await sendWelcomeEmail(user.email, user.firstName || 'there');
+      console.log(`Sent welcome email to new user ${user.email}`);
+    } catch (e) {
+      console.error('Failed to send welcome email:', e);
+    }
+  }
+
   return { id: user.id };
 }
 
