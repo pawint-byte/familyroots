@@ -81,7 +81,7 @@ import {
 } from "./heygen";
 import { postToBluesky, testBlueskyConnection } from "./bluesky";
 import { testDiscordConnection, sendDiscordNotification, notifyNewSignup, notifyNewTree, notifyMilestone } from "./discord";
-import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification } from "./lib/email";
+import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification, sendRegistryAnnouncementEmail, sendRegistryItemPurchasedEmail } from "./lib/email";
 import { insertAccountHeirSchema, insertAnnouncementSchema } from "@shared/schema";
 import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG } from "./subscriptionService";
@@ -8344,6 +8344,38 @@ export async function registerRoutes(
         isActive: true,
       });
 
+      if (req.body.notifyMembers) {
+        try {
+          const creatorUser = await storage.getUser(userId);
+          const creatorName = creatorUser?.firstName 
+            ? `${creatorUser.firstName} ${creatorUser.lastName || ''}`.trim() 
+            : 'A family member';
+          const treeMemberUsers = await storage.getTreeMembersWithNotificationPrefs(treeId);
+          const notifyUsers = treeMemberUsers.filter(u => u.email && u.id !== userId);
+          
+          for (const recipient of notifyUsers) {
+            try {
+              await sendRegistryAnnouncementEmail(
+                recipient.email!,
+                recipient.firstName || 'Family Member',
+                creatorName,
+                member.firstName + (member.lastName ? ` ${member.lastName}` : ''),
+                title,
+                eventType,
+                eventDate || null,
+                registry.id,
+                tree!.name
+              );
+            } catch (emailErr) {
+              console.error(`Failed to send registry notification to ${recipient.email}:`, emailErr);
+            }
+          }
+          console.log(`[registry] Sent ${notifyUsers.length} notification emails for registry ${registry.id}`);
+        } catch (notifError) {
+          console.error("Error sending registry notifications:", notifError);
+        }
+      }
+
       res.json(registry);
     } catch (error) {
       console.error("Error creating registry:", error);
@@ -8556,6 +8588,35 @@ export async function registerRoutes(
       }
 
       const updated = await storage.markItemPurchased(id, userId, purchaseQty);
+
+      // Notify registry creator about the purchase
+      try {
+        if (registry.createdByUserId !== userId) {
+          const creatorUser = await storage.getUser(registry.createdByUserId);
+          const buyerUser = await storage.getUser(userId);
+          if (creatorUser?.email) {
+            const allItems = await storage.getGiftRegistryItems(registry.id);
+            const totalCount = allItems.length;
+            const remainingCount = allItems.filter(i => i.status !== 'purchased').length;
+            const buyerName = buyerUser?.firstName 
+              ? `${buyerUser.firstName} ${buyerUser.lastName || ''}`.trim()
+              : 'A family member';
+            
+            await sendRegistryItemPurchasedEmail(
+              creatorUser.email,
+              creatorUser.firstName || 'there',
+              buyerName,
+              item.name,
+              registry.title,
+              registry.id,
+              remainingCount,
+              totalCount
+            );
+          }
+        }
+      } catch (notifError) {
+        console.error("Error sending purchase notification:", notifError);
+      }
 
       res.json({
         ...updated,

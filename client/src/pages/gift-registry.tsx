@@ -16,7 +16,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { SEO } from "@/components/seo";
-import { Gift, Plus, Calendar, ArrowLeft, ShoppingBag, ExternalLink, Trash2, Edit, Package } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Gift, Plus, Calendar, ArrowLeft, ShoppingBag, ExternalLink, Trash2, Edit, Package, Bell } from "lucide-react";
 import type { GiftRegistry, FamilyMember } from "@shared/schema";
 
 interface EnrichedRegistry extends GiftRegistry {
@@ -50,6 +51,7 @@ export default function GiftRegistryPage() {
   const [eventType, setEventType] = useState<string>("birthday");
   const [eventDate, setEventDate] = useState("");
   const [description, setDescription] = useState("");
+  const [notifyMembers, setNotifyMembers] = useState(true);
 
   const { data: tree } = useQuery<{ id: string; name: string; ownerId: string }>({
     queryKey: ["/api/trees", treeId],
@@ -100,6 +102,7 @@ export default function GiftRegistryPage() {
     setEventType("birthday");
     setEventDate("");
     setDescription("");
+    setNotifyMembers(true);
   };
 
   const handleCreateRegistry = () => {
@@ -114,6 +117,7 @@ export default function GiftRegistryPage() {
       eventType,
       eventDate: eventDate || null,
       description,
+      notifyMembers,
     });
   };
 
@@ -225,6 +229,21 @@ export default function GiftRegistryPage() {
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     data-testid="input-description"
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="notify-toggle" className="text-sm font-medium cursor-pointer">Notify tree members</Label>
+                      <p className="text-xs text-muted-foreground">Email everyone in this tree about the registry</p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="notify-toggle"
+                    checked={notifyMembers}
+                    onCheckedChange={setNotifyMembers}
+                    data-testid="switch-notify-members"
                   />
                 </div>
               </div>

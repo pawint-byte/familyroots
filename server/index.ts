@@ -7,7 +7,7 @@ import { getStripeSync } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
 import { getVideoById } from './heygen';
 import { storage } from './storage';
-import { sendCustodianshipApproval, sendCustodianshipReminder } from './lib/email';
+import { sendCustodianshipApproval, sendCustodianshipReminder, sendRegistryReminderEmail } from './lib/email';
 
 const app = express();
 const httpServer = createServer(app);
@@ -250,8 +250,9 @@ app.use((req, res, next) => {
         console.error('Stripe initialization error:', err);
       });
       
-      // Start scheduled tasks for custodianship auto-approval and reminders
+      // Start scheduled tasks
       startCustodianshipScheduler();
+      startRegistryReminderScheduler();
     },
   );
 })();
@@ -368,4 +369,81 @@ function startCustodianshipScheduler() {
   setInterval(processCustodianshipRequests, HOUR_IN_MS);
   
   log('Custodianship scheduler started', 'scheduler');
+}
+
+function startRegistryReminderScheduler() {
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  const sentReminders = new Set<string>();
+
+  async function processRegistryReminders() {
+    try {
+      log('Checking upcoming registry event dates...', 'scheduler');
+      const upcomingRegistries = await storage.getActiveRegistriesWithUpcomingDates();
+
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+
+      for (const registry of upcomingRegistries) {
+        if (!registry.eventDate) continue;
+
+        const eventDateStr = typeof registry.eventDate === 'string' 
+          ? registry.eventDate.split('T')[0] 
+          : new Date(registry.eventDate).toISOString().split('T')[0];
+        const eventDate = new Date(eventDateStr + 'T00:00:00Z');
+        const today = new Date(todayStr + 'T00:00:00Z');
+        const daysUntil = Math.round((eventDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+
+        const reminderKey7 = `${registry.id}-7`;
+        const reminderKey1 = `${registry.id}-1`;
+
+        const shouldSend7Day = daysUntil <= 7 && daysUntil > 1 && !sentReminders.has(reminderKey7);
+        const shouldSend1Day = daysUntil <= 1 && daysUntil >= 0 && !sentReminders.has(reminderKey1);
+
+        if (!shouldSend7Day && !shouldSend1Day) continue;
+
+        try {
+          const member = await storage.getMember(registry.memberId);
+          const tree = await storage.getTree(registry.treeId);
+          if (!member || !tree) continue;
+
+          const allItems = await storage.getGiftRegistryItems(registry.id);
+          const remainingItems = allItems.filter(i => i.status !== 'purchased').length;
+          const memberName = `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}`;
+
+          const treeMemberUsers = await storage.getTreeMembersWithNotificationPrefs(registry.treeId);
+          const notifyUsers = treeMemberUsers.filter(u => u.email);
+          const actualDays = shouldSend1Day ? (daysUntil <= 0 ? 0 : 1) : daysUntil;
+
+          for (const recipient of notifyUsers) {
+            try {
+              await sendRegistryReminderEmail(
+                recipient.email!,
+                recipient.firstName || 'Family Member',
+                memberName,
+                registry.title,
+                eventDateStr,
+                registry.id,
+                remainingItems,
+                actualDays
+              );
+            } catch (emailErr) {
+              console.error(`Failed to send registry reminder to ${recipient.email}:`, emailErr);
+            }
+          }
+
+          if (shouldSend7Day) sentReminders.add(reminderKey7);
+          if (shouldSend1Day) sentReminders.add(reminderKey1);
+          log(`Sent ${actualDays}-day reminder for registry "${registry.title}" to ${notifyUsers.length} users`, 'scheduler');
+        } catch (regError) {
+          console.error(`Error processing reminder for registry ${registry.id}:`, regError);
+        }
+      }
+    } catch (error) {
+      console.error('Error processing registry reminders:', error);
+    }
+  }
+
+  processRegistryReminders();
+  setInterval(processRegistryReminders, SIX_HOURS_MS);
+  log('Registry reminder scheduler started', 'scheduler');
 }

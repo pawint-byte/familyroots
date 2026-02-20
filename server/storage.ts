@@ -45,7 +45,7 @@ import {
   type Announcement, type InsertAnnouncement,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, ilike, desc, lt, inArray } from "drizzle-orm";
+import { eq, and, or, ilike, desc, lt, gte, isNotNull, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Family Trees
@@ -266,6 +266,7 @@ export interface IStorage {
   getGiftRegistriesByMember(memberId: string): Promise<GiftRegistry[]>;
   getGiftRegistriesByTree(treeId: string): Promise<GiftRegistry[]>;
   getGiftRegistriesByUser(userId: string): Promise<GiftRegistry[]>;
+  getActiveRegistriesWithUpcomingDates(): Promise<GiftRegistry[]>;
   createGiftRegistry(registry: InsertGiftRegistry): Promise<GiftRegistry>;
   updateGiftRegistry(id: string, data: Partial<InsertGiftRegistry>): Promise<GiftRegistry | undefined>;
   deleteGiftRegistry(id: string): Promise<boolean>;
@@ -1614,6 +1615,18 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(giftRegistries)
       .where(eq(giftRegistries.createdByUserId, userId))
       .orderBy(desc(giftRegistries.eventDate));
+  }
+
+  async getActiveRegistriesWithUpcomingDates(): Promise<GiftRegistry[]> {
+    const today = new Date();
+    const eightDaysFromNow = new Date(today.getTime() + 8 * 24 * 60 * 60 * 1000);
+    return db.select().from(giftRegistries)
+      .where(and(
+        eq(giftRegistries.isActive, true),
+        isNotNull(giftRegistries.eventDate),
+        gte(giftRegistries.eventDate, today.toISOString().split('T')[0]),
+        lt(giftRegistries.eventDate, eightDaysFromNow.toISOString().split('T')[0])
+      ));
   }
 
   async createGiftRegistry(registry: InsertGiftRegistry): Promise<GiftRegistry> {

@@ -813,3 +813,171 @@ export async function sendCrossTreeMatchNotification(
   `;
   return sendEmail(to, subject, html);
 }
+
+export async function sendRegistryAnnouncementEmail(
+  to: string,
+  recipientName: string,
+  creatorName: string,
+  memberName: string,
+  registryTitle: string,
+  eventType: string,
+  eventDate: string | null,
+  registryId: string,
+  treeName: string
+) {
+  const eventLabel = eventType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const dateStr = eventDate ? new Date(eventDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : null;
+  const subject = `🎁 ${registryTitle} — Gift Registry for ${memberName}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #E11D48 0%, #F59E0B 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .registry-card { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #E11D48; }
+        .button { display: inline-block; background: #E11D48; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>🎁 New Gift Registry</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${recipientName},</p>
+        <p><strong>${creatorName}</strong> has created a gift registry in your <strong>${treeName}</strong> group:</p>
+        <div class="registry-card">
+          <h3 style="margin: 0 0 8px;">${registryTitle}</h3>
+          <p style="margin: 4px 0; color: #6b7280;">For: <strong>${memberName}</strong></p>
+          <p style="margin: 4px 0; color: #6b7280;">Occasion: <strong>${eventLabel}</strong></p>
+          ${dateStr ? `<p style="margin: 4px 0; color: #6b7280;">Date: <strong>${dateStr}</strong></p>` : ''}
+        </div>
+        <p>Browse the wish list to see what gifts are needed and mark items as purchased so everyone stays coordinated.</p>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/registry/${registryId}" class="button">View Wish List</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this because you're a member of the ${treeName} group on FamilyRoots.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
+export async function sendRegistryItemPurchasedEmail(
+  to: string,
+  creatorName: string,
+  buyerName: string,
+  itemName: string,
+  registryTitle: string,
+  registryId: string,
+  remainingCount: number,
+  totalCount: number
+) {
+  const subject = `✅ "${itemName}" was purchased from ${registryTitle}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #059669 0%, #10B981 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .item-card { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #059669; }
+        .progress { background: #e5e7eb; border-radius: 999px; height: 12px; margin: 16px 0; overflow: hidden; }
+        .progress-bar { background: linear-gradient(90deg, #059669, #10B981); height: 100%; border-radius: 999px; }
+        .button { display: inline-block; background: #059669; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>✅ Gift Purchased!</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${creatorName},</p>
+        <p>Great news! <strong>${buyerName}</strong> just marked an item as purchased from your registry:</p>
+        <div class="item-card">
+          <h3 style="margin: 0 0 8px;">${itemName}</h3>
+          <p style="margin: 4px 0; color: #6b7280;">Registry: ${registryTitle}</p>
+        </div>
+        <p style="color: #6b7280; font-size: 14px;">${totalCount - remainingCount} of ${totalCount} items purchased</p>
+        <div class="progress">
+          <div class="progress-bar" style="width: ${Math.round(((totalCount - remainingCount) / totalCount) * 100)}%;"></div>
+        </div>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/registry/${registryId}" class="button">View Registry</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this because you created this gift registry.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
+export async function sendRegistryReminderEmail(
+  to: string,
+  recipientName: string,
+  memberName: string,
+  registryTitle: string,
+  eventDate: string,
+  registryId: string,
+  remainingItems: number,
+  daysUntil: number
+) {
+  const dateStr = new Date(eventDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const urgency = daysUntil <= 1 ? "Tomorrow!" : `${daysUntil} days away`;
+  const subject = `⏰ Reminder: ${registryTitle} — ${urgency}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .reminder-card { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #D97706; }
+        .countdown { font-size: 36px; font-weight: bold; color: #D97706; text-align: center; margin: 16px 0; }
+        .button { display: inline-block; background: #D97706; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>⏰ Gift Registry Reminder</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${recipientName},</p>
+        <p>${memberName}'s special day is coming up soon!</p>
+        <div class="reminder-card">
+          <h3 style="margin: 0 0 8px;">${registryTitle}</h3>
+          <div class="countdown">${urgency}</div>
+          <p style="margin: 4px 0; color: #6b7280;">Date: <strong>${dateStr}</strong></p>
+          ${remainingItems > 0 ? `<p style="margin: 4px 0; color: #6b7280;"><strong>${remainingItems}</strong> item${remainingItems !== 1 ? 's' : ''} still needed</p>` : '<p style="margin: 4px 0; color: #059669; font-weight: bold;">All items have been purchased! 🎉</p>'}
+        </div>
+        ${remainingItems > 0 ? '<p>There\'s still time to pick a gift from the wish list!</p>' : '<p>The wish list is complete — how wonderful!</p>'}
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/registry/${registryId}" class="button">View Wish List</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this as a reminder about an upcoming event in your family group.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
