@@ -16,7 +16,7 @@ import {
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
   AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
-  Users, Scan, Heart, ArrowRight, User, Crown
+  Users, Scan, Heart, ArrowRight, User, Crown, Plus
 } from "lucide-react";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
@@ -45,6 +45,8 @@ interface Product {
   featuredScenario?: string;
   placements?: PrintPlacement[];
   isConnectionShirt?: boolean;
+  isPromoItem?: boolean;
+  bulkHint?: string;
 }
 
 type QRCodeType = 'site' | 'profile' | 'tree';
@@ -112,7 +114,13 @@ function ProductCard({
               Fan Favorite
             </Badge>
           )}
-          {product.isFeatured && !product.isConnectionShirt && (
+          {product.isPromoItem && (
+            <Badge className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+              <Zap className="h-3 w-3 mr-1" />
+              Bulk Promo
+            </Badge>
+          )}
+          {product.isFeatured && !product.isConnectionShirt && !product.isPromoItem && (
             <Badge className="bg-orange-500 text-white">
               <Flame className="h-3 w-3 mr-1" />
               Most Popular
@@ -147,6 +155,12 @@ function ProductCard({
           <p className="text-xs text-muted-foreground mt-1 flex items-start gap-1">
             <Info className="h-3 w-3 mt-0.5 shrink-0" />
             {product.recommendation}
+          </p>
+        )}
+        {product.bulkHint && (
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-start gap-1 font-medium">
+            <Zap className="h-3 w-3 mt-0.5 shrink-0" />
+            {product.bulkHint}
           </p>
         )}
       </CardHeader>
@@ -422,8 +436,49 @@ function ProductCustomizer({
   const [showShipping, setShowShipping] = useState(false);
   const [treePlacement, setTreePlacement] = useState<string>(product.placements?.[0]?.id || "front");
   const [qrPlacement, setQrPlacement] = useState<string>("");
-  const [selectedQRType, setSelectedQRType] = useState<QRCodeType>(product.isConnectionShirt ? 'site' : 'profile');
+  const isQRFirst = !!(product.isConnectionShirt || product.isPromoItem);
+  const [selectedQRType, setSelectedQRType] = useState<QRCodeType>(isQRFirst ? 'site' : 'profile');
   const [selectedQRTreeId, setSelectedQRTreeId] = useState<string>("");
+
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupType, setNewGroupType] = useState<string>("custom");
+
+  const createGroupMutation = useMutation({
+    mutationFn: async () => {
+      if (!newGroupName.trim()) throw new Error("Please enter a group name");
+      return apiRequest("POST", "/api/family-trees", {
+        name: newGroupName.trim(),
+        treeType: newGroupType,
+        treeTypeLabel: newGroupType === 'custom' ? newGroupName.trim() : undefined,
+      });
+    },
+    onSuccess: async (res: any) => {
+      const newTree = await res.json();
+      queryClient.invalidateQueries({ queryKey: ['/api/family-trees'] });
+      setSelectedQRType('tree');
+      setSelectedQRTreeId(newTree.id);
+      setShowCreateGroup(false);
+      setNewGroupName("");
+      toast({ title: "Group Created", description: `"${newTree.name}" is ready. The QR code will link to this group's invite.` });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create group", variant: "destructive" });
+    },
+  });
+
+  const qrTreeIdForInvite = selectedQRType === 'tree' ? selectedQRTreeId : '';
+  const { data: inviteLinkData } = useQuery<{ inviteCode: string }>({
+    queryKey: ['/api/trees', qrTreeIdForInvite, 'invite-link'],
+    queryFn: async () => {
+      const res = await fetch(`/api/trees/${qrTreeIdForInvite}/invite-link`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to get invite link');
+      return res.json();
+    },
+    enabled: !!qrTreeIdForInvite,
+    staleTime: Infinity,
+  });
+  const treeInviteCode = inviteLinkData?.inviteCode;
   const [shippingAddress, setShippingAddress] = useState<ShippingAddressForm>({
     name: "",
     address1: "",
@@ -485,16 +540,19 @@ function ProductCustomizer({
         throw new Error("Please select a product variant");
       }
 
-      if (!product.isConnectionShirt && !selectedTreeId) {
+      if (!isQRFirst && !selectedTreeId) {
         throw new Error("Please select a tree");
       }
 
-      if (product.isConnectionShirt) {
+      if (isQRFirst) {
         if (selectedQRType === 'profile' && !userId) {
           throw new Error("You must be logged in to use the Profile QR code");
         }
         if (selectedQRType === 'tree' && !selectedQRTreeId) {
           throw new Error("Please select which tree or group the QR code should link to");
+        }
+        if (selectedQRType === 'tree' && !treeInviteCode) {
+          throw new Error("Still generating invite link — please wait a moment and try again");
         }
       }
 
@@ -509,10 +567,10 @@ function ProductCustomizer({
       const qrPrintPlacement = qrPlacement ? product.placements?.find(p => p.id === qrPlacement) : null;
 
       let qrUrl: string | undefined;
-      if (product.isConnectionShirt) {
+      if (isQRFirst) {
         if (selectedQRType === 'site') qrUrl = baseUrl;
         else if (selectedQRType === 'profile' && userId) qrUrl = `${baseUrl}/profile/${userId}`;
-        else if (selectedQRType === 'tree' && selectedQRTreeId) qrUrl = `${baseUrl}/join/${selectedQRTreeId}`;
+        else if (selectedQRType === 'tree' && treeInviteCode) qrUrl = `${baseUrl}/join/${treeInviteCode}`;
         else qrUrl = baseUrl;
       } else {
         qrUrl = includeQR && userId ? `${baseUrl}/profile/${userId}` : undefined;
@@ -525,7 +583,7 @@ function ProductCustomizer({
         productName: product.name,
         variantName: selectedVariant.name,
         quantity,
-        includeQR: product.isConnectionShirt ? true : includeQR,
+        includeQR: isQRFirst ? true : includeQR,
         qrUrl,
         treeImageUrl: treeImageUrl || undefined,
         treePlacement: treePrintPlacement?.printfulType || 'default',
@@ -601,15 +659,15 @@ function ProductCustomizer({
                 </div>
               </div>
             )}
-            {((product.isConnectionShirt) || (includeQR && userId)) && (() => {
+            {(isQRFirst || (includeQR && userId)) && (() => {
               const baseUrl = `${window.location.protocol}//${window.location.host}`;
-              const qrValue = product.isConnectionShirt
+              const qrValue = isQRFirst
                 ? selectedQRType === 'site' ? baseUrl
                   : selectedQRType === 'profile' && userId ? `${baseUrl}/profile/${userId}`
-                  : selectedQRType === 'tree' && selectedQRTreeId ? `${baseUrl}/join/${selectedQRTreeId}`
+                  : selectedQRType === 'tree' && treeInviteCode ? `${baseUrl}/join/${treeInviteCode}`
                   : baseUrl
                 : `${baseUrl}/profile/${userId}`;
-              const qrLabel = product.isConnectionShirt
+              const qrLabel = isQRFirst
                 ? selectedQRType === 'site' ? 'Scan to sign up'
                   : selectedQRType === 'profile' ? 'Scan to connect'
                   : 'Scan to join'
@@ -677,12 +735,29 @@ function ProductCustomizer({
 
         <div className="space-y-4">
           <div>
-            <h3 className="font-semibold text-xl">{product.name}</h3>
+            <h3 className="font-semibold text-xl flex items-center gap-2">
+              {product.name}
+              {product.isPromoItem && (
+                <Badge className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[10px]">
+                  <Zap className="h-3 w-3 mr-0.5" />
+                  Bulk Promo
+                </Badge>
+              )}
+            </h3>
             <p className="text-muted-foreground">{product.description}</p>
           </div>
 
+          {product.bulkHint && (
+            <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
+              <p className="text-sm text-emerald-700 dark:text-emerald-300 flex items-start gap-2">
+                <Zap className="h-4 w-4 mt-0.5 shrink-0" />
+                {product.bulkHint}
+              </p>
+            </div>
+          )}
+
           <div className="space-y-3">
-            {!product.isConnectionShirt && (
+            {!isQRFirst && (
             <div>
               <Label htmlFor="tree-select">Select Family Tree</Label>
               <Select value={selectedTreeId} onValueChange={setSelectedTreeId}>
@@ -777,7 +852,7 @@ function ProductCustomizer({
               />
             </div>
 
-            {!product.isConnectionShirt && product.placements && product.placements.length > 1 && (
+            {!isQRFirst && product.placements && product.placements.length > 1 && (
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <TreeDeciduous className="h-4 w-4" />
@@ -806,7 +881,7 @@ function ProductCustomizer({
               </div>
             )}
 
-            {product.isConnectionShirt ? (
+            {isQRFirst ? (
               <div className="space-y-3">
                 <Label className="flex items-center gap-1.5">
                   <QrCode className="h-4 w-4 text-primary" />
@@ -877,6 +952,76 @@ function ProductCustomizer({
                       </button>
                     );
                   })}
+
+                  {!showCreateGroup ? (
+                    <button
+                      onClick={() => setShowCreateGroup(true)}
+                      className="text-left p-3 rounded-lg border border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 transition-all"
+                      data-testid="qr-type-create-group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary">
+                          <Plus className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-primary">Create a New Group</span>
+                          <p className="text-xs text-muted-foreground">Set up a blank group now, get the QR code, add members later</p>
+                        </div>
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="p-3 rounded-lg border border-primary bg-primary/5 space-y-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Plus className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">New Group</span>
+                      </div>
+                      <div>
+                        <Input
+                          placeholder="e.g. Mrs. Johnson's 5th Grade, Soccer Team 2026"
+                          value={newGroupName}
+                          onChange={(e) => setNewGroupName(e.target.value)}
+                          data-testid="input-new-group-name"
+                        />
+                      </div>
+                      <div>
+                        <Select value={newGroupType} onValueChange={setNewGroupType}>
+                          <SelectTrigger data-testid="select-new-group-type">
+                            <SelectValue placeholder="Group type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="custom">Custom Group</SelectItem>
+                            <SelectItem value="sports">Sports Team</SelectItem>
+                            <SelectItem value="church">Church / Faith</SelectItem>
+                            <SelectItem value="fraternity">Fraternity / Sorority</SelectItem>
+                            <SelectItem value="friends">Friend Circle</SelectItem>
+                            <SelectItem value="professional">Professional Network</SelectItem>
+                            <SelectItem value="family">Family</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => createGroupMutation.mutate()}
+                          disabled={!newGroupName.trim() || createGroupMutation.isPending}
+                          data-testid="button-create-group"
+                        >
+                          {createGroupMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                          Create & Use
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => { setShowCreateGroup(false); setNewGroupName(""); }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Creates an empty group instantly. Hand out the QR stickers — when people scan and sign up, they automatically join this group.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -900,7 +1045,7 @@ function ProductCustomizer({
               </div>
             )}
 
-            {((includeQR && !product.isConnectionShirt) || product.isConnectionShirt) && product.placements && product.placements.length > 1 && (
+            {((includeQR && !isQRFirst) || isQRFirst) && product.placements && product.placements.length > 1 && (
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <QrCode className="h-4 w-4" />
@@ -952,7 +1097,7 @@ function ProductCustomizer({
                 className="w-full"
                 size="lg"
                 onClick={() => setShowShipping(true)}
-                disabled={(!product.isConnectionShirt && !selectedTreeId) || !selectedVariantId}
+                disabled={(!isQRFirst && !selectedTreeId) || !selectedVariantId}
                 data-testid="button-continue-shipping"
               >
                 Continue to Shipping

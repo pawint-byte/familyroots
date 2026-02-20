@@ -1299,6 +1299,50 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/trees/:treeId/invite-link", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Only owners can get invite links" });
+        }
+      }
+
+      const existing = await storage.getInvitationsByTree(treeId);
+      const permanentLink = existing.find(
+        (inv) => inv.isActive && !inv.expiresAt && !inv.maxUses
+      );
+
+      if (permanentLink) {
+        return res.json({ inviteCode: permanentLink.inviteCode });
+      }
+
+      const inviteCode = crypto.randomBytes(16).toString("hex");
+      await storage.createInvitation({
+        treeId,
+        inviteCode,
+        role: "viewer",
+        createdBy: userId,
+        expiresAt: null,
+        maxUses: null,
+        isActive: true,
+      });
+
+      res.json({ inviteCode });
+    } catch (error) {
+      console.error("Error getting invite link:", error);
+      res.status(500).json({ message: "Failed to get invite link" });
+    }
+  });
+
   // Get all invitations for a tree
   app.get("/api/trees/:treeId/invitations", isAuthenticated, async (req: any, res) => {
     try {
