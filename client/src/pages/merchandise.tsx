@@ -1252,6 +1252,7 @@ function ProductCustomizer({
 function OrderCard({ order }: { order: MerchandiseOrder }) {
   const { toast } = useToast();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const handleCheckout = async () => {
     setIsCheckingOut(true);
@@ -1271,14 +1272,32 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
     }
   };
 
+  const handleVerifyPayment = async () => {
+    setIsVerifying(true);
+    try {
+      const response = await apiRequest("POST", `/api/merchandise/orders/${order.id}/confirm-payment`);
+      const data = await response.json();
+      if (data.status === 'paid' || data.status === 'submitted') {
+        toast({ title: "Payment Verified", description: "Your payment has been confirmed." });
+      } else {
+        toast({ title: "Payment Not Found", description: "We couldn't verify payment yet. Try completing checkout again.", variant: "destructive" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
+    } catch (error: any) {
+      toast({ title: "Verification Error", description: error.message || "Failed to verify payment", variant: "destructive" });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   return (
     <Card data-testid={`card-order-${order.id}`}>
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start gap-2 flex-wrap">
           <div>
-            <CardTitle className="text-lg">{order.productName}</CardTitle>
-            {order.variantName && (
-              <CardDescription>{order.variantName}</CardDescription>
+            <CardTitle className="text-lg">{order.variantName || order.productName}</CardTitle>
+            {order.variantName && order.productName !== order.variantName && (
+              <CardDescription>{order.productName}</CardDescription>
             )}
           </div>
           <Badge variant={
@@ -1306,21 +1325,37 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
         </div>
         
         {order.status === "pending" && (
-          <Button 
-            onClick={handleCheckout} 
-            disabled={isCheckingOut}
-            className="w-full"
-            data-testid={`button-checkout-${order.id}`}
-          >
-            {isCheckingOut ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              "Complete Checkout"
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleCheckout} 
+              disabled={isCheckingOut || isVerifying}
+              className="flex-1"
+              data-testid={`button-checkout-${order.id}`}
+            >
+              {isCheckingOut ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Complete Checkout"
+              )}
+            </Button>
+            {order.stripePaymentIntentId && (
+              <Button 
+                variant="outline"
+                onClick={handleVerifyPayment} 
+                disabled={isVerifying || isCheckingOut}
+                data-testid={`button-verify-${order.id}`}
+              >
+                {isVerifying ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Verify Payment"
+                )}
+              </Button>
             )}
-          </Button>
+          </div>
         )}
         
         {order.trackingNumber && (
@@ -1437,9 +1472,6 @@ export default function MerchandisePage() {
     if (checkoutStatus === "success" && orderId) {
       setShowConfirmation(true);
       setConfirmedOrderId(orderId);
-      if (user) {
-        confirmPaymentMutation.mutate(orderId);
-      }
       window.history.replaceState({}, '', '/merchandise');
     } else if (checkoutStatus === "cancel") {
       toast({
@@ -1450,6 +1482,13 @@ export default function MerchandisePage() {
       window.history.replaceState({}, '', '/merchandise');
     }
   }, [checkoutStatus, orderId]);
+
+  useEffect(() => {
+    if (user && confirmedOrderId) {
+      confirmPaymentMutation.mutate(confirmedOrderId);
+      setConfirmedOrderId(null);
+    }
+  }, [user, confirmedOrderId]);
 
   if (authLoading) {
     return (

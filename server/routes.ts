@@ -5832,6 +5832,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid product variant or unable to fetch price" });
       }
 
+      // Fetch actual product and variant names from Printful (don't trust frontend)
+      const printfulProduct = await printfulService.getProduct(productId);
+      const printfulVariant = await printfulService.getVariant(productId, variantId);
+      const verifiedProductName = printfulProduct ? (printfulProduct.model || printfulProduct.type_name || productName) : productName;
+      const verifiedVariantName = printfulVariant?.name || variantName;
+
       // Calculate subtotal from verified Printful price
       const subtotal = variantPrice * orderQuantity;
 
@@ -5881,8 +5887,8 @@ export async function registerRoutes(
         treeId,
         productId,
         variantId,
-        productName,
-        variantName: variantName || null,
+        productName: verifiedProductName,
+        variantName: verifiedVariantName || variantName || null,
         quantity: orderQuantity,
         treeImageUrl: finalTreeImageUrl,
         subtotal,
@@ -6048,10 +6054,11 @@ export async function registerRoutes(
       const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
       
       // Create a checkout session for one-time payment
+      const displayName = order.variantName || order.productName;
       const session = await stripeService.createMerchandiseCheckoutSession(
         customerId,
-        order.productName,
-        `Custom ${order.productName} with your family tree`,
+        displayName,
+        `Custom ${displayName} with your family tree`,
         order.totalAmount,
         order.quantity,
         `${baseUrl}/merchandise?checkout=success&order=${order.id}`,
