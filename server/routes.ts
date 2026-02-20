@@ -8040,6 +8040,123 @@ export async function registerRoutes(
     }
   }
 
+  // Fetch product metadata from a URL (OG tags, meta tags)
+  app.get("/api/product-metadata", isAuthenticated, async (req: any, res) => {
+    try {
+      const url = req.query.url as string;
+      if (!url) {
+        return res.status(400).json({ message: "URL is required" });
+      }
+
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return res.status(400).json({ message: "Invalid URL" });
+      }
+
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return res.status(400).json({ message: "Only HTTP/HTTPS URLs are supported" });
+      }
+
+      const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254', '[::1]'];
+      if (blockedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith('.local'))) {
+        return res.status(400).json({ message: "URL not allowed" });
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; FamilyRoots/1.0; +https://familyroots.family)',
+            'Accept': 'text/html,application/xhtml+xml',
+          },
+          redirect: 'follow',
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          return res.status(422).json({ message: "Could not fetch page" });
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+          return res.status(422).json({ message: "URL does not point to a web page" });
+        }
+
+        const html = await response.text();
+        const first10k = html.substring(0, 30000);
+
+        const getMetaContent = (nameOrProperty: string): string | null => {
+          const patterns = [
+            new RegExp(`<meta[^>]+(?:property|name)=["']${nameOrProperty}["'][^>]+content=["']([^"']+)["']`, 'i'),
+            new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${nameOrProperty}["']`, 'i'),
+          ];
+          for (const pattern of patterns) {
+            const match = first10k.match(pattern);
+            if (match) return match[1].trim();
+          }
+          return null;
+        };
+
+        const titleMatch = first10k.match(/<title[^>]*>([^<]+)<\/title>/i);
+
+        const title = getMetaContent('og:title') || getMetaContent('twitter:title') || (titleMatch ? titleMatch[1].trim() : null);
+        const image = getMetaContent('og:image') || getMetaContent('twitter:image');
+        const description = getMetaContent('og:description') || getMetaContent('description') || getMetaContent('twitter:description');
+
+        let price: number | null = null;
+        const priceStr = getMetaContent('product:price:amount') || getMetaContent('og:price:amount');
+        if (priceStr) {
+          const parsed = parseFloat(priceStr);
+          if (!isNaN(parsed)) price = parsed;
+        }
+        if (!price) {
+          const priceMatch = first10k.match(/\"price\"\s*:\s*[\"']?([\d.]+)/);
+          if (priceMatch) {
+            const parsed = parseFloat(priceMatch[1]);
+            if (!isNaN(parsed) && parsed > 0 && parsed < 100000) price = parsed;
+          }
+        }
+
+        const siteName = getMetaContent('og:site_name');
+
+        res.json({
+          title: title ? decodeHTMLEntities(title) : null,
+          image,
+          description: description ? decodeHTMLEntities(description) : null,
+          price,
+          siteName: siteName ? decodeHTMLEntities(siteName) : null,
+          url,
+        });
+      } catch (fetchError: any) {
+        clearTimeout(timeout);
+        if (fetchError.name === 'AbortError') {
+          return res.status(408).json({ message: "Request timed out" });
+        }
+        return res.status(422).json({ message: "Could not fetch page" });
+      }
+    } catch (error) {
+      console.error("Error fetching product metadata:", error);
+      res.status(500).json({ message: "Failed to fetch product metadata" });
+    }
+  });
+
+  function decodeHTMLEntities(text: string): string {
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, '/')
+      .replace(/&nbsp;/g, ' ');
+  }
+
   // Get all registries for a tree
   app.get("/api/trees/:treeId/registries", isAuthenticated, async (req: any, res) => {
     try {
