@@ -62,6 +62,7 @@ PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for sc
 - **Automatic Maintenance Mode**: User-friendly maintenance page displayed during server unavailability with auto-retry.
 - **My Family Connections**: Dashboard section displaying approved user-to-user connections with relationship badges.
 - **Single Source of Truth (Profile Sync)**: Claimed users manage their canonical profile, syncing personal data across all claimed profiles in family trees.
+- **Membership Badge**: Downloadable/shareable digital membership card at /my-badge showing user stats (trees, members, invites), tier level (Root Starter through Legacy Builder), and embedded referral QR code. Uses html-to-image for PNG export and Web Share API for native sharing. Tiers based on total member count across all trees.
 
 ## External Dependencies
 

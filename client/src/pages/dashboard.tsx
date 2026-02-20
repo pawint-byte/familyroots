@@ -500,6 +500,17 @@ export default function Dashboard() {
                 <p>Share your profile QR code at family reunions</p>
               </TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/my-badge")} className="hidden md:flex gap-1" data-testid="link-my-badge">
+                  <Award className="h-4 w-4" />
+                  <span className="hidden lg:inline">My Badge</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Download and share your membership badge</p>
+              </TooltipContent>
+            </Tooltip>
             <Button variant="ghost" size="sm" onClick={() => navigate("/share")} className="hidden md:flex gap-1" data-testid="link-share">
               <QrCode className="h-4 w-4" />
               <span className="hidden lg:inline">Share</span>
@@ -599,6 +610,14 @@ export default function Dashboard() {
                 >
                   <UserCircle className="h-4 w-4" />
                   <span>My QR Code</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 sm:hidden"
+                  onClick={() => navigate("/my-badge")}
+                  data-testid="menu-my-badge"
+                >
+                  <Award className="h-4 w-4" />
+                  <span>My Badge</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-center gap-2 sm:hidden"

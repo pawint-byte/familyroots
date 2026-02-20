@@ -38,6 +38,7 @@ import FamilySearchImport from "@/pages/familysearch-import";
 import GiftRegistry from "@/pages/gift-registry";
 import RegistryDetail from "@/pages/registry-detail";
 import NetworkOverview from "@/pages/network-overview";
+import MembershipBadge from "@/pages/membership-badge";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -86,6 +87,7 @@ function Router() {
       <Route path="/tree/:treeId/registries" component={GiftRegistry} />
       <Route path="/registry/:registryId" component={RegistryDetail} />
       <Route path="/network-overview" component={NetworkOverview} />
+      <Route path="/my-badge" component={MembershipBadge} />
       <Route component={NotFound} />
     </Switch>
   );

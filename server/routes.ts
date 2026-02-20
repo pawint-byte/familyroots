@@ -2115,8 +2115,8 @@ export async function registerRoutes(
         treeNames.push(tree.name);
       }
 
-      const referrals = await storage.getUserReferrals(userId);
-      const completedReferrals = referrals.filter(r => r.completedAt).length;
+      const referrals = await storage.getReferralsByUser(userId);
+      const completedReferrals = referrals.filter((r: any) => r.status === "completed").length;
 
       res.json({
         treeCount: allTrees.length,
