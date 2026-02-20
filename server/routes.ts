@@ -282,20 +282,25 @@ export async function registerRoutes(
       const tree = await storage.createTree(data);
 
       // Auto-add the creator as the first member (root) of the tree
+      const profileMode = req.body.creatorProfileMode || 'full';
       if (user) {
         try {
-          const creatorMember = await storage.createMember({
+          const memberData: any = {
             treeId: tree.id,
             firstName: user.firstName || 'Me',
             lastName: user.lastName || null,
             email: user.email || null,
-            photoUrl: user.photoUrl || null,
             claimedByUserId: userId,
             claimedAt: new Date(),
             isLiving: true,
-          });
+          };
+          if (profileMode === 'full') {
+            memberData.photoUrl = user.photoUrl || null;
+            memberData.bio = user.bio || null;
+          }
+          const creatorMember = await storage.createMember(memberData);
           await storage.updateTree(tree.id, { rootMemberId: creatorMember.id });
-          console.log(`Auto-added creator ${user.firstName || userId} as root member of tree "${tree.name}"`);
+          console.log(`Auto-added creator ${user.firstName || userId} as root member of tree "${tree.name}" (profile: ${profileMode})`);
         } catch (memberError) {
           console.error("Failed to auto-add creator as member (non-fatal):", memberError);
         }

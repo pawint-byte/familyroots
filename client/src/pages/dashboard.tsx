@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [customTypeLabel, setCustomTypeLabel] = useState("");
   const [customRelTypes, setCustomRelTypes] = useState<string[]>([]);
   const [customRelTypeInput, setCustomRelTypeInput] = useState("");
+  const [creatorProfileMode, setCreatorProfileMode] = useState<"full" | "basic">("full");
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [renameTreeId, setRenameTreeId] = useState<string | null>(null);
   const [renameTreeName, setRenameTreeName] = useState("");
@@ -144,7 +145,7 @@ export default function Dashboard() {
   });
 
   const createTreeMutation = useMutation({
-    mutationFn: async (data: { name: string; description?: string; privacy: "private" | "public"; treeType?: TreeType; treeTypeLabel?: string; customRelationshipTypes?: string[] }) => {
+    mutationFn: async (data: { name: string; description?: string; privacy: "private" | "public"; treeType?: TreeType; treeTypeLabel?: string; customRelationshipTypes?: string[]; creatorProfileMode?: "full" | "basic" }) => {
       const res = await fetch("/api/trees", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,6 +171,7 @@ export default function Dashboard() {
       setCustomTypeLabel("");
       setCustomRelTypes([]);
       setCustomRelTypeInput("");
+      setCreatorProfileMode("full");
       trackTreeCreation();
       toast({
         title: "Success",
@@ -212,6 +214,7 @@ export default function Dashboard() {
       description: newTreeDescription || undefined,
       privacy: newTreePrivacy,
       treeType: newTreeType,
+      creatorProfileMode,
       ...(newTreeType === "custom" ? {
         treeTypeLabel: customTypeLabel || undefined,
       } : {}),
@@ -949,6 +952,37 @@ export default function Dashboard() {
                       <SelectItem value="public">Public - Anyone with the link</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Add yourself as the first member</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCreatorProfileMode("full")}
+                      className={`p-3 rounded-lg border text-left text-sm transition-colors ${
+                        creatorProfileMode === "full" 
+                          ? "border-primary bg-primary/10 text-primary" 
+                          : "border-border hover:border-muted-foreground/50"
+                      }`}
+                      data-testid="button-profile-full"
+                    >
+                      <span className="font-medium block">Full profile</span>
+                      <span className="text-xs text-muted-foreground">Name, email, photo & all details</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreatorProfileMode("basic")}
+                      className={`p-3 rounded-lg border text-left text-sm transition-colors ${
+                        creatorProfileMode === "basic" 
+                          ? "border-primary bg-primary/10 text-primary" 
+                          : "border-border hover:border-muted-foreground/50"
+                      }`}
+                      data-testid="button-profile-basic"
+                    >
+                      <span className="font-medium block">Just the basics</span>
+                      <span className="text-xs text-muted-foreground">Name & email only, fill in the rest later</span>
+                    </button>
+                  </div>
                 </div>
                 <Button 
                   className="w-full" 
