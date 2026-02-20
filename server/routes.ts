@@ -8066,15 +8066,22 @@ export async function registerRoutes(
         return res.status(400).json({ message: "URL not allowed" });
       }
 
+      const isAmazon = parsed.hostname.includes('amazon.com') || parsed.hostname.includes('amazon.co') || parsed.hostname.includes('amzn.to') || parsed.hostname.includes('amzn.com');
+      const isEtsy = parsed.hostname.includes('etsy.com');
+
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), 10000);
 
       try {
         const response = await fetch(url, {
           signal: controller.signal,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; FamilyRoots/1.0; +https://familyroots.family)',
-            'Accept': 'text/html,application/xhtml+xml',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'identity',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
           },
           redirect: 'follow',
         });
@@ -8090,7 +8097,7 @@ export async function registerRoutes(
         }
 
         const html = await response.text();
-        const first10k = html.substring(0, 30000);
+        const searchArea = html.substring(0, 80000);
 
         const getMetaContent = (nameOrProperty: string): string | null => {
           const patterns = [
@@ -8098,17 +8105,43 @@ export async function registerRoutes(
             new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${nameOrProperty}["']`, 'i'),
           ];
           for (const pattern of patterns) {
-            const match = first10k.match(pattern);
+            const match = searchArea.match(pattern);
             if (match) return match[1].trim();
           }
           return null;
         };
 
-        const titleMatch = first10k.match(/<title[^>]*>([^<]+)<\/title>/i);
+        const titleMatch = searchArea.match(/<title[^>]*>([^<]+)<\/title>/i);
 
-        const title = getMetaContent('og:title') || getMetaContent('twitter:title') || (titleMatch ? titleMatch[1].trim() : null);
-        const image = getMetaContent('og:image') || getMetaContent('twitter:image');
-        const description = getMetaContent('og:description') || getMetaContent('description') || getMetaContent('twitter:description');
+        let title = getMetaContent('og:title') || getMetaContent('twitter:title') || (titleMatch ? titleMatch[1].trim() : null);
+        let image = getMetaContent('og:image') || getMetaContent('twitter:image');
+        let description = getMetaContent('og:description') || getMetaContent('description') || getMetaContent('twitter:description');
+
+        if (isAmazon) {
+          if (!title) {
+            const spanTitle = searchArea.match(/id="productTitle"[^>]*>\s*([^<]+)/i);
+            if (spanTitle) title = spanTitle[1].trim();
+          }
+          if (!title) {
+            const titleAlt = searchArea.match(/id="title"[^>]*>[\s\S]*?<span[^>]*>\s*([^<]+)/i);
+            if (titleAlt) title = titleAlt[1].trim();
+          }
+          if (!image) {
+            const landingImg = searchArea.match(/id="landingImage"[^>]+src="([^"]+)"/i);
+            if (landingImg) image = landingImg[1];
+          }
+          if (!image) {
+            const imgBlock = searchArea.match(/"hiRes"\s*:\s*"([^"]+)"/);
+            if (imgBlock) image = imgBlock[1];
+          }
+          if (!image) {
+            const mainImg = searchArea.match(/"large"\s*:\s*"([^"]+)"/);
+            if (mainImg) image = mainImg[1];
+          }
+          if (title) {
+            title = title.replace(/Amazon\.com\s*:\s*/i, '').replace(/\s*-\s*Amazon\.com$/i, '').trim();
+          }
+        }
 
         let price: number | null = null;
         const priceStr = getMetaContent('product:price:amount') || getMetaContent('og:price:amount');
@@ -8117,14 +8150,31 @@ export async function registerRoutes(
           if (!isNaN(parsed)) price = parsed;
         }
         if (!price) {
-          const priceMatch = first10k.match(/\"price\"\s*:\s*[\"']?([\d.]+)/);
+          const priceMatch = searchArea.match(/\"price\"\s*:\s*[\"']?([\d.]+)/);
           if (priceMatch) {
             const parsed = parseFloat(priceMatch[1]);
             if (!isNaN(parsed) && parsed > 0 && parsed < 100000) price = parsed;
           }
         }
+        if (!price && isAmazon) {
+          const wholePart = searchArea.match(/class="a-price-whole"[^>]*>(\d[\d,]*)/);
+          const fracPart = searchArea.match(/class="a-price-fraction"[^>]*>(\d+)/);
+          if (wholePart) {
+            const whole = wholePart[1].replace(/,/g, '');
+            const frac = fracPart ? fracPart[1] : '00';
+            const p = parseFloat(`${whole}.${frac}`);
+            if (!isNaN(p) && p > 0 && p < 100000) price = p;
+          }
+        }
+        if (!price) {
+          const genericPrice = searchArea.match(/\$\s*([\d,]+\.?\d{0,2})/);
+          if (genericPrice) {
+            const p = parseFloat(genericPrice[1].replace(/,/g, ''));
+            if (!isNaN(p) && p > 0 && p < 100000) price = p;
+          }
+        }
 
-        const siteName = getMetaContent('og:site_name');
+        const siteName = getMetaContent('og:site_name') || (isAmazon ? 'Amazon' : isEtsy ? 'Etsy' : null);
 
         res.json({
           title: title ? decodeHTMLEntities(title) : null,

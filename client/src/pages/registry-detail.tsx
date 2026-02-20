@@ -60,6 +60,7 @@ export default function RegistryDetailPage() {
   const [showItemFields, setShowItemFields] = useState(false);
   const [sessionAddedCount, setSessionAddedCount] = useState(0);
   const [addItemTab, setAddItemTab] = useState<string>("search");
+  const [buyConfirmItem, setBuyConfirmItem] = useState<EnrichedItem | null>(null);
 
   const { data: registry, isLoading } = useQuery<EnrichedRegistry>({
     queryKey: ["/api/registries", registryId],
@@ -157,17 +158,25 @@ export default function RegistryDetailPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.title && !itemName) setItemName(data.title);
-        if (data.image && !itemImageUrl) setItemImageUrl(data.image);
-        if (data.price && !itemPrice) setItemPrice(String(data.price));
+        let fieldsLoaded = 0;
+        if (data.title && !itemName) { setItemName(data.title); fieldsLoaded++; }
+        if (data.image && !itemImageUrl) { setItemImageUrl(data.image); fieldsLoaded++; }
+        if (data.price && !itemPrice) { setItemPrice(String(data.price)); fieldsLoaded++; }
         if (data.description && !itemDescription) {
           const desc = data.description.length > 200 ? data.description.substring(0, 200) + '...' : data.description;
           setItemDescription(desc);
+          fieldsLoaded++;
         }
-        toast({ title: "Product details loaded", description: data.title ? `Found: ${data.title.substring(0, 60)}` : "Some details were fetched." });
+        if (fieldsLoaded > 0) {
+          toast({ title: "Product details loaded", description: data.title ? `Found: ${data.title.substring(0, 60)}` : "Some details were fetched." });
+        } else {
+          toast({ title: "Couldn't load details", description: "This store may block auto-fill. Please enter the item name and price manually below.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Couldn't load details", description: "This store may block auto-fill. Please enter the item name and price manually below.", variant: "destructive" });
       }
     } catch {
-      // Silent fail - user can still fill manually
+      toast({ title: "Couldn't load details", description: "Please enter the item name and price manually below.", variant: "destructive" });
     } finally {
       setIsFetchingMeta(false);
       setShowItemFields(true);
@@ -649,9 +658,33 @@ export default function RegistryDetailPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {item.affiliateUrl && !isPurchased && (
+                        {!isPurchased && registry.isActive && item.affiliateUrl && (
                           <Button
+                            size="sm"
+                            onClick={() => {
+                              window.open(item.affiliateUrl!, '_blank');
+                              setBuyConfirmItem(item);
+                            }}
+                            data-testid={`button-buy-item-${item.id}`}
+                          >
+                            <ShoppingCart className="h-4 w-4 mr-1" />
+                            Buy This Gift
+                          </Button>
+                        )}
+                        {!isPurchased && registry.isActive && !item.affiliateUrl && (
+                          <Button
+                            size="sm"
                             variant="outline"
+                            onClick={() => setBuyConfirmItem(item)}
+                            data-testid={`button-purchase-item-${item.id}`}
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            I Bought This
+                          </Button>
+                        )}
+                        {isPurchased && item.affiliateUrl && (
+                          <Button
+                            variant="ghost"
                             size="sm"
                             asChild
                             data-testid={`button-view-item-${item.id}`}
@@ -660,17 +693,6 @@ export default function RegistryDetailPage() {
                               <ExternalLink className="h-4 w-4 mr-1" />
                               View
                             </a>
-                          </Button>
-                        )}
-                        {!isPurchased && registry.isActive && (
-                          <Button
-                            size="sm"
-                            onClick={() => purchaseItemMutation.mutate({ itemId: item.id, quantity: 1 })}
-                            disabled={purchaseItemMutation.isPending}
-                            data-testid={`button-purchase-item-${item.id}`}
-                          >
-                            <ShoppingCart className="h-4 w-4 mr-1" />
-                            I'm getting this
                           </Button>
                         )}
                         {registry.isOwner && (
@@ -700,17 +722,101 @@ export default function RegistryDetailPage() {
           <CardHeader>
             <CardTitle className="text-lg">How It Works</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p>
-              <strong>Adding items:</strong> Click "Add Item", type what you're looking for, then click a store to search. 
-              Once you find the item, copy its link, paste it back here, and the name, image, and price will fill in automatically.
-            </p>
-            <p>
-              <strong>Affiliate links:</strong> When someone clicks "View" to purchase an item, the link may include affiliate tracking. 
-              This helps support FamilyRoots at no extra cost. Thank you!
-            </p>
+          <CardContent className="text-sm text-muted-foreground space-y-3">
+            {registry.isOwner ? (
+              <>
+                <p>
+                  <strong>Adding items:</strong> Click "Add Item", type what you're looking for, then click a store to search.
+                  Once you find the item, copy its link, paste it back here, and the details will auto-fill.
+                </p>
+                <p>
+                  <strong>Sharing your list:</strong> Share your registry link with family and friends.
+                  When they click "Buy This Gift", they'll be taken to the store to purchase it, and then asked to mark it as bought so others know not to buy it again.
+                </p>
+                <p>
+                  <strong>Affiliate earnings:</strong> When someone buys through your registry links on Amazon or Etsy, 
+                  FamilyRoots earns a small commission at no extra cost to the buyer. This helps keep the platform running.
+                  Your Amazon affiliate tag (<code>pawint-20</code>) is automatically added to all Amazon links.
+                </p>
+                <p>
+                  <strong>Tracking purchases:</strong> You can see which items have been marked as purchased in real-time.
+                  The progress bar at the top shows how many items have been claimed.
+                </p>
+              </>
+            ) : (
+              <>
+                <p>
+                  <strong>Buying a gift:</strong> Click "Buy This Gift" to open the item on the store's website.
+                  After you complete your purchase, come back here and confirm you bought it so 
+                  nobody else gets the same thing.
+                </p>
+                <p>
+                  <strong>Already bought it elsewhere?</strong> If you already purchased the item, just click 
+                  "I Bought This" to let everyone know it's taken care of.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
+
+        <Dialog open={!!buyConfirmItem} onOpenChange={(open) => !open && setBuyConfirmItem(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                Did you purchase this item?
+              </DialogTitle>
+            </DialogHeader>
+            {buyConfirmItem && (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                  {buyConfirmItem.imageUrl && (
+                    <img src={buyConfirmItem.imageUrl} alt="" className="w-12 h-12 object-cover rounded border" 
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm line-clamp-2">{buyConfirmItem.name}</p>
+                    {buyConfirmItem.price && (
+                      <p className="text-sm text-muted-foreground">{formatPrice(buyConfirmItem.price)}</p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Mark this item as purchased so other family members know not to buy it again.
+                </p>
+                <DialogFooter className="flex gap-2 sm:gap-0">
+                  <Button
+                    variant="outline"
+                    onClick={() => setBuyConfirmItem(null)}
+                    data-testid="button-not-yet"
+                  >
+                    Not Yet
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      purchaseItemMutation.mutate(
+                        { itemId: buyConfirmItem.id, quantity: 1 },
+                        {
+                          onSuccess: () => {
+                            setBuyConfirmItem(null);
+                          },
+                        }
+                      );
+                    }}
+                    disabled={purchaseItemMutation.isPending}
+                    data-testid="button-confirm-purchased"
+                  >
+                    {purchaseItemMutation.isPending ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Confirming...</>
+                    ) : (
+                      <><Check className="h-4 w-4 mr-2" />Yes, I Bought It</>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );
