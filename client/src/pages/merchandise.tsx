@@ -380,17 +380,19 @@ function ProductCustomizer({
   onClose,
   onOrderCreated,
   userId,
+  prefill,
 }: {
   product: Product;
   trees: FamilyTree[];
   onClose: () => void;
   onOrderCreated: () => void;
   userId?: string;
+  prefill?: { treeId?: string; includeQR?: boolean; skipToShipping?: boolean };
 }) {
-  const [selectedTreeId, setSelectedTreeId] = useState<string>("");
+  const [selectedTreeId, setSelectedTreeId] = useState<string>(prefill?.treeId || "");
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [includeQR, setIncludeQR] = useState(false);
+  const [includeQR, setIncludeQR] = useState(prefill?.includeQR ?? false);
   const [showShipping, setShowShipping] = useState(false);
   const [shippingAddress, setShippingAddress] = useState<ShippingAddressForm>({
     name: "",
@@ -414,6 +416,18 @@ function ProductCustomizer({
     queryKey: ["/api/trees", selectedTreeId],
     enabled: !!selectedTreeId,
   });
+
+  useEffect(() => {
+    if (prefill && !selectedVariantId && variants.length > 0) {
+      const firstInStock = variants.find(v => v.in_stock);
+      if (firstInStock) {
+        setSelectedVariantId(firstInStock.id);
+        if (prefill.skipToShipping && selectedTreeId) {
+          setShowShipping(true);
+        }
+      }
+    }
+  }, [variants, prefill, selectedVariantId, selectedTreeId]);
 
   const selectedVariant = variants.find(v => v.id === selectedVariantId);
   const selectedTree = trees.find(t => t.id === selectedTreeId);
@@ -982,6 +996,8 @@ export default function MerchandisePage() {
   const [, navigate] = useLocation();
   const { user, isLoading: authLoading } = useAuth();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productPrefill, setProductPrefill] = useState<{ treeId?: string; includeQR?: boolean; skipToShipping?: boolean } | undefined>();
+  const [dialogKey, setDialogKey] = useState(0);
   const [activeTab, setActiveTab] = useState("products");
   const { toast } = useToast();
 
@@ -1006,10 +1022,16 @@ export default function MerchandisePage() {
     enabled: !!user,
   });
 
-  const firstTreeId = trees.length > 0 ? trees[0].id : null;
+  const firstTree = trees.length > 0 ? trees[0] : null;
+  const firstTreeId = firstTree?.id ?? null;
   
   const { data: firstTreeMembers = [] } = useQuery<{ id: number }[]>({
     queryKey: ["/api/trees", firstTreeId, "members"],
+    enabled: !!firstTreeId,
+  });
+
+  const { data: firstTreeDetail } = useQuery<{ tree: any; members: any[]; relationships: any[] }>({
+    queryKey: ["/api/trees", firstTreeId],
     enabled: !!firstTreeId,
   });
 
@@ -1176,39 +1198,60 @@ export default function MerchandisePage() {
                   </p>
                   <div className="grid sm:grid-cols-3 gap-5">
                     {(() => {
+                      const previewMembers = firstTreeDetail?.members ?? [];
+                      const previewRelationships = firstTreeDetail?.relationships ?? [];
+                      const previewTreeName = firstTree?.name ?? "My Tree";
+                      const previewTreeType = (firstTree as any)?.treeType ?? "family";
+                      const hasTree = previewMembers.length > 0;
                       const scenarios = [
                         {
                           key: 'walking-intro',
                           icon: <Scan className="h-5 w-5" />,
                           tagline: 'Your Walking Introduction',
-                          scene: 'At the gym, at a game, on a walk — someone asks about your hat. They scan the QR and instantly see who you are and what you\'re about.',
+                          scene: 'Someone spots your hat and scans the QR — instantly they see who you are and can connect with you.',
                           accentFrom: 'from-sky-50 dark:from-sky-950/30',
                           accentBorder: 'border-sky-200 dark:border-sky-800/50',
                           accentBadge: 'bg-sky-500',
                           badgeText: 'Scan & Connect',
+                          showQR: true,
+                          showTree: false,
+                          mockupStyle: 'hat',
                         },
                         {
                           key: 'reunion-shirt',
                           icon: <TreeDeciduous className="h-5 w-5" />,
                           tagline: 'The Reunion Conversation Starter',
-                          scene: 'You show up to the family reunion wearing your tree. Cousins crowd around. "Where am I on there?" They flip you around, scan the QR, and request to join.',
+                          scene: 'Your tree on the front, QR on the back. Relatives scan to join — the reunion starts with what you\'re wearing.',
                           accentFrom: 'from-emerald-50 dark:from-emerald-950/30',
                           accentBorder: 'border-emerald-200 dark:border-emerald-800/50',
                           accentBadge: 'bg-emerald-500',
                           badgeText: 'Family Tree + QR',
+                          showQR: true,
+                          showTree: true,
+                          mockupStyle: 'shirt',
                         },
                         {
                           key: 'team-blanket',
                           icon: <Users className="h-5 w-5" />,
                           tagline: 'Every Player in Their Position',
-                          scene: 'Your whole team laid out at their positions on a 60"×80" blanket. Hang it in the locker room, bring it to tailgates — everyone sees exactly where they stand.',
+                          scene: 'Your whole crew on a 60"×80" blanket. Locker rooms, tailgates, or the couch — everyone sees where they stand.',
                           accentFrom: 'from-amber-50 dark:from-amber-950/30',
                           accentBorder: 'border-amber-200 dark:border-amber-800/50',
                           accentBadge: 'bg-amber-500',
                           badgeText: 'Team Layout',
+                          showQR: false,
+                          showTree: true,
+                          mockupStyle: 'blanket',
                         },
                       ];
                       const featuredProducts = products.filter(p => p.isFeatured);
+                      const handleQuickOrder = (product: Product, includeQR: boolean) => {
+                        if (firstTreeId && trees.length > 0) {
+                          setProductPrefill({ treeId: firstTreeId, includeQR, skipToShipping: true });
+                        }
+                        setDialogKey(k => k + 1);
+                        setSelectedProduct(product);
+                      };
                       return scenarios.map(scenario => {
                         const product = featuredProducts.find(p => p.featuredScenario === scenario.key);
                         if (!product) return null;
@@ -1216,19 +1259,58 @@ export default function MerchandisePage() {
                           <Card 
                             key={scenario.key}
                             className={`overflow-hidden hover-elevate cursor-pointer ${scenario.accentBorder} bg-gradient-to-b ${scenario.accentFrom} to-background`}
-                            onClick={() => setSelectedProduct(product)}
+                            onClick={() => handleQuickOrder(product, scenario.showQR)}
                             data-testid={`card-featured-${product.id}`}
                           >
                             <div className="relative">
-                              <div className="aspect-[4/3] overflow-hidden bg-muted relative">
+                              <div className="aspect-[4/3] overflow-hidden relative bg-gray-100 dark:bg-gray-800">
                                 <img 
                                   src={product.image}
                                   alt={product.name}
                                   className="w-full h-full object-cover"
                                   loading="lazy"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                                <div className="absolute bottom-3 left-3 right-3">
+                                {hasTree && scenario.showTree && (
+                                  <div className={`absolute ${
+                                    scenario.mockupStyle === 'shirt' ? 'top-[15%] left-[25%] w-[50%] h-[50%]' :
+                                    scenario.mockupStyle === 'blanket' ? 'top-[10%] left-[10%] w-[80%] h-[75%]' :
+                                    'top-[20%] left-[20%] w-[60%] h-[60%]'
+                                  }`}>
+                                    <div className="w-full h-full bg-white/85 dark:bg-gray-900/85 rounded-md shadow-md overflow-hidden p-1">
+                                      <MiniTreePreview 
+                                        members={previewMembers} 
+                                        relationships={previewRelationships} 
+                                        treeName={previewTreeName} 
+                                        treeType={previewTreeType} 
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                {scenario.showQR && user && (
+                                  <div className={`absolute ${
+                                    scenario.mockupStyle === 'hat' ? 'top-[25%] left-[30%] w-auto' :
+                                    'bottom-3 right-3'
+                                  }`}>
+                                    <div className="bg-white p-1.5 rounded shadow-lg border">
+                                      <QRCodeSVG
+                                        value={`${window.location.protocol}//${window.location.host}/profile/${user.id}`}
+                                        size={scenario.mockupStyle === 'hat' ? 56 : 40}
+                                        level="M"
+                                      />
+                                      <p className="text-[5px] text-center text-gray-500 mt-0.5">Scan me</p>
+                                    </div>
+                                  </div>
+                                )}
+                                {!hasTree && (
+                                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                    <div className="bg-white/90 dark:bg-gray-900/90 rounded-lg px-3 py-2 text-center">
+                                      <TreeDeciduous className="h-5 w-5 mx-auto text-primary mb-1" />
+                                      <p className="text-[10px] text-muted-foreground">Your tree appears here</p>
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                                <div className="absolute bottom-3 left-3">
                                   <Badge className={`${scenario.accentBadge} text-white text-[11px] px-2 py-0.5`}>
                                     {scenario.icon}
                                     <span className="ml-1">{scenario.badgeText}</span>
@@ -1237,7 +1319,7 @@ export default function MerchandisePage() {
                               </div>
                             </div>
                             <div className="p-4">
-                              <h4 className="font-bold text-sm mb-1.5">{scenario.tagline}</h4>
+                              <h4 className="font-bold text-sm mb-1">{scenario.tagline}</h4>
                               <p className="text-xs text-muted-foreground leading-relaxed mb-3">
                                 {scenario.scene}
                               </p>
@@ -1246,8 +1328,9 @@ export default function MerchandisePage() {
                                   <p className="text-[11px] text-muted-foreground">{product.name}</p>
                                   <p className="font-semibold text-sm">From ${product.basePrice.toFixed(2)}</p>
                                 </div>
-                                <Button size="sm" className="h-8 text-xs gap-1" data-testid={`button-quick-order-${product.id}`}>
-                                  Make It <ArrowRight className="h-3 w-3" />
+                                <Button size="sm" className="h-8 text-xs gap-1.5" data-testid={`button-quick-order-${product.id}`}>
+                                  <Zap className="h-3 w-3" />
+                                  {trees.length > 0 ? "One-Click Order" : "Make It"}
                                 </Button>
                               </div>
                             </div>
@@ -1292,7 +1375,7 @@ export default function MerchandisePage() {
                     <ProductCard
                       key={product.id}
                       product={product}
-                      onCustomize={setSelectedProduct}
+                      onCustomize={(p) => { setProductPrefill(undefined); setDialogKey(k => k + 1); setSelectedProduct(p); }}
                       memberCount={memberCount > 0 ? memberCount : undefined}
                     />
                   ))}
@@ -1427,21 +1510,26 @@ export default function MerchandisePage() {
         )}
       </main>
 
-      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+      <Dialog open={!!selectedProduct} onOpenChange={(open) => { if (!open) { setSelectedProduct(null); setProductPrefill(undefined); } }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Customize Your Product</DialogTitle>
+            <DialogTitle>{productPrefill?.skipToShipping ? "Almost There — Just Add Shipping" : "Customize Your Product"}</DialogTitle>
             <DialogDescription>
-              Select your family tree and product options
+              {productPrefill?.skipToShipping 
+                ? "We've pre-selected your tree and options. Enter your shipping address to complete the order."
+                : "Select your family tree and product options"
+              }
             </DialogDescription>
           </DialogHeader>
           {selectedProduct && (
             <ProductCustomizer
+              key={`customizer-${dialogKey}`}
               product={selectedProduct}
               trees={trees}
-              onClose={() => setSelectedProduct(null)}
+              onClose={() => { setSelectedProduct(null); setProductPrefill(undefined); }}
               onOrderCreated={() => setActiveTab("orders")}
               userId={user?.id}
+              prefill={productPrefill}
             />
           )}
         </DialogContent>
