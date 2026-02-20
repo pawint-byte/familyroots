@@ -280,6 +280,26 @@ export async function registerRoutes(
       
       const data = insertFamilyTreeSchema.parse({ ...req.body, ownerId: userId });
       const tree = await storage.createTree(data);
+
+      // Auto-add the creator as the first member (root) of the tree
+      if (user) {
+        try {
+          const creatorMember = await storage.createMember({
+            treeId: tree.id,
+            firstName: user.firstName || 'Me',
+            lastName: user.lastName || null,
+            email: user.email || null,
+            photoUrl: user.photoUrl || null,
+            claimedByUserId: userId,
+            claimedAt: new Date(),
+            isLiving: true,
+          });
+          await storage.updateTree(tree.id, { rootMemberId: creatorMember.id });
+          console.log(`Auto-added creator ${user.firstName || userId} as root member of tree "${tree.name}"`);
+        } catch (memberError) {
+          console.error("Failed to auto-add creator as member (non-fatal):", memberError);
+        }
+      }
       
       // Send Discord notification for new tree (fire and forget)
       const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0] || 'familyroots.replit.app'}`;
@@ -5835,7 +5855,9 @@ export async function registerRoutes(
       // Fetch actual product and variant names from Printful (don't trust frontend)
       const printfulProduct = await printfulService.getProduct(productId);
       const printfulVariant = await printfulService.getVariant(productId, variantId);
-      const verifiedProductName = printfulProduct ? (printfulProduct.model || printfulProduct.type_name || productName) : productName;
+      const verifiedProductName = printfulProduct 
+        ? [printfulProduct.brand, printfulProduct.model].filter(Boolean).join(' ') || printfulProduct.type_name || productName
+        : productName;
       const verifiedVariantName = printfulVariant?.name || variantName;
 
       // Calculate subtotal from verified Printful price
