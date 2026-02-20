@@ -47,6 +47,8 @@ interface Product {
   isConnectionShirt?: boolean;
   isPromoItem?: boolean;
   bulkHint?: string;
+  recommendedFor?: string[];
+  bestFor?: Record<string, string>;
 }
 
 type QRCodeType = 'site' | 'profile' | 'tree';
@@ -88,11 +90,13 @@ function getCategoryIcon(category: string) {
 function ProductCard({ 
   product, 
   onCustomize,
-  memberCount 
+  memberCount,
+  activeTreeType 
 }: { 
   product: Product; 
   onCustomize: (product: Product) => void;
   memberCount?: number;
+  activeTreeType?: string;
 }) {
   const isSuitable = !memberCount || !product.maxMembers || memberCount <= product.maxMembers;
   const isRecommended = memberCount && product.maxMembers && memberCount <= product.maxMembers && 
@@ -161,6 +165,12 @@ function ProductCard({
           <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-start gap-1 font-medium">
             <Zap className="h-3 w-3 mt-0.5 shrink-0" />
             {product.bulkHint}
+          </p>
+        )}
+        {activeTreeType && product.bestFor?.[activeTreeType] && (
+          <p className="text-xs text-primary mt-1 flex items-start gap-1 font-medium" data-testid={`text-bestfor-${product.id}`}>
+            <Star className="h-3 w-3 mt-0.5 shrink-0 fill-primary" />
+            {product.bestFor[activeTreeType]}
           </p>
         )}
       </CardHeader>
@@ -1631,12 +1641,40 @@ export default function MerchandisePage() {
                       const previewTreeName = firstTree?.name ?? "My Tree";
                       const previewTreeType = (firstTree as any)?.treeType ?? "family";
                       const hasTree = previewMembers.length > 0;
+                      const tType = previewTreeType as string;
+                      const shirtTaglines: Record<string, { tagline: string; scene: string; badge: string }> = {
+                        family: { tagline: 'The Reunion Conversation Starter', scene: 'Your family tree on the front, QR on the back. Relatives scan to join — the reunion starts with what you\'re wearing.', badge: 'Family Tree + QR' },
+                        church: { tagline: 'The Ministry Connector', scene: 'Wear it to service — newcomers scan the QR and join your ministry group on the spot.', badge: 'Church Group + QR' },
+                        sports: { tagline: 'The Team Spirit Shirt', scene: 'Your whole roster on the front, team QR on the back. Fans and recruits scan to connect.', badge: 'Team Roster + QR' },
+                        fraternity: { tagline: 'The Rush Week Essential', scene: 'Your chapter on the front, rush QR on the back. Potential new members scan and connect instantly.', badge: 'Chapter + QR' },
+                        friends: { tagline: 'The Friend Group Uniform', scene: 'Your circle on the shirt — wear matching ones to events. Friends scan the QR to join the crew.', badge: 'Friend Circle + QR' },
+                        professional: { tagline: 'The Networking Power Move', scene: 'Your professional network on display. Colleagues scan the QR at conferences to connect.', badge: 'Network + QR' },
+                      };
+                      const hatTaglines: Record<string, { tagline: string; scene: string }> = {
+                        family: { tagline: 'The Family Name Hat', scene: 'Your family name embroidered front and center — wear it at reunions, holidays, or just around town.' },
+                        sports: { tagline: 'The Team Rep Hat', scene: 'Rock your team name every day — at practice, at games, or just walking around campus.' },
+                        fraternity: { tagline: 'The Greek Life Snapback', scene: 'Your chapter name across the front — the classic way to rep your letters everywhere.' },
+                        friends: { tagline: 'The Crew Cap', scene: 'Your friend group name on a hat — everyone in the crew wears one.' },
+                        church: { tagline: 'The Ministry Hat', scene: 'Your youth group or ministry name on a hat — wear it and start conversations.' },
+                        professional: { tagline: 'The Company Hat', scene: 'Your company or team name embroidered — subtle and professional.' },
+                      };
+                      const blanketTaglines: Record<string, { tagline: string; scene: string; badge: string }> = {
+                        sports: { tagline: 'Every Player in Their Position', scene: 'Your whole squad on a 60"×80" blanket. Locker rooms, tailgates, or the couch — everyone sees where they belong.', badge: 'Team Layout' },
+                        family: { tagline: 'The Whole Family in One Place', scene: 'Your entire family tree on a cozy throw blanket — drape it on the couch or hang it on the wall.', badge: 'Family Tree' },
+                        church: { tagline: 'Your Congregation, Together', scene: 'Every ministry and member on a blanket — hang it in the fellowship hall or take it to retreats.', badge: 'Congregation' },
+                        fraternity: { tagline: 'The Chapter Blanket', scene: 'Every brother or sister on a keepsake blanket — the centerpiece of any chapter house.', badge: 'Chapter Roster' },
+                        friends: { tagline: 'Your Whole Circle', scene: 'All your friends on a cozy blanket — the ultimate friendiversary gift or movie night essential.', badge: 'Friend Circle' },
+                        professional: { tagline: 'The Team Roster Blanket', scene: 'Your whole department or team on a premium blanket — perfect office wall art.', badge: 'Team Roster' },
+                      };
+                      const shirtCopy = shirtTaglines[tType] || shirtTaglines.family!;
+                      const hatCopy = hatTaglines[tType] || hatTaglines.family!;
+                      const blanketCopy = blanketTaglines[tType] || blanketTaglines.family!;
                       const scenarios = [
                         {
                           key: 'walking-intro',
                           icon: <Scan className="h-5 w-5" />,
-                          tagline: 'Your Walking Introduction',
-                          scene: 'Someone spots your hat and scans the QR — instantly they see who you are and can connect with you.',
+                          tagline: hatCopy.tagline,
+                          scene: hatCopy.scene,
                           accentFrom: 'from-sky-50 dark:from-sky-950/30',
                           accentBorder: 'border-sky-200 dark:border-sky-800/50',
                           accentBadge: 'bg-sky-500',
@@ -1646,14 +1684,14 @@ export default function MerchandisePage() {
                           mockupStyle: 'hat',
                         },
                         {
-                          key: 'reunion-shirt',
+                          key: 'connection-shirt',
                           icon: <TreeDeciduous className="h-5 w-5" />,
-                          tagline: 'The Reunion Conversation Starter',
-                          scene: 'Your tree on the front, QR on the back. Relatives scan to join — the reunion starts with what you\'re wearing.',
+                          tagline: shirtCopy.tagline,
+                          scene: shirtCopy.scene,
                           accentFrom: 'from-emerald-50 dark:from-emerald-950/30',
                           accentBorder: 'border-emerald-200 dark:border-emerald-800/50',
                           accentBadge: 'bg-emerald-500',
-                          badgeText: 'Family Tree + QR',
+                          badgeText: shirtCopy.badge,
                           showQR: true,
                           showTree: true,
                           mockupStyle: 'shirt',
@@ -1661,12 +1699,12 @@ export default function MerchandisePage() {
                         {
                           key: 'team-blanket',
                           icon: <Users className="h-5 w-5" />,
-                          tagline: 'Every Player in Their Position',
-                          scene: 'Your whole crew on a 60"×80" blanket. Locker rooms, tailgates, or the couch — everyone sees where they stand.',
+                          tagline: blanketCopy.tagline,
+                          scene: blanketCopy.scene,
                           accentFrom: 'from-amber-50 dark:from-amber-950/30',
                           accentBorder: 'border-amber-200 dark:border-amber-800/50',
                           accentBadge: 'bg-amber-500',
-                          badgeText: 'Team Layout',
+                          badgeText: blanketCopy.badge,
                           showQR: false,
                           showTree: true,
                           mockupStyle: 'blanket',
@@ -1799,14 +1837,26 @@ export default function MerchandisePage() {
                 </div>
               ) : (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {products.map(product => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onCustomize={(p) => { setProductPrefill(undefined); setDialogKey(k => k + 1); setSelectedProduct(p); }}
-                      memberCount={memberCount > 0 ? memberCount : undefined}
-                    />
-                  ))}
+                  {(() => {
+                    const activeType = (firstTree as any)?.treeType || undefined;
+                    const sorted = [...products].sort((a, b) => {
+                      if (!activeType) return 0;
+                      const aIdx = a.recommendedFor?.indexOf(activeType) ?? -1;
+                      const bIdx = b.recommendedFor?.indexOf(activeType) ?? -1;
+                      const aRank = aIdx === -1 ? 999 : aIdx;
+                      const bRank = bIdx === -1 ? 999 : bIdx;
+                      return aRank - bRank;
+                    });
+                    return sorted.map(product => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onCustomize={(p) => { setProductPrefill(undefined); setDialogKey(k => k + 1); setSelectedProduct(p); }}
+                        memberCount={memberCount > 0 ? memberCount : undefined}
+                        activeTreeType={activeType}
+                      />
+                    ));
+                  })()}
                 </div>
               )}
 
@@ -1834,7 +1884,7 @@ export default function MerchandisePage() {
                     <Star className="h-8 w-8 mx-auto text-yellow-500 mb-3" />
                     <h3 className="font-semibold mb-1">Perfect Gift</h3>
                     <p className="text-sm text-muted-foreground">
-                      Unique personalized gifts for family members
+                      Personalized gifts for families, teams, and every group
                     </p>
                   </CardContent>
                 </Card>
