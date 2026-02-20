@@ -24,6 +24,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
 import { getTreeTypeConfig, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
 
+interface PrintPlacement {
+  id: string;
+  label: string;
+  printfulType: string;
+  description: string;
+}
+
 interface Product {
   id: number;
   name: string;
@@ -36,6 +43,7 @@ interface Product {
   recommendation?: string;
   isFeatured?: boolean;
   featuredScenario?: string;
+  placements?: PrintPlacement[];
 }
 
 interface Variant {
@@ -394,6 +402,8 @@ function ProductCustomizer({
   const [quantity, setQuantity] = useState(1);
   const [includeQR, setIncludeQR] = useState(prefill?.includeQR ?? false);
   const [showShipping, setShowShipping] = useState(false);
+  const [treePlacement, setTreePlacement] = useState<string>(product.placements?.[0]?.id || "front");
+  const [qrPlacement, setQrPlacement] = useState<string>("");
   const [shippingAddress, setShippingAddress] = useState<ShippingAddressForm>({
     name: "",
     address1: "",
@@ -461,6 +471,9 @@ function ProductCustomizer({
 
       const treeImageUrl = `${window.location.origin}/tree/${selectedTreeId}`;
 
+      const treePrintPlacement = product.placements?.find(p => p.id === treePlacement);
+      const qrPrintPlacement = qrPlacement ? product.placements?.find(p => p.id === qrPlacement) : null;
+
       return apiRequest("POST", "/api/merchandise/orders", {
         treeId: selectedTreeId,
         productId: product.id,
@@ -470,6 +483,8 @@ function ProductCustomizer({
         quantity,
         includeQR,
         treeImageUrl,
+        treePlacement: treePrintPlacement?.printfulType || 'default',
+        qrPlacement: qrPrintPlacement?.printfulType || null,
         shippingAddress: {
           name: shippingAddress.name.trim(),
           address1: shippingAddress.address1.trim(),
@@ -524,9 +539,14 @@ function ProductCustomizer({
               </div>
             )}
             {selectedTree && selectedTreeId && !loadingTreeDetail && treeMemberCount > 0 && (
-              <div className="absolute inset-0 flex items-center justify-center p-4">
+              <div className={`absolute p-4 ${
+                treePlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
+                treePlacement === 'front_left' ? 'top-4 left-4' :
+                'inset-0 flex items-center justify-center'
+              }`}>
                 <div 
                   className={`bg-white/90 dark:bg-gray-900/90 rounded-lg shadow-lg overflow-hidden ${
+                    treePlacement === 'front_left' ? 'w-1/3 h-1/3' :
                     product.printArea === 'wrap' ? 'w-3/4 h-1/2' : 
                     product.printArea === 'front' ? 'w-1/2 h-1/2' : 
                     'w-3/4 h-3/4'
@@ -537,10 +557,18 @@ function ProductCustomizer({
               </div>
             )}
             {includeQR && userId && (
-              <div className="absolute bottom-12 right-3 bg-white p-1.5 rounded shadow-lg border" data-testid="qr-preview-overlay">
+              <div 
+                className={`absolute bg-white p-1.5 rounded shadow-lg border ${
+                  qrPlacement === 'front_left' ? 'top-4 left-4' :
+                  qrPlacement === 'back' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-60' :
+                  qrPlacement === 'front' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
+                  'bottom-12 right-3'
+                }`}
+                data-testid="qr-preview-overlay"
+              >
                 <QRCodeSVG
                   value={`${window.location.protocol}//${window.location.host}/profile/${userId}`}
-                  size={48}
+                  size={qrPlacement === 'front_left' ? 40 : 48}
                   level="M"
                 />
                 <p className="text-[6px] text-center text-gray-500 mt-0.5">Scan to connect</p>
@@ -549,8 +577,9 @@ function ProductCustomizer({
             {selectedTree && (
               <div className="absolute bottom-2 left-2 right-2">
                 <Badge variant="secondary" className="text-xs">
-                  Print Preview: {selectedTree.name}
-                  {includeQR && " + QR Code"}
+                  {treePlacement === 'back' ? 'Back' : treePlacement === 'front_left' ? 'Front Left' : 'Front'}: {selectedTree.name}
+                  {includeQR && qrPlacement && ` | ${product.placements?.find(p => p.id === qrPlacement)?.label || 'QR'}: QR Code`}
+                  {includeQR && !qrPlacement && " + QR Code"}
                 </Badge>
               </div>
             )}
@@ -687,12 +716,44 @@ function ProductCustomizer({
               />
             </div>
 
+            {product.placements && product.placements.length > 1 && (
+              <div>
+                <Label className="flex items-center gap-1.5 mb-1.5">
+                  <TreeDeciduous className="h-4 w-4" />
+                  Tree Placement
+                </Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {product.placements.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setTreePlacement(p.id);
+                        if (qrPlacement === p.id) setQrPlacement("");
+                      }}
+                      className={`text-left p-2.5 rounded-lg border transition-all ${
+                        treePlacement === p.id
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                      data-testid={`button-tree-placement-${p.id}`}
+                    >
+                      <span className="text-sm font-medium">{p.label}</span>
+                      <p className="text-xs text-muted-foreground">{p.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="border rounded-lg p-3 bg-muted/30">
               <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-qr-code">
                 <input
                   type="checkbox"
                   checked={includeQR}
-                  onChange={(e) => setIncludeQR(e.target.checked)}
+                  onChange={(e) => {
+                    setIncludeQR(e.target.checked);
+                    if (!e.target.checked) setQrPlacement("");
+                  }}
                   className="rounded border-gray-300 text-primary focus:ring-primary"
                 />
                 <QrCode className="h-4 w-4 text-primary shrink-0" />
@@ -702,6 +763,40 @@ function ProductCustomizer({
                 </div>
               </label>
             </div>
+
+            {includeQR && product.placements && product.placements.length > 1 && (
+              <div>
+                <Label className="flex items-center gap-1.5 mb-1.5">
+                  <QrCode className="h-4 w-4" />
+                  QR Code Placement
+                </Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {product.placements
+                    .filter(p => p.id !== treePlacement)
+                    .map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => setQrPlacement(p.id)}
+                        className={`text-left p-2.5 rounded-lg border transition-all ${
+                          qrPlacement === p.id
+                            ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                            : "border-border hover:border-primary/40"
+                        }`}
+                        data-testid={`button-qr-placement-${p.id}`}
+                      >
+                        <span className="text-sm font-medium">{p.label}</span>
+                        <p className="text-xs text-muted-foreground">{p.description}</p>
+                      </button>
+                    ))}
+                </div>
+                {!qrPlacement && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Select where to place your QR code
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {!showShipping ? (

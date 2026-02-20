@@ -5684,13 +5684,33 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/qr-image", async (req, res) => {
+    try {
+      const url = req.query.url as string;
+      if (!url) return res.status(400).json({ message: "URL parameter required" });
+      const QRCode = await import("qrcode");
+      const pngBuffer = await QRCode.default.toBuffer(url, {
+        type: "png",
+        width: 300,
+        margin: 1,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
+      res.set("Content-Type", "image/png");
+      res.send(pngBuffer);
+    } catch (error) {
+      console.error("Error generating QR image:", error);
+      res.status(500).json({ message: "Failed to generate QR code" });
+    }
+  });
+
   // Create merchandise order (with Stripe payment)
   app.post("/api/merchandise/orders", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { 
         treeId, productId, variantId, productName, variantName,
-        quantity, treeImageUrl, shippingAddress, includeQR
+        quantity, treeImageUrl, shippingAddress, includeQR,
+        treePlacement, qrPlacement
       } = req.body;
 
       // Validate required fields
@@ -5772,6 +5792,12 @@ export async function registerRoutes(
       const qrProfileUrl = includeQR ? `${req.protocol}://${req.get('host')}/profile/${userId}` : null;
       const finalTreeImageUrl = includeQR ? `${treeImageUrl}?includeQR=true&qrUrl=${encodeURIComponent(qrProfileUrl || '')}` : treeImageUrl;
 
+      const placementConfig = {
+        treePlacement: treePlacement || 'default',
+        qrPlacement: includeQR ? (qrPlacement || null) : null,
+        qrProfileUrl,
+      };
+
       const order = await storage.createMerchandiseOrder({
         userId,
         treeId,
@@ -5786,6 +5812,7 @@ export async function registerRoutes(
         totalAmount,
         commission,
         shippingAddress: addressValidation.data,
+        placementConfig,
         status: "pending",
       });
 
@@ -5852,16 +5879,27 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Shipping address is required" });
       }
 
+      // Build Printful files array based on placement configuration
+      const placement = order.placementConfig as { treePlacement?: string; qrPlacement?: string | null; qrProfileUrl?: string | null } | null;
+      const printfulFiles: Array<{ type: string; url: string }> = [{
+        type: placement?.treePlacement || "default",
+        url: order.treeImageUrl,
+      }];
+
+      if (placement?.qrPlacement && placement?.qrProfileUrl) {
+        printfulFiles.push({
+          type: placement.qrPlacement,
+          url: `${req.protocol}://${req.get('host')}/api/qr-image?url=${encodeURIComponent(placement.qrProfileUrl)}`,
+        });
+      }
+
       // Create order in Printful
       const printfulOrder = await printfulService.createOrder(
         shippingAddress,
         [{
           variant_id: order.variantId,
           quantity: order.quantity,
-          files: [{
-            type: "default",
-            url: order.treeImageUrl,
-          }],
+          files: printfulFiles,
         }],
         true // confirm the order
       );

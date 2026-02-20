@@ -311,6 +311,9 @@ class PrintfulService {
         recommendation: 'Your personal walking introduction. QR code on the side lets anyone scan and connect with you.',
         isFeatured: true,
         featuredScenario: 'walking-intro',
+        placements: [
+          { id: 'front', label: 'Front', printfulType: 'front', description: 'Center front panel' },
+        ],
       },
       {
         id: 71,
@@ -324,6 +327,11 @@ class PrintfulService {
         recommendation: 'Family tree on front, QR on back. Perfect for reunions — relatives scan to join your tree.',
         isFeatured: true,
         featuredScenario: 'reunion-shirt',
+        placements: [
+          { id: 'front', label: 'Front', printfulType: 'front', description: 'Full front chest area' },
+          { id: 'back', label: 'Back', printfulType: 'back', description: 'Full back area' },
+          { id: 'front_left', label: 'Front Left (Over Heart)', printfulType: 'label_outside', description: 'Small print over the heart area' },
+        ],
       },
       {
         id: 327,
@@ -337,6 +345,9 @@ class PrintfulService {
         recommendation: 'Perfect for sports teams & large groups. Full edge-to-edge layout shows every member in their position.',
         isFeatured: true,
         featuredScenario: 'team-blanket',
+        placements: [
+          { id: 'front', label: 'Front', printfulType: 'default', description: 'Full blanket face' },
+        ],
       },
       {
         id: 19,
@@ -348,6 +359,9 @@ class PrintfulService {
         maxMembers: 15,
         printArea: 'wrap',
         recommendation: 'Best for small trees (up to 15 members). Tree wraps around the mug.',
+        placements: [
+          { id: 'wrap', label: 'Full Wrap', printfulType: 'default', description: 'Wraps around the entire mug' },
+        ],
       },
       {
         id: 1,
@@ -359,6 +373,9 @@ class PrintfulService {
         maxMembers: 100,
         printArea: 'full',
         recommendation: 'Best for large trees (any size). Full poster shows complete detail.',
+        placements: [
+          { id: 'front', label: 'Full Poster', printfulType: 'default', description: 'Complete poster surface' },
+        ],
       },
       {
         id: 380,
@@ -370,6 +387,9 @@ class PrintfulService {
         maxMembers: 20,
         printArea: 'front',
         recommendation: 'Best for small-medium trees (up to 20 members). Printed on pillow face.',
+        placements: [
+          { id: 'front', label: 'Front Face', printfulType: 'default', description: 'Pillow front face' },
+        ],
       },
       {
         id: 181,
@@ -381,6 +401,10 @@ class PrintfulService {
         maxMembers: 30,
         printArea: 'full',
         recommendation: 'Great for medium trees (up to 30 members). All-over print shows detail.',
+        placements: [
+          { id: 'front', label: 'Front', printfulType: 'front', description: 'Bag front panel' },
+          { id: 'back', label: 'Back', printfulType: 'back', description: 'Bag back panel' },
+        ],
       },
     ];
   }

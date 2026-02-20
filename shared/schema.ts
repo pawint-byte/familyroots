@@ -927,6 +927,7 @@ export const merchandiseOrders = pgTable("merchandise_orders", {
   shippingCost: integer("shipping_cost").default(0),
   totalAmount: integer("total_amount").notNull(),
   commission: integer("commission").default(0),
+  placementConfig: jsonb("placement_config").$type<{ treePlacement: string; qrPlacement: string | null; qrProfileUrl: string | null }>(),
   trackingNumber: text("tracking_number"),
   trackingUrl: text("tracking_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
