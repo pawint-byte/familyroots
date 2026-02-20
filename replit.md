@@ -45,7 +45,7 @@ PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for sc
 - **Email Service**: Uses Resend for transactional emails (invites, notifications).
 - **Photo Uploads**: Secure photo uploads via Replit Object Storage with presigned URLs.
 - **Tree Export**: Export family tree visualizations as high-resolution PNG images with theme-aware backgrounds.
-- **Custom Merchandise**: Order custom products with family tree prints via Printful integration, with Stripe checkout.
+- **Custom Merchandise**: Order custom products with family tree prints via Printful integration, with Stripe checkout. Features a "Popular Picks" quick-order section with Premium Fleece Blanket as flagship product, tree-type-aware previews on product mockups, and optional personal QR code embedding on products.
 - **QR Code Sharing**: Share page with scannable QR code for app linking, download, and native sharing.
 - **Personal Profile QR Codes**: Unique QR codes for users' public profiles to facilitate in-person connection requests with specified relationships.
 - **Tiered Subscription Discounts**: Dynamic pricing based on total family members across all trees, including milestone payments for larger trees.

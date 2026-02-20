@@ -300,6 +300,18 @@ class PrintfulService {
   getRecommendedProducts() {
     return [
       {
+        id: 327,
+        name: 'Premium Fleece Blanket',
+        description: 'Wrap your family in their own story. A large, cozy fleece blanket featuring your complete family tree, sports team, or group — perfect for movie nights and gifting.',
+        category: 'home-decor',
+        basePrice: 32.00,
+        image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400&h=400&fit=crop&q=80',
+        maxMembers: 200,
+        printArea: 'full',
+        recommendation: 'Our most popular product! Fits any tree size. Available in 50"×60" and 60"×80". Full edge-to-edge print.',
+        isFeatured: true,
+      },
+      {
         id: 19,
         name: 'White Glossy Mug 11oz',
         description: 'Start every morning with your family tree on a high-quality ceramic mug.',
@@ -309,17 +321,7 @@ class PrintfulService {
         maxMembers: 15,
         printArea: 'wrap',
         recommendation: 'Best for small trees (up to 15 members). Tree wraps around the mug.',
-      },
-      {
-        id: 71,
-        name: 'Unisex T-Shirt',
-        description: 'Wear your family heritage with pride on a comfortable cotton t-shirt.',
-        category: 'apparel',
-        basePrice: 11.69,
-        image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop&q=80',
-        maxMembers: 25,
-        printArea: 'front',
-        recommendation: 'Best for medium trees (up to 25 members). Printed on front chest area.',
+        isFeatured: true,
       },
       {
         id: 1,
@@ -331,6 +333,18 @@ class PrintfulService {
         maxMembers: 100,
         printArea: 'full',
         recommendation: 'Best for large trees (any size). Full poster shows complete detail.',
+        isFeatured: true,
+      },
+      {
+        id: 71,
+        name: 'Unisex T-Shirt',
+        description: 'Wear your family heritage with pride on a comfortable cotton t-shirt.',
+        category: 'apparel',
+        basePrice: 11.69,
+        image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop&q=80',
+        maxMembers: 25,
+        printArea: 'front',
+        recommendation: 'Best for medium trees (up to 25 members). Printed on front chest area.',
       },
       {
         id: 380,

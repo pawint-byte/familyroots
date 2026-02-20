@@ -5587,7 +5587,7 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const { 
         treeId, productId, variantId, productName, variantName,
-        quantity, treeImageUrl, shippingAddress
+        quantity, treeImageUrl, shippingAddress, includeQR
       } = req.body;
 
       // Validate required fields
@@ -5666,7 +5666,9 @@ export async function registerRoutes(
       // Calculate total: subtotal + shipping + commission
       const totalAmount = subtotal + shippingCost + commission;
 
-      // Create the order in pending state
+      const qrProfileUrl = includeQR ? `${req.protocol}://${req.get('host')}/profile/${userId}` : null;
+      const finalTreeImageUrl = includeQR ? `${treeImageUrl}?includeQR=true&qrUrl=${encodeURIComponent(qrProfileUrl || '')}` : treeImageUrl;
+
       const order = await storage.createMerchandiseOrder({
         userId,
         treeId,
@@ -5675,7 +5677,7 @@ export async function registerRoutes(
         productName,
         variantName: variantName || null,
         quantity: orderQuantity,
-        treeImageUrl,
+        treeImageUrl: finalTreeImageUrl,
         subtotal,
         shippingCost,
         totalAmount,

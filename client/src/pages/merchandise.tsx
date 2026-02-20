@@ -15,9 +15,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
-  AlertTriangle, Info, Sparkles, Wallet
+  AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap
 } from "lucide-react";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
+import { QRCodeSVG } from "qrcode.react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
 import { getTreeTypeConfig, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
@@ -32,6 +33,7 @@ interface Product {
   maxMembers?: number;
   printArea?: string;
   recommendation?: string;
+  isFeatured?: boolean;
 }
 
 interface Variant {
@@ -82,6 +84,12 @@ function ProductCard({
           loading="lazy"
         />
         <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+          {product.isFeatured && (
+            <Badge className="bg-orange-500 text-white">
+              <Flame className="h-3 w-3 mr-1" />
+              Most Popular
+            </Badge>
+          )}
           <Badge variant="secondary">
             {product.category}
           </Badge>
@@ -369,15 +377,18 @@ function ProductCustomizer({
   trees,
   onClose,
   onOrderCreated,
+  userId,
 }: {
   product: Product;
   trees: FamilyTree[];
   onClose: () => void;
   onOrderCreated: () => void;
+  userId?: string;
 }) {
   const [selectedTreeId, setSelectedTreeId] = useState<string>("");
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [includeQR, setIncludeQR] = useState(false);
   const [showShipping, setShowShipping] = useState(false);
   const [shippingAddress, setShippingAddress] = useState<ShippingAddressForm>({
     name: "",
@@ -441,6 +452,7 @@ function ProductCustomizer({
         productName: product.name,
         variantName: selectedVariant.name,
         quantity,
+        includeQR,
         treeImageUrl,
         shippingAddress: {
           name: shippingAddress.name.trim(),
@@ -508,10 +520,21 @@ function ProductCustomizer({
                 </div>
               </div>
             )}
+            {includeQR && userId && (
+              <div className="absolute bottom-12 right-3 bg-white p-1.5 rounded shadow-lg border" data-testid="qr-preview-overlay">
+                <QRCodeSVG
+                  value={`${window.location.protocol}//${window.location.host}/profile/${userId}`}
+                  size={48}
+                  level="M"
+                />
+                <p className="text-[6px] text-center text-gray-500 mt-0.5">Scan to connect</p>
+              </div>
+            )}
             {selectedTree && (
               <div className="absolute bottom-2 left-2 right-2">
                 <Badge variant="secondary" className="text-xs">
                   Print Preview: {selectedTree.name}
+                  {includeQR && " + QR Code"}
                 </Badge>
               </div>
             )}
@@ -646,6 +669,22 @@ function ProductCustomizer({
                 className="w-24"
                 data-testid="input-quantity"
               />
+            </div>
+
+            <div className="border rounded-lg p-3 bg-muted/30">
+              <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-qr-code">
+                <input
+                  type="checkbox"
+                  checked={includeQR}
+                  onChange={(e) => setIncludeQR(e.target.checked)}
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <QrCode className="h-4 w-4 text-primary shrink-0" />
+                <div>
+                  <span className="text-sm font-medium">Include my QR code</span>
+                  <p className="text-xs text-muted-foreground">Add a scannable QR code linking to your profile so people can connect with you</p>
+                </div>
+              </label>
             </div>
           </div>
 
@@ -1124,6 +1163,56 @@ export default function MerchandisePage() {
                 </p>
               </div>
 
+              {!loadingProducts && products.filter(p => p.isFeatured).length > 0 && (
+                <div className="mb-8" data-testid="featured-products-section">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Zap className="h-5 w-5 text-orange-500" />
+                    <h3 className="text-lg font-semibold">Quick Order — Popular Picks</h3>
+                  </div>
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    {products.filter(p => p.isFeatured).map(product => (
+                      <Card 
+                        key={`featured-${product.id}`}
+                        className="overflow-hidden hover-elevate cursor-pointer border-orange-200 dark:border-orange-800/50 bg-gradient-to-br from-orange-50/50 to-background dark:from-orange-950/20 dark:to-background"
+                        onClick={() => setSelectedProduct(product)}
+                        data-testid={`card-featured-${product.id}`}
+                      >
+                        <div className="flex items-center gap-4 p-4">
+                          <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted shrink-0 relative">
+                            <img 
+                              src={product.image}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                              <div className="w-12 h-12 bg-white/90 dark:bg-gray-900/90 rounded-full flex items-center justify-center">
+                                <TreeDeciduous className="h-6 w-6 text-primary" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0">
+                                <Flame className="h-2.5 w-2.5 mr-0.5" />
+                                Popular
+                              </Badge>
+                            </div>
+                            <h4 className="font-semibold text-sm truncate">{product.name}</h4>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{product.description}</p>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className="font-semibold text-sm">From ${product.basePrice.toFixed(2)}</span>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" data-testid={`button-quick-order-${product.id}`}>
+                                Customize <ChevronRight className="h-3 w-3 ml-1" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {trees.length === 0 && (
                 <Card className="mb-6 border-primary/50 bg-primary/5">
                   <CardContent className="py-4">
@@ -1306,6 +1395,7 @@ export default function MerchandisePage() {
               trees={trees}
               onClose={() => setSelectedProduct(null)}
               onOrderCreated={() => setActiveTab("orders")}
+              userId={user?.id}
             />
           )}
         </DialogContent>
