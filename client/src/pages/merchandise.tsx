@@ -1416,6 +1416,7 @@ export default function MerchandisePage() {
   const checkoutStatus = urlParams.get("checkout");
   const orderId = urlParams.get("order");
   const tabParam = urlParams.get("tab");
+  const qrTreeIdParam = urlParams.get("qrTreeId");
 
   useEffect(() => {
     if (tabParam === "orders") {
@@ -1427,6 +1428,18 @@ export default function MerchandisePage() {
   const { data: products = [], isLoading: loadingProducts } = useQuery<Product[]>({
     queryKey: ["/api/merchandise/products"],
   });
+
+  useEffect(() => {
+    if (qrTreeIdParam && products.length > 0) {
+      const qrProduct = products.find(p => p.isQRFirst);
+      if (qrProduct) {
+        setSelectedProduct(qrProduct);
+        setProductPrefill({ treeId: qrTreeIdParam, includeQR: true });
+        setDialogKey(prev => prev + 1);
+      }
+      window.history.replaceState({}, '', '/merchandise');
+    }
+  }, [qrTreeIdParam, products]);
 
   const { data: trees = [] } = useQuery<FamilyTree[]>({
     queryKey: ["/api/trees"],

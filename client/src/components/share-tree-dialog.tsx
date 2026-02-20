@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Copy, Link, Trash2, Users, Crown, Edit, Eye, QrCode, Download } from "lucide-react";
+import { Copy, Link, Trash2, Users, Crown, Edit, Eye, QrCode, Download, ShoppingBag, Share2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { useLocation } from "wouter";
 import type { TreeInvitation, TreeCollaborator } from "@shared/schema";
 
 interface ShareTreeDialogProps {
@@ -22,7 +23,29 @@ interface ShareTreeDialogProps {
 
 export function ShareTreeDialog({ open, onOpenChange, treeId, treeName }: ShareTreeDialogProps) {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [newInviteRole, setNewInviteRole] = useState<"viewer" | "editor" | "co_owner">("viewer");
+
+  const getQrImageBlob = async (): Promise<Blob | null> => {
+    const svg = document.querySelector('[data-testid="tree-qr-code"] svg');
+    if (!svg) return null;
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const data = new XMLSerializer().serializeToString(svg);
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = 400;
+        canvas.height = 400;
+        ctx!.fillStyle = 'white';
+        ctx!.fillRect(0, 0, 400, 400);
+        ctx!.drawImage(img, 0, 0, 400, 400);
+        canvas.toBlob((blob) => resolve(blob), 'image/png');
+      };
+      img.onerror = () => resolve(null);
+      img.src = 'data:image/svg+xml;base64,' + btoa(data);
+    });
+  };
 
   const { data: invitations, isLoading: invitationsLoading } = useQuery<TreeInvitation[]>({
     queryKey: ["/api/trees", treeId, "invitations"],
@@ -188,7 +211,7 @@ export function ShareTreeDialog({ open, onOpenChange, treeId, treeName }: ShareT
                   <p className="text-sm text-muted-foreground text-center max-w-xs">
                     Scan this QR code to join <strong>"{treeName}"</strong> as a {activeInvite?.role === "co_owner" ? "Co-Owner" : activeInvite?.role === "editor" ? "Editor" : "Viewer"}
                   </p>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
                     <Button
                       variant="outline"
                       size="sm"
@@ -204,30 +227,62 @@ export function ShareTreeDialog({ open, onOpenChange, treeId, treeName }: ShareT
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        const svg = document.querySelector('[data-testid="tree-qr-code"] svg');
-                        if (!svg) return;
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        const data = new XMLSerializer().serializeToString(svg);
-                        const img = new Image();
-                        img.onload = () => {
-                          canvas.width = 400;
-                          canvas.height = 400;
-                          ctx!.fillStyle = 'white';
-                          ctx!.fillRect(0, 0, 400, 400);
-                          ctx!.drawImage(img, 0, 0, 400, 400);
-                          const link = document.createElement('a');
-                          link.download = `${treeName.replace(/\s+/g, '-')}-qr-code.png`;
-                          link.href = canvas.toDataURL('image/png');
-                          link.click();
-                        };
-                        img.src = 'data:image/svg+xml;base64,' + btoa(data);
+                      onClick={async () => {
+                        const blob = await getQrImageBlob();
+                        if (!blob) return;
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.download = `${treeName.replace(/\s+/g, '-')}-qr-code.png`;
+                        link.href = url;
+                        link.click();
+                        URL.revokeObjectURL(url);
                       }}
                       data-testid="button-download-qr"
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Download
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        onOpenChange(false);
+                        navigate(`/merchandise?qrTreeId=${treeId}`);
+                      }}
+                      data-testid="button-print-qr"
+                    >
+                      <ShoppingBag className="h-4 w-4 mr-2" />
+                      Print on Product
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const blob = await getQrImageBlob();
+                        if (blob && navigator.share) {
+                          try {
+                            const file = new File([blob], `${treeName.replace(/\s+/g, '-')}-qr.png`, { type: 'image/png' });
+                            await navigator.share({
+                              title: `Join "${treeName}" on FamilyRoots`,
+                              text: `Scan this QR code to join my tree "${treeName}" on FamilyRoots!`,
+                              url: qrLink,
+                              files: [file],
+                            });
+                          } catch (err: any) {
+                            if (err?.name !== 'AbortError') {
+                              navigator.clipboard.writeText(qrLink);
+                              toast({ title: "Link copied!", description: "Share it on your favorite platform" });
+                            }
+                          }
+                        } else {
+                          navigator.clipboard.writeText(qrLink);
+                          toast({ title: "Link copied!", description: "Paste it anywhere to share" });
+                        }
+                      }}
+                      data-testid="button-share-qr"
+                    >
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Share
                     </Button>
                   </div>
                 </div>
