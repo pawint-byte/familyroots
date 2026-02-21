@@ -447,6 +447,7 @@ function ProductCustomizer({
   const [treePlacement, setTreePlacement] = useState<string>(product.placements?.[0]?.id || "front");
   const [qrPlacement, setQrPlacement] = useState<string>("");
   const isQRFirst = !!(product.isConnectionShirt || product.isPromoItem);
+  const [includeTreeOnQRFirst, setIncludeTreeOnQRFirst] = useState(false);
   const [selectedQRType, setSelectedQRType] = useState<QRCodeType>(isQRFirst ? 'site' : 'profile');
   const [selectedQRTreeId, setSelectedQRTreeId] = useState<string>("");
 
@@ -550,7 +551,7 @@ function ProductCustomizer({
         throw new Error("Please select a product variant");
       }
 
-      if (!isQRFirst && !selectedTreeId) {
+      if ((!isQRFirst || includeTreeOnQRFirst) && !selectedTreeId) {
         throw new Error("Please select a tree");
       }
 
@@ -705,8 +706,8 @@ function ProductCustomizer({
               <div className="absolute bottom-2 left-2 right-2">
                 <Badge variant="secondary" className="text-xs">
                   {treePlacement === 'back' ? 'Back' : treePlacement === 'front_left' ? 'Front Left' : 'Front'}: {selectedTree.name}
-                  {includeQR && qrPlacement && ` | ${product.placements?.find(p => p.id === qrPlacement)?.label || 'QR'}: QR Code`}
-                  {includeQR && !qrPlacement && " + QR Code"}
+                  {(includeQR || isQRFirst) && qrPlacement && ` | ${product.placements?.find(p => p.id === qrPlacement)?.label || 'QR'}: QR Code`}
+                  {(includeQR || isQRFirst) && !qrPlacement && " + QR Code"}
                 </Badge>
               </div>
             )}
@@ -767,7 +768,7 @@ function ProductCustomizer({
           )}
 
           <div className="space-y-3">
-            {!isQRFirst && (
+            {(!isQRFirst || includeTreeOnQRFirst) && (
             <div>
               <Label htmlFor="tree-select">Select Family Tree</Label>
               <Select value={selectedTreeId} onValueChange={setSelectedTreeId}>
@@ -862,14 +863,16 @@ function ProductCustomizer({
               />
             </div>
 
-            {!isQRFirst && product.placements && product.placements.length > 1 && (
+            {(!isQRFirst || includeTreeOnQRFirst) && product.placements && product.placements.length > 1 && (
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <TreeDeciduous className="h-4 w-4" />
                   Tree Placement
                 </Label>
                 <div className="grid grid-cols-1 gap-2">
-                  {product.placements.map(p => (
+                  {product.placements
+                    .filter(p => !isQRFirst || p.id !== qrPlacement)
+                    .map(p => (
                     <button
                       key={p.id}
                       onClick={() => {
@@ -1033,6 +1036,33 @@ function ProductCustomizer({
                     </div>
                   )}
                 </div>
+
+                {product.isConnectionShirt && product.placements && product.placements.length > 1 && (
+                  <div className="border rounded-lg p-3 bg-muted/30">
+                    <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-tree-print">
+                      <input
+                        type="checkbox"
+                        checked={includeTreeOnQRFirst}
+                        onChange={(e) => {
+                          setIncludeTreeOnQRFirst(e.target.checked);
+                          if (e.target.checked) {
+                            if (!qrPlacement) setQrPlacement("front");
+                            setTreePlacement("back");
+                          } else {
+                            setSelectedTreeId("");
+                            setTreePlacement(product.placements?.[0]?.id || "front");
+                          }
+                        }}
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <TreeDeciduous className="h-4 w-4 text-primary shrink-0" />
+                      <div>
+                        <span className="text-sm font-medium">Add my family tree print</span>
+                        <p className="text-xs text-muted-foreground">Print your family tree on the shirt alongside the QR code — tree on back, QR on front</p>
+                      </div>
+                    </label>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="border rounded-lg p-3 bg-muted/30">
@@ -1063,7 +1093,7 @@ function ProductCustomizer({
                 </Label>
                 <div className="grid grid-cols-1 gap-2">
                   {product.placements
-                    .filter(p => p.id !== treePlacement)
+                    .filter(p => !(includeTreeOnQRFirst || !isQRFirst) || p.id !== treePlacement)
                     .map(p => (
                       <button
                         key={p.id}
