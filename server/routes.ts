@@ -87,6 +87,18 @@ import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG } from "./subscriptionService";
 import * as familySearchService from "./familySearch";
 
+// Admin users who bypass all limits and costs
+const ADMIN_EMAILS_LIST = [
+  "pawint@me.com",
+];
+const ADMIN_USER_IDS_LIST = ["52852375"];
+
+function isAdminAccount(userId: string, email?: string | null): boolean {
+  if (ADMIN_USER_IDS_LIST.includes(userId)) return true;
+  if (email && ADMIN_EMAILS_LIST.some(e => e === email.toLowerCase())) return true;
+  return false;
+}
+
 // Privacy visibility filtering for family members
 type VisibilityTier = "full" | "extended" | "limited";
 
@@ -401,11 +413,13 @@ export async function registerRoutes(
       }
       
       // Credit-based member limits: first 20 members free, then requires credits
+      // Admin users bypass all limits
       const treeOwner = await storage.getUser(tree.ownerId);
+      const adminBypass = isAdminAccount(tree.ownerId, treeOwner?.email);
       const totalMemberCount = await subscriptionService.calculateTotalMemberCount(tree.ownerId);
       const freeLimit = PRICING_CONFIG.freeTierCredits;
       
-      if (totalMemberCount >= freeLimit) {
+      if (!adminBypass && totalMemberCount >= freeLimit) {
         const ownerCredits = treeOwner?.memberCredits || 0;
         if (ownerCredits <= 0) {
           return res.status(402).json({ 
@@ -593,10 +607,12 @@ export async function registerRoutes(
         }
       })();
 
-      // Deduct credit if beyond free limit, track activity, check milestones
-      const updatedMemberCount = await subscriptionService.calculateTotalMemberCount(tree.ownerId);
-      if (updatedMemberCount > PRICING_CONFIG.freeTierCredits) {
-        await subscriptionService.deductCredit(tree.ownerId);
+      // Deduct credit if beyond free limit, track activity, check milestones (skip for admin)
+      if (!adminBypass) {
+        const updatedMemberCount = await subscriptionService.calculateTotalMemberCount(tree.ownerId);
+        if (updatedMemberCount > PRICING_CONFIG.freeTierCredits) {
+          await subscriptionService.deductCredit(tree.ownerId);
+        }
       }
       await subscriptionService.incrementMonthlyAdds(tree.ownerId);
       await subscriptionService.checkAndGrantMilestoneReward(tree.ownerId);
@@ -4591,8 +4607,22 @@ export async function registerRoutes(
   app.get("/api/subscription", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const subscriptionInfo = await subscriptionService.getUserSubscriptionInfo(userId);
       const user = await storage.getUser(userId);
+      
+      // Admin users get unlimited access
+      if (isAdminAccount(userId, user?.email)) {
+        return res.json({
+          subscription: { id: "admin", status: "active" },
+          tier: "unlimited",
+          totalMembers: 0,
+          credits: 999999,
+          freeLimit: 999999,
+          isAdmin: true,
+          config: SUBSCRIPTION_CONFIG,
+        });
+      }
+      
+      const subscriptionInfo = await subscriptionService.getUserSubscriptionInfo(userId);
       
       let stripeSubscription = null;
       if (user?.stripeCustomerId) {
