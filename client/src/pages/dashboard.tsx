@@ -633,7 +633,7 @@ export default function Dashboard() {
                   <span>Share App</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  className="flex items-center gap-2 sm:hidden"
+                  className="flex items-center gap-2 md:hidden"
                   onClick={() => navigate("/familysearch")}
                   data-testid="menu-records"
                 >

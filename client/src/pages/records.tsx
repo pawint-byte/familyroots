@@ -156,7 +156,25 @@ export default function RecordsPage() {
   const { data: treeData, isLoading: treeLoading, error: treeError } = useQuery<TreeData>({
     queryKey: ["/api/familysearch/tree"],
     enabled: !!user && activeTab === "import" && (status?.connected || !status?.configured),
+    retry: (failureCount, error: any) => {
+      if (error?.message?.includes("401") || error?.tokenExpired) return false;
+      return failureCount < 2;
+    },
   });
+
+  useEffect(() => {
+    if (treeError) {
+      const errorMsg = (treeError as any)?.message || "";
+      if (errorMsg.includes("401") || errorMsg.includes("expired")) {
+        queryClient.invalidateQueries({ queryKey: ["/api/familysearch/status"] });
+        toast({
+          title: "Session Expired",
+          description: "Your FamilySearch session has expired. Please reconnect your account.",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [treeError]);
 
   const connectMutation = useMutation({
     mutationFn: async () => {
@@ -832,7 +850,36 @@ export default function RecordsPage() {
                 <Card>
                   <CardContent className="py-12 text-center">
                     <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
-                    <p className="text-muted-foreground">Failed to load your FamilySearch tree. Please try again.</p>
+                    {((treeError as any)?.message || "").includes("401") || ((treeError as any)?.message || "").includes("expired") ? (
+                      <>
+                        <p className="text-muted-foreground mb-4">Your FamilySearch session has expired. Please reconnect to continue.</p>
+                        <Button onClick={() => connectMutation.mutate()} disabled={connectMutation.isPending} data-testid="button-reconnect-familysearch">
+                          {connectMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                          Reconnect to FamilySearch
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground">Failed to load your FamilySearch tree. Please try again.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : treeData && treeData.persons.length <= 1 && treeData.relationships.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Info className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="font-semibold text-lg mb-2">Your FamilySearch Tree is Empty</h3>
+                    <p className="text-muted-foreground mb-2">
+                      {treeData.persons.length === 1 
+                        ? `We found your profile (${treeData.persons[0].name}) but no family members in your FamilySearch tree yet.`
+                        : "No family members were found in your FamilySearch tree."
+                      }
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-6">
+                      To import family members, first add them to your tree on <a href="https://www.familysearch.org/tree" target="_blank" rel="noopener noreferrer" className="text-primary underline">FamilySearch.org</a>, then come back here to import them.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      You can also use the <button className="text-primary underline" onClick={() => setActiveTab("search")}>Search tab</button> to find and import people from FamilySearch's global database.
+                    </p>
                   </CardContent>
                 </Card>
               ) : treeData ? (

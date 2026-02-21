@@ -7558,6 +7558,17 @@ export async function registerRoutes(
           fatherName: fatherName as string,
           motherName: motherName as string,
         });
+        // If empty results, check if token expired
+        if (results.length === 0) {
+          const tokenValid = await familySearchService.getCurrentUserPersonId(connection.accessToken);
+          if (!tokenValid) {
+            await storage.deleteFamilySearchConnection(userId);
+            return res.status(401).json({ 
+              message: "Your FamilySearch session has expired. Please reconnect your account.",
+              tokenExpired: true
+            });
+          }
+        }
         return res.json(results);
       }
       
@@ -7586,7 +7597,13 @@ export async function registerRoutes(
         // Get the user's person ID in FamilySearch
         const personId = await familySearchService.getCurrentUserPersonId(connection.accessToken);
         if (!personId) {
-          return res.status(400).json({ message: "Could not find your person record in FamilySearch" });
+          // Token likely expired - auto-disconnect so user can reconnect
+          console.log("[FamilySearch] Token appears expired, clearing connection for user:", userId);
+          await storage.deleteFamilySearchConnection(userId);
+          return res.status(401).json({ 
+            message: "Your FamilySearch session has expired. Please reconnect your account.",
+            tokenExpired: true
+          });
         }
         
         console.log("[FamilySearch] Tree: fetching for personId:", personId);
