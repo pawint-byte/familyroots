@@ -103,6 +103,10 @@ export default function RecordsPage() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
   const [selectedTreeId, setSelectedTreeId] = useState<string>(preselectedTreeId || "");
+  const [familyMembers, setFamilyMembers] = useState<FamilySearchPerson[]>([]);
+  const [familyRelationships, setFamilyRelationships] = useState<FamilySearchRelationship[]>([]);
+  const [selectedFamilyIds, setSelectedFamilyIds] = useState<Set<string>>(new Set());
+  const [loadingFamily, setLoadingFamily] = useState(false);
 
   const [selectedPersons, setSelectedPersons] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["ancestors", "descendants", "self"]));
@@ -301,34 +305,67 @@ export default function RecordsPage() {
     setActiveSearch(false);
   };
 
-  const handleImportClick = (result: SearchResult) => {
+  const handleImportClick = async (result: SearchResult) => {
     setSelectedResult(result);
     if (trees.length === 1) {
       setSelectedTreeId(trees[0].id);
     }
+    setFamilyMembers([]);
+    setFamilyRelationships([]);
+    setSelectedFamilyIds(new Set([result.person.id]));
     setImportDialogOpen(true);
+    
+    if (status?.connected && result.person.id) {
+      setLoadingFamily(true);
+      try {
+        const response = await apiRequest("GET", `/api/familysearch/person/${result.person.id}/family`);
+        const data = await response.json();
+        if (data.persons && data.persons.length > 0) {
+          setFamilyMembers(data.persons);
+          setFamilyRelationships(data.relationships || []);
+          setSelectedFamilyIds(new Set(data.persons.map((p: FamilySearchPerson) => p.id)));
+        }
+      } catch (err) {
+        console.log("Could not fetch family data:", err);
+      } finally {
+        setLoadingFamily(false);
+      }
+    }
   };
 
   const handleConfirmImport = () => {
     if (!selectedResult || !selectedTreeId) return;
 
-    const display = selectedResult.person.display;
+    if (familyMembers.length > 0) {
+      const personsToImport = familyMembers.filter(p => selectedFamilyIds.has(p.id));
+      const selectedIdSet = selectedFamilyIds;
+      const relsToImport = familyRelationships.filter(r => 
+        selectedIdSet.has(r.person1Id) && selectedIdSet.has(r.person2Id)
+      );
+      
+      searchImportMutation.mutate({
+        treeId: selectedTreeId,
+        persons: personsToImport,
+        relationships: relsToImport,
+      });
+    } else {
+      const display = selectedResult.person.display;
+      const person = {
+        id: selectedResult.person.id || selectedResult.id,
+        name: display?.name || "Unknown",
+        gender: display?.gender?.toLowerCase(),
+        birthDate: display?.birthDate,
+        birthPlace: display?.birthPlace,
+        deathDate: display?.deathDate,
+        living: !display?.deathDate,
+      };
 
-    const person = {
-      id: selectedResult.person.id || selectedResult.id,
-      name: display?.name || "Unknown",
-      gender: display?.gender?.toLowerCase(),
-      birthDate: display?.birthDate,
-      birthPlace: display?.birthPlace,
-      deathDate: display?.deathDate,
-      living: !display?.deathDate,
-    };
-
-    searchImportMutation.mutate({
-      treeId: selectedTreeId,
-      persons: [person],
-      relationships: [],
-    });
+      searchImportMutation.mutate({
+        treeId: selectedTreeId,
+        persons: [person],
+        relationships: [],
+      });
+    }
   };
 
   const toggleGroup = (group: string) => {
@@ -879,14 +916,16 @@ export default function RecordsPage() {
       </div>
 
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent className="sm:max-w-md" data-testid="dialog-import-record">
+        <DialogContent className="sm:max-w-lg" data-testid="dialog-import-record">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <TreePine className="h-5 w-5" />
               Add to Tree
             </DialogTitle>
             <DialogDescription>
-              Add this person as a new member in one of your trees. You'll need to set up their relationships after importing.
+              {familyMembers.length > 1 
+                ? "Select which family members to import along with their relationships."
+                : "Add this person as a new member in one of your trees."}
             </DialogDescription>
           </DialogHeader>
           
@@ -915,6 +954,101 @@ export default function RecordsPage() {
                 </CardContent>
               </Card>
 
+              {loadingFamily && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground p-3">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Looking up family members...
+                </div>
+              )}
+
+              {familyMembers.length > 1 && !loadingFamily && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-1">
+                      <Users className="h-4 w-4" />
+                      Family Members Found ({familyMembers.length})
+                    </Label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-6 px-2"
+                        onClick={() => setSelectedFamilyIds(new Set(familyMembers.map(p => p.id)))}
+                        data-testid="button-select-all-family"
+                      >
+                        All
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-6 px-2"
+                        onClick={() => setSelectedFamilyIds(new Set([selectedResult.person.id]))}
+                        data-testid="button-select-none-family"
+                      >
+                        Just this person
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto border rounded-md divide-y">
+                    {familyMembers.map((person) => {
+                      const isMainPerson = person.id === selectedResult.person.id;
+                      const rel = familyRelationships.find(r => 
+                        (r.person1Id === selectedResult.person.id && r.person2Id === person.id) ||
+                        (r.person2Id === selectedResult.person.id && r.person1Id === person.id)
+                      );
+                      let relLabel = "";
+                      if (isMainPerson) relLabel = "Selected person";
+                      else if (rel?.type === "parent-child") {
+                        relLabel = rel.person1Id === person.id ? "Parent" : "Child";
+                      } else if (rel?.type === "couple") {
+                        relLabel = "Spouse";
+                      }
+                      
+                      return (
+                        <label
+                          key={person.id}
+                          className="flex items-center gap-3 p-2 hover:bg-muted/50 cursor-pointer text-sm"
+                          data-testid={`family-member-${person.id}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedFamilyIds.has(person.id)}
+                            onChange={() => {
+                              setSelectedFamilyIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(person.id)) next.delete(person.id);
+                                else next.add(person.id);
+                                return next;
+                              });
+                            }}
+                            className="rounded"
+                            disabled={isMainPerson}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className={`${isMainPerson ? "font-medium" : ""}`}>
+                              {person.name}
+                            </span>
+                            {relLabel && (
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                ({relLabel})
+                              </span>
+                            )}
+                          </div>
+                          {person.birthDate && (
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              b. {person.birthDate}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedFamilyIds.size} of {familyMembers.length} selected
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Select a tree</Label>
                 {trees.length === 0 ? (
@@ -939,7 +1073,9 @@ export default function RecordsPage() {
 
               <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-3">
                 <p className="text-xs text-amber-800 dark:text-amber-200">
-                  This will add the person as a new member. After importing, open your tree and use "Add Relationship" to connect them to existing family members.
+                  {familyMembers.length > 1 
+                    ? "Selected members will be imported with their relationships preserved."
+                    : "This will add the person as a new member. After importing, open your tree and use \"Add Relationship\" to connect them."}
                 </p>
               </div>
             </div>
@@ -951,7 +1087,7 @@ export default function RecordsPage() {
             </Button>
             <Button 
               onClick={handleConfirmImport} 
-              disabled={!selectedTreeId || searchImportMutation.isPending || trees.length === 0}
+              disabled={!selectedTreeId || searchImportMutation.isPending || trees.length === 0 || selectedFamilyIds.size === 0}
               data-testid="button-confirm-import"
             >
               {searchImportMutation.isPending ? (
@@ -962,7 +1098,7 @@ export default function RecordsPage() {
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-2" />
-                  Add to Tree
+                  Add {selectedFamilyIds.size > 1 ? `${selectedFamilyIds.size} People` : "to Tree"}
                 </>
               )}
             </Button>

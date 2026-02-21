@@ -199,7 +199,7 @@ export async function searchRecords(
   
   try {
     const searchUrl = `${urls.api}/platform/tree/search?${searchParams.toString()}`;
-    console.log("[FamilySearch] Search URL:", searchUrl.replace(/Bearer\s+\S+/, 'Bearer ***'));
+    console.log("[FamilySearch] Search URL:", searchUrl);
     
     const response = await fetch(searchUrl, {
       headers: {
@@ -221,8 +221,30 @@ export async function searchRecords(
     const rawEntries = data.entries || [];
     console.log("[FamilySearch] Search returned", rawEntries.length, "entries, totalResults:", data.totalResults || 'unknown');
     
+    if (rawEntries.length > 0) {
+      console.log("[FamilySearch] First entry keys:", Object.keys(rawEntries[0]));
+      const firstContent = rawEntries[0].content;
+      if (firstContent) {
+        console.log("[FamilySearch] First entry content keys:", Object.keys(firstContent));
+        if (firstContent.gedcomx) {
+          console.log("[FamilySearch] First entry gedcomx keys:", Object.keys(firstContent.gedcomx));
+          console.log("[FamilySearch] First entry persons count:", firstContent.gedcomx.persons?.length);
+          if (firstContent.gedcomx.persons?.[0]) {
+            const fp = firstContent.gedcomx.persons[0];
+            console.log("[FamilySearch] First person:", JSON.stringify({ id: fp.id, display: fp.display, living: fp.living }, null, 2));
+          }
+          if (firstContent.gedcomx.relationships?.length) {
+            console.log("[FamilySearch] First entry relationships count:", firstContent.gedcomx.relationships.length);
+          }
+        }
+      }
+    }
+    
     const results: SearchResult[] = rawEntries.map((entry: any) => {
       const person = entry.content?.gedcomx?.persons?.[0] || entry.person;
+      const relationships = entry.content?.gedcomx?.relationships || [];
+      const relatedPersons = entry.content?.gedcomx?.persons?.slice(1) || [];
+      
       return {
         id: entry.id || person?.id || '',
         score: entry.score ?? 0,
@@ -235,6 +257,15 @@ export async function searchRecords(
         recordDescriptor: entry.content?.gedcomx?.description 
           ? { id: entry.content.gedcomx.description, title: entry.title || '' }
           : undefined,
+        relatedPersons: relatedPersons.map((rp: any) => ({
+          id: rp.id || '',
+          display: rp.display || { name: rp.names?.[0]?.nameForms?.[0]?.fullText || 'Unknown' },
+        })),
+        relationships: relationships.map((rel: any) => ({
+          type: rel.type,
+          person1Id: rel.person1?.resourceId || '',
+          person2Id: rel.person2?.resourceId || '',
+        })),
       };
     });
     
@@ -409,6 +440,13 @@ export async function getPersonWithFamily(
     }
     
     const data = await response.json();
+    console.log("[FamilySearch] getPersonWithFamily raw data keys:", Object.keys(data));
+    console.log("[FamilySearch] getPersonWithFamily persons:", data.persons?.length || 0);
+    console.log("[FamilySearch] getPersonWithFamily childAndParentsRelationships:", data.childAndParentsRelationships?.length || 0);
+    console.log("[FamilySearch] getPersonWithFamily relationships:", data.relationships?.length || 0);
+    if (data.persons?.length > 0) {
+      console.log("[FamilySearch] First person:", JSON.stringify({ id: data.persons[0].id, display: data.persons[0].display }, null, 2));
+    }
     return parseTreeResponse(data, personId);
   } catch (error) {
     console.error("FamilySearch get person with family error:", error);

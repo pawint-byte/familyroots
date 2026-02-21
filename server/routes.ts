@@ -7589,32 +7589,47 @@ export async function registerRoutes(
           return res.status(400).json({ message: "Could not find your person record in FamilySearch" });
         }
         
-        // Get ancestry (4 generations up) and descendants (2 generations down)
-        const [ancestry, descendants] = await Promise.all([
+        console.log("[FamilySearch] Tree: fetching for personId:", personId);
+        
+        // Get ancestry (4 generations up), descendants (2 generations down), and immediate family
+        const [ancestry, descendants, familyData] = await Promise.all([
           familySearchService.getAncestry(connection.accessToken, personId, 4),
           familySearchService.getDescendancy(connection.accessToken, personId, 2),
+          familySearchService.getPersonWithFamily(connection.accessToken, personId),
         ]);
+        
+        console.log("[FamilySearch] Tree: ancestry persons:", ancestry?.persons.length || 0, 
+          "descendants persons:", descendants?.persons.length || 0,
+          "family persons:", familyData?.persons.length || 0);
         
         // Merge the tree data
         const persons = new Map<string, familySearchService.FamilySearchTreePerson>();
         const relationships: familySearchService.FamilySearchRelationship[] = [];
         
+        const addRelationship = (r: familySearchService.FamilySearchRelationship) => {
+          if (!relationships.some(existing => 
+            existing.type === r.type && 
+            existing.person1Id === r.person1Id && 
+            existing.person2Id === r.person2Id
+          )) {
+            relationships.push(r);
+          }
+        };
+        
         if (ancestry) {
           ancestry.persons.forEach(p => persons.set(p.id, p));
-          relationships.push(...ancestry.relationships);
+          ancestry.relationships.forEach(addRelationship);
         }
         if (descendants) {
           descendants.persons.forEach(p => persons.set(p.id, p));
-          descendants.relationships.forEach(r => {
-            if (!relationships.some(existing => 
-              existing.type === r.type && 
-              existing.person1Id === r.person1Id && 
-              existing.person2Id === r.person2Id
-            )) {
-              relationships.push(r);
-            }
-          });
+          descendants.relationships.forEach(addRelationship);
         }
+        if (familyData) {
+          familyData.persons.forEach(p => persons.set(p.id, p));
+          familyData.relationships.forEach(addRelationship);
+        }
+        
+        console.log("[FamilySearch] Tree: total merged persons:", persons.size, "relationships:", relationships.length);
         
         return res.json({
           persons: Array.from(persons.values()),
@@ -7630,6 +7645,37 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error getting FamilySearch tree:", error);
       res.status(500).json({ message: "Failed to get tree data" });
+    }
+  });
+
+  // Get a person's family from FamilySearch (for importing with relationships)
+  app.get("/api/familysearch/person/:personId/family", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { personId } = req.params;
+      const connection = await storage.getFamilySearchConnection(userId);
+      
+      if (!connection?.accessToken || !familySearchService.isConfigured()) {
+        return res.status(400).json({ message: "Not connected to FamilySearch" });
+      }
+      
+      console.log("[FamilySearch] Fetching family for person:", personId);
+      const familyData = await familySearchService.getPersonWithFamily(connection.accessToken, personId);
+      
+      if (!familyData) {
+        return res.status(404).json({ message: "Could not fetch person's family" });
+      }
+      
+      console.log("[FamilySearch] Person family: persons:", familyData.persons.length, "relationships:", familyData.relationships.length);
+      
+      res.json({
+        persons: familyData.persons,
+        relationships: familyData.relationships,
+        rootPersonId: personId,
+      });
+    } catch (error) {
+      console.error("Error fetching person family:", error);
+      res.status(500).json({ message: "Failed to fetch person's family" });
     }
   });
 
