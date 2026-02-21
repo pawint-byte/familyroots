@@ -332,7 +332,9 @@ export async function getCurrentUserPersonId(accessToken: string): Promise<strin
   const urls = getBaseUrls();
   
   try {
-    const response = await fetch(`${urls.api}/platform/tree/current-person`, {
+    const url = `${urls.api}/platform/tree/current-person`;
+    console.log("[FamilySearch] getCurrentUserPersonId URL:", url);
+    const response = await fetch(url, {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
         "Accept": "application/json",
@@ -340,12 +342,15 @@ export async function getCurrentUserPersonId(accessToken: string): Promise<strin
     });
     
     if (!response.ok) {
-      console.error("FamilySearch get current person failed:", response.status);
+      const errorText = await response.text();
+      console.error("[FamilySearch] getCurrentUserPersonId failed:", response.status, errorText.substring(0, 300));
       return null;
     }
     
     const data = await response.json();
-    return data.persons?.[0]?.id || null;
+    const personId = data.persons?.[0]?.id || null;
+    console.log("[FamilySearch] getCurrentUserPersonId result:", personId, "name:", data.persons?.[0]?.display?.name);
+    return personId;
   } catch (error) {
     console.error("FamilySearch get current person error:", error);
     return null;
@@ -361,22 +366,31 @@ export async function getAncestry(
   const urls = getBaseUrls();
   
   try {
-    const response = await fetch(
-      `${urls.api}/platform/tree/ancestry?person=${personId}&generations=${generations}`,
-      {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Accept": "application/json",
-        },
-      }
-    );
+    const ancestryUrl = `${urls.api}/platform/tree/ancestry?person=${personId}&generations=${generations}`;
+    console.log("[FamilySearch] getAncestry URL:", ancestryUrl);
+    const response = await fetch(ancestryUrl, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json",
+      },
+    });
     
     if (!response.ok) {
-      console.error("FamilySearch get ancestry failed:", response.status);
+      const errorText = await response.text();
+      console.error("[FamilySearch] getAncestry failed:", response.status, errorText.substring(0, 300));
       return null;
     }
     
     const data = await response.json();
+    console.log("[FamilySearch] getAncestry raw keys:", Object.keys(data));
+    console.log("[FamilySearch] getAncestry persons:", data.persons?.length || 0);
+    console.log("[FamilySearch] getAncestry childAndParentsRelationships:", data.childAndParentsRelationships?.length || 0);
+    console.log("[FamilySearch] getAncestry relationships:", data.relationships?.length || 0);
+    if (data.persons) {
+      data.persons.forEach((p: any, i: number) => {
+        console.log(`[FamilySearch] Ancestry person ${i}: ${p.display?.name || 'Unknown'} (${p.id}) living=${p.living}`);
+      });
+    }
     return parseTreeResponse(data, personId);
   } catch (error) {
     console.error("FamilySearch get ancestry error:", error);
@@ -393,22 +407,29 @@ export async function getDescendancy(
   const urls = getBaseUrls();
   
   try {
-    const response = await fetch(
-      `${urls.api}/platform/tree/descendancy?person=${personId}&generations=${generations}`,
-      {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Accept": "application/json",
-        },
-      }
-    );
+    const descUrl = `${urls.api}/platform/tree/descendancy?person=${personId}&generations=${generations}`;
+    console.log("[FamilySearch] getDescendancy URL:", descUrl);
+    const response = await fetch(descUrl, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json",
+      },
+    });
     
     if (!response.ok) {
-      console.error("FamilySearch get descendancy failed:", response.status);
+      const errorText = await response.text();
+      console.error("[FamilySearch] getDescendancy failed:", response.status, errorText.substring(0, 300));
       return null;
     }
     
     const data = await response.json();
+    console.log("[FamilySearch] getDescendancy raw keys:", Object.keys(data));
+    console.log("[FamilySearch] getDescendancy persons:", data.persons?.length || 0);
+    if (data.persons) {
+      data.persons.forEach((p: any, i: number) => {
+        console.log(`[FamilySearch] Descendancy person ${i}: ${p.display?.name || 'Unknown'} (${p.id})`);
+      });
+    }
     return parseTreeResponse(data, personId);
   } catch (error) {
     console.error("FamilySearch get descendancy error:", error);
