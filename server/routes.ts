@@ -7469,7 +7469,7 @@ export async function registerRoutes(
       // Handle FamilySearch error responses (e.g., user denied access)
       if (fsError) {
         console.error("FamilySearch returned error:", fsError);
-        return res.redirect("/records?error=callback_failed");
+        return res.redirect("/familysearch?error=callback_failed");
       }
       
       // Verify state - require it exists and matches
@@ -7477,7 +7477,7 @@ export async function registerRoutes(
       console.log("[FamilySearch] Callback received - state match:", storedState === state, "has stored state:", !!storedState);
       if (!storedState || storedState !== state) {
         console.error("[FamilySearch] State mismatch - stored:", storedState, "received:", state);
-        return res.redirect("/records?error=invalid_state");
+        return res.redirect("/familysearch?error=invalid_state");
       }
       // Clear state after use to prevent reuse
       delete req.session.familySearchState;
@@ -7487,7 +7487,7 @@ export async function registerRoutes(
       const tokenResponse = await familySearchService.exchangeCodeForToken(code as string);
       if (!tokenResponse) {
         console.error("[FamilySearch] Token exchange returned null");
-        return res.redirect("/records?error=token_exchange_failed");
+        return res.redirect("/familysearch?error=token_exchange_failed");
       }
       console.log("[FamilySearch] Token exchange successful");
       
@@ -7518,10 +7518,10 @@ export async function registerRoutes(
         });
       }
       
-      res.redirect("/records?connected=true");
+      res.redirect("/familysearch?connected=true");
     } catch (error) {
       console.error("Error in FamilySearch callback:", error);
-      res.redirect("/records?error=callback_failed");
+      res.redirect("/familysearch?error=callback_failed");
     }
   });
 

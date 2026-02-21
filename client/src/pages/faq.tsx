@@ -581,7 +581,7 @@ export default function FAQ() {
       items: [
         {
           question: "What is FamilySearch and how does FamilyRoots connect to it?",
-          answer: <>FamilySearch is a free platform with over 66 billion historical records: birth certificates, marriage records, census data, immigration documents, military records, and more. FamilyRoots connects to FamilySearch so you can search those records and import ancestors directly into your family tree, all without leaving the app. Go to the <Link href="/records" className="text-primary hover:underline font-medium">Historical Records</Link> page to get started.</>
+          answer: <>FamilySearch is a free platform with over 66 billion historical records: birth certificates, marriage records, census data, immigration documents, military records, and more. FamilyRoots connects to FamilySearch so you can search those records and import ancestors directly into your family tree, all without leaving the app. Go to the <Link href="/familysearch" className="text-primary hover:underline font-medium">FamilySearch</Link> page to get started.</>
         },
         {
           question: "Is the FamilySearch connection always active?",
@@ -589,7 +589,7 @@ export default function FAQ() {
         },
         {
           question: "What's the difference between Search and Import?",
-          answer: <>There are two separate ways to use FamilySearch in FamilyRoots:<br/><br/><strong>Search (Records page)</strong> lets you look up individual historical records by name, birth year, birthplace, and other details. You get a list of matching records, and you can import any result directly into one of your trees with the "Import to Tree" button.<br/><br/><strong>Tree Import (FamilySearch Import page)</strong> pulls your entire FamilySearch family tree, organized by ancestors, descendants, and spouses. You can select multiple people at once, and all their relationships (parent-child, spouse) are imported automatically.<br/><br/>Use Search when you're looking for a specific person. Use Tree Import when you want to bring over a whole family branch with connections intact.</>
+          answer: <>Both are on the same <Link href="/familysearch" className="text-primary hover:underline font-medium">FamilySearch</Link> page, just different tabs:<br/><br/><strong>Search Records</strong> lets you look up individual historical records by name, birth year, birthplace, and other details. You get a list of matching records, and you can add any result directly into one of your trees.<br/><br/><strong>Import Tree</strong> pulls your entire FamilySearch family tree, organized by ancestors, descendants, and spouses. You can select multiple people at once, and all their relationships (parent-child, spouse) are imported automatically.<br/><br/>Use Search when you're looking for a specific person. Use Import Tree when you want to bring over a whole family branch with connections intact.</>
         },
         {
           question: "When I search for a person, do I get all their family relationships too?",
@@ -601,7 +601,7 @@ export default function FAQ() {
         },
         {
           question: "How do I import a whole family branch with relationships?",
-          answer: <>Go to the <Link href="/familysearch-import" className="text-primary hover:underline font-medium">FamilySearch Import</Link> page. This connects to your FamilySearch family tree and shows your ancestors, descendants, and spouses organized in groups. Check the boxes next to the people you want to import, pick a tree, and click Import. All the parent-child and spouse relationships between selected people are created automatically. You don't have to set up connections manually.</>
+          answer: <>Go to the <Link href="/familysearch?tab=import" className="text-primary hover:underline font-medium">FamilySearch page</Link> and click the "Import Tree" tab. This connects to your FamilySearch family tree and shows your ancestors, descendants, and spouses organized in groups. Check the boxes next to the people you want to import, pick a tree, and click Import. All the parent-child and spouse relationships between selected people are created automatically. You don't have to set up connections manually.</>
         },
         {
           question: "Does FamilyRoots automatically detect duplicate people during import?",

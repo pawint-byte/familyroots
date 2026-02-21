@@ -389,7 +389,7 @@ export default function Dashboard() {
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-start gap-2"
-                  onClick={() => navigate("/records")}
+                  onClick={() => navigate("/familysearch")}
                   data-testid="mobile-menu-records"
                 >
                   <BookOpen className="h-4 w-4 mt-0.5 shrink-0" />
@@ -522,7 +522,7 @@ export default function Dashboard() {
             </Button>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/records")} className="hidden md:flex gap-1" data-testid="link-records">
+                <Button variant="ghost" size="sm" onClick={() => navigate("/familysearch")} className="hidden md:flex gap-1" data-testid="link-records">
                   <BookOpen className="h-4 w-4" />
                   <span className="hidden lg:inline">Records</span>
                 </Button>
@@ -634,7 +634,7 @@ export default function Dashboard() {
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-center gap-2 sm:hidden"
-                  onClick={() => navigate("/records")}
+                  onClick={() => navigate("/familysearch")}
                   data-testid="menu-records"
                 >
                   <BookOpen className="h-4 w-4" />

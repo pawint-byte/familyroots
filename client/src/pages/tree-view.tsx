@@ -595,7 +595,7 @@ export default function TreeView() {
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       className="gap-2"
-                      onClick={() => navigate(`/familysearch/import/${treeId}`)}
+                      onClick={() => navigate(`/familysearch?tab=import&treeId=${treeId}`)}
                       data-testid="menu-import-familysearch"
                     >
                       <Download className="h-4 w-4" />
@@ -669,7 +669,7 @@ export default function TreeView() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="flex items-start gap-2"
-                  onClick={() => navigate(`/familysearch/import?treeId=${treeId}`)}
+                  onClick={() => navigate(`/familysearch?tab=import&treeId=${treeId}`)}
                   data-testid="menu-import-familysearch"
                 >
                   <Download className="h-4 w-4 mt-0.5 shrink-0" />
@@ -911,7 +911,7 @@ export default function TreeView() {
                           variant="outline"
                           size="sm"
                           className="w-full gap-2"
-                          onClick={() => navigate(`/familysearch/import?treeId=${treeId}`)}
+                          onClick={() => navigate(`/familysearch?tab=import&treeId=${treeId}`)}
                           data-testid="button-import-familysearch"
                         >
                           <Download className="h-4 w-4" />
@@ -1032,7 +1032,7 @@ export default function TreeView() {
                               variant="outline"
                               size="sm"
                               className="w-full gap-2"
-                              onClick={() => navigate(`/familysearch/import?treeId=${treeId}`)}
+                              onClick={() => navigate(`/familysearch?tab=import&treeId=${treeId}`)}
                               data-testid="button-import-familysearch-empty"
                             >
                               <Download className="h-4 w-4" />
