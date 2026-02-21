@@ -19,6 +19,7 @@ export interface RelationshipTypeConfig {
   label: string;
   reverseLabel?: string;
   description?: string;
+  rank?: number;
 }
 
 export interface TreeTypeConfig {
@@ -96,17 +97,19 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "volunteer", label: "Volunteer" },
     ],
     defaultRelationshipTypes: [
-      { value: "pastor", label: "Pastor/Leader", reverseLabel: "Congregation Member", description: "Pastoral leadership" },
-      { value: "elder", label: "Elder/Deacon", description: "Church leadership role" },
-      { value: "member", label: "Congregation Member", description: "General member" },
-      { value: "ministry_leader", label: "Ministry Leader", reverseLabel: "Ministry Member", description: "Leads a ministry or group" },
-      { value: "ministry_member", label: "Ministry Member", reverseLabel: "Ministry Leader", description: "Participates in a ministry" },
+      { value: "pastor", label: "Pastor/Leader", reverseLabel: "Congregation Member", description: "Pastoral leadership", rank: 1 },
+      { value: "elder", label: "Elder/Deacon", description: "Church leadership role", rank: 2 },
+      { value: "worship_leader", label: "Worship Leader", description: "Leads worship services", rank: 2 },
+      { value: "ministry_leader", label: "Ministry Leader", reverseLabel: "Ministry Member", description: "Leads a ministry or group", rank: 2 },
+      { value: "teacher", label: "Teacher", reverseLabel: "Student", description: "Teaches classes or groups", rank: 2 },
+      { value: "member", label: "Congregation Member", description: "General member", rank: 3 },
+      { value: "ministry_member", label: "Ministry Member", reverseLabel: "Ministry Leader", description: "Participates in a ministry", rank: 3 },
+      { value: "student", label: "Student", reverseLabel: "Teacher", description: "Attends classes or groups", rank: 3 },
+      { value: "volunteer", label: "Volunteer", description: "Serves in a volunteer role", rank: 3 },
       { value: "mentor", label: "Mentor", reverseLabel: "Mentee", description: "Spiritual mentorship" },
       { value: "mentee", label: "Mentee", reverseLabel: "Mentor", description: "Being mentored" },
-      { value: "worship_leader", label: "Worship Leader", description: "Leads worship services" },
-      { value: "volunteer", label: "Volunteer", description: "Serves in a volunteer role" },
-      { value: "teacher", label: "Teacher", reverseLabel: "Student", description: "Teaches classes or groups" },
-      { value: "student", label: "Student", reverseLabel: "Teacher", description: "Attends classes or groups" },
+      { value: "prayer_partner", label: "Prayer Partner", description: "Paired for prayer and support" },
+      { value: "friend", label: "Friend", description: "Personal friendship within the community" },
     ],
     visual: {
       layoutShape: "radial",
@@ -138,14 +141,18 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "retired", label: "Retired" },
     ],
     defaultRelationshipTypes: [
-      { value: "coach", label: "Head Coach", reverseLabel: "Player", description: "Head coach of the team" },
-      { value: "assistant_coach", label: "Assistant Coach", reverseLabel: "Player", description: "Assistant or position coach" },
-      { value: "captain", label: "Captain", description: "Team captain" },
-      { value: "player", label: "Player", reverseLabel: "Head Coach", description: "Active player on roster" },
-      { value: "trainer", label: "Trainer/Physio", description: "Athletic trainer or physiotherapist" },
-      { value: "manager", label: "Manager/Staff", description: "Team management or support staff" },
-      { value: "teammate", label: "Teammate", description: "Fellow team member" },
-      { value: "alumni", label: "Alumni", description: "Former team member" },
+      { value: "coach", label: "Head Coach", reverseLabel: "Player", description: "Head coach of the team", rank: 1 },
+      { value: "assistant_coach", label: "Assistant Coach", reverseLabel: "Player", description: "Assistant or position coach", rank: 2 },
+      { value: "captain", label: "Captain", description: "Team captain", rank: 2 },
+      { value: "trainer", label: "Trainer/Physio", description: "Athletic trainer or physiotherapist", rank: 2 },
+      { value: "manager", label: "Manager/Staff", description: "Team management or support staff", rank: 2 },
+      { value: "player", label: "Player", reverseLabel: "Head Coach", description: "Active player on roster", rank: 3 },
+      { value: "teammate", label: "Teammate", description: "Fellow team member", rank: 3 },
+      { value: "alumni", label: "Alumni", description: "Former team member", rank: 3 },
+      { value: "best_friend", label: "Best Friend", description: "Closest friend on the team" },
+      { value: "friend", label: "Friend", description: "Friends on and off the field" },
+      { value: "rival", label: "Rival", description: "Friendly competition or rival" },
+      { value: "training_partner", label: "Training Partner", description: "Regular workout or practice partner" },
     ],
     visual: {
       layoutShape: "grid",
@@ -182,14 +189,18 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "honorary", label: "Honorary Member" },
     ],
     defaultRelationshipTypes: [
+      { value: "chapter_president", label: "Chapter President", description: "Chapter leadership", rank: 1 },
+      { value: "advisor", label: "Faculty Advisor", reverseLabel: "Active Member", description: "Faculty or alumni advisor", rank: 1 },
+      { value: "officer", label: "Officer", description: "Elected or appointed officer", rank: 2 },
       { value: "big", label: "Big (Mentor)", reverseLabel: "Little", description: "Big brother/sister mentor" },
       { value: "little", label: "Little (Mentee)", reverseLabel: "Big", description: "Little brother/sister mentee" },
       { value: "pledge_class", label: "Pledge Class", description: "Same pledge/initiation class" },
-      { value: "chapter_president", label: "Chapter President", description: "Chapter leadership" },
-      { value: "officer", label: "Officer", description: "Elected or appointed officer" },
-      { value: "advisor", label: "Faculty Advisor", reverseLabel: "Active Member", description: "Faculty or alumni advisor" },
-      { value: "active", label: "Active Member", description: "Current active member" },
-      { value: "alumni", label: "Alumni", description: "Graduated alumni" },
+      { value: "active", label: "Active Member", description: "Current active member", rank: 3 },
+      { value: "alumni", label: "Alumni", description: "Graduated alumni", rank: 3 },
+      { value: "best_friend", label: "Best Friend", description: "Closest friend in the chapter" },
+      { value: "friend", label: "Friend", description: "Personal friendship" },
+      { value: "study_partner", label: "Study Partner", description: "Regular study buddy" },
+      { value: "roommate", label: "Roommate", description: "Current or former roommate" },
     ],
     visual: {
       layoutShape: "arc",
@@ -228,6 +239,8 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "roommate", label: "Roommate", description: "Current or former roommate" },
       { value: "neighbor", label: "Neighbor", description: "Lives nearby" },
       { value: "acquaintance", label: "Acquaintance", description: "Casual connection" },
+      { value: "study_partner", label: "Study Partner", description: "Regular study buddy" },
+      { value: "travel_buddy", label: "Travel Buddy", description: "Travel companion" },
     ],
     visual: {
       layoutShape: "circle",
@@ -262,15 +275,16 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "external", label: "External / Vendor" },
     ],
     defaultRelationshipTypes: [
-      { value: "manager", label: "Manager", reverseLabel: "Direct Report", description: "Direct supervisor" },
-      { value: "direct_report", label: "Direct Report", reverseLabel: "Manager", description: "Reports to you" },
-      { value: "colleague", label: "Colleague", description: "Same team or department" },
-      { value: "mentor", label: "Mentor", reverseLabel: "Mentee", description: "Professional mentor" },
-      { value: "mentee", label: "Mentee", reverseLabel: "Mentor", description: "Being mentored" },
+      { value: "manager", label: "Manager", reverseLabel: "Direct Report", description: "Direct supervisor", rank: 1 },
+      { value: "supervisor", label: "Supervisor", reverseLabel: "Intern", description: "Oversees intern or trainee", rank: 1 },
+      { value: "mentor", label: "Mentor", reverseLabel: "Mentee", description: "Professional mentor", rank: 2 },
+      { value: "direct_report", label: "Direct Report", reverseLabel: "Manager", description: "Reports to you", rank: 3 },
+      { value: "colleague", label: "Colleague", description: "Same team or department", rank: 3 },
+      { value: "mentee", label: "Mentee", reverseLabel: "Mentor", description: "Being mentored", rank: 3 },
+      { value: "intern", label: "Intern", reverseLabel: "Supervisor", description: "Intern or trainee", rank: 3 },
       { value: "client", label: "Client", description: "Business client" },
       { value: "partner", label: "Business Partner", description: "Business partnership" },
-      { value: "intern", label: "Intern", reverseLabel: "Supervisor", description: "Intern or trainee" },
-      { value: "supervisor", label: "Supervisor", reverseLabel: "Intern", description: "Oversees intern or trainee" },
+      { value: "friend", label: "Work Friend", description: "Personal friendship at work" },
     ],
     visual: {
       layoutShape: "network",
@@ -300,14 +314,17 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "honorary", label: "Honorary" },
     ],
     defaultRelationshipTypes: [
-      { value: "leader", label: "Leader", reverseLabel: "Member", description: "Group leader or organizer" },
-      { value: "co_leader", label: "Co-Leader", description: "Assists the leader" },
-      { value: "member", label: "Member", description: "Group member" },
-      { value: "teacher", label: "Teacher", reverseLabel: "Student", description: "Teaches or instructs" },
-      { value: "student", label: "Student", reverseLabel: "Teacher", description: "Learns from a teacher" },
+      { value: "leader", label: "Leader", reverseLabel: "Member", description: "Group leader or organizer", rank: 1 },
+      { value: "co_leader", label: "Co-Leader", description: "Assists the leader", rank: 2 },
+      { value: "teacher", label: "Teacher", reverseLabel: "Student", description: "Teaches or instructs", rank: 1 },
+      { value: "student", label: "Student", reverseLabel: "Teacher", description: "Learns from a teacher", rank: 3 },
+      { value: "member", label: "Member", description: "Group member", rank: 3 },
       { value: "mentor", label: "Mentor", reverseLabel: "Mentee", description: "Guides or advises" },
       { value: "mentee", label: "Mentee", reverseLabel: "Mentor", description: "Receives guidance" },
       { value: "connected", label: "Connected", description: "General connection" },
+      { value: "best_friend", label: "Best Friend", description: "Closest friend in the group" },
+      { value: "friend", label: "Friend", description: "Personal friendship" },
+      { value: "study_partner", label: "Study Partner", description: "Regular study buddy" },
     ],
     visual: {
       layoutShape: "circle",
@@ -377,4 +394,30 @@ export function getReverseRelationshipType(
   }
   
   return relationshipType;
+}
+
+export function getRelationshipRank(
+  treeType: TreeType,
+  relationshipType: string,
+  customRelationshipTypes?: string[] | null
+): number {
+  const types = getRelationshipTypesForTree(treeType, customRelationshipTypes);
+  const config = types.find(t => t.value === relationshipType);
+  return config?.rank || 3;
+}
+
+export function getMemberRank(
+  memberId: string,
+  relationships: { fromMemberId: string; toMemberId: string; relationshipType: string }[],
+  treeType: TreeType,
+  customRelationshipTypes?: string[] | null
+): number {
+  let bestRank = 3;
+  for (const rel of relationships) {
+    if (rel.fromMemberId === memberId || rel.toMemberId === memberId) {
+      const rank = getRelationshipRank(treeType, rel.relationshipType, customRelationshipTypes);
+      if (rank < bestRank) bestRank = rank;
+    }
+  }
+  return bestRank;
 }

@@ -9,7 +9,9 @@ import {
   type LayoutShape,
   type LineStyle,
   getRelationshipTypesForTree,
+  getMemberRank,
 } from "@shared/treeTypes";
+import { Crown, Star, Shield } from "lucide-react";
 
 interface GroupVisualizationProps {
   members: FamilyMember[];
@@ -25,6 +27,7 @@ interface NodePosition {
   y: number;
   member: FamilyMember;
   relationshipType?: string;
+  rank?: number;
 }
 
 function getStrokeDashArray(lineStyle: LineStyle): string {
@@ -53,24 +56,93 @@ function getMemberRelationshipType(
   return undefined;
 }
 
+function buildRelMap(relationships: Relationship[]): Map<string, string> {
+  const relMap = new Map<string, string>();
+  for (const rel of relationships) {
+    if (!relMap.has(rel.fromMemberId)) relMap.set(rel.fromMemberId, rel.relationshipType);
+    if (!relMap.has(rel.toMemberId)) relMap.set(rel.toMemberId, rel.relationshipType);
+  }
+  return relMap;
+}
+
+function sortByRank(
+  members: FamilyMember[],
+  relationships: Relationship[],
+  treeType: TreeType
+): { rank1: FamilyMember[]; rank2: FamilyMember[]; rank3: FamilyMember[] } {
+  const rank1: FamilyMember[] = [];
+  const rank2: FamilyMember[] = [];
+  const rank3: FamilyMember[] = [];
+
+  for (const m of members) {
+    const rank = getMemberRank(m.id, relationships, treeType);
+    if (rank === 1) rank1.push(m);
+    else if (rank === 2) rank2.push(m);
+    else rank3.push(m);
+  }
+
+  return { rank1, rank2, rank3 };
+}
+
 function calculateCircleLayout(
   members: FamilyMember[],
   focusId: string,
-  relationships: Relationship[]
+  relationships: Relationship[],
+  treeType: TreeType
 ): NodePosition[] {
   if (members.length === 0) return [];
+  
+  const relMap = buildRelMap(relationships);
+  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
+
   if (members.length === 1) {
-    return [
-      {
-        x: 500,
-        y: 500,
-        member: members[0],
-        relationshipType: getMemberRelationshipType(
-          members[0].id,
-          relationships
-        ),
-      },
-    ];
+    const rank = getMemberRank(members[0].id, relationships, treeType);
+    return [{
+      x: 500, y: 500, member: members[0],
+      relationshipType: relMap.get(members[0].id),
+      rank,
+    }];
+  }
+
+  if (rank1.length > 0) {
+    const centerX = 500;
+    const topY = 150;
+    const positions: NodePosition[] = [];
+
+    rank1.forEach((m, i) => {
+      const spacing = 200;
+      const totalWidth = (rank1.length - 1) * spacing;
+      positions.push({
+        x: centerX - totalWidth / 2 + i * spacing,
+        y: topY,
+        member: m,
+        relationshipType: relMap.get(m.id),
+        rank: 1,
+      });
+    });
+
+    const subLeaders = rank2;
+    const regularMembers = rank3;
+    const allBelow = [...subLeaders, ...regularMembers];
+
+    if (allBelow.length > 0) {
+      const radius = Math.max(180, allBelow.length * 30);
+      const circleY = topY + radius + 200;
+
+      allBelow.forEach((m, i) => {
+        const angle = (2 * Math.PI * i) / allBelow.length - Math.PI / 2;
+        const memberRank = getMemberRank(m.id, relationships, treeType);
+        positions.push({
+          x: centerX + radius * Math.cos(angle),
+          y: circleY + radius * Math.sin(angle),
+          member: m,
+          relationshipType: relMap.get(m.id),
+          rank: memberRank,
+        });
+      });
+    }
+
+    return positions;
   }
 
   const radius = Math.max(200, members.length * 35);
@@ -79,19 +151,17 @@ function calculateCircleLayout(
 
   const focusIndex = members.findIndex((m) => m.id === focusId);
   const startIndex = focusIndex >= 0 ? focusIndex : 0;
-
-  const sorted = [
-    ...members.slice(startIndex),
-    ...members.slice(0, startIndex),
-  ];
+  const sorted = [...members.slice(startIndex), ...members.slice(0, startIndex)];
 
   return sorted.map((member, i) => {
     const angle = (2 * Math.PI * i) / sorted.length - Math.PI / 2;
+    const memberRank = getMemberRank(member.id, relationships, treeType);
     return {
       x: centerX + radius * Math.cos(angle),
       y: centerY + radius * Math.sin(angle),
       member,
-      relationshipType: getMemberRelationshipType(member.id, relationships),
+      relationshipType: relMap.get(member.id),
+      rank: memberRank,
     };
   });
 }
@@ -99,7 +169,8 @@ function calculateCircleLayout(
 function calculateRadialLayout(
   members: FamilyMember[],
   focusId: string,
-  relationships: Relationship[]
+  relationships: Relationship[],
+  treeType: TreeType
 ): NodePosition[] {
   if (members.length === 0) return [];
 
@@ -107,58 +178,34 @@ function calculateRadialLayout(
   const centerY = 600;
   const ringGap = 180;
 
-  const leaderTypes = new Set([
-    "pastor",
-    "elder",
-    "ministry_leader",
-    "leader",
-  ]);
-  const middleTypes = new Set(["mentor", "ministry_member", "officer"]);
-
   const focusMember = members.find((m) => m.id === focusId) || members[0];
   const others = members.filter((m) => m.id !== focusMember.id);
+  const relMap = buildRelMap(relationships);
 
-  const relMap = new Map<string, string>();
-  for (const rel of relationships) {
-    if (!relMap.has(rel.fromMemberId)) relMap.set(rel.fromMemberId, rel.relationshipType);
-    if (!relMap.has(rel.toMemberId)) relMap.set(rel.toMemberId, rel.relationshipType);
-  }
+  const { rank1, rank2, rank3 } = sortByRank(others, relationships, treeType);
 
-  const ring1: FamilyMember[] = [];
-  const ring2: FamilyMember[] = [];
-  const ring3: FamilyMember[] = [];
-
-  for (const m of others) {
-    const rt = relMap.get(m.id);
-    if (rt && leaderTypes.has(rt)) ring1.push(m);
-    else if (rt && middleTypes.has(rt)) ring2.push(m);
-    else ring3.push(m);
-  }
-
+  const focusRank = getMemberRank(focusMember.id, relationships, treeType);
   const positions: NodePosition[] = [
-    {
-      x: centerX,
-      y: centerY,
-      member: focusMember,
-      relationshipType: relMap.get(focusMember.id),
-    },
+    { x: centerX, y: centerY, member: focusMember, relationshipType: relMap.get(focusMember.id), rank: focusRank },
   ];
 
   const placeRing = (ring: FamilyMember[], radius: number) => {
     ring.forEach((m, i) => {
       const angle = (2 * Math.PI * i) / ring.length - Math.PI / 2;
+      const memberRank = getMemberRank(m.id, relationships, treeType);
       positions.push({
         x: centerX + radius * Math.cos(angle),
         y: centerY + radius * Math.sin(angle),
         member: m,
         relationshipType: relMap.get(m.id),
+        rank: memberRank,
       });
     });
   };
 
-  if (ring1.length > 0) placeRing(ring1, ringGap);
-  if (ring2.length > 0) placeRing(ring2, ringGap * 2);
-  if (ring3.length > 0) placeRing(ring3, ringGap * 3);
+  if (rank1.length > 0) placeRing(rank1, ringGap);
+  if (rank2.length > 0) placeRing(rank2, ringGap * 2);
+  if (rank3.length > 0) placeRing(rank3, ringGap * 3);
 
   return positions;
 }
@@ -166,7 +213,8 @@ function calculateRadialLayout(
 function calculateGridLayout(
   members: FamilyMember[],
   _focusId: string,
-  relationships: Relationship[]
+  relationships: Relationship[],
+  treeType: TreeType
 ): NodePosition[] {
   if (members.length === 0) return [];
 
@@ -176,54 +224,37 @@ function calculateGridLayout(
   const startY = 100;
   const perRow = 5;
 
-  const coachTypes = new Set(["coach", "manager"]);
-  const captainTypes = new Set(["captain"]);
-
-  const relMap = new Map<string, string>();
-  for (const rel of relationships) {
-    if (!relMap.has(rel.fromMemberId)) relMap.set(rel.fromMemberId, rel.relationshipType);
-    if (!relMap.has(rel.toMemberId)) relMap.set(rel.toMemberId, rel.relationshipType);
-  }
-
-  const coaches: FamilyMember[] = [];
-  const captains: FamilyMember[] = [];
-  const players: FamilyMember[] = [];
-
-  for (const m of members) {
-    const rt = relMap.get(m.id);
-    if (rt && coachTypes.has(rt)) coaches.push(m);
-    else if (rt && captainTypes.has(rt)) captains.push(m);
-    else players.push(m);
-  }
+  const relMap = buildRelMap(relationships);
+  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
 
   const positions: NodePosition[] = [];
   let currentRow = 0;
 
-  const placeRow = (group: FamilyMember[], row: number) => {
-    const offsetX =
-      startX + ((perRow - group.length) * colWidth) / 2;
+  const placeRow = (group: FamilyMember[], row: number, rank: number) => {
+    const offsetX = startX + ((perRow - group.length) * colWidth) / 2;
     group.forEach((m, i) => {
       positions.push({
         x: offsetX + i * colWidth,
         y: startY + row * rowHeight,
         member: m,
         relationshipType: relMap.get(m.id),
+        rank,
       });
     });
   };
 
-  if (coaches.length > 0) {
-    placeRow(coaches, currentRow);
+  if (rank1.length > 0) {
+    placeRow(rank1, currentRow, 1);
     currentRow++;
   }
-  if (captains.length > 0) {
-    placeRow(captains, currentRow);
+  if (rank2.length > 0) {
+    placeRow(rank2, currentRow, 2);
     currentRow++;
   }
 
-  for (let i = 0; i < players.length; i += perRow) {
-    const chunk = players.slice(i, i + perRow);
-    placeRow(chunk, currentRow);
+  for (let i = 0; i < rank3.length; i += perRow) {
+    const chunk = rank3.slice(i, i + perRow);
+    placeRow(chunk, currentRow, 3);
     currentRow++;
   }
 
@@ -233,53 +264,69 @@ function calculateGridLayout(
 function calculateArcLayout(
   members: FamilyMember[],
   focusId: string,
-  relationships: Relationship[]
+  relationships: Relationship[],
+  treeType: TreeType
 ): NodePosition[] {
   if (members.length === 0) return [];
 
-  const leaderTypes = new Set([
-    "chapter_president",
-    "officer",
-    "big",
-    "leader",
-  ]);
+  const relMap = buildRelMap(relationships);
+  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
 
-  const relMap = new Map<string, string>();
-  for (const rel of relationships) {
-    if (!relMap.has(rel.fromMemberId)) relMap.set(rel.fromMemberId, rel.relationshipType);
-    if (!relMap.has(rel.toMemberId)) relMap.set(rel.toMemberId, rel.relationshipType);
+  const focusMember = members.find((m) => m.id === focusId);
+  const focusInRank1 = focusMember && rank1.some(m => m.id === focusMember.id);
+  
+  const leaders = focusInRank1 ? rank1 : (rank1.length > 0 ? rank1 : (focusMember ? [focusMember] : []));
+  const others = [...rank2, ...rank3].filter(m => !leaders.some(l => l.id === m.id));
+  if (!focusInRank1 && focusMember) {
+    const idx = others.findIndex(m => m.id === focusMember.id);
+    if (idx >= 0) others.splice(idx, 1);
+    if (!leaders.some(l => l.id === focusMember.id)) {
+      others.unshift(focusMember);
+    }
   }
 
-  const leaders: FamilyMember[] = [];
-  const others: FamilyMember[] = [];
+  const positions: NodePosition[] = [];
 
-  for (const m of members) {
-    const rt = relMap.get(m.id);
-    if (m.id === focusId || (rt && leaderTypes.has(rt))) leaders.push(m);
-    else others.push(m);
+  if (leaders.length > 0) {
+    const totalWidth = (leaders.length - 1) * 200;
+    const centerX = 500;
+    leaders.forEach((m, i) => {
+      positions.push({
+        x: centerX - totalWidth / 2 + i * 200,
+        y: 120,
+        member: m,
+        relationshipType: relMap.get(m.id),
+        rank: getMemberRank(m.id, relationships, treeType),
+      });
+    });
   }
 
-  const sorted = [...leaders, ...others];
-  const radius = Math.max(300, sorted.length * 30);
-  const centerX = radius + 150;
-  const centerY = 200;
+  if (others.length > 0) {
+    const radius = Math.max(300, others.length * 30);
+    const centerX = 500;
+    const centerY = 200;
 
-  return sorted.map((member, i) => {
-    const t = sorted.length > 1 ? i / (sorted.length - 1) : 0.5;
-    const angle = Math.PI * 0.15 + t * Math.PI * 0.7;
-    return {
-      x: centerX + radius * Math.cos(angle),
-      y: centerY + radius * Math.sin(angle),
-      member,
-      relationshipType: relMap.get(member.id),
-    };
-  });
+    others.forEach((member, i) => {
+      const t = others.length > 1 ? i / (others.length - 1) : 0.5;
+      const angle = Math.PI * 0.15 + t * Math.PI * 0.7;
+      positions.push({
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+        member,
+        relationshipType: relMap.get(member.id),
+        rank: getMemberRank(member.id, relationships, treeType),
+      });
+    });
+  }
+
+  return positions;
 }
 
 function calculateNetworkLayout(
   members: FamilyMember[],
   focusId: string,
-  relationships: Relationship[]
+  relationships: Relationship[],
+  treeType: TreeType
 ): NodePosition[] {
   if (members.length === 0) return [];
 
@@ -294,11 +341,7 @@ function calculateNetworkLayout(
     adjMap.get(rel.toMemberId)?.add(rel.fromMemberId);
   }
 
-  const relMap = new Map<string, string>();
-  for (const rel of relationships) {
-    if (!relMap.has(rel.fromMemberId)) relMap.set(rel.fromMemberId, rel.relationshipType);
-    if (!relMap.has(rel.toMemberId)) relMap.set(rel.toMemberId, rel.relationshipType);
-  }
+  const relMap = buildRelMap(relationships);
 
   const startId = members.find((m) => m.id === focusId)?.id || members[0].id;
   const dist = new Map<string, number>();
@@ -329,27 +372,28 @@ function calculateNetworkLayout(
   }
 
   const positions: NodePosition[] = [];
-
   const maxRealDist = Array.from(layers.keys()).filter((k) => k < 999).reduce((a, b) => Math.max(a, b), 1);
 
   Array.from(layers.entries()).forEach(([d, layerMembers]) => {
     if (d === 0) {
+      const memberRank = getMemberRank(layerMembers[0].id, relationships, treeType);
       positions.push({
-        x: centerX,
-        y: centerY,
-        member: layerMembers[0],
+        x: centerX, y: centerY, member: layerMembers[0],
         relationshipType: relMap.get(layerMembers[0].id),
+        rank: memberRank,
       });
       return;
     }
     const radius = d === 999 ? (maxRealDist + 2) * layerGap : d * layerGap;
     layerMembers.forEach((m: FamilyMember, i: number) => {
       const angle = (2 * Math.PI * i) / layerMembers.length - Math.PI / 2;
+      const memberRank = getMemberRank(m.id, relationships, treeType);
       positions.push({
         x: centerX + radius * Math.cos(angle),
         y: centerY + radius * Math.sin(angle),
         member: m,
         relationshipType: relMap.get(m.id),
+        rank: memberRank,
       });
     });
   });
@@ -361,22 +405,29 @@ function calculatePositions(
   layout: LayoutShape,
   members: FamilyMember[],
   focusId: string,
-  relationships: Relationship[]
+  relationships: Relationship[],
+  treeType: TreeType
 ): NodePosition[] {
   switch (layout) {
     case "circle":
-      return calculateCircleLayout(members, focusId, relationships);
+      return calculateCircleLayout(members, focusId, relationships, treeType);
     case "radial":
-      return calculateRadialLayout(members, focusId, relationships);
+      return calculateRadialLayout(members, focusId, relationships, treeType);
     case "grid":
-      return calculateGridLayout(members, focusId, relationships);
+      return calculateGridLayout(members, focusId, relationships, treeType);
     case "arc":
-      return calculateArcLayout(members, focusId, relationships);
+      return calculateArcLayout(members, focusId, relationships, treeType);
     case "network":
-      return calculateNetworkLayout(members, focusId, relationships);
+      return calculateNetworkLayout(members, focusId, relationships, treeType);
     default:
-      return calculateCircleLayout(members, focusId, relationships);
+      return calculateCircleLayout(members, focusId, relationships, treeType);
   }
+}
+
+function RankIcon({ rank, accentColor }: { rank: number; accentColor: string }) {
+  if (rank === 1) return <Crown className="h-4 w-4" style={{ color: accentColor }} />;
+  if (rank === 2) return <Shield className="h-3.5 w-3.5" style={{ color: accentColor }} />;
+  return null;
 }
 
 export default function GroupVisualization({
@@ -420,9 +471,10 @@ export default function GroupVisualization({
         visual.layoutShape,
         deduplicatedMembers,
         focusId,
-        relationships
+        relationships,
+        treeType
       ),
-    [visual.layoutShape, deduplicatedMembers, focusId, relationships]
+    [visual.layoutShape, deduplicatedMembers, focusId, relationships, treeType]
   );
 
   const bounds = useMemo(() => {
@@ -548,8 +600,12 @@ export default function GroupVisualization({
 
   const dashArray = getStrokeDashArray(visual.lineStyle);
   const isCircleNode = visual.nodeShape === "circle";
-  const nodeW = isCircleNode ? 96 : 128;
-  const nodeH = isCircleNode ? 96 : 140;
+
+  const getNodeSize = (rank?: number) => {
+    if (rank === 1) return { w: isCircleNode ? 120 : 152, h: isCircleNode ? 120 : 170 };
+    if (rank === 2) return { w: isCircleNode ? 108 : 140, h: isCircleNode ? 108 : 155 };
+    return { w: isCircleNode ? 96 : 128, h: isCircleNode ? 96 : 140 };
+  };
 
   const renderBackgroundShape = () => {
     const shapeColor = visual.accentColorLight;
@@ -700,12 +756,23 @@ export default function GroupVisualization({
                   strokeDasharray={dashArray}
                   strokeLinecap="round"
                 />
+                <rect
+                  x={labelX - 30}
+                  y={labelY - 8}
+                  width={60}
+                  height={16}
+                  rx={4}
+                  fill="var(--background, white)"
+                  fillOpacity={0.85}
+                  className="pointer-events-none"
+                />
                 <text
                   x={labelX}
                   y={labelY}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fontSize={10}
+                  fontWeight={500}
                   fill={visual.lineColor}
                   className="pointer-events-none"
                 >
@@ -718,36 +785,71 @@ export default function GroupVisualization({
 
         {positions.map((pos) => {
           const isFocus = pos.member.id === focusId;
+          const memberRank = pos.rank || 3;
+          const nodeSize = getNodeSize(memberRank);
           const initials = `${pos.member.firstName?.[0] || ""}${pos.member.lastName?.[0] || ""}`.toUpperCase();
           const relLabel = pos.relationshipType
             ? getRelationshipLabel(pos.relationshipType, treeType)
             : undefined;
+
+          const isLeader = memberRank === 1;
+          const isSubLeader = memberRank === 2;
+
+          const borderWidth = isLeader ? 3 : isSubLeader ? 2.5 : 2;
+          const glowIntensity = isLeader ? "0 0 20px 4px" : isSubLeader ? "0 0 12px 2px" : "0 0 16px 2px";
+          const glowOpacity = isLeader ? "50" : isSubLeader ? "35" : "40";
 
           return (
             <div
               key={pos.member.id}
               data-member-card
               data-testid={`group-member-${pos.member.id}`}
-              className={`absolute flex flex-col items-center gap-1 cursor-pointer transition-shadow ${
+              className={`absolute flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 hover:scale-105 ${
                 isCircleNode
-                  ? "w-24 h-24 rounded-full justify-center"
-                  : "w-32 rounded-lg p-2 justify-start pt-3"
-              } bg-card border-2 ${
-                isFocus ? "border-[3px] shadow-lg" : ""
-              }`}
+                  ? "rounded-full justify-center"
+                  : "rounded-lg p-2 justify-start pt-3"
+              } bg-card`}
               style={{
-                left: pos.x - nodeW / 2 - bounds.minX,
-                top: pos.y - nodeH / 2 - bounds.minY,
+                left: pos.x - nodeSize.w / 2 - bounds.minX,
+                top: pos.y - nodeSize.h / 2 - bounds.minY,
+                width: nodeSize.w,
+                height: nodeSize.h,
+                borderWidth: `${borderWidth}px`,
+                borderStyle: "solid",
                 borderColor: visual.accentColor,
-                boxShadow: isFocus
-                  ? `0 0 16px 2px ${visual.accentColor}40`
+                boxShadow: (isFocus || isLeader || isSubLeader)
+                  ? `${glowIntensity} ${visual.accentColor}${glowOpacity}`
                   : undefined,
-                zIndex: 1,
+                zIndex: isLeader ? 3 : isSubLeader ? 2 : 1,
               }}
               onClick={() => onMemberClick(pos.member)}
             >
+              {isLeader && (
+                <div
+                  className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full p-0.5"
+                  style={{ backgroundColor: visual.accentColor }}
+                  data-testid={`leader-crown-${pos.member.id}`}
+                >
+                  <Crown className="h-3.5 w-3.5 text-white" />
+                </div>
+              )}
+              {isSubLeader && (
+                <div
+                  className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full p-0.5"
+                  style={{ backgroundColor: visual.accentColor }}
+                  data-testid={`subleader-badge-${pos.member.id}`}
+                >
+                  <Star className="h-3 w-3 text-white" />
+                </div>
+              )}
               <Avatar
-                className={isCircleNode ? "h-10 w-10" : "h-12 w-12"}
+                className={
+                  isLeader
+                    ? (isCircleNode ? "h-14 w-14" : "h-14 w-14")
+                    : isSubLeader
+                    ? (isCircleNode ? "h-12 w-12" : "h-13 w-13")
+                    : (isCircleNode ? "h-10 w-10" : "h-12 w-12")
+                }
               >
                 {pos.member.photoUrl && (
                   <AvatarImage
@@ -755,33 +857,40 @@ export default function GroupVisualization({
                     alt={pos.member.firstName}
                   />
                 )}
-                <AvatarFallback className="text-xs">
+                <AvatarFallback className={isLeader ? "text-sm font-bold" : "text-xs"}>
                   {initials}
                 </AvatarFallback>
               </Avatar>
               {!isCircleNode && (
                 <>
-                  <span className="text-xs font-medium text-center leading-tight truncate w-full">
+                  <span className={`text-center leading-tight truncate w-full ${
+                    isLeader ? "text-sm font-semibold" : isSubLeader ? "text-xs font-medium" : "text-xs font-medium"
+                  }`}>
                     {pos.member.firstName}
                   </span>
                   {relLabel && (
                     <Badge
                       variant="outline"
-                      className="text-[10px] px-1.5 py-0 scale-90"
+                      className={`px-1.5 py-0 ${isLeader ? "text-[11px] font-semibold" : "text-[10px] scale-90"}`}
                       style={
                         {
                           "--badge-outline": visual.accentColor,
-                          color: visual.accentColor,
+                          color: isLeader ? "white" : visual.accentColor,
+                          backgroundColor: isLeader ? visual.accentColor : "transparent",
+                          borderColor: visual.accentColor,
                         } as React.CSSProperties
                       }
                     >
-                      {relLabel}
+                      <RankIcon rank={memberRank} accentColor={isLeader ? "white" : visual.accentColor} />
+                      <span className={memberRank <= 2 ? "ml-0.5" : ""}>{relLabel}</span>
                     </Badge>
                   )}
                 </>
               )}
               {isCircleNode && (
-                <span className="text-[10px] font-medium text-center leading-tight truncate w-full">
+                <span className={`text-center leading-tight truncate w-full ${
+                  isLeader ? "text-xs font-semibold" : "text-[10px] font-medium"
+                }`}>
                   {pos.member.firstName}
                 </span>
               )}
