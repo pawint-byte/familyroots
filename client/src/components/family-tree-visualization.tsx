@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { HelpCircle } from "lucide-react";
+import { parseDateString } from "@/lib/utils";
 import type { FamilyMember, Relationship } from "@shared/schema";
 
 interface FamilyTreeVisualizationProps {
@@ -1317,8 +1318,8 @@ export default function FamilyTreeVisualization({
                   )}
                   {pos.member.birthDate && !pos.member.isUnknown && (
                     <p className="text-[10px] text-muted-foreground mt-1 opacity-70">
-                      {new Date(pos.member.birthDate).getFullYear()}
-                      {pos.member.deathDate && ` - ${new Date(pos.member.deathDate).getFullYear()}`}
+                      {parseDateString(pos.member.birthDate)?.getFullYear()}
+                      {pos.member.deathDate && ` - ${parseDateString(pos.member.deathDate)?.getFullYear()}`}
                     </p>
                   )}
                   

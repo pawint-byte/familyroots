@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { parseDateString } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -235,7 +236,7 @@ export function MergeMembersDialog({
                           data-testid={`select-merge-option-${m.id}`}
                         >
                           {m.firstName} {m.lastName || ''} 
-                          {m.birthDate && ` (b. ${new Date(m.birthDate).getFullYear()})`}
+                          {m.birthDate && ` (b. ${parseDateString(m.birthDate)?.getFullYear()})`}
                         </SelectItem>
                       ))}
                     </SelectContent>

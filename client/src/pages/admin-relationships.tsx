@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { parseDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -146,7 +147,7 @@ export default function AdminRelationships() {
   const getMemberBirthYear = (memberId: string): string => {
     const member = treeData?.members.find(m => m.id === memberId);
     if (!member?.birthDate) return "";
-    return new Date(member.birthDate).getFullYear().toString();
+    return parseDateString(member.birthDate)?.getFullYear().toString() || "";
   };
 
   const getMemberEmail = (memberId: string): string | null => {
@@ -349,7 +350,7 @@ export default function AdminRelationships() {
                     </div>
                     {member.birthDate && (
                       <div className="text-xs text-muted-foreground">
-                        {new Date(member.birthDate).getFullYear()}
+                        {parseDateString(member.birthDate)?.getFullYear()}
                       </div>
                     )}
                   </div>
@@ -424,7 +425,7 @@ export default function AdminRelationships() {
                       <div className="flex flex-col">
                         <span>
                           {member.firstName} {member.lastName}
-                          {member.birthDate && ` (${new Date(member.birthDate).getFullYear()})`}
+                          {member.birthDate && ` (${parseDateString(member.birthDate)?.getFullYear()})`}
                         </span>
                         {member.email && (
                           <span className="text-xs text-primary">{member.email}</span>
@@ -465,7 +466,7 @@ export default function AdminRelationships() {
                         <div className="flex flex-col">
                           <span>
                             {member.firstName} {member.lastName}
-                            {member.birthDate && ` (${new Date(member.birthDate).getFullYear()})`}
+                            {member.birthDate && ` (${parseDateString(member.birthDate)?.getFullYear()})`}
                           </span>
                           {member.email && (
                             <span className="text-xs text-primary">{member.email}</span>

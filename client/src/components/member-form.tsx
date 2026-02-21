@@ -13,6 +13,22 @@ import { Upload, X, Loader2, User, HelpCircle } from "lucide-react";
 import { useUpload } from "@/hooks/use-upload";
 import type { InsertFamilyMember } from "@shared/schema";
 
+function formatDateForInput(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const dateOnly = value.split("T")[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return dateOnly;
+    return value;
+  }
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return "";
+}
+
 const memberFormSchema = z.object({
   isUnknown: z.boolean().default(false),
   unknownLabel: z.string().optional(),
@@ -71,9 +87,9 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
       nickname: (initialData as any)?.nickname || "",
       email: (initialData as any)?.email || "",
       gender: initialData?.gender,
-      birthDate: initialData?.birthDate || "",
+      birthDate: formatDateForInput(initialData?.birthDate),
       birthPlace: initialData?.birthPlace || "",
-      deathDate: initialData?.deathDate || "",
+      deathDate: formatDateForInput(initialData?.deathDate),
       isLiving: initialData?.isLiving ?? true,
       photoUrl: initialData?.photoUrl || "",
       notes: initialData?.notes || "",

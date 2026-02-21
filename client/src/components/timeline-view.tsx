@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Cake, Heart, Star } from "lucide-react";
+import { parseDateString } from "@/lib/utils";
 import type { FamilyMember } from "@shared/schema";
 
 interface TimelineViewProps {
@@ -28,7 +29,7 @@ export default function TimelineView({ members, treeId }: TimelineViewProps) {
       if (member.birthDate) {
         allEvents.push({
           id: `birth-${member.id}`,
-          date: new Date(member.birthDate),
+          date: parseDateString(member.birthDate) || new Date(),
           type: "birth",
           title: `${member.firstName} ${member.lastName || ""} was born`,
           location: member.birthPlace || undefined,
@@ -39,7 +40,7 @@ export default function TimelineView({ members, treeId }: TimelineViewProps) {
       if (member.deathDate) {
         allEvents.push({
           id: `death-${member.id}`,
-          date: new Date(member.deathDate),
+          date: parseDateString(member.deathDate) || new Date(),
           type: "death",
           title: `${member.firstName} ${member.lastName || ""} passed away`,
           member,

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
+import { parseDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1099,11 +1100,11 @@ export default function TreeView() {
                           </h3>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             {member.birthDate && (
-                              <span>{new Date(member.birthDate).getFullYear()}</span>
+                              <span>{parseDateString(member.birthDate)?.getFullYear()}</span>
                             )}
                             {member.birthDate && member.deathDate && <span>-</span>}
                             {member.deathDate && (
-                              <span>{new Date(member.deathDate).getFullYear()}</span>
+                              <span>{parseDateString(member.deathDate)?.getFullYear()}</span>
                             )}
                           </div>
                         </div>
@@ -1384,7 +1385,7 @@ export default function TreeView() {
                       {selectedMember.birthDate && (
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span>{new Date(selectedMember.birthDate).toLocaleDateString('en-US', { 
+                          <span>{parseDateString(selectedMember.birthDate)?.toLocaleDateString('en-US', { 
                             year: 'numeric', 
                             month: 'long', 
                             day: 'numeric' 
@@ -1406,7 +1407,7 @@ export default function TreeView() {
                     <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Death</h4>
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{new Date(selectedMember.deathDate).toLocaleDateString('en-US', { 
+                      <span>{parseDateString(selectedMember.deathDate)?.toLocaleDateString('en-US', { 
                         year: 'numeric', 
                         month: 'long', 
                         day: 'numeric' 
