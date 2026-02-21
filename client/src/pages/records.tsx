@@ -143,8 +143,22 @@ export default function RecordsPage() {
     enabled: !!user,
   });
 
+  const searchQueryString = activeSearch ? new URLSearchParams(
+    Object.entries(searchParams).filter(([_, v]) => v !== "")
+  ).toString() : "";
+
   const { data: results = [], isLoading: searchLoading } = useQuery<SearchResult[]>({
     queryKey: ["/api/familysearch/search", searchParams],
+    queryFn: async () => {
+      const res = await fetch(`/api/familysearch/search?${searchQueryString}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text}`);
+      }
+      return res.json();
+    },
     enabled: activeSearch && !!(searchParams.givenName || searchParams.surname),
   });
 
