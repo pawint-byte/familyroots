@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase, BookOpen } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -572,6 +572,52 @@ export default function FAQ() {
         {
           question: "Is paying with crypto safe?",
           answer: "Yes! Crypto payments are processed securely through Stripe, the same trusted payment processor used by millions of businesses worldwide. Your wallet connects directly to Stripe - we never see or store your crypto wallet information."
+        }
+      ]
+    },
+    {
+      title: "FamilySearch Integration",
+      icon: <BookOpen className="h-5 w-5" />,
+      items: [
+        {
+          question: "What is FamilySearch and how does FamilyRoots connect to it?",
+          answer: <>FamilySearch is a free platform with over 66 billion historical records: birth certificates, marriage records, census data, immigration documents, military records, and more. FamilyRoots connects to FamilySearch so you can search those records and import ancestors directly into your family tree, all without leaving the app. Go to the <Link href="/records" className="text-primary hover:underline font-medium">Historical Records</Link> page to get started.</>
+        },
+        {
+          question: "Is the FamilySearch connection always active?",
+          answer: "Not permanently. When you connect your FamilySearch account, your session token is stored so you can search immediately. However, FamilySearch tokens expire after a period of time. If your token expires, you'll see a connection error when you try to search, and you'll just need to reconnect by clicking the Connect button again. It only takes a few seconds."
+        },
+        {
+          question: "What's the difference between Search and Import?",
+          answer: <>There are two separate ways to use FamilySearch in FamilyRoots:<br/><br/><strong>Search (Records page)</strong> lets you look up individual historical records by name, birth year, birthplace, and other details. You get a list of matching records, and you can import any result directly into one of your trees with the "Import to Tree" button.<br/><br/><strong>Tree Import (FamilySearch Import page)</strong> pulls your entire FamilySearch family tree, organized by ancestors, descendants, and spouses. You can select multiple people at once, and all their relationships (parent-child, spouse) are imported automatically.<br/><br/>Use Search when you're looking for a specific person. Use Tree Import when you want to bring over a whole family branch with connections intact.</>
+        },
+        {
+          question: "When I search for a person, do I get all their family relationships too?",
+          answer: "No. Search results are individual records, one person at a time, without relationships. This is because historical records (like a census entry or a birth certificate) are about a specific person, not a family tree. If you want to import a whole family branch with parent-child and spouse connections already set up, use the Tree Import feature instead. It pulls your FamilySearch family tree with all the relationships included."
+        },
+        {
+          question: "How do I import a person from search results into my tree?",
+          answer: <>When you find someone in the search results, click the "Import to Tree" button next to their name. A dialog will ask you to pick which of your trees to add them to. After importing, the person appears as a new member in your tree. You'll then need to open your tree and use "Add Relationship" to connect them to existing family members (as a parent, child, spouse, or sibling).</>
+        },
+        {
+          question: "How do I import a whole family branch with relationships?",
+          answer: <>Go to the <Link href="/familysearch-import" className="text-primary hover:underline font-medium">FamilySearch Import</Link> page. This connects to your FamilySearch family tree and shows your ancestors, descendants, and spouses organized in groups. Check the boxes next to the people you want to import, pick a tree, and click Import. All the parent-child and spouse relationships between selected people are created automatically. You don't have to set up connections manually.</>
+        },
+        {
+          question: "Does FamilyRoots automatically detect duplicate people during import?",
+          answer: "Yes. When you import someone, the system checks if a person with the same name and birth year already exists in your tree. If a match is found, that person is skipped rather than creating a duplicate. The import summary tells you how many people were added and how many duplicates were skipped."
+        },
+        {
+          question: "Will FamilyRoots notify me when new ancestors are found?",
+          answer: "Not currently. The FamilySearch integration is manual, meaning you search for people and choose what to import. There's no automatic monitoring that watches for new records matching your family. This is a feature we'd like to add in the future, but for now, you'll want to periodically search FamilySearch for new records as they become available."
+        },
+        {
+          question: "Do I need a FamilySearch account?",
+          answer: "Yes, you need a free FamilySearch account to use the integration. FamilySearch is completely free and open to everyone. Once you have an account, you connect it to FamilyRoots on the Historical Records page by clicking the Connect button, which securely links the two accounts."
+        },
+        {
+          question: "Is my FamilySearch data shared with other FamilyRoots users?",
+          answer: "No. Your FamilySearch connection is private to your account. Any records you search or ancestors you import are only visible within your own trees, subject to whatever sharing and collaboration permissions you've set. Other FamilyRoots users cannot see your FamilySearch data."
         }
       ]
     }

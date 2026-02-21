@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SEO } from "@/components/seo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -14,7 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   ArrowLeft, Search, BookOpen, Link2, ExternalLink, 
-  User, Calendar, MapPin, FileText, CheckCircle, AlertCircle
+  User, Calendar, MapPin, FileText, CheckCircle, AlertCircle,
+  Download, TreePine, Loader2
 } from "lucide-react";
 
 interface SearchResult {
@@ -44,6 +47,12 @@ interface FamilySearchStatus {
   connectedAt: string | null;
 }
 
+interface FamilyTree {
+  id: string;
+  name: string;
+  treeType: string;
+}
+
 export default function RecordsPage() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
@@ -58,6 +67,9 @@ export default function RecordsPage() {
     deathPlace: "",
   });
   const [activeSearch, setActiveSearch] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
+  const [selectedTreeId, setSelectedTreeId] = useState<string>("");
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -96,6 +108,11 @@ export default function RecordsPage() {
     enabled: activeSearch && !!(searchParams.givenName || searchParams.surname),
   });
 
+  const { data: trees = [] } = useQuery<FamilyTree[]>({
+    queryKey: ["/api/trees"],
+    enabled: !!user,
+  });
+
   const connectMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("GET", "/api/familysearch/auth");
@@ -127,6 +144,30 @@ export default function RecordsPage() {
     },
   });
 
+  const importMutation = useMutation({
+    mutationFn: async (data: { treeId: string; persons: any[]; relationships: any[] }) => {
+      const response = await apiRequest("POST", "/api/familysearch/import", data);
+      return response.json();
+    },
+    onSuccess: (result) => {
+      toast({
+        title: "Import Successful",
+        description: `Added ${result.imported.members} person${result.imported.members !== 1 ? 's' : ''} to your tree.${result.skipped.duplicates > 0 ? ` Skipped ${result.skipped.duplicates} duplicate${result.skipped.duplicates !== 1 ? 's' : ''}.` : ""}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      setImportDialogOpen(false);
+      setSelectedResult(null);
+      setSelectedTreeId("");
+    },
+    onError: () => {
+      toast({
+        title: "Import Failed",
+        description: "Could not import this person. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSearch = () => {
     if (searchParams.givenName || searchParams.surname) {
       setActiveSearch(true);
@@ -136,6 +177,39 @@ export default function RecordsPage() {
   const handleInputChange = (field: string, value: string) => {
     setSearchParams(prev => ({ ...prev, [field]: value }));
     setActiveSearch(false);
+  };
+
+  const handleImportClick = (result: SearchResult) => {
+    setSelectedResult(result);
+    if (trees.length === 1) {
+      setSelectedTreeId(trees[0].id);
+    }
+    setImportDialogOpen(true);
+  };
+
+  const handleConfirmImport = () => {
+    if (!selectedResult || !selectedTreeId) return;
+
+    const display = selectedResult.person.display;
+    const nameParts = (display?.name || "Unknown").split(" ");
+    const firstName = nameParts[0] || "Unknown";
+    const lastName = nameParts.slice(1).join(" ") || undefined;
+
+    const person = {
+      id: selectedResult.person.id || selectedResult.id,
+      name: display?.name || "Unknown",
+      gender: display?.gender?.toLowerCase(),
+      birthDate: display?.birthDate,
+      birthPlace: display?.birthPlace,
+      deathDate: display?.deathDate,
+      living: !display?.deathDate,
+    };
+
+    importMutation.mutate({
+      treeId: selectedTreeId,
+      persons: [person],
+      relationships: [],
+    });
   };
 
   if (!user) {
@@ -391,10 +465,21 @@ export default function RecordsPage() {
                               </div>
                             </div>
                             
-                            <Button variant="outline" size="sm" data-testid={`button-view-record-${result.id}`}>
-                              <ExternalLink className="h-3 w-3 mr-1" />
-                              View
-                            </Button>
+                            <div className="flex flex-col gap-2 shrink-0">
+                              <Button 
+                                variant="default" 
+                                size="sm" 
+                                onClick={() => handleImportClick(result)}
+                                data-testid={`button-import-record-${result.id}`}
+                              >
+                                <Download className="h-3 w-3 mr-1" />
+                                Import to Tree
+                              </Button>
+                              <Button variant="outline" size="sm" data-testid={`button-view-record-${result.id}`}>
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                View
+                              </Button>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -427,6 +512,98 @@ export default function RecordsPage() {
           </Card>
         </main>
       </div>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-import-record">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TreePine className="h-5 w-5" />
+              Import to Family Tree
+            </DialogTitle>
+            <DialogDescription>
+              Add this person as a new member in one of your trees. You'll need to set up their relationships after importing.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedResult && (
+            <div className="space-y-4">
+              <Card className="bg-muted/50">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <User className="h-4 w-4" />
+                    <span className="font-medium">{selectedResult.person.display?.name || "Unknown"}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    {selectedResult.person.display?.birthDate && (
+                      <span>Born: {selectedResult.person.display.birthDate}</span>
+                    )}
+                    {selectedResult.person.display?.birthPlace && (
+                      <span>{selectedResult.person.display.birthPlace}</span>
+                    )}
+                    {selectedResult.person.display?.deathDate && (
+                      <span>Died: {selectedResult.person.display.deathDate}</span>
+                    )}
+                    {selectedResult.person.display?.gender && (
+                      <span className="capitalize">{selectedResult.person.display.gender}</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-2">
+                <Label>Select a tree to import into</Label>
+                {trees.length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-3 border rounded-md">
+                    You don't have any trees yet. Create a tree first from your dashboard.
+                  </div>
+                ) : (
+                  <Select value={selectedTreeId} onValueChange={setSelectedTreeId}>
+                    <SelectTrigger data-testid="select-import-tree">
+                      <SelectValue placeholder="Choose a tree..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {trees.map((tree) => (
+                        <SelectItem key={tree.id} value={tree.id} data-testid={`select-tree-option-${tree.id}`}>
+                          {tree.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  This will add the person as a new member. After importing, open your tree and use "Add Relationship" to connect them to existing family members (as a parent, child, spouse, or sibling).
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)} data-testid="button-cancel-import">
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmImport} 
+              disabled={!selectedTreeId || importMutation.isPending || trees.length === 0}
+              data-testid="button-confirm-import"
+            >
+              {importMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Import Person
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
