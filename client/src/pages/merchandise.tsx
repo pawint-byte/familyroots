@@ -513,11 +513,11 @@ function ProductCustomizer({
   });
 
   useEffect(() => {
-    if (prefill && !selectedVariantId && variants.length > 0) {
+    if (!selectedVariantId && variants.length > 0) {
       const firstInStock = variants.find(v => v.in_stock);
       if (firstInStock) {
         setSelectedVariantId(firstInStock.id);
-        if (prefill.skipToShipping && selectedTreeId) {
+        if (prefill?.skipToShipping && selectedTreeId) {
           setShowShipping(true);
         }
       }
@@ -630,8 +630,8 @@ function ProductCustomizer({
   });
 
   const inStockVariants = variants.filter(v => v.in_stock);
-  const uniqueColors = Array.from(new Set(inStockVariants.map(v => v.color)));
-  const uniqueSizes = Array.from(new Set(inStockVariants.map(v => v.size)));
+  const uniqueColors = Array.from(new Set(inStockVariants.map(v => v.color).filter(Boolean)));
+  const uniqueSizes = Array.from(new Set(inStockVariants.map(v => v.size).filter(Boolean)));
 
   return (
     <div className="space-y-6">
@@ -810,7 +810,7 @@ function ProductCustomizer({
                             }`}
                             style={{ backgroundColor: colorVariant?.color_code || "#ccc" }}
                             title={color}
-                            data-testid={`button-color-${color.toLowerCase().replace(/\s+/g, '-')}`}
+                            data-testid={`button-color-${(color || 'default').toLowerCase().replace(/\s+/g, '-')}`}
                           />
                         );
                       })}
@@ -1439,9 +1439,12 @@ export default function MerchandisePage() {
     queryKey: ["/api/merchandise/products"],
   });
 
+  const [preselectedTreeId, setPreselectedTreeId] = useState<string | null>(qrTreeIdParam);
+
   useEffect(() => {
     if (qrTreeIdParam && products.length > 0) {
-      const qrProduct = products.find(p => p.isQRFirst);
+      setPreselectedTreeId(qrTreeIdParam);
+      const qrProduct = products.find(p => p.isConnectionShirt || p.isPromoItem);
       if (qrProduct) {
         setSelectedProduct(qrProduct);
         setProductPrefill({ treeId: qrTreeIdParam, includeQR: true });
@@ -1852,7 +1855,7 @@ export default function MerchandisePage() {
                       <ProductCard
                         key={product.id}
                         product={product}
-                        onCustomize={(p) => { setProductPrefill(undefined); setDialogKey(k => k + 1); setSelectedProduct(p); }}
+                        onCustomize={(p) => { setProductPrefill(preselectedTreeId ? { treeId: preselectedTreeId } : undefined); setDialogKey(k => k + 1); setSelectedProduct(p); }}
                         memberCount={memberCount > 0 ? memberCount : undefined}
                         activeTreeType={activeType}
                       />
