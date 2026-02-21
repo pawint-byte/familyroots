@@ -7511,12 +7511,13 @@ export async function registerRoutes(
   app.get("/api/familysearch/search", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { givenName, surname, birthYear, birthPlace, deathYear, deathPlace } = req.query;
+      const { givenName, surname, birthYear, birthPlace, deathYear, deathPlace, fatherName, motherName } = req.query;
       
       const connection = await storage.getFamilySearchConnection(userId);
       
       // If connected and configured, use real API
       if (connection?.accessToken && familySearchService.isConfigured()) {
+        console.log("[FamilySearch] Search request from user", userId, "- givenName:", givenName, "surname:", surname);
         const results = await familySearchService.searchRecords(connection.accessToken, {
           givenName: givenName as string,
           surname: surname as string,
@@ -7524,6 +7525,8 @@ export async function registerRoutes(
           birthPlace: birthPlace as string,
           deathYear: deathYear ? parseInt(deathYear as string) : undefined,
           deathPlace: deathPlace as string,
+          fatherName: fatherName as string,
+          motherName: motherName as string,
         });
         return res.json(results);
       }

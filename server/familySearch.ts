@@ -185,34 +185,62 @@ export async function searchRecords(
   
   const searchParams = new URLSearchParams();
   
-  if (params.givenName) searchParams.set("givenName", params.givenName);
-  if (params.surname) searchParams.set("surname", params.surname);
-  if (params.birthYear) searchParams.set("birthLikeDate", String(params.birthYear));
-  if (params.birthPlace) searchParams.set("birthLikePlace", params.birthPlace);
-  if (params.deathYear) searchParams.set("deathLikeDate", String(params.deathYear));
-  if (params.deathPlace) searchParams.set("deathLikePlace", params.deathPlace);
-  if (params.spouseName) searchParams.set("spouseName", params.spouseName);
-  if (params.fatherName) searchParams.set("fatherName", params.fatherName);
-  if (params.motherName) searchParams.set("motherName", params.motherName);
+  if (params.givenName) searchParams.set("q.givenName", params.givenName);
+  if (params.surname) searchParams.set("q.surname", params.surname);
+  if (params.birthYear) searchParams.set("q.birthLikeDate", `+${params.birthYear}`);
+  if (params.birthPlace) searchParams.set("q.birthLikePlace", params.birthPlace);
+  if (params.deathYear) searchParams.set("q.deathLikeDate", `+${params.deathYear}`);
+  if (params.deathPlace) searchParams.set("q.deathLikePlace", params.deathPlace);
+  if (params.spouseName) searchParams.set("q.spouseGivenName", params.spouseName);
+  if (params.fatherName) searchParams.set("q.fatherGivenName", params.fatherName);
+  if (params.motherName) searchParams.set("q.motherGivenName", params.motherName);
   searchParams.set("count", String(params.count || 20));
+  searchParams.set("start", "0");
   
   try {
-    const response = await fetch(`${urls.api}/platform/tree/search?${searchParams.toString()}`, {
+    const searchUrl = `${urls.api}/platform/tree/search?${searchParams.toString()}`;
+    console.log("[FamilySearch] Search URL:", searchUrl.replace(/Bearer\s+\S+/, 'Bearer ***'));
+    
+    const response = await fetch(searchUrl, {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
-        "Accept": "application/json",
+        "Accept": "application/x-gedcomx-atom+json",
       },
     });
     
     if (!response.ok) {
-      console.error("FamilySearch search failed:", response.status);
+      const errorText = await response.text();
+      console.error("[FamilySearch] Search failed:", response.status, errorText.substring(0, 500));
+      if (response.status === 401) {
+        console.error("[FamilySearch] Access token may be expired — user should reconnect");
+      }
       return [];
     }
     
     const data = await response.json();
-    return data.entries || [];
+    const rawEntries = data.entries || [];
+    console.log("[FamilySearch] Search returned", rawEntries.length, "entries, totalResults:", data.totalResults || 'unknown');
+    
+    const results: SearchResult[] = rawEntries.map((entry: any) => {
+      const person = entry.content?.gedcomx?.persons?.[0] || entry.person;
+      return {
+        id: entry.id || person?.id || '',
+        score: entry.score ?? 0,
+        person: person ? {
+          id: person.id || '',
+          display: person.display || {
+            name: person.names?.[0]?.nameForms?.[0]?.fullText || 'Unknown',
+          },
+        } : { id: '', display: { name: 'Unknown' } },
+        recordDescriptor: entry.content?.gedcomx?.description 
+          ? { id: entry.content.gedcomx.description, title: entry.title || '' }
+          : undefined,
+      };
+    });
+    
+    return results;
   } catch (error) {
-    console.error("FamilySearch search error:", error);
+    console.error("[FamilySearch] Search error:", error);
     return [];
   }
 }
