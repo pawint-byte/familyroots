@@ -439,16 +439,16 @@ function ProductCustomizer({
   userId?: string;
   prefill?: { treeId?: string; includeQR?: boolean; skipToShipping?: boolean };
 }) {
+  const isQRFirst = !!(product.isConnectionShirt || product.isPromoItem);
   const [selectedTreeId, setSelectedTreeId] = useState<string>(prefill?.treeId || "");
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [includeQR, setIncludeQR] = useState(prefill?.includeQR ?? false);
+  const [includeTree, setIncludeTree] = useState(!isQRFirst);
+  const [includeQR, setIncludeQR] = useState(prefill?.includeQR ?? isQRFirst);
   const [showShipping, setShowShipping] = useState(false);
   const [treePlacement, setTreePlacement] = useState<string>(product.placements?.[0]?.id || "front");
   const [qrPlacement, setQrPlacement] = useState<string>("");
-  const isQRFirst = !!(product.isConnectionShirt || product.isPromoItem);
-  const [includeTreeOnQRFirst, setIncludeTreeOnQRFirst] = useState(false);
-  const [selectedQRType, setSelectedQRType] = useState<QRCodeType>(isQRFirst ? 'site' : 'profile');
+  const [selectedQRType, setSelectedQRType] = useState<QRCodeType>('site');
   const [selectedQRTreeId, setSelectedQRTreeId] = useState<string>("");
 
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -551,11 +551,15 @@ function ProductCustomizer({
         throw new Error("Please select a product variant");
       }
 
-      if ((!isQRFirst || includeTreeOnQRFirst) && !selectedTreeId) {
+      if (!includeTree && !includeQR) {
+        throw new Error("Please include at least a tree print or a QR code on your product");
+      }
+
+      if (includeTree && !selectedTreeId) {
         throw new Error("Please select a tree");
       }
 
-      if (isQRFirst) {
+      if (includeQR) {
         if (selectedQRType === 'profile' && !userId) {
           throw new Error("You must be logged in to use the Profile QR code");
         }
@@ -572,19 +576,17 @@ function ProductCustomizer({
       }
 
       const baseUrl = window.location.origin;
-      const treeImageUrl = selectedTreeId ? `${baseUrl}/tree/${selectedTreeId}` : '';
+      const treeImageUrl = includeTree && selectedTreeId ? `${baseUrl}/tree/${selectedTreeId}` : '';
 
       const treePrintPlacement = product.placements?.find(p => p.id === treePlacement);
       const qrPrintPlacement = qrPlacement ? product.placements?.find(p => p.id === qrPlacement) : null;
 
       let qrUrl: string | undefined;
-      if (isQRFirst) {
+      if (includeQR) {
         if (selectedQRType === 'site') qrUrl = baseUrl;
         else if (selectedQRType === 'profile' && userId) qrUrl = `${baseUrl}/profile/${userId}`;
         else if (selectedQRType === 'tree' && treeInviteCode) qrUrl = `${baseUrl}/join/${treeInviteCode}`;
         else qrUrl = baseUrl;
-      } else {
-        qrUrl = includeQR && userId ? `${baseUrl}/profile/${userId}` : undefined;
       }
 
       return apiRequest("POST", "/api/merchandise/orders", {
@@ -594,7 +596,7 @@ function ProductCustomizer({
         productName: product.name,
         variantName: selectedVariant.name,
         quantity,
-        includeQR: isQRFirst ? true : includeQR,
+        includeQR: includeQR,
         qrUrl,
         treeImageUrl: treeImageUrl || undefined,
         treePlacement: treePrintPlacement?.printfulType || 'default',
@@ -644,7 +646,7 @@ function ProductCustomizer({
               alt={product.name}
               className="w-full h-full object-cover"
             />
-            {selectedTree && selectedTreeId && loadingTreeDetail && (
+            {includeTree && selectedTree && selectedTreeId && loadingTreeDetail && (
               <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/20">
                 <div className="bg-white/90 dark:bg-gray-900/90 rounded-lg shadow-lg p-6 flex flex-col items-center gap-2">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -652,7 +654,7 @@ function ProductCustomizer({
                 </div>
               </div>
             )}
-            {selectedTree && selectedTreeId && !loadingTreeDetail && treeMemberCount > 0 && (
+            {includeTree && selectedTree && selectedTreeId && !loadingTreeDetail && treeMemberCount > 0 && (
               <div className={`absolute p-4 ${
                 treePlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
                 treePlacement === 'front_left' ? 'top-4 left-4' :
@@ -670,19 +672,16 @@ function ProductCustomizer({
                 </div>
               </div>
             )}
-            {(isQRFirst || (includeQR && userId)) && (() => {
+            {includeQR && (() => {
               const baseUrl = `${window.location.protocol}//${window.location.host}`;
-              const qrValue = isQRFirst
-                ? selectedQRType === 'site' ? baseUrl
-                  : selectedQRType === 'profile' && userId ? `${baseUrl}/profile/${userId}`
-                  : selectedQRType === 'tree' && treeInviteCode ? `${baseUrl}/join/${treeInviteCode}`
-                  : baseUrl
-                : `${baseUrl}/profile/${userId}`;
-              const qrLabel = isQRFirst
-                ? selectedQRType === 'site' ? 'Scan to sign up'
-                  : selectedQRType === 'profile' ? 'Scan to connect'
-                  : 'Scan to join'
-                : 'Scan to connect';
+              const qrValue = selectedQRType === 'site' ? baseUrl
+                : selectedQRType === 'profile' && userId ? `${baseUrl}/profile/${userId}`
+                : selectedQRType === 'tree' && treeInviteCode ? `${baseUrl}/join/${treeInviteCode}`
+                : baseUrl;
+              const qrLabel = selectedQRType === 'site' ? 'Scan to sign up'
+                : selectedQRType === 'profile' ? 'Scan to connect'
+                : selectedQRType === 'tree' ? 'Scan to join'
+                : 'Scan to sign up';
               return (
                 <div 
                   className={`absolute bg-white p-1.5 rounded shadow-lg border ${
@@ -702,18 +701,19 @@ function ProductCustomizer({
                 </div>
               );
             })()}
-            {selectedTree && (
+            {(selectedTree || includeQR) && (
               <div className="absolute bottom-2 left-2 right-2">
                 <Badge variant="secondary" className="text-xs">
-                  {treePlacement === 'back' ? 'Back' : treePlacement === 'front_left' ? 'Front Left' : 'Front'}: {selectedTree.name}
-                  {(includeQR || isQRFirst) && qrPlacement && ` | ${product.placements?.find(p => p.id === qrPlacement)?.label || 'QR'}: QR Code`}
-                  {(includeQR || isQRFirst) && !qrPlacement && " + QR Code"}
+                  {selectedTree && includeTree && `${treePlacement === 'back' ? 'Back' : treePlacement === 'front_left' ? 'Front Left' : 'Front'}: ${selectedTree.name}`}
+                  {selectedTree && includeTree && includeQR && qrPlacement && ` | ${product.placements?.find(p => p.id === qrPlacement)?.label || 'QR'}: QR Code`}
+                  {selectedTree && includeTree && includeQR && !qrPlacement && " + QR Code"}
+                  {!includeTree && includeQR && `QR Code: ${selectedQRType === 'site' ? 'Site Signup' : selectedQRType === 'profile' ? 'My Profile' : 'Tree Invite'}`}
                 </Badge>
               </div>
             )}
           </div>
           
-          {selectedTree && product.maxMembers && (
+          {includeTree && selectedTree && product.maxMembers && (
             <Alert variant={treeMemberCount > product.maxMembers ? "destructive" : "default"}>
               {treeMemberCount > product.maxMembers ? (
                 <>
@@ -768,12 +768,61 @@ function ProductCustomizer({
           )}
 
           <div className="space-y-3">
-            {(!isQRFirst || includeTreeOnQRFirst) && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">What to include on your product</Label>
+              <div className="border rounded-lg p-3 bg-muted/30">
+                <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-include-tree">
+                  <input
+                    type="checkbox"
+                    checked={includeTree}
+                    onChange={(e) => {
+                      setIncludeTree(e.target.checked);
+                      if (!e.target.checked) {
+                        setSelectedTreeId("");
+                      }
+                    }}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <TreeDeciduous className="h-4 w-4 text-primary shrink-0" />
+                  <div>
+                    <span className="text-sm font-medium">Tree / Group Print</span>
+                    <p className="text-xs text-muted-foreground">Print your tree or group visualization on the product</p>
+                  </div>
+                </label>
+              </div>
+              <div className="border rounded-lg p-3 bg-muted/30">
+                <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-include-qr">
+                  <input
+                    type="checkbox"
+                    checked={includeQR}
+                    onChange={(e) => {
+                      setIncludeQR(e.target.checked);
+                      if (e.target.checked) {
+                        if (!qrPlacement && product.placements && product.placements.length > 1) {
+                          const availablePlacement = product.placements.find(p => !includeTree || p.id !== treePlacement);
+                          if (availablePlacement) setQrPlacement(availablePlacement.id);
+                        }
+                      } else {
+                        setQrPlacement("");
+                      }
+                    }}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <QrCode className="h-4 w-4 text-primary shrink-0" />
+                  <div>
+                    <span className="text-sm font-medium">QR Code</span>
+                    <p className="text-xs text-muted-foreground">Add a scannable QR code — choose what it links to below</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {includeTree && (
             <div>
-              <Label htmlFor="tree-select">Select Family Tree</Label>
+              <Label htmlFor="tree-select">Select Tree / Group</Label>
               <Select value={selectedTreeId} onValueChange={setSelectedTreeId}>
                 <SelectTrigger id="tree-select" data-testid="select-tree">
-                  <SelectValue placeholder="Choose a family tree" />
+                  <SelectValue placeholder="Choose a tree or group" />
                 </SelectTrigger>
                 <SelectContent>
                   {trees.map(tree => (
@@ -863,7 +912,7 @@ function ProductCustomizer({
               />
             </div>
 
-            {(!isQRFirst || includeTreeOnQRFirst) && product.placements && product.placements.length > 1 && (
+            {includeTree && product.placements && product.placements.length > 1 && (
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <TreeDeciduous className="h-4 w-4" />
@@ -871,7 +920,7 @@ function ProductCustomizer({
                 </Label>
                 <div className="grid grid-cols-1 gap-2">
                   {product.placements
-                    .filter(p => !isQRFirst || p.id !== qrPlacement)
+                    .filter(p => !includeQR || p.id !== qrPlacement)
                     .map(p => (
                     <button
                       key={p.id}
@@ -894,13 +943,13 @@ function ProductCustomizer({
               </div>
             )}
 
-            {isQRFirst ? (
+            {includeQR && (
               <div className="space-y-3">
                 <Label className="flex items-center gap-1.5">
                   <QrCode className="h-4 w-4 text-primary" />
                   Choose Your QR Code
                 </Label>
-                <p className="text-xs text-muted-foreground -mt-1">Pick what happens when someone scans the code on your shirt</p>
+                <p className="text-xs text-muted-foreground -mt-1">Pick what happens when someone scans the code on your product</p>
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     onClick={() => { setSelectedQRType('site'); setSelectedQRTreeId(''); }}
@@ -945,7 +994,7 @@ function ProductCustomizer({
                     return (
                       <button
                         key={tree.id}
-                        onClick={() => { setSelectedQRType('tree'); setSelectedQRTreeId(tree.id); setSelectedTreeId(tree.id); }}
+                        onClick={() => { setSelectedQRType('tree'); setSelectedQRTreeId(tree.id); }}
                         className={`text-left p-3 rounded-lg border transition-all ${
                           selectedQRType === 'tree' && selectedQRTreeId === tree.id
                             ? "border-primary bg-primary/5 ring-1 ring-primary/30"
@@ -1036,56 +1085,10 @@ function ProductCustomizer({
                     </div>
                   )}
                 </div>
-
-                {product.isConnectionShirt && product.placements && product.placements.length > 1 && (
-                  <div className="border rounded-lg p-3 bg-muted/30">
-                    <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-tree-print">
-                      <input
-                        type="checkbox"
-                        checked={includeTreeOnQRFirst}
-                        onChange={(e) => {
-                          setIncludeTreeOnQRFirst(e.target.checked);
-                          if (e.target.checked) {
-                            if (!qrPlacement) setQrPlacement("front");
-                            setTreePlacement("back");
-                          } else {
-                            setSelectedTreeId("");
-                            setTreePlacement(product.placements?.[0]?.id || "front");
-                          }
-                        }}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
-                      />
-                      <TreeDeciduous className="h-4 w-4 text-primary shrink-0" />
-                      <div>
-                        <span className="text-sm font-medium">Add my family tree print</span>
-                        <p className="text-xs text-muted-foreground">Print your family tree on the shirt alongside the QR code — tree on back, QR on front</p>
-                      </div>
-                    </label>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="border rounded-lg p-3 bg-muted/30">
-                <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-qr-code">
-                  <input
-                    type="checkbox"
-                    checked={includeQR}
-                    onChange={(e) => {
-                      setIncludeQR(e.target.checked);
-                      if (!e.target.checked) setQrPlacement("");
-                    }}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <QrCode className="h-4 w-4 text-primary shrink-0" />
-                  <div>
-                    <span className="text-sm font-medium">Include my QR code</span>
-                    <p className="text-xs text-muted-foreground">Add a scannable QR code linking to your profile so people can connect with you</p>
-                  </div>
-                </label>
               </div>
             )}
 
-            {((includeQR && !isQRFirst) || isQRFirst) && product.placements && product.placements.length > 1 && (
+            {includeQR && product.placements && product.placements.length > 1 && (
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <QrCode className="h-4 w-4" />
@@ -1093,7 +1096,7 @@ function ProductCustomizer({
                 </Label>
                 <div className="grid grid-cols-1 gap-2">
                   {product.placements
-                    .filter(p => !(includeTreeOnQRFirst || !isQRFirst) || p.id !== treePlacement)
+                    .filter(p => !includeTree || p.id !== treePlacement)
                     .map(p => (
                       <button
                         key={p.id}
@@ -1137,7 +1140,7 @@ function ProductCustomizer({
                 className="w-full"
                 size="lg"
                 onClick={() => setShowShipping(true)}
-                disabled={(!isQRFirst && !selectedTreeId) || !selectedVariantId}
+                disabled={(!includeTree && !includeQR) || (includeTree && !selectedTreeId) || !selectedVariantId}
                 data-testid="button-continue-shipping"
               >
                 Continue to Shipping
