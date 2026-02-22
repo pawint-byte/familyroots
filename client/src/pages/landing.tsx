@@ -348,6 +348,74 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Privacy Promise Banner */}
+        <section className="py-12 bg-primary/5 dark:bg-primary/10 border-y-2 border-primary/20" data-testid="section-privacy-promise">
+          <div className="container mx-auto px-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="relative rounded-2xl bg-gradient-to-br from-card via-card to-primary/5 dark:from-card dark:via-card dark:to-primary/10 border-2 border-primary/30 p-8 md:p-10 shadow-lg overflow-hidden">
+                <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+                <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
+                  <div className="shrink-0">
+                    <div className="w-16 h-16 rounded-2xl bg-primary/15 border-2 border-primary/30 flex items-center justify-center">
+                      <Shield className="h-8 w-8 text-primary" />
+                    </div>
+                  </div>
+                  <div className="space-y-3 flex-1">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h3 className="font-serif text-2xl md:text-3xl font-bold" data-testid="text-privacy-promise-title">
+                        Your Privacy, Your Choice
+                      </h3>
+                      <Badge className="bg-primary text-primary-foreground text-xs px-3 py-1">
+                        <Lock className="h-3 w-3 mr-1" />
+                        Private by Default
+                      </Badge>
+                    </div>
+                    <p className="text-base md:text-lg text-foreground/90 leading-relaxed" data-testid="text-privacy-promise-body">
+                      Every tree you create on FamilyRoots is <strong className="text-primary">completely private and invitation-only</strong> by default. 
+                      No one can see your tree, your members, or your connections unless you personally invite them. 
+                      Not other users, not search engines, not anyone.
+                    </p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Want to share more openly? You can optionally make a tree discoverable for community connections. 
+                      But that's always your choice, never the default. You stay in full control of who sees what, with 
+                      role-based permissions and three tiers of privacy for every member.
+                    </p>
+                  </div>
+                </div>
+                <div className="relative mt-6 pt-6 border-t border-primary/15">
+                  <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center">
+                        <Lock className="h-3 w-3 text-primary" />
+                      </div>
+                      <span className="text-muted-foreground">Private by default</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center">
+                        <UserCheck className="h-3 w-3 text-primary" />
+                      </div>
+                      <span className="text-muted-foreground">Invite-only access</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center">
+                        <EyeOff className="h-3 w-3 text-primary" />
+                      </div>
+                      <span className="text-muted-foreground">Invisible to outsiders</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center">
+                        <Shield className="h-3 w-3 text-primary" />
+                      </div>
+                      <span className="text-muted-foreground">Role-based permissions</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Demo Family Tree Section */}
         <section id="demo-tree" className="py-24 bg-card/50">
           <div className="container mx-auto px-4">

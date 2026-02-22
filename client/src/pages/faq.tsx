@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase, BookOpen } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase, BookOpen, Lock, EyeOff, Globe, UserCheck } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -756,6 +756,47 @@ export default function FAQ() {
             Find answers to common questions about FamilyRoots. Can't find what you're looking for? 
             Use the Help button on any page to chat with our AI assistant.
           </p>
+        </div>
+
+        <div className="relative rounded-2xl bg-gradient-to-br from-card via-card to-primary/5 dark:from-card dark:via-card dark:to-primary/10 border-2 border-primary/30 p-6 md:p-8 shadow-lg overflow-hidden mb-8" data-testid="faq-privacy-callout">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-primary/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+          <div className="relative">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="shrink-0 w-12 h-12 rounded-xl bg-primary/15 border-2 border-primary/30 flex items-center justify-center">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <div className="flex items-center gap-3 flex-wrap mb-2">
+                  <h3 className="font-serif text-xl md:text-2xl font-bold" data-testid="text-faq-privacy-title">Private by Default. Public Only If You Choose.</h3>
+                </div>
+                <p className="text-foreground/90 leading-relaxed" data-testid="text-faq-privacy-body">
+                  Every tree you create is <strong className="text-primary">completely private and invitation-only</strong>. 
+                  No one — not other users, not search engines, not anyone — can see your tree unless you personally invite them. 
+                  Some users choose to make their trees discoverable for community connections, and that's great for them. 
+                  But it's never the default, and it's never required. <strong>Your tree, your rules.</strong>
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm pl-16">
+              <div className="flex items-center gap-2">
+                <Lock className="h-3.5 w-3.5 text-primary" />
+                <span className="text-muted-foreground">Private by default</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-3.5 w-3.5 text-primary" />
+                <span className="text-muted-foreground">Invite-only access</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <EyeOff className="h-3.5 w-3.5 text-primary" />
+                <span className="text-muted-foreground">Invisible to outsiders</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Globe className="h-3.5 w-3.5 text-primary" />
+                <span className="text-muted-foreground">Public is optional, never forced</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">
