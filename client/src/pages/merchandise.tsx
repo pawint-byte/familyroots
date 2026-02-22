@@ -22,7 +22,7 @@ import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
-import { getTreeTypeConfig, getMemberRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
+import { getTreeTypeConfig, getMemberRank, getRelationshipRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
 import type { GroupLayoutMode } from "@/components/group-visualization";
 
 interface PrintPlacement {
@@ -212,10 +212,18 @@ function MiniTreePreview({ members, relationships, treeName, treeType, layoutOve
 
   const effectiveLayout = (layoutOverride && layoutOverride !== "auto") ? layoutOverride : layoutShape;
 
+  const tt = (treeType || "custom") as TreeType;
   displayMembers.forEach((m: any) => {
-    const rank = getMemberRank(m.id, relationships, (treeType || "custom") as TreeType);
-    if (rank <= 2) leaderIds.add(m.id);
+    for (const rel of relationships) {
+      if (rel.fromMemberId === m.id) {
+        const rank = getRelationshipRank(tt, rel.relationshipType);
+        if (rank <= 2) { leaderIds.add(m.id); break; }
+      }
+    }
   });
+  if (leaderIds.size === 0 && displayMembers.length > 0) {
+    leaderIds.add(displayMembers[0].id);
+  }
 
   if (count === 0) {
     return (
