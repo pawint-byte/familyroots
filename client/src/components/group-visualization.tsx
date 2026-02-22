@@ -84,6 +84,8 @@ function sortByRank(
   return { rank1, rank2, rank3 };
 }
 
+const CIRCLE_SPOKE_THRESHOLD = 12;
+
 function calculateCircleLayout(
   members: FamilyMember[],
   focusId: string,
@@ -98,32 +100,38 @@ function calculateCircleLayout(
   if (members.length === 1) {
     const rank = getMemberRank(members[0].id, relationships, treeType);
     return [{
-      x: 500, y: 500, member: members[0],
+      x: 500, y: 300, member: members[0],
       relationshipType: relMap.get(members[0].id),
       rank,
     }];
   }
 
-  if (rank1.length > 0) {
-    const positions: NodePosition[] = [];
-    const outerCount = rank2.length + rank3.length;
-    const outerRadius = Math.max(220, outerCount * 35);
-    const innerRadius = rank2.length > 0 ? Math.max(140, rank2.length * 40) : 0;
+  const leaders = rank1.length > 0 ? rank1 : [members.find((m) => m.id === focusId) || members[0]];
+  const subLeaders = rank1.length > 0 ? rank2 : [];
+  const rest = rank1.length > 0
+    ? rank3
+    : members.filter((m) => !leaders.some((l) => l.id === m.id));
+  const nonLeaderCount = subLeaders.length + rest.length;
+
+  if (nonLeaderCount <= CIRCLE_SPOKE_THRESHOLD) {
+    const allOuter = [...subLeaders, ...rest];
+    const outerRadius = Math.max(220, allOuter.length * 40);
     const centerX = outerRadius + 200;
     const centerY = outerRadius + 200;
+    const positions: NodePosition[] = [];
 
-    if (rank1.length === 1) {
+    if (leaders.length === 1) {
       positions.push({
         x: centerX,
         y: centerY,
-        member: rank1[0],
-        relationshipType: relMap.get(rank1[0].id),
+        member: leaders[0],
+        relationshipType: relMap.get(leaders[0].id),
         rank: 1,
       });
     } else {
       const leaderSpread = Math.min(100, outerRadius * 0.3);
-      rank1.forEach((m, i) => {
-        const angle = (2 * Math.PI * i) / rank1.length - Math.PI / 2;
+      leaders.forEach((m, i) => {
+        const angle = (2 * Math.PI * i) / leaders.length - Math.PI / 2;
         positions.push({
           x: centerX + leaderSpread * Math.cos(angle),
           y: centerY + leaderSpread * Math.sin(angle),
@@ -134,59 +142,70 @@ function calculateCircleLayout(
       });
     }
 
-    if (rank2.length > 0) {
-      rank2.forEach((m, i) => {
-        const angle = (2 * Math.PI * i) / rank2.length - Math.PI / 2;
-        positions.push({
-          x: centerX + innerRadius * Math.cos(angle),
-          y: centerY + innerRadius * Math.sin(angle),
-          member: m,
-          relationshipType: relMap.get(m.id),
-          rank: 2,
-        });
+    allOuter.forEach((m, i) => {
+      const angle = (2 * Math.PI * i) / allOuter.length - Math.PI / 2;
+      const memberRank = getMemberRank(m.id, relationships, treeType);
+      positions.push({
+        x: centerX + outerRadius * Math.cos(angle),
+        y: centerY + outerRadius * Math.sin(angle),
+        member: m,
+        relationshipType: relMap.get(m.id),
+        rank: memberRank,
       });
-    }
-
-    if (rank3.length > 0) {
-      rank3.forEach((m, i) => {
-        const angle = (2 * Math.PI * i) / rank3.length - Math.PI / 2;
-        positions.push({
-          x: centerX + outerRadius * Math.cos(angle),
-          y: centerY + outerRadius * Math.sin(angle),
-          member: m,
-          relationshipType: relMap.get(m.id),
-          rank: 3,
-        });
-      });
-    }
+    });
 
     return positions;
   }
 
-  const focusMember = members.find((m) => m.id === focusId) || members[0];
-  const others = members.filter((m) => m.id !== focusMember.id);
-  const outerRadius = Math.max(220, others.length * 35);
-  const centerX = outerRadius + 200;
-  const centerY = outerRadius + 200;
+  const nodeW = 170;
+  const nodeH = 190;
+  const gapX = 30;
+  const gapY = 40;
+  const positions: NodePosition[] = [];
 
-  const positions: NodePosition[] = [
-    {
-      x: centerX,
-      y: centerY,
-      member: focusMember,
-      relationshipType: relMap.get(focusMember.id),
-      rank: 1,
-    },
-  ];
+  const leaderRowWidth = leaders.length * nodeW + (leaders.length - 1) * gapX;
+  const cols = Math.ceil(Math.sqrt(nonLeaderCount * 1.4));
+  const gridWidth = cols * nodeW + (cols - 1) * gapX;
+  const totalWidth = Math.max(leaderRowWidth, gridWidth);
 
-  others.forEach((member, i) => {
-    const angle = (2 * Math.PI * i) / others.length - Math.PI / 2;
-    const memberRank = getMemberRank(member.id, relationships, treeType);
+  leaders.forEach((m, i) => {
+    const totalLeaderW = leaders.length * nodeW + (leaders.length - 1) * gapX;
     positions.push({
-      x: centerX + outerRadius * Math.cos(angle),
-      y: centerY + outerRadius * Math.sin(angle),
-      member,
-      relationshipType: relMap.get(member.id),
+      x: (totalWidth - totalLeaderW) / 2 + i * (nodeW + gapX) + nodeW / 2 + 60,
+      y: 80 + nodeH / 2,
+      member: m,
+      relationshipType: relMap.get(m.id),
+      rank: 1,
+    });
+  });
+
+  let gridStartY = 80 + nodeH + gapY * 2;
+
+  if (subLeaders.length > 0) {
+    const subW = subLeaders.length * nodeW + (subLeaders.length - 1) * gapX;
+    subLeaders.forEach((m, i) => {
+      positions.push({
+        x: (totalWidth - subW) / 2 + i * (nodeW + gapX) + nodeW / 2 + 60,
+        y: gridStartY + nodeH / 2,
+        member: m,
+        relationshipType: relMap.get(m.id),
+        rank: 2,
+      });
+    });
+    gridStartY += nodeH + gapY * 2;
+  }
+
+  rest.forEach((m, i) => {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const rowCount = Math.min(cols, rest.length - row * cols);
+    const rowWidth = rowCount * nodeW + (rowCount - 1) * gapX;
+    const memberRank = getMemberRank(m.id, relationships, treeType);
+    positions.push({
+      x: (totalWidth - rowWidth) / 2 + col * (nodeW + gapX) + nodeW / 2 + 60,
+      y: gridStartY + row * (nodeH + gapY) + nodeH / 2,
+      member: m,
+      relationshipType: relMap.get(m.id),
       rank: memberRank,
     });
   });
