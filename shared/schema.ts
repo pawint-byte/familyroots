@@ -64,6 +64,7 @@ export const familyTrees = pgTable("family_trees", {
   treeType: treeTypeEnum("tree_type").default("family").notNull(),
   treeTypeLabel: text("tree_type_label"),
   customRelationshipTypes: jsonb("custom_relationship_types").$type<string[]>(),
+  preferredLayout: text("preferred_layout"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -109,6 +110,7 @@ export const relationships = pgTable("relationships", {
   toMemberId: varchar("to_member_id").notNull(),
   relationshipType: text("relationship_type").notNull(),
   qualifier: text("qualifier"),
+  customLabel: text("custom_label"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

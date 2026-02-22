@@ -10,7 +10,7 @@ import {
   insertCustodianshipRequestSchema
 } from "@shared/schema";
 import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
-import { getValidRelationshipValues } from "@shared/treeTypes";
+import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType } from "@shared/treeTypes";
 import type { TreeType } from "@shared/treeTypes";
 import { z } from "zod";
 import crypto from "crypto";
@@ -349,7 +349,7 @@ export async function registerRoutes(
       }
 
       // Validate update data - only allow specific fields
-      const allowedFields = ["name", "description", "privacy", "visibilityDefault", "treeType", "treeTypeLabel", "customRelationshipTypes"];
+      const allowedFields = ["name", "description", "privacy", "visibilityDefault", "treeType", "treeTypeLabel", "customRelationshipTypes", "preferredLayout"];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
@@ -1205,7 +1205,7 @@ export async function registerRoutes(
         }
       }
 
-      const { relationshipType, qualifier } = req.body;
+      const { relationshipType, qualifier, customLabel } = req.body;
       
       // Validate relationship type dynamically based on tree type
       const treeType = (tree.treeType || "family") as TreeType;
@@ -1221,10 +1221,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid qualifier" });
       }
 
-      const updated = await storage.updateRelationship(relationshipId, {
-        relationshipType,
-        qualifier: qualifier === null ? null : qualifier
-      });
+      const updatePayload: Record<string, any> = {};
+      if (relationshipType !== undefined) updatePayload.relationshipType = relationshipType;
+      if (qualifier !== undefined) updatePayload.qualifier = qualifier === null ? null : qualifier;
+      if (customLabel !== undefined) updatePayload.customLabel = customLabel === "" ? null : customLabel;
+
+      const updated = await storage.updateRelationship(relationshipId, updatePayload);
       
       res.json(updated);
     } catch (error) {
@@ -1252,6 +1254,103 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting relationship:", error);
       res.status(500).json({ message: "Failed to delete relationship" });
+    }
+  });
+
+  // Auto-create relationships in bulk
+  app.post("/api/trees/:treeId/auto-relationships", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collaborators = await storage.getCollaborators(treeId);
+        const canEdit = collaborators.some(c => c.userId === userId && c.canEdit);
+        if (!canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const { mode, leaderId, leaderRelationshipType, memberRelationshipType, peerRelationshipType } = req.body;
+      const treeType = (tree.treeType || "family") as TreeType;
+      const customTypes = tree.customRelationshipTypes as string[] | null;
+      const validRelTypes = getValidRelationshipValues(treeType, customTypes);
+      const members = await storage.getMembers(treeId);
+      const existingRelationships = await storage.getRelationships(treeId);
+
+      const existingPairs = new Set<string>();
+      for (const rel of existingRelationships) {
+        existingPairs.add(`${rel.fromMemberId}-${rel.toMemberId}`);
+        existingPairs.add(`${rel.toMemberId}-${rel.fromMemberId}`);
+      }
+
+      let created = 0;
+      let skipped = 0;
+
+      if (mode === "leader" && leaderId) {
+        const defaults = getDefaultLeaderRelationship(treeType);
+        const lType = leaderRelationshipType || defaults?.leaderType || "leader";
+        const mType = memberRelationshipType || defaults?.memberType || "member";
+
+        if (!validRelTypes.includes(lType)) {
+          return res.status(400).json({ message: `Invalid leader relationship type '${lType}'` });
+        }
+
+        for (const member of members) {
+          if (member.id === leaderId) continue;
+          const pairKey = `${leaderId}-${member.id}`;
+          if (existingPairs.has(pairKey)) {
+            skipped++;
+            continue;
+          }
+          await storage.createRelationship({
+            treeId,
+            fromMemberId: leaderId,
+            toMemberId: member.id,
+            relationshipType: lType,
+          });
+          existingPairs.add(pairKey);
+          existingPairs.add(`${member.id}-${leaderId}`);
+          created++;
+        }
+      } else if (mode === "peer") {
+        const pType = peerRelationshipType || getDefaultPeerRelationship(treeType);
+
+        if (!validRelTypes.includes(pType)) {
+          return res.status(400).json({ message: `Invalid peer relationship type '${pType}'` });
+        }
+
+        for (let i = 0; i < members.length; i++) {
+          for (let j = i + 1; j < members.length; j++) {
+            const pairKey = `${members[i].id}-${members[j].id}`;
+            if (existingPairs.has(pairKey)) {
+              skipped++;
+              continue;
+            }
+            await storage.createRelationship({
+              treeId,
+              fromMemberId: members[i].id,
+              toMemberId: members[j].id,
+              relationshipType: pType,
+            });
+            existingPairs.add(pairKey);
+            existingPairs.add(`${members[j].id}-${members[i].id}`);
+            created++;
+          }
+        }
+      } else {
+        return res.status(400).json({ message: "Invalid mode. Use 'leader' or 'peer'." });
+      }
+
+      res.json({ created, skipped, total: members.length });
+    } catch (error) {
+      console.error("Error creating auto-relationships:", error);
+      res.status(500).json({ message: "Failed to create auto-relationships" });
     }
   });
 

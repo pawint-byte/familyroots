@@ -1560,6 +1560,8 @@ export default function MerchandisePage() {
     enabled: !!firstTreeId,
   });
 
+  const effectiveLayout: GroupLayoutMode | undefined = layoutParam || (firstTreeDetail?.tree?.preferredLayout as GroupLayoutMode | undefined) || undefined;
+
   const memberCount = firstTreeMembers.length;
 
   const { data: orders = [], refetch: refetchOrders } = useQuery<MerchandiseOrder[]>({
@@ -1841,7 +1843,7 @@ export default function MerchandisePage() {
                                               relationships={previewRelationships}
                                               treeName={previewTreeName}
                                               treeType={previewTreeType}
-                                              layoutOverride={layoutParam || undefined}
+                                              layoutOverride={effectiveLayout}
                                             />
                                           </div>
                                         </div>
@@ -2101,7 +2103,7 @@ export default function MerchandisePage() {
               onOrderCreated={() => setActiveTab("orders")}
               userId={user?.id}
               prefill={productPrefill}
-              layoutOverride={layoutParam || undefined}
+              layoutOverride={effectiveLayout}
             />
           )}
         </DialogContent>

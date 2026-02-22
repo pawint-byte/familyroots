@@ -46,7 +46,7 @@ import { ShareTreeDialog } from "@/components/share-tree-dialog";
 import TimelineView from "@/components/timeline-view";
 import { RelationshipDisplay, FocusMemberSelector } from "@/components/relationship-display";
 import { AddRelationship } from "@/components/add-relationship";
-import { getTreeTypeConfig, getRelationshipTypesForTree, type TreeType } from "@shared/treeTypes";
+import { getTreeTypeConfig, getRelationshipTypesForTree, getDefaultPeerRelationship, getDefaultLeaderRelationship, type TreeType } from "@shared/treeTypes";
 import { ProfileClaimSection } from "@/components/profile-claim-section";
 import { LifeEventsSection } from "@/components/life-events-section";
 import { GiftRegistrySection } from "@/components/gift-registry-section";
@@ -91,7 +91,8 @@ export default function TreeView() {
   const [showPaymentGate, setShowPaymentGate] = useState(false);
   const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit?: number; current: number; credits?: number }>({ current: 0 });
   const [isExporting, setIsExporting] = useState(false);
-  const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; currentQualifier: string | null; member1Name: string; member2Name: string; member1Id: string; member2Id: string } | null>(null);
+  const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; currentQualifier: string | null; currentCustomLabel: string | null; member1Name: string; member2Name: string; member1Id: string; member2Id: string } | null>(null);
+  const [newCustomLabel, setNewCustomLabel] = useState<string>("");
   const [newRelationshipType, setNewRelationshipType] = useState<string>("");
   const [newRelationshipQualifier, setNewRelationshipQualifier] = useState<string | null>(null);
   const [showMergedView, setShowMergedView] = useState(false);
@@ -185,7 +186,10 @@ export default function TreeView() {
     if (treeData?.tree?.rootMemberId && !focusMemberId) {
       setFocusMemberId(treeData.tree.rootMemberId);
     }
-  }, [treeData?.tree?.rootMemberId, treeData?.tree?.ownerId, treeData?.members, user?.id, user?.email, user?.firstName, user?.lastName, focusMemberId]);
+    if (treeData?.tree?.preferredLayout && groupLayoutMode === "auto") {
+      setGroupLayoutMode(treeData.tree.preferredLayout as GroupLayoutMode);
+    }
+  }, [treeData?.tree?.rootMemberId, treeData?.tree?.ownerId, treeData?.tree?.preferredLayout, treeData?.members, user?.id, user?.email, user?.firstName, user?.lastName, focusMemberId]);
 
   // Query collaborator status
   const { data: collaborators } = useQuery<Array<{userId: string; role: string}>>({
@@ -346,6 +350,26 @@ export default function TreeView() {
     },
   });
 
+  const autoConnectMutation = useMutation({
+    mutationFn: async (data: { mode: "leader" | "peer"; leaderId?: string; leaderRelationshipType?: string; peerRelationshipType?: string }) => {
+      return apiRequest("POST", `/api/trees/${treeId}/auto-relationships`, data);
+    },
+    onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      toast({
+        title: "Connections Created",
+        description: `${result.created} new connection${result.created !== 1 ? 's' : ''} added${result.skipped > 0 ? ` (${result.skipped} already existed)` : ''}.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to auto-connect members",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteRelationshipMutation = useMutation({
     mutationFn: async (relationshipId: string) => {
       return apiRequest("DELETE", `/api/trees/${treeId}/relationships/${relationshipId}`, undefined);
@@ -367,11 +391,11 @@ export default function TreeView() {
   });
 
   const updateRelationshipMutation = useMutation({
-    mutationFn: async ({ relationshipId, newType, newQualifier }: { relationshipId: string; newType?: string; newQualifier?: string | null }) => {
-      // Use PATCH to update the relationship in place (preserves data)
+    mutationFn: async ({ relationshipId, newType, newQualifier, customLabel }: { relationshipId: string; newType?: string; newQualifier?: string | null; customLabel?: string | null }) => {
       return apiRequest("PATCH", `/api/trees/${treeId}/relationships/${relationshipId}`, {
         relationshipType: newType,
         qualifier: newQualifier,
+        customLabel: customLabel,
       });
     },
     onSuccess: () => {
@@ -379,6 +403,7 @@ export default function TreeView() {
       setEditingRelationship(null);
       setNewRelationshipType("");
       setNewRelationshipQualifier(null);
+      setNewCustomLabel("");
       toast({
         title: "Success",
         description: "Relationship updated",
@@ -941,7 +966,12 @@ export default function TreeView() {
                                 variant={groupLayoutMode === value ? "default" : "outline"}
                                 size="sm"
                                 className="h-7 px-2 text-xs gap-1"
-                                onClick={() => setGroupLayoutMode(value)}
+                                onClick={() => {
+                                  setGroupLayoutMode(value);
+                                  if (canEditTree && treeId) {
+                                    apiRequest("PATCH", `/api/trees/${treeId}`, { preferredLayout: value === "auto" ? null : value });
+                                  }
+                                }}
                                 data-testid={`button-layout-${value}`}
                               >
                                 {icon}
@@ -949,6 +979,72 @@ export default function TreeView() {
                               </Button>
                             ))}
                           </div>
+                        </div>
+                      )}
+                      {(treeData?.tree.treeType || "family") !== "family" && canEditTree && displayMembers.length >= 2 && (
+                        <div className="mt-3 pt-3 border-t">
+                          <Label className="text-xs text-muted-foreground mb-2 block">Quick Connect</Label>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full h-8 text-xs gap-1.5"
+                                disabled={autoConnectMutation.isPending}
+                                data-testid="button-auto-connect"
+                              >
+                                {autoConnectMutation.isPending ? (
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Link2 className="h-3.5 w-3.5" />
+                                )}
+                                Auto-Connect Members
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-64">
+                              {(() => {
+                                const tt = (treeData?.tree.treeType || "family") as TreeType;
+                                const leaderDefaults = getDefaultLeaderRelationship(tt);
+                                const peerDefault = getDefaultPeerRelationship(tt);
+                                const relTypes = getRelationshipTypesForTree(tt, treeData?.tree.customRelationshipTypes as string[] | null);
+                                const peerLabel = relTypes.find(r => r.value === peerDefault)?.label || peerDefault;
+
+                                return (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() => autoConnectMutation.mutate({ mode: "peer", peerRelationshipType: peerDefault })}
+                                      className="flex-col items-start gap-0.5"
+                                      data-testid="auto-connect-peer"
+                                    >
+                                      <span className="font-medium">Connect All as {peerLabel}</span>
+                                      <span className="text-xs text-muted-foreground">Every member gets connected to each other</span>
+                                    </DropdownMenuItem>
+                                    {leaderDefaults && focusMember && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={() => autoConnectMutation.mutate({
+                                            mode: "leader",
+                                            leaderId: focusMember.id,
+                                            leaderRelationshipType: leaderDefaults.leaderType,
+                                          })}
+                                          className="flex-col items-start gap-0.5"
+                                          data-testid="auto-connect-leader"
+                                        >
+                                          <span className="font-medium">
+                                            Set {focusMember.firstName} as {relTypes.find(r => r.value === leaderDefaults.leaderType)?.label || leaderDefaults.leaderType}
+                                          </span>
+                                          <span className="text-xs text-muted-foreground">
+                                            Auto-connect to all other members
+                                          </span>
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       )}
                       {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
@@ -1614,7 +1710,7 @@ export default function TreeView() {
                       const getMemberName = (m: FamilyMember | undefined) => m ? (m.lastName ? `${m.firstName} ${m.lastName}` : m.firstName) + (m.suffix ? ` ${m.suffix}` : '') : "Unknown";
                       
                       // Build list of individual relationships with their IDs
-                      const relationshipItems: { id: string; label: string; personName: string; description: string; fromMemberId: string; toMemberId: string; relationshipType: string; qualifier: string | null; otherMemberName: string }[] = [];
+                      const relationshipItems: { id: string; label: string; personName: string; description: string; fromMemberId: string; toMemberId: string; relationshipType: string; qualifier: string | null; customLabel: string | null; otherMemberName: string }[] = [];
                       
                       // Parents (relationships where someone else is parent of selectedMember)
                       memberRelationships
@@ -1632,6 +1728,7 @@ export default function TreeView() {
                               toMemberId: r.toMemberId,
                               relationshipType: r.relationshipType,
                               qualifier: r.qualifier || null,
+                              customLabel: r.customLabel || null,
                               otherMemberName: getMemberName(parent)
                             });
                           }
@@ -1653,6 +1750,7 @@ export default function TreeView() {
                               toMemberId: r.toMemberId,
                               relationshipType: r.relationshipType,
                               qualifier: r.qualifier || null,
+                              customLabel: r.customLabel || null,
                               otherMemberName: getMemberName(child)
                             });
                           }
@@ -1673,6 +1771,7 @@ export default function TreeView() {
                               toMemberId: r.toMemberId,
                               relationshipType: r.relationshipType,
                               qualifier: r.qualifier || null,
+                              customLabel: r.customLabel || null,
                               otherMemberName: getMemberName(spouse)
                             });
                           }
@@ -1694,6 +1793,7 @@ export default function TreeView() {
                               toMemberId: r.toMemberId,
                               relationshipType: r.relationshipType,
                               qualifier: r.qualifier || null,
+                              customLabel: r.customLabel || null,
                               otherMemberName: getMemberName(sibling)
                             });
                           }
@@ -1714,6 +1814,7 @@ export default function TreeView() {
                               toMemberId: r.toMemberId,
                               relationshipType: r.relationshipType,
                               qualifier: r.qualifier || null,
+                              customLabel: r.customLabel || null,
                               otherMemberName: getMemberName(coparent)
                             });
                           }
@@ -1726,6 +1827,9 @@ export default function TreeView() {
                               <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <Badge variant="outline" className="text-xs shrink-0">{item.label}</Badge>
                                 <span className="text-sm truncate">{item.personName}</span>
+                                {item.customLabel && (
+                                  <span className="text-xs text-muted-foreground italic truncate" data-testid={`text-custom-label-${item.id}`}>"{item.customLabel}"</span>
+                                )}
                               </div>
                               {canEditTree && (
                                 <div className="flex items-center gap-1">
@@ -1737,6 +1841,7 @@ export default function TreeView() {
                                         id: item.id,
                                         currentType: item.relationshipType,
                                         currentQualifier: item.qualifier,
+                                        currentCustomLabel: item.customLabel || null,
                                         member1Name: selectedMember.firstName,
                                         member2Name: item.otherMemberName,
                                         member1Id: item.fromMemberId,
@@ -1744,6 +1849,7 @@ export default function TreeView() {
                                       });
                                       setNewRelationshipType(item.relationshipType);
                                       setNewRelationshipQualifier(item.qualifier);
+                                      setNewCustomLabel(item.customLabel || "");
                                     }}
                                     data-testid={`button-edit-relationship-${item.id}`}
                                   >
@@ -1914,6 +2020,7 @@ export default function TreeView() {
           setEditingRelationship(null);
           setNewRelationshipType("");
           setNewRelationshipQualifier(null);
+          setNewCustomLabel("");
         }
       }}>
         <DialogContent>
@@ -1965,6 +2072,18 @@ export default function TreeView() {
                   Current: {editingRelationship.currentQualifier || "None (biological/default)"}
                 </p>
               </div>
+              <div className="space-y-2">
+                <Label>Custom Label / Note</Label>
+                <Input
+                  placeholder="e.g. Best friend since college, Mentor, etc."
+                  value={newCustomLabel}
+                  onChange={(e) => setNewCustomLabel(e.target.value)}
+                  data-testid="input-custom-label"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Add a personal note or custom label for this relationship. This appears next to the relationship in the member panel.
+                </p>
+              </div>
               <div className="flex gap-2 justify-end">
                 <Button
                   variant="outline"
@@ -1972,6 +2091,7 @@ export default function TreeView() {
                     setEditingRelationship(null);
                     setNewRelationshipType("");
                     setNewRelationshipQualifier(null);
+                    setNewCustomLabel("");
                   }}
                   data-testid="button-cancel-edit-relationship"
                 >
@@ -1982,11 +2102,13 @@ export default function TreeView() {
                     if (editingRelationship) {
                       const hasTypeChange = newRelationshipType && newRelationshipType !== editingRelationship.currentType;
                       const hasQualifierChange = newRelationshipQualifier !== editingRelationship.currentQualifier;
-                      if (hasTypeChange || hasQualifierChange) {
+                      const hasCustomLabelChange = (newCustomLabel || null) !== editingRelationship.currentCustomLabel;
+                      if (hasTypeChange || hasQualifierChange || hasCustomLabelChange) {
                         updateRelationshipMutation.mutate({
                           relationshipId: editingRelationship.id,
                           newType: newRelationshipType || editingRelationship.currentType,
                           newQualifier: newRelationshipQualifier,
+                          customLabel: newCustomLabel || null,
                         });
                       }
                     }
@@ -1994,7 +2116,8 @@ export default function TreeView() {
                   disabled={
                     updateRelationshipMutation.isPending ||
                     ((!newRelationshipType || newRelationshipType === editingRelationship.currentType) &&
-                     newRelationshipQualifier === editingRelationship.currentQualifier)
+                     newRelationshipQualifier === editingRelationship.currentQualifier &&
+                     (newCustomLabel || null) === editingRelationship.currentCustomLabel)
                   }
                   data-testid="button-save-relationship"
                 >

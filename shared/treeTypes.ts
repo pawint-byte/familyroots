@@ -421,3 +421,29 @@ export function getMemberRank(
   }
   return bestRank;
 }
+
+export function getDefaultPeerRelationship(treeType: TreeType): string {
+  const peerMap: Record<TreeType, string> = {
+    family: "sibling",
+    church: "member",
+    sports: "teammate",
+    fraternity: "active",
+    friends: "friend",
+    professional: "colleague",
+    custom: "member",
+  };
+  return peerMap[treeType] || "member";
+}
+
+export function getDefaultLeaderRelationship(treeType: TreeType): { leaderType: string; memberType: string } | null {
+  const leaderMap: Record<TreeType, { leaderType: string; memberType: string } | null> = {
+    family: null,
+    church: { leaderType: "pastor", memberType: "member" },
+    sports: { leaderType: "coach", memberType: "player" },
+    fraternity: { leaderType: "chapter_president", memberType: "active" },
+    friends: null,
+    professional: { leaderType: "manager", memberType: "direct_report" },
+    custom: { leaderType: "leader", memberType: "member" },
+  };
+  return leaderMap[treeType] || null;
+}
