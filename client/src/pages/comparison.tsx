@@ -6,7 +6,7 @@ import { SEO } from "@/components/seo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   ArrowLeft, Check, X, TreePine, Users, Shield, Heart, 
-  MapPin, ShoppingBag, Bot, Sparkles
+  MapPin, ShoppingBag, Bot, Sparkles, Tag, Layers, Smartphone
 } from "lucide-react";
 
 interface FeatureRow {
@@ -19,65 +19,95 @@ interface FeatureRow {
 const features: FeatureRow[] = [
   { category: "Tree Building", feature: "Create family trees", familyRoots: true, ancestry: true },
   { category: "Tree Building", feature: "Visual tree display", familyRoots: true, ancestry: true },
+  { category: "Tree Building", feature: "Unique visual layouts per tree type", familyRoots: true, ancestry: false },
   { category: "Tree Building", feature: "Photo uploads", familyRoots: true, ancestry: true },
   { category: "Tree Building", feature: "Export tree as image", familyRoots: true, ancestry: false },
   { category: "Tree Building", feature: "Life events tracking", familyRoots: true, ancestry: true },
   { category: "Tree Building", feature: "Education & career history", familyRoots: true, ancestry: false },
-  
+
+  { category: "Organization & Structure", feature: "Nested sub-groups (tree-in-tree)", familyRoots: true, ancestry: false },
+  { category: "Organization & Structure", feature: "Re-parent / detach sub-groups", familyRoots: true, ancestry: false },
+  { category: "Organization & Structure", feature: "Split tree into separate groups", familyRoots: true, ancestry: false },
+  { category: "Organization & Structure", feature: "Color-coded member tags", familyRoots: true, ancestry: false },
+  { category: "Organization & Structure", feature: "Filter tree view by tag", familyRoots: true, ancestry: false },
+  { category: "Organization & Structure", feature: "Create new tree from tagged group", familyRoots: true, ancestry: false },
+  { category: "Organization & Structure", feature: "Email tagged members", familyRoots: true, ancestry: false },
+  { category: "Organization & Structure", feature: "Bulk tag assignment", familyRoots: true, ancestry: false },
+
   { category: "Collaboration", feature: "Share trees with others", familyRoots: true, ancestry: true },
-  { category: "Collaboration", feature: "Role-based permissions", familyRoots: true, ancestry: true },
-  { category: "Collaboration", feature: "Profile claiming", familyRoots: true, ancestry: false },
-  { category: "Collaboration", feature: "Custodianship for deceased", familyRoots: true, ancestry: false },
+  { category: "Collaboration", feature: "Role-based permissions (Viewer/Editor/Co-owner)", familyRoots: true, ancestry: true },
+  { category: "Collaboration", feature: "Profile claiming by members", familyRoots: true, ancestry: false },
+  { category: "Collaboration", feature: "Custodianship for deceased members", familyRoots: true, ancestry: false },
   { category: "Collaboration", feature: "Invitation links with expiry", familyRoots: true, ancestry: true },
-  
-  { category: "Privacy & Security", feature: "Members-only private networks", familyRoots: true, ancestry: false },
+  { category: "Collaboration", feature: "Email invitations (via Resend)", familyRoots: true, ancestry: true },
+  { category: "Collaboration", feature: "Disassociation protections for tree owners", familyRoots: true, ancestry: false },
+
+  { category: "Privacy & Security", feature: "Private by default (invitation-only)", familyRoots: true, ancestry: false },
   { category: "Privacy & Security", feature: "Three-tier visibility controls", familyRoots: true, ancestry: false },
-  { category: "Privacy & Security", feature: "Invitation-only group access", familyRoots: true, ancestry: false },
-  { category: "Privacy & Security", feature: "Role-based privacy per member", familyRoots: true, ancestry: false },
+  { category: "Privacy & Security", feature: "Per-member privacy overrides", familyRoots: true, ancestry: false },
+  { category: "Privacy & Security", feature: "Members-only private networks", familyRoots: true, ancestry: false },
   { category: "Privacy & Security", feature: "Labeled, meaningful connections", familyRoots: true, ancestry: false },
+  { category: "Privacy & Security", feature: "Member/branch muting", familyRoots: true, ancestry: false },
   { category: "Privacy & Security", feature: "Private trees", familyRoots: true, ancestry: true },
   { category: "Privacy & Security", feature: "Account heir (deadman switch)", familyRoots: true, ancestry: false },
-  
-  { category: "Connections", feature: "Special connections (godparents, friends)", familyRoots: true, ancestry: false },
-  { category: "Connections", feature: "Location sharing with map", familyRoots: true, ancestry: false },
-  { category: "Connections", feature: "Cross-tree connection requests", familyRoots: true, ancestry: false },
-  { category: "Connections", feature: "Network discovery", familyRoots: true, ancestry: false },
-  { category: "Connections", feature: "Relationship calculator", familyRoots: true, ancestry: true },
-  
-  { category: "Records & Research", feature: "Historical records database", familyRoots: "Coming Soon", ancestry: "65+ billion" },
-  { category: "Records & Research", feature: "Automated hints/matches", familyRoots: "Coming Soon", ancestry: true },
+
+  { category: "Connections & Discovery", feature: "Special connections (godparents, friends, mentors)", familyRoots: true, ancestry: false },
+  { category: "Connections & Discovery", feature: "Cross-tree connection requests", familyRoots: true, ancestry: false },
+  { category: "Connections & Discovery", feature: "Discoverable community trees", familyRoots: true, ancestry: false },
+  { category: "Connections & Discovery", feature: "Smart matching (opt-in)", familyRoots: true, ancestry: true },
+  { category: "Connections & Discovery", feature: "Location sharing with map", familyRoots: true, ancestry: false },
+  { category: "Connections & Discovery", feature: "Network overview across trees", familyRoots: true, ancestry: false },
+  { category: "Connections & Discovery", feature: "Relationship calculator", familyRoots: true, ancestry: true },
+  { category: "Connections & Discovery", feature: "Referral system", familyRoots: true, ancestry: false },
+
+  { category: "Records & Research", feature: "FamilySearch record search", familyRoots: true, ancestry: false },
+  { category: "Records & Research", feature: "FamilySearch tree import", familyRoots: true, ancestry: false },
+  { category: "Records & Research", feature: "Selective member import", familyRoots: true, ancestry: false },
+  { category: "Records & Research", feature: "Built-in historical records", familyRoots: false, ancestry: "65+ billion" },
   { category: "Records & Research", feature: "Cemetery records", familyRoots: false, ancestry: true },
   { category: "Records & Research", feature: "Newspaper archives", familyRoots: false, ancestry: true },
-  
+
   { category: "DNA", feature: "DNA testing", familyRoots: false, ancestry: true },
   { category: "DNA", feature: "DNA matching", familyRoots: false, ancestry: true },
   { category: "DNA", feature: "Ethnicity estimates", familyRoots: false, ancestry: true },
-  
-  { category: "AI & Technology", feature: "AI chatbot assistance", familyRoots: true, ancestry: "Beta" },
-  { category: "AI & Technology", feature: "AI video generation", familyRoots: true, ancestry: false },
-  { category: "AI & Technology", feature: "Multi-language support", familyRoots: true, ancestry: true },
-  { category: "AI & Technology", feature: "QR code sharing", familyRoots: true, ancestry: false },
-  
-  { category: "Beyond Family", feature: "Multi-type trees (church, sports, Greek life)", familyRoots: true, ancestry: false },
+
+  { category: "AI & Technology", feature: "AI chatbot assistant (GPT-4.1)", familyRoots: true, ancestry: "Beta" },
+  { category: "AI & Technology", feature: "AI avatar video generation", familyRoots: true, ancestry: false },
+  { category: "AI & Technology", feature: "Multi-language support (4 languages)", familyRoots: true, ancestry: true },
+  { category: "AI & Technology", feature: "QR code sharing (profiles, trees, app)", familyRoots: true, ancestry: false },
+  { category: "AI & Technology", feature: "Progressive Web App (installable)", familyRoots: true, ancestry: false },
+  { category: "AI & Technology", feature: "Membership badge with stats", familyRoots: true, ancestry: false },
+
+  { category: "Beyond Family", feature: "7 tree types (family, church, sports, Greek life, friends, professional, custom)", familyRoots: true, ancestry: false },
   { category: "Beyond Family", feature: "Custom relationship types per tree", familyRoots: true, ancestry: false },
-  { category: "Beyond Family", feature: "Professional network trees", familyRoots: true, ancestry: false },
-  
-  { category: "Monetization", feature: "Credit-based member packs (no expiry)", familyRoots: true, ancestry: false },
-  { category: "Monetization", feature: "Activity rewards & milestones", familyRoots: true, ancestry: false },
-  { category: "Monetization", feature: "Custom merchandise (print-on-demand)", familyRoots: true, ancestry: false },
-  { category: "Monetization", feature: "Gift marketplace", familyRoots: true, ancestry: false },
+  { category: "Beyond Family", feature: "Qualifier tags on relationships", familyRoots: true, ancestry: false },
+  { category: "Beyond Family", feature: "Add your own custom roles", familyRoots: true, ancestry: false },
+  { category: "Beyond Family", feature: "Anchor yourself across all your groups", familyRoots: true, ancestry: false },
+
+  { category: "Shopping & Gifts", feature: "Custom merchandise (mugs, shirts, posters)", familyRoots: true, ancestry: false },
+  { category: "Shopping & Gifts", feature: "4 print elements (tree, QR, image, text)", familyRoots: true, ancestry: false },
+  { category: "Shopping & Gifts", feature: "Gift registries tied to members", familyRoots: true, ancestry: false },
+  { category: "Shopping & Gifts", feature: "Curated gift marketplace", familyRoots: true, ancestry: false },
+
+  { category: "Pricing", feature: "Free tier (20 members)", familyRoots: true, ancestry: false },
+  { category: "Pricing", feature: "Credits that never expire", familyRoots: true, ancestry: false },
+  { category: "Pricing", feature: "Activity rewards & milestones", familyRoots: true, ancestry: false },
+  { category: "Pricing", feature: "Free forever at 100+ members", familyRoots: true, ancestry: false },
+  { category: "Pricing", feature: "Monthly subscription", familyRoots: "Optional $4.99", ancestry: "$20-$50/mo" },
 ];
 
 const categoryIcons: Record<string, any> = {
   "Tree Building": TreePine,
+  "Organization & Structure": Layers,
   "Collaboration": Users,
   "Privacy & Security": Shield,
-  "Connections": Heart,
+  "Connections & Discovery": Heart,
   "Records & Research": MapPin,
   "DNA": Sparkles,
   "AI & Technology": Bot,
-  "Beyond Family": Sparkles,
-  "Monetization": ShoppingBag,
+  "Beyond Family": Tag,
+  "Shopping & Gifts": ShoppingBag,
+  "Pricing": Smartphone,
 };
 
 function FeatureValue({ value }: { value: boolean | string }) {
