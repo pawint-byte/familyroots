@@ -7249,6 +7249,87 @@ export async function registerRoutes(
     }
   });
 
+  // Printful webhook for order status updates (shipping, delivered, etc.)
+  app.post("/api/webhooks/printful", async (req, res) => {
+    try {
+      const { type, data } = req.body;
+      console.log(`Printful webhook received: ${type}`);
+
+      if (type === "package_shipped" && data?.shipment) {
+        const printfulOrderId = String(data.order?.id || data.shipment?.order_id);
+        if (!printfulOrderId || printfulOrderId === "undefined") {
+          return res.json({ success: true });
+        }
+
+        const allOrders = await storage.getMerchandiseOrderByPrintfulId(printfulOrderId);
+        if (!allOrders) {
+          console.log(`No matching order found for Printful order ${printfulOrderId}`);
+          return res.json({ success: true });
+        }
+
+        // Only process if order is in expected state (submitted or paid)
+        if (!["submitted", "paid"].includes(allOrders.status)) {
+          console.log(`Order ${allOrders.id} already in status ${allOrders.status}, skipping webhook`);
+          return res.json({ success: true });
+        }
+
+        const trackingNumber = data.shipment.tracking_number || null;
+        const trackingUrl = data.shipment.tracking_url || null;
+        const carrier = data.shipment.carrier || '';
+
+        await storage.updateMerchandiseOrder(allOrders.id, {
+          status: "shipped",
+          trackingNumber,
+          trackingUrl,
+        });
+
+        // Send shipping notification email with tracking info
+        try {
+          const orderUser = await storage.getUser(allOrders.userId);
+          if (orderUser?.email) {
+            const { sendEmail } = await import("./lib/email");
+            const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+            const shippingHtml = `
+              <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(135deg, #059669, #10b981); padding: 32px; border-radius: 12px 12px 0 0; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Your Order Has Shipped!</h1>
+                  <p style="color: #d1fae5; margin: 8px 0 0; font-size: 14px;">Your FamilyRoots merchandise is on its way</p>
+                </div>
+                <div style="padding: 24px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none;">
+                  <p style="margin: 0 0 16px; color: #374151; font-size: 14px;">Hi ${orderUser.firstName || 'there'},</p>
+                  <p style="margin: 0 0 20px; color: #374151; font-size: 14px;">Great news! Your <strong>${allOrders.productName}</strong> order has been shipped${carrier ? ` via ${carrier}` : ''}.</p>
+
+                  ${trackingNumber ? `
+                  <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-bottom: 20px; text-align: center;">
+                    <p style="margin: 0 0 8px; color: #166534; font-size: 13px; font-weight: 500;">Tracking Number</p>
+                    <p style="margin: 0 0 12px; color: #111827; font-size: 18px; font-weight: 600; letter-spacing: 1px;">${trackingNumber}</p>
+                    ${trackingUrl ? `<a href="${trackingUrl}" style="display: inline-block; background: #059669; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 500; font-size: 14px;">Track Your Package</a>` : ''}
+                  </div>` : ''}
+
+                  <div style="text-align: center; margin: 24px 0 16px;">
+                    <a href="${baseUrl}/merchandise?tab=orders" style="display: inline-block; background: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 500; font-size: 14px;">View My Orders</a>
+                  </div>
+                </div>
+                <div style="padding: 16px 24px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; text-align: center;">
+                  <p style="margin: 0; color: #9ca3af; font-size: 12px;">FamilyRoots - Preserving Your Family Legacy</p>
+                </div>
+              </div>
+            `;
+            await sendEmail(orderUser.email, `Your Order Has Shipped - ${allOrders.productName} #${allOrders.id.slice(0, 8).toUpperCase()}`, shippingHtml);
+            console.log(`Shipping notification sent to ${orderUser.email} for order ${allOrders.id}`);
+          }
+        } catch (emailError) {
+          console.error("Failed to send shipping email:", emailError);
+        }
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Printful webhook error:", error);
+      res.status(200).json({ success: true }); // Always return 200 to Printful
+    }
+  });
+
   // Create checkout session for merchandise order
   app.post("/api/merchandise/orders/:id/checkout", isAuthenticated, async (req: any, res) => {
     try {
@@ -7371,9 +7452,143 @@ export async function registerRoutes(
                   status: "submitted",
                   printfulOrderId: String(printfulResult.orderId),
                 });
+
+                // Send order confirmation email
+                try {
+                  const orderUser = await storage.getUser(userId);
+                  if (orderUser?.email) {
+                    const { sendEmail } = await import("./lib/email");
+                    const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+                    const shippingAddr = order.shippingAddress as any;
+                    const orderDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                    const subtotalDisplay = ((order.subtotal || 0) / 100).toFixed(2);
+                    const shippingDisplay = ((order.shippingCost || 0) / 100).toFixed(2);
+                    const totalDisplay = ((order.totalAmount || 0) / 100).toFixed(2);
+
+                    const confirmationHtml = `
+                      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 32px; border-radius: 12px 12px 0 0; text-align: center;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Order Confirmed!</h1>
+                          <p style="color: #e0e7ff; margin: 8px 0 0; font-size: 14px;">Thank you for your FamilyRoots merchandise order</p>
+                        </div>
+                        <div style="padding: 24px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none;">
+                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px;">Hi ${orderUser.firstName || 'there'},</p>
+                          <p style="margin: 0 0 20px; color: #374151; font-size: 14px;">Your order has been placed successfully and is being prepared. Here are your order details:</p>
+
+                          <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 12px; color: #111827; font-size: 16px;">Order Summary</h3>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Order ID</td><td style="padding: 4px 0; text-align: right; color: #111827; font-weight: 500;">${order.id.slice(0, 8).toUpperCase()}</td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Date</td><td style="padding: 4px 0; text-align: right; color: #111827;">${orderDate}</td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Item</td><td style="padding: 4px 0; text-align: right; color: #111827;">${order.productName}${order.variantName ? ` - ${order.variantName}` : ''}</td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Quantity</td><td style="padding: 4px 0; text-align: right; color: #111827;">${order.quantity}</td></tr>
+                              <tr><td colspan="2" style="padding: 8px 0 4px;"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;"></td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Subtotal</td><td style="padding: 4px 0; text-align: right; color: #111827;">$${subtotalDisplay}</td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Shipping</td><td style="padding: 4px 0; text-align: right; color: #111827;">$${shippingDisplay}</td></tr>
+                              <tr><td colspan="2" style="padding: 8px 0 4px;"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;"></td></tr>
+                              <tr><td style="padding: 4px 0; color: #111827; font-weight: 600;">Total</td><td style="padding: 4px 0; text-align: right; color: #111827; font-weight: 600;">$${totalDisplay}</td></tr>
+                            </table>
+                          </div>
+
+                          ${shippingAddr ? `
+                          <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 8px; color: #111827; font-size: 16px;">Shipping To</h3>
+                            <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6;">
+                              ${shippingAddr.name || ''}<br>
+                              ${shippingAddr.address1 || ''}${shippingAddr.address2 ? '<br>' + shippingAddr.address2 : ''}<br>
+                              ${shippingAddr.city || ''}, ${shippingAddr.stateCode || ''} ${shippingAddr.zip || ''}<br>
+                              ${shippingAddr.countryCode || ''}
+                            </p>
+                          </div>` : ''}
+
+                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px;">You'll receive another email with tracking information once your order ships.</p>
+
+                          <div style="text-align: center; margin: 24px 0 16px;">
+                            <a href="${baseUrl}/merchandise?tab=orders" style="display: inline-block; background: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 500; font-size: 14px;">View My Orders</a>
+                          </div>
+                        </div>
+                        <div style="padding: 16px 24px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; text-align: center;">
+                          <p style="margin: 0; color: #9ca3af; font-size: 12px;">FamilyRoots - Preserving Your Family Legacy</p>
+                        </div>
+                      </div>
+                    `;
+
+                    await sendEmail(orderUser.email, `Order Confirmed - ${order.productName} #${order.id.slice(0, 8).toUpperCase()}`, confirmationHtml);
+                    console.log(`Order confirmation email sent to ${orderUser.email} for order ${order.id}`);
+                  }
+                } catch (emailError) {
+                  console.error("Failed to send order confirmation email:", emailError);
+                }
+
                 return res.json({ success: true, status: "submitted", printfulOrderId: printfulResult.orderId });
               } else {
                 console.error("Failed to submit order to Printful, keeping as paid");
+
+                // Still send confirmation email even if Printful submission fails
+                try {
+                  const orderUser = await storage.getUser(userId);
+                  if (orderUser?.email) {
+                    const { sendEmail } = await import("./lib/email");
+                    const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+                    const shippingAddr = order.shippingAddress as any;
+                    const orderDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                    const subtotalDisplay = ((order.subtotal || 0) / 100).toFixed(2);
+                    const shippingDisplay = ((order.shippingCost || 0) / 100).toFixed(2);
+                    const totalDisplay = ((order.totalAmount || 0) / 100).toFixed(2);
+
+                    const confirmationHtml = `
+                      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 32px; border-radius: 12px 12px 0 0; text-align: center;">
+                          <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Payment Received!</h1>
+                          <p style="color: #e0e7ff; margin: 8px 0 0; font-size: 14px;">Your FamilyRoots merchandise order is being processed</p>
+                        </div>
+                        <div style="padding: 24px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none;">
+                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px;">Hi ${orderUser.firstName || 'there'},</p>
+                          <p style="margin: 0 0 20px; color: #374151; font-size: 14px;">We received your payment and your order is being processed. Here are your order details:</p>
+
+                          <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 12px; color: #111827; font-size: 16px;">Order Summary</h3>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Order ID</td><td style="padding: 4px 0; text-align: right; color: #111827; font-weight: 500;">${order.id.slice(0, 8).toUpperCase()}</td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Date</td><td style="padding: 4px 0; text-align: right; color: #111827;">${orderDate}</td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Item</td><td style="padding: 4px 0; text-align: right; color: #111827;">${order.productName}${order.variantName ? ` - ${order.variantName}` : ''}</td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Quantity</td><td style="padding: 4px 0; text-align: right; color: #111827;">${order.quantity}</td></tr>
+                              <tr><td colspan="2" style="padding: 8px 0 4px;"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;"></td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Subtotal</td><td style="padding: 4px 0; text-align: right; color: #111827;">$${subtotalDisplay}</td></tr>
+                              <tr><td style="padding: 4px 0; color: #6b7280;">Shipping</td><td style="padding: 4px 0; text-align: right; color: #111827;">$${shippingDisplay}</td></tr>
+                              <tr><td colspan="2" style="padding: 8px 0 4px;"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;"></td></tr>
+                              <tr><td style="padding: 4px 0; color: #111827; font-weight: 600;">Total</td><td style="padding: 4px 0; text-align: right; color: #111827; font-weight: 600;">$${totalDisplay}</td></tr>
+                            </table>
+                          </div>
+
+                          ${shippingAddr ? `
+                          <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 8px; color: #111827; font-size: 16px;">Shipping To</h3>
+                            <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6;">
+                              ${shippingAddr.name || ''}<br>
+                              ${shippingAddr.address1 || ''}${shippingAddr.address2 ? '<br>' + shippingAddr.address2 : ''}<br>
+                              ${shippingAddr.city || ''}, ${shippingAddr.stateCode || ''} ${shippingAddr.zip || ''}<br>
+                              ${shippingAddr.countryCode || ''}
+                            </p>
+                          </div>` : ''}
+
+                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px;">You'll receive another email with tracking information once your order ships.</p>
+
+                          <div style="text-align: center; margin: 24px 0 16px;">
+                            <a href="${baseUrl}/merchandise?tab=orders" style="display: inline-block; background: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 500; font-size: 14px;">View My Orders</a>
+                          </div>
+                        </div>
+                        <div style="padding: 16px 24px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; text-align: center;">
+                          <p style="margin: 0; color: #9ca3af; font-size: 12px;">FamilyRoots - Preserving Your Family Legacy</p>
+                        </div>
+                      </div>
+                    `;
+                    await sendEmail(orderUser.email, `Payment Received - ${order.productName} #${order.id.slice(0, 8).toUpperCase()}`, confirmationHtml);
+                  }
+                } catch (emailError) {
+                  console.error("Failed to send payment confirmation email:", emailError);
+                }
+
                 return res.json({ success: true, status: "paid", printfulError: true });
               }
             }

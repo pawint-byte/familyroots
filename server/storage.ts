@@ -232,6 +232,7 @@ export interface IStorage {
   getMerchandiseOrders(userId: string): Promise<MerchandiseOrder[]>;
   getMerchandiseOrder(id: string): Promise<MerchandiseOrder | undefined>;
   getMerchandiseOrderByStripeSession(sessionId: string): Promise<MerchandiseOrder | undefined>;
+  getMerchandiseOrderByPrintfulId(printfulOrderId: string): Promise<MerchandiseOrder | undefined>;
   createMerchandiseOrder(order: InsertMerchandiseOrder): Promise<MerchandiseOrder>;
   updateMerchandiseOrder(id: string, data: Partial<InsertMerchandiseOrder>): Promise<MerchandiseOrder | undefined>;
 
@@ -1486,6 +1487,12 @@ export class DatabaseStorage implements IStorage {
   async getMerchandiseOrderByStripeSession(sessionId: string): Promise<MerchandiseOrder | undefined> {
     const [order] = await db.select().from(merchandiseOrders)
       .where(eq(merchandiseOrders.stripePaymentIntentId, sessionId));
+    return order;
+  }
+
+  async getMerchandiseOrderByPrintfulId(printfulOrderId: string): Promise<MerchandiseOrder | undefined> {
+    const [order] = await db.select().from(merchandiseOrders)
+      .where(eq(merchandiseOrders.printfulOrderId, printfulOrderId));
     return order;
   }
 
