@@ -80,7 +80,7 @@ export default function FAQ() {
         },
         {
           question: "What can I do on FamilyRoots that I can't do anywhere else?",
-          answer: <>Several things are unique to FamilyRoots: (1) Profile claiming, where family members take ownership of their own entry and keep it up to date themselves. (2) Cross-tree connections, where separate families can link their trees when they discover shared members. (3) QR code profiles for instant in-person connections at reunions. (4) A deadman switch that transfers your trees to a chosen heir if something happens to you. (5) Custodianship requests so relatives can care for a deceased member's profile. (6) Gift registries built right into the tree for birthdays, weddings, and holidays. (7) Custom merchandise: print your actual family tree on mugs, shirts, and posters. No other platform offers this combination.</>
+          answer: <>Several things are unique to FamilyRoots: (1) Profile claiming, where family members take ownership of their own entry and keep it up to date themselves. (2) Cross-tree connections, where separate families can link their trees when they discover shared members. (3) QR code profiles for instant in-person connections at reunions. (4) A deadman switch that transfers your trees to a chosen heir if something happens to you. (5) Custodianship requests so relatives can care for a deceased member's profile. (6) Gift registries built right into the tree for birthdays, weddings, and holidays. (7) Custom merchandise: print your actual tree, uploaded images, QR codes, and custom text on blankets, mugs, shirts, and more. No other platform offers this combination.</>
         },
         {
           question: "How does FamilyRoots pricing compare to competitors?",
@@ -122,7 +122,19 @@ export default function FAQ() {
         },
         {
           question: "Can I print my family tree on actual products?",
-          answer: <>Yes. FamilyRoots is the only family tree platform that lets you put your actual tree on merchandise: mugs, t-shirts, hoodies, posters, and canvas prints. Your tree is printed and shipped directly to you through our print partner. It's a popular gift for family reunions, holidays, and milestones. Visit the <Link href="/merchandise" className="text-primary hover:underline font-medium">Merchandise page</Link> to see options.</>
+          answer: <>Yes. FamilyRoots is the only family tree platform that lets you put your actual tree on merchandise: mugs, t-shirts, hoodies, posters, blankets, and more. Your tree is printed exactly as it appears on screen and shipped directly to you through our print partner. But it goes beyond just tree prints — you can mix and match up to four different elements on any product: your tree or group visualization, a QR code, your own uploaded image, and custom text. Visit the <Link href="/merchandise" className="text-primary hover:underline font-medium">Merchandise page</Link> to see options.</>
+        },
+        {
+          question: "What can I put on merchandise besides my tree?",
+          answer: <>Every product in our shop lets you independently toggle up to four print elements: (1) Your tree or group visualization, printed exactly as it looks on screen. (2) A QR code linking to your site signup, your profile, or a tree invite. (3) Your own uploaded image — a saved tree export, a family photo, a logo, or any artwork up to 10MB. (4) Custom text up to 100 characters, like your family name, a motto, reunion date, or team slogan. You can use any combination: all four, just one, or anything in between. Each element has its own placement controls so you decide where everything goes on the product. The preview updates in real time as you customize.</>
+        },
+        {
+          question: "Can I upload my own image to print on merchandise?",
+          answer: "Absolutely. When customizing any product, toggle on 'Custom Image' and upload any image file up to 10MB (JPG, PNG, GIF, or WebP). This is great for adding a family crest, a reunion photo, your organization's logo, or even a saved screenshot of your tree. Your image appears on the product preview instantly so you can see exactly how it will look before ordering."
+        },
+        {
+          question: "Can I add custom text to merchandise?",
+          answer: "Yes. Toggle on 'Custom Text' in the product customizer and type up to 100 characters. Popular uses include family names ('The Johnson Family'), reunion details ('Smith Reunion 2026'), team mottos, or meaningful dates. The text appears on your product preview in real time. You can combine custom text with any of the other print elements — tree print, QR code, or uploaded image."
         },
         {
           question: "How do Gift Registries work inside a family tree?",
