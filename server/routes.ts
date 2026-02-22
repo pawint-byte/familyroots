@@ -1999,6 +1999,87 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== MEMBER MUTE ROUTES ====================
+
+  app.get("/api/trees/:treeId/mutes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId } = req.params;
+      const mutes = await storage.getMutesForUser(userId, treeId);
+      res.json(mutes);
+    } catch (error: any) {
+      console.error("Error fetching mutes:", error);
+      res.status(500).json({ message: "Failed to fetch mutes" });
+    }
+  });
+
+  app.post("/api/trees/:treeId/mutes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId } = req.params;
+      const { memberId, scope } = req.body;
+
+      if (!memberId) {
+        return res.status(400).json({ message: "memberId is required" });
+      }
+
+      if (scope && scope !== "member" && scope !== "branch") {
+        return res.status(400).json({ message: "scope must be 'member' or 'branch'" });
+      }
+
+      const member = await storage.getMember(memberId);
+      if (!member || member.treeId !== treeId) {
+        return res.status(404).json({ message: "Member not found in this tree" });
+      }
+
+      const existing = await storage.getMuteByUserAndMember(userId, treeId, memberId);
+      if (existing) {
+        return res.status(409).json({ message: "Already muted" });
+      }
+
+      const mute = await storage.createMute({
+        userId,
+        treeId,
+        memberId,
+        scope: scope || "member",
+      });
+
+      res.status(201).json(mute);
+    } catch (error: any) {
+      console.error("Error creating mute:", error);
+      res.status(500).json({ message: "Failed to mute member" });
+    }
+  });
+
+  app.delete("/api/trees/:treeId/mutes/:memberId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId, memberId } = req.params;
+
+      await storage.deleteMute(userId, treeId, memberId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting mute:", error);
+      res.status(500).json({ message: "Failed to unmute member" });
+    }
+  });
+
+  app.get("/api/trees/:treeId/muted-member-ids", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId } = req.params;
+
+      const members = await storage.getTreeMembers(treeId);
+      const relationships = await storage.getRelationships(treeId);
+
+      const mutedIds = await storage.getAllMutedMemberIds(userId, treeId, members, relationships);
+      res.json(mutedIds);
+    } catch (error: any) {
+      console.error("Error fetching muted member IDs:", error);
+      res.status(500).json({ message: "Failed to fetch muted member IDs" });
+    }
+  });
+
   // ==================== PROFILE CLAIM ROUTES ====================
 
   // Get pending claim requests for trees owned by the current user
@@ -2834,11 +2915,23 @@ export async function registerRoutes(
           const member = event.memberId ? await storage.getMember(event.memberId) : null;
           const memberName = member ? `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}` : 'A family member';
           
+          const members = await storage.getTreeMembers(treeId);
+          const rels = await storage.getRelationships(treeId);
+          
+          const mutedIdsCache = new Map<string, string[]>();
+          
           for (const treeUser of treeUsers) {
-            // Skip the user who created the event (they already know about it)
             if (treeUser.id === userId) continue;
             
-            // Check if user has email and has opted in to this event type notification
+            if (event.memberId) {
+              let mutedIds = mutedIdsCache.get(treeUser.id);
+              if (!mutedIds) {
+                mutedIds = await storage.getAllMutedMemberIds(treeUser.id, treeId, members, rels);
+                mutedIdsCache.set(treeUser.id, mutedIds);
+              }
+              if (mutedIds.includes(event.memberId)) continue;
+            }
+            
             const prefs = treeUser.notificationPreferences;
             if (treeUser.email && prefs?.emailEnabled && prefs[prefKey]) {
               await sendLifeEventNotification(
@@ -2856,7 +2949,6 @@ export async function registerRoutes(
         }
       } catch (notificationError) {
         console.error("Error sending life event notifications:", notificationError);
-        // Don't fail the request if notifications fail
       }
       
       res.status(201).json(event);

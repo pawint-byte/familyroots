@@ -36,6 +36,7 @@ PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for sc
 - **Smart Family Member Matching**: Opt-in, privacy-focused cross-tree matching for shared connections using a weighted scoring algorithm.
 - **Cross-Tree Person Matching**: Automatic detection of the same person across multiple trees using external IDs and name/date similarity, with a pending review system.
 - **Discoverable Community Trees**: Opt-in discovery system allowing tree owners to make their groups publicly browsable at /discover. Settings include description, category (alumni, church, sports, etc.), location, and auto-join toggle. Managed via Tree Settings dialog. Browse page supports search, category filters, and tree type filters.
+- **Member Muting**: Per-user notification suppression without leaving a tree. Users can mute individual members or entire branches (member + all descendants) from the member detail panel. Muted members show a "Muted" badge. Branch muting uses BFS descendant traversal. Life event notifications are filtered to skip muted members. Schema: `member_mutes` table with scope enum (member/branch).
 - **Network Connection Discovery**: Automated expansion of extended family networks when trees connect, with dashboard approval.
 - **Dynamic Relationship Calculator**: Uses a BFS algorithm to determine genealogical relationships between any two family members.
 - **Education & Career History**: Detailed tracking of education and employment records.

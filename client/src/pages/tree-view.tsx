@@ -27,7 +27,7 @@ import {
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
-  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe
+  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toPng } from "html-to-image";
@@ -200,6 +200,42 @@ export default function TreeView() {
   const { data: collaborators } = useQuery<Array<{userId: string; role: string}>>({
     queryKey: ["/api/trees", treeId, "collaborators"],
     enabled: !!treeId,
+  });
+
+  const { data: mutedMemberIds = [] } = useQuery<string[]>({
+    queryKey: ["/api/trees", treeId, "muted-member-ids"],
+    queryFn: async () => {
+      const res = await fetch(`/api/trees/${treeId}/muted-member-ids`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!treeId && !!user,
+  });
+
+  const muteMemberMutation = useMutation({
+    mutationFn: async ({ memberId, scope }: { memberId: string; scope: "member" | "branch" }) => {
+      return apiRequest("POST", `/api/trees/${treeId}/mutes`, { memberId, scope });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId, "muted-member-ids"] });
+      toast({ title: "Muted", description: "You won't receive activity updates from this member" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to mute member", variant: "destructive" });
+    },
+  });
+
+  const unmuteMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      return apiRequest("DELETE", `/api/trees/${treeId}/mutes/${memberId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId, "muted-member-ids"] });
+      toast({ title: "Unmuted", description: "You'll receive activity updates from this member again" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to unmute member", variant: "destructive" });
+    },
   });
 
   const userId = user?.id;
@@ -1631,6 +1667,12 @@ export default function TreeView() {
                           </TooltipContent>
                         </Tooltip>
                       )}
+                      {mutedMemberIds.includes(selectedMember.id) && (
+                        <Badge variant="outline" className="text-muted-foreground gap-1" data-testid="badge-muted">
+                          <BellOff className="h-3 w-3" />
+                          Muted
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2077,6 +2119,48 @@ export default function TreeView() {
                       {treeData?.tree?.rootMemberId === selectedMember.id ? "Main Person" : "Set as Main"}
                     </Button>
                   )}
+                  {user && (() => {
+                    const isMuted = mutedMemberIds.includes(selectedMember.id);
+                    return isMuted ? (
+                      <Button
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => unmuteMemberMutation.mutate(selectedMember.id)}
+                        disabled={unmuteMemberMutation.isPending}
+                        data-testid="button-unmute-member"
+                      >
+                        <Bell className="h-4 w-4" />
+                        Unmute
+                      </Button>
+                    ) : (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="gap-2" data-testid="button-mute-member">
+                            <BellOff className="h-4 w-4" />
+                            Mute
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem
+                            onClick={() => muteMemberMutation.mutate({ memberId: selectedMember.id, scope: "member" })}
+                            className="gap-2"
+                            data-testid="menu-mute-member-only"
+                          >
+                            <BellOff className="h-4 w-4" />
+                            Mute This Person
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => muteMemberMutation.mutate({ memberId: selectedMember.id, scope: "branch" })}
+                            className="gap-2"
+                            data-testid="menu-mute-branch"
+                          >
+                            <GitBranch className="h-4 w-4" />
+                            Mute This Branch
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    );
+                  })()}
                   {canEdit && (
                     <Button 
                       variant="outline" 

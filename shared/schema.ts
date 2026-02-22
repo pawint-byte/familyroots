@@ -194,6 +194,26 @@ export const importedMembers = pgTable("imported_members", {
   importedAt: timestamp("imported_at").defaultNow().notNull(),
 });
 
+// Mute scope enum for member/branch muting
+export const muteScopeEnum = pgEnum("mute_scope", ["member", "branch"]);
+
+// Member Mutes table (per-user notification suppression)
+export const memberMutes = pgTable("member_mutes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  treeId: varchar("tree_id").notNull(),
+  memberId: varchar("member_id").notNull(),
+  scope: muteScopeEnum("scope").default("member").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertMemberMuteSchema = createInsertSchema(memberMutes).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertMemberMute = z.infer<typeof insertMemberMuteSchema>;
+export type MemberMute = typeof memberMutes.$inferSelect;
+
 // Network Connection Requests table (auto-generated requests for extended family network)
 export const networkConnectionRequests = pgTable("network_connection_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

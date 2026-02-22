@@ -43,6 +43,8 @@ import {
   type User,
   announcements,
   type Announcement, type InsertAnnouncement,
+  memberMutes,
+  type MemberMute, type InsertMemberMute,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, ilike, desc, lt, gte, isNotNull, inArray, sql, count } from "drizzle-orm";
@@ -348,6 +350,13 @@ export interface IStorage {
   createCrossTreeMatch(data: InsertCrossTreeMatch): Promise<CrossTreeMatch>;
   updateCrossTreeMatch(id: string, data: Partial<InsertCrossTreeMatch>): Promise<CrossTreeMatch | undefined>;
   confirmCrossTreeMatch(id: string, userId: string, treeId: string): Promise<CrossTreeMatch | undefined>;
+
+  // Member Mutes
+  getMutesForUser(userId: string, treeId: string): Promise<MemberMute[]>;
+  getMuteByUserAndMember(userId: string, treeId: string, memberId: string): Promise<MemberMute | undefined>;
+  createMute(data: InsertMemberMute): Promise<MemberMute>;
+  deleteMute(userId: string, treeId: string, memberId: string): Promise<void>;
+  getAllMutedMemberIds(userId: string, treeId: string, allMembers: { id: string }[], allRelationships: { fromMemberId: string; toMemberId: string; relationshipType: string }[]): Promise<string[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2464,6 +2473,94 @@ export class DatabaseStorage implements IStorage {
     const [existing] = await db.select().from(referrals)
       .where(eq(referrals.referredUserId, userId));
     return !!existing;
+  }
+
+  // Member Mutes
+  async getMutesForUser(userId: string, treeId: string): Promise<MemberMute[]> {
+    return db.select().from(memberMutes)
+      .where(and(eq(memberMutes.userId, userId), eq(memberMutes.treeId, treeId)));
+  }
+
+  async getMuteByUserAndMember(userId: string, treeId: string, memberId: string): Promise<MemberMute | undefined> {
+    const [mute] = await db.select().from(memberMutes)
+      .where(and(
+        eq(memberMutes.userId, userId),
+        eq(memberMutes.treeId, treeId),
+        eq(memberMutes.memberId, memberId),
+      ));
+    return mute;
+  }
+
+  async createMute(data: InsertMemberMute): Promise<MemberMute> {
+    const [mute] = await db.insert(memberMutes).values(data).returning();
+    return mute;
+  }
+
+  async deleteMute(userId: string, treeId: string, memberId: string): Promise<void> {
+    await db.delete(memberMutes).where(and(
+      eq(memberMutes.userId, userId),
+      eq(memberMutes.treeId, treeId),
+      eq(memberMutes.memberId, memberId),
+    ));
+  }
+
+  async getAllMutedMemberIds(
+    userId: string,
+    treeId: string,
+    allMembers: { id: string }[],
+    allRelationships: { fromMemberId: string; toMemberId: string; relationshipType: string }[]
+  ): Promise<string[]> {
+    const mutes = await this.getMutesForUser(userId, treeId);
+    if (mutes.length === 0) return [];
+
+    const mutedIds = new Set<string>();
+
+    for (const mute of mutes) {
+      mutedIds.add(mute.memberId);
+      if (mute.scope === "branch") {
+        const descendants = this.getDescendants(mute.memberId, allRelationships);
+        descendants.forEach(id => mutedIds.add(id));
+      }
+    }
+
+    return Array.from(mutedIds);
+  }
+
+  private getDescendants(
+    rootId: string,
+    rels: { fromMemberId: string; toMemberId: string; relationshipType: string }[]
+  ): string[] {
+    const childMap = new Map<string, string[]>();
+    for (const r of rels) {
+      if (r.relationshipType === "parent" || r.relationshipType === "child") {
+        if (r.relationshipType === "parent") {
+          const children = childMap.get(r.fromMemberId) || [];
+          children.push(r.toMemberId);
+          childMap.set(r.fromMemberId, children);
+        } else {
+          const children = childMap.get(r.toMemberId) || [];
+          children.push(r.fromMemberId);
+          childMap.set(r.toMemberId, children);
+        }
+      } else {
+        const children = childMap.get(r.fromMemberId) || [];
+        children.push(r.toMemberId);
+        childMap.set(r.fromMemberId, children);
+      }
+    }
+
+    const visited = new Set<string>();
+    const queue = [rootId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      const children = childMap.get(current) || [];
+      queue.push(...children);
+    }
+
+    visited.delete(rootId);
+    return Array.from(visited);
   }
 }
 
