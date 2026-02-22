@@ -2069,7 +2069,7 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const { treeId } = req.params;
 
-      const members = await storage.getTreeMembers(treeId);
+      const members = await storage.getMembers(treeId);
       const relationships = await storage.getRelationships(treeId);
 
       const mutedIds = await storage.getAllMutedMemberIds(userId, treeId, members, relationships);
@@ -2915,7 +2915,7 @@ export async function registerRoutes(
           const member = event.memberId ? await storage.getMember(event.memberId) : null;
           const memberName = member ? `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}` : 'A family member';
           
-          const members = await storage.getTreeMembers(treeId);
+          const members = await storage.getMembers(treeId);
           const rels = await storage.getRelationships(treeId);
           
           const mutedIdsCache = new Map<string, string[]>();
