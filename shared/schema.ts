@@ -1195,3 +1195,19 @@ export const insertReferralSchema = createInsertSchema(referrals).omit({
 
 export type Referral = typeof referrals.$inferSelect;
 export type InsertReferral = z.infer<typeof insertReferralSchema>;
+
+export const treeTags = pgTable("tree_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  treeId: varchar("tree_id").notNull(),
+  label: text("label").notNull(),
+  color: text("color").default("#6366f1"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTreeTagSchema = createInsertSchema(treeTags).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type TreeTag = typeof treeTags.$inferSelect;
+export type InsertTreeTag = z.infer<typeof insertTreeTagSchema>;

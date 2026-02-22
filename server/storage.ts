@@ -6,7 +6,7 @@ import {
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
   giftRegistries, giftRegistryItems, userConnectionRequests, userConnections, memberMergeHistory,
-  externalPersonIdentifiers, pendingMemberSuggestions, crossTreeMatches, referrals,
+  externalPersonIdentifiers, pendingMemberSuggestions, crossTreeMatches, referrals, treeTags,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -40,6 +40,7 @@ import {
   type PendingMemberSuggestion, type InsertPendingMemberSuggestion,
   type CrossTreeMatch, type InsertCrossTreeMatch,
   type Referral,
+  type TreeTag, type InsertTreeTag,
   type User,
   announcements,
   type Announcement, type InsertAnnouncement,
@@ -369,6 +370,11 @@ export interface IStorage {
   createMute(data: InsertMemberMute): Promise<MemberMute>;
   deleteMute(userId: string, treeId: string, memberId: string): Promise<void>;
   getAllMutedMemberIds(userId: string, treeId: string, allMembers: { id: string }[], allRelationships: { fromMemberId: string; toMemberId: string; relationshipType: string }[]): Promise<string[]>;
+
+  // Tree Tags
+  getTreeTags(treeId: string): Promise<TreeTag[]>;
+  createTreeTag(data: InsertTreeTag): Promise<TreeTag>;
+  deleteTreeTag(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2727,6 +2733,22 @@ export class DatabaseStorage implements IStorage {
 
     visited.delete(rootId);
     return Array.from(visited);
+  }
+
+  async getTreeTags(treeId: string): Promise<TreeTag[]> {
+    return db.select().from(treeTags)
+      .where(eq(treeTags.treeId, treeId))
+      .orderBy(treeTags.createdAt);
+  }
+
+  async createTreeTag(data: InsertTreeTag): Promise<TreeTag> {
+    const [tag] = await db.insert(treeTags).values(data).returning();
+    return tag;
+  }
+
+  async deleteTreeTag(id: string): Promise<boolean> {
+    const result = await db.delete(treeTags).where(eq(treeTags.id, id)).returning();
+    return result.length > 0;
   }
 }
 
