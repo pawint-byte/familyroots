@@ -214,7 +214,7 @@ function MiniTreePreview({ members, relationships, treeName, treeType, layoutOve
 
   displayMembers.forEach((m: any) => {
     const rank = getMemberRank(m.id, relationships, (treeType || "custom") as TreeType);
-    if (rank === 1) leaderIds.add(m.id);
+    if (rank <= 2) leaderIds.add(m.id);
   });
 
   if (count === 0) {
