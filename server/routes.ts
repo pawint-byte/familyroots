@@ -5948,26 +5948,34 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const { 
         treeId, productId, variantId, productName, variantName,
-        quantity, treeImageUrl, shippingAddress, includeQR,
-        treePlacement, qrPlacement
+        quantity, treeImageUrl, shippingAddress, includeTree, includeQR,
+        treePlacement, qrPlacement,
+        includeCustomImage, customImageUrl, customImagePlacement,
+        includeCustomText, customText, customTextPlacement
       } = req.body;
 
       // Validate required fields
-      if (!treeId || !productId || !variantId || !productName || !treeImageUrl) {
+      if (!productId || !variantId || !productName) {
         return res.status(400).json({ message: "Missing required order fields" });
       }
 
-      // SECURITY: Validate tree ownership/access
-      const tree = await storage.getTree(treeId);
-      if (!tree) {
-        return res.status(404).json({ message: "Family tree not found" });
+      // Must include at least one print element
+      if (!includeTree && !includeQR && !includeCustomImage && !includeCustomText) {
+        return res.status(400).json({ message: "Please include at least one element on your product" });
       }
-      
-      // Check if user owns the tree or is a collaborator with access
-      const isOwner = tree.ownerId === userId;
-      const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
-      if (!isOwner && !collaborator) {
-        return res.status(403).json({ message: "You don't have access to this family tree" });
+
+      // SECURITY: Validate tree ownership/access (only if tree is included)
+      if (treeId) {
+        const tree = await storage.getTree(treeId);
+        if (!tree) {
+          return res.status(404).json({ message: "Family tree not found" });
+        }
+        
+        const isOwner = tree.ownerId === userId;
+        const collaborator = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!isOwner && !collaborator) {
+          return res.status(403).json({ message: "You don't have access to this family tree" });
+        }
       }
 
       // Validate shipping address
@@ -6037,23 +6045,35 @@ export async function registerRoutes(
       const totalAmount = subtotal + shippingCost + commission;
 
       const qrProfileUrl = includeQR ? `${req.protocol}://${req.get('host')}/profile/${userId}` : null;
-      const finalTreeImageUrl = includeQR ? `${treeImageUrl}?includeQR=true&qrUrl=${encodeURIComponent(qrProfileUrl || '')}` : treeImageUrl;
+      const finalTreeImageUrl = treeImageUrl 
+        ? (includeQR ? `${treeImageUrl}?includeQR=true&qrUrl=${encodeURIComponent(qrProfileUrl || '')}` : treeImageUrl)
+        : null;
 
-      const placementConfig = {
+      const placementConfig: Record<string, any> = {
         treePlacement: treePlacement || 'default',
         qrPlacement: includeQR ? (qrPlacement || null) : null,
         qrProfileUrl,
       };
 
+      if (includeCustomImage && customImageUrl) {
+        placementConfig.customImageUrl = customImageUrl;
+        placementConfig.customImagePlacement = customImagePlacement || 'front';
+      }
+
+      if (includeCustomText && customText) {
+        placementConfig.customText = customText;
+        placementConfig.customTextPlacement = customTextPlacement || 'front';
+      }
+
       const order = await storage.createMerchandiseOrder({
         userId,
-        treeId,
+        treeId: treeId || null,
         productId,
         variantId,
         productName: verifiedProductName,
         variantName: verifiedVariantName || variantName || null,
         quantity: orderQuantity,
-        treeImageUrl: finalTreeImageUrl,
+        treeImageUrl: finalTreeImageUrl || '',
         subtotal,
         shippingCost,
         totalAmount,

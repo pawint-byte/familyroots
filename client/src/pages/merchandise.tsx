@@ -16,7 +16,7 @@ import {
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
   AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
-  Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy
+  Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy, Type, Upload
 } from "lucide-react";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
@@ -314,6 +314,15 @@ function ProductCustomizer({
   const [quantity, setQuantity] = useState(1);
   const [includeTree, setIncludeTree] = useState(!isQRFirst);
   const [includeQR, setIncludeQR] = useState(prefill?.includeQR ?? isQRFirst);
+  const [includeCustomImage, setIncludeCustomImage] = useState(false);
+  const [customImageUrl, setCustomImageUrl] = useState<string>("");
+  const [customImageName, setCustomImageName] = useState<string>("");
+  const [customImagePlacement, setCustomImagePlacement] = useState<string>("front");
+  const [isUploading, setIsUploading] = useState(false);
+  const [includeCustomText, setIncludeCustomText] = useState(false);
+  const [customText, setCustomText] = useState<string>("");
+  const [customTextPlacement, setCustomTextPlacement] = useState<string>("front");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showShipping, setShowShipping] = useState(false);
   const [treePlacement, setTreePlacement] = useState<string>(product.placements?.[0]?.id || "front");
   const [qrPlacement, setQrPlacement] = useState<string>("");
@@ -359,6 +368,41 @@ function ProductCustomizer({
     staleTime: Infinity,
   });
   const treeInviteCode = inviteLinkData?.inviteCode;
+
+  const handleImageUpload = async (file: File) => {
+    if (!file) return;
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({ title: "File too large", description: "Please upload an image under 10MB", variant: "destructive" });
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please upload an image file (PNG, JPG, etc.)", variant: "destructive" });
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const res = await apiRequest("POST", "/api/uploads/request-url", {
+        name: file.name,
+        size: file.size,
+        contentType: file.type,
+      });
+      const { uploadURL, objectPath } = await res.json();
+      await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      setCustomImageUrl(objectPath);
+      setCustomImageName(file.name);
+      toast({ title: "Image uploaded", description: `${file.name} is ready to use on your product` });
+    } catch (error: any) {
+      toast({ title: "Upload failed", description: error.message || "Failed to upload image", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const [shippingAddress, setShippingAddress] = useState<ShippingAddressForm>({
     name: "",
     address1: "",
@@ -420,12 +464,20 @@ function ProductCustomizer({
         throw new Error("Please select a product variant");
       }
 
-      if (!includeTree && !includeQR) {
-        throw new Error("Please include at least a tree print or a QR code on your product");
+      if (!includeTree && !includeQR && !includeCustomImage && !includeCustomText) {
+        throw new Error("Please include at least one element on your product (tree print, QR code, custom image, or text)");
       }
 
       if (includeTree && !selectedTreeId) {
         throw new Error("Please select a tree");
+      }
+
+      if (includeCustomImage && !customImageUrl) {
+        throw new Error("Please upload an image first");
+      }
+
+      if (includeCustomText && !customText.trim()) {
+        throw new Error("Please enter some text");
       }
 
       if (includeQR) {
@@ -465,11 +517,18 @@ function ProductCustomizer({
         productName: product.name,
         variantName: selectedVariant.name,
         quantity,
+        includeTree,
         includeQR: includeQR,
         qrUrl,
         treeImageUrl: treeImageUrl || undefined,
         treePlacement: treePrintPlacement?.printfulType || 'default',
         qrPlacement: qrPrintPlacement?.printfulType || null,
+        includeCustomImage,
+        customImageUrl: includeCustomImage ? customImageUrl : undefined,
+        customImagePlacement: includeCustomImage ? customImagePlacement : undefined,
+        includeCustomText,
+        customText: includeCustomText ? customText.trim() : undefined,
+        customTextPlacement: includeCustomText ? customTextPlacement : undefined,
         shippingAddress: {
           name: shippingAddress.name.trim(),
           address1: shippingAddress.address1.trim(),
@@ -570,13 +629,50 @@ function ProductCustomizer({
                 </div>
               );
             })()}
-            {(selectedTree || includeQR) && (
+            {includeCustomImage && customImageUrl && (
+              <div
+                className={`absolute ${
+                  customImagePlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
+                  customImagePlacement === 'front_left' ? 'top-4 left-4' :
+                  'inset-0 flex items-center justify-center'
+                }`}
+                data-testid="custom-image-preview-overlay"
+              >
+                <img
+                  src={customImageUrl}
+                  alt="Custom print"
+                  className={`rounded shadow-lg object-contain ${
+                    customImagePlacement === 'front_left' ? 'w-1/4 h-1/4' :
+                    'w-1/2 h-1/2'
+                  }`}
+                />
+              </div>
+            )}
+            {includeCustomText && customText.trim() && (
+              <div
+                className={`absolute ${
+                  customTextPlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
+                  customTextPlacement === 'front_left' ? 'top-4 left-4' :
+                  'bottom-16 left-4 right-4 flex items-center justify-center'
+                }`}
+                data-testid="custom-text-preview-overlay"
+              >
+                <div className="bg-white/90 dark:bg-gray-900/90 rounded px-3 py-1.5 shadow-lg">
+                  <p className="text-sm font-bold text-gray-800 dark:text-gray-100 text-center whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
+                    {customText}
+                  </p>
+                </div>
+              </div>
+            )}
+            {(includeTree || includeQR || includeCustomImage || includeCustomText) && (
               <div className="absolute bottom-2 left-2 right-2">
-                <Badge variant="secondary" className="text-xs">
-                  {selectedTree && includeTree && `${treePlacement === 'back' ? 'Back' : treePlacement === 'front_left' ? 'Front Left' : 'Front'}: ${selectedTree.name}`}
-                  {selectedTree && includeTree && includeQR && qrPlacement && ` | ${product.placements?.find(p => p.id === qrPlacement)?.label || 'QR'}: QR Code`}
-                  {selectedTree && includeTree && includeQR && !qrPlacement && " + QR Code"}
-                  {!includeTree && includeQR && `QR Code: ${selectedQRType === 'site' ? 'Site Signup' : selectedQRType === 'profile' ? 'My Profile' : 'Tree Invite'}`}
+                <Badge variant="secondary" className="text-xs truncate block text-center">
+                  {[
+                    includeTree && selectedTree && `${product.placements?.find(p => p.id === treePlacement)?.label || 'Front'}: Tree`,
+                    includeQR && `QR: ${selectedQRType === 'site' ? 'Signup' : selectedQRType === 'profile' ? 'Profile' : 'Invite'}`,
+                    includeCustomImage && customImageUrl && `${product.placements?.find(p => p.id === customImagePlacement)?.label || 'Front'}: Image`,
+                    includeCustomText && customText.trim() && `Text`,
+                  ].filter(Boolean).join(' | ')}
                 </Badge>
               </div>
             )}
@@ -684,6 +780,47 @@ function ProductCustomizer({
                   </div>
                 </label>
               </div>
+              <div className="border rounded-lg p-3 bg-muted/30">
+                <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-include-custom-image">
+                  <input
+                    type="checkbox"
+                    checked={includeCustomImage}
+                    onChange={(e) => {
+                      setIncludeCustomImage(e.target.checked);
+                      if (!e.target.checked) {
+                        setCustomImageUrl("");
+                        setCustomImageName("");
+                      }
+                    }}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Image className="h-4 w-4 text-primary shrink-0" />
+                  <div>
+                    <span className="text-sm font-medium">Custom Image</span>
+                    <p className="text-xs text-muted-foreground">Upload your own image — a saved tree export, logo, or artwork</p>
+                  </div>
+                </label>
+              </div>
+              <div className="border rounded-lg p-3 bg-muted/30">
+                <label className="flex items-center gap-3 cursor-pointer" data-testid="toggle-include-custom-text">
+                  <input
+                    type="checkbox"
+                    checked={includeCustomText}
+                    onChange={(e) => {
+                      setIncludeCustomText(e.target.checked);
+                      if (!e.target.checked) {
+                        setCustomText("");
+                      }
+                    }}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Type className="h-4 w-4 text-primary shrink-0" />
+                  <div>
+                    <span className="text-sm font-medium">Custom Text</span>
+                    <p className="text-xs text-muted-foreground">Add a family name, motto, date, or any text to your product</p>
+                  </div>
+                </label>
+              </div>
             </div>
 
             {includeTree && (
@@ -702,6 +839,90 @@ function ProductCustomizer({
                 </SelectContent>
               </Select>
             </div>
+            )}
+
+            {includeCustomImage && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Image className="h-4 w-4" />
+                  Upload Image
+                </Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file);
+                  }}
+                  data-testid="input-custom-image-file"
+                />
+                {customImageUrl ? (
+                  <div className="border rounded-lg p-3 bg-muted/30 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                      <span className="text-sm truncate">{customImageName}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={customImageUrl}
+                        alt="Custom upload preview"
+                        className="w-16 h-16 rounded object-cover border"
+                        data-testid="img-custom-preview"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        data-testid="button-replace-image"
+                      >
+                        Replace
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    data-testid="button-upload-image"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Choose Image File
+                      </>
+                    )}
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground">PNG, JPG, or other image files up to 10MB. Tip: Export your tree view as an image first, then upload it here.</p>
+              </div>
+            )}
+
+            {includeCustomText && (
+              <div className="space-y-2">
+                <Label htmlFor="custom-text-input" className="flex items-center gap-1.5">
+                  <Type className="h-4 w-4" />
+                  Custom Text
+                </Label>
+                <Input
+                  id="custom-text-input"
+                  placeholder="e.g. The Smith Family, Est. 2024"
+                  value={customText}
+                  onChange={(e) => setCustomText(e.target.value)}
+                  maxLength={100}
+                  data-testid="input-custom-text"
+                />
+                <p className="text-xs text-muted-foreground">{customText.length}/100 characters</p>
+              </div>
             )}
 
             {loadingVariants ? (
@@ -990,6 +1211,58 @@ function ProductCustomizer({
                 )}
               </div>
             )}
+
+            {includeCustomImage && product.placements && product.placements.length > 1 && (
+              <div>
+                <Label className="flex items-center gap-1.5 mb-1.5">
+                  <Image className="h-4 w-4" />
+                  Image Placement
+                </Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {product.placements.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setCustomImagePlacement(p.id)}
+                      className={`text-left p-2.5 rounded-lg border transition-all ${
+                        customImagePlacement === p.id
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                      data-testid={`button-image-placement-${p.id}`}
+                    >
+                      <span className="text-sm font-medium">{p.label}</span>
+                      <p className="text-xs text-muted-foreground">{p.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {includeCustomText && product.placements && product.placements.length > 1 && (
+              <div>
+                <Label className="flex items-center gap-1.5 mb-1.5">
+                  <Type className="h-4 w-4" />
+                  Text Placement
+                </Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {product.placements.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setCustomTextPlacement(p.id)}
+                      className={`text-left p-2.5 rounded-lg border transition-all ${
+                        customTextPlacement === p.id
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                      data-testid={`button-text-placement-${p.id}`}
+                    >
+                      <span className="text-sm font-medium">{p.label}</span>
+                      <p className="text-xs text-muted-foreground">{p.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {!showShipping ? (
@@ -1009,7 +1282,7 @@ function ProductCustomizer({
                 className="w-full"
                 size="lg"
                 onClick={() => setShowShipping(true)}
-                disabled={(!includeTree && !includeQR) || (includeTree && !selectedTreeId) || !selectedVariantId}
+                disabled={(!includeTree && !includeQR && !includeCustomImage && !includeCustomText) || (includeTree && !selectedTreeId) || (includeCustomImage && !customImageUrl) || (includeCustomText && !customText.trim()) || !selectedVariantId}
                 data-testid="button-continue-shipping"
               >
                 Continue to Shipping
