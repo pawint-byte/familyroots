@@ -105,39 +105,57 @@ function calculateCircleLayout(
   }
 
   if (rank1.length > 0) {
-    const centerX = 500;
-    const topY = 150;
     const positions: NodePosition[] = [];
+    const outerCount = rank2.length + rank3.length;
+    const outerRadius = Math.max(220, outerCount * 35);
+    const innerRadius = rank2.length > 0 ? Math.max(140, rank2.length * 40) : 0;
+    const centerX = outerRadius + 200;
+    const centerY = outerRadius + 200;
 
-    rank1.forEach((m, i) => {
-      const spacing = 200;
-      const totalWidth = (rank1.length - 1) * spacing;
+    if (rank1.length === 1) {
       positions.push({
-        x: centerX - totalWidth / 2 + i * spacing,
-        y: topY,
-        member: m,
-        relationshipType: relMap.get(m.id),
+        x: centerX,
+        y: centerY,
+        member: rank1[0],
+        relationshipType: relMap.get(rank1[0].id),
         rank: 1,
       });
-    });
-
-    const subLeaders = rank2;
-    const regularMembers = rank3;
-    const allBelow = [...subLeaders, ...regularMembers];
-
-    if (allBelow.length > 0) {
-      const radius = Math.max(180, allBelow.length * 30);
-      const circleY = topY + radius + 200;
-
-      allBelow.forEach((m, i) => {
-        const angle = (2 * Math.PI * i) / allBelow.length - Math.PI / 2;
-        const memberRank = getMemberRank(m.id, relationships, treeType);
+    } else {
+      const leaderSpread = Math.min(100, outerRadius * 0.3);
+      rank1.forEach((m, i) => {
+        const angle = (2 * Math.PI * i) / rank1.length - Math.PI / 2;
         positions.push({
-          x: centerX + radius * Math.cos(angle),
-          y: circleY + radius * Math.sin(angle),
+          x: centerX + leaderSpread * Math.cos(angle),
+          y: centerY + leaderSpread * Math.sin(angle),
           member: m,
           relationshipType: relMap.get(m.id),
-          rank: memberRank,
+          rank: 1,
+        });
+      });
+    }
+
+    if (rank2.length > 0) {
+      rank2.forEach((m, i) => {
+        const angle = (2 * Math.PI * i) / rank2.length - Math.PI / 2;
+        positions.push({
+          x: centerX + innerRadius * Math.cos(angle),
+          y: centerY + innerRadius * Math.sin(angle),
+          member: m,
+          relationshipType: relMap.get(m.id),
+          rank: 2,
+        });
+      });
+    }
+
+    if (rank3.length > 0) {
+      rank3.forEach((m, i) => {
+        const angle = (2 * Math.PI * i) / rank3.length - Math.PI / 2;
+        positions.push({
+          x: centerX + outerRadius * Math.cos(angle),
+          y: centerY + outerRadius * Math.sin(angle),
+          member: m,
+          relationshipType: relMap.get(m.id),
+          rank: 3,
         });
       });
     }
