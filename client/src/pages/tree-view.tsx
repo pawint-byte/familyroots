@@ -27,7 +27,8 @@ import {
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
-  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors
+  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors,
+  Mail, TreeDeciduous, Send, Tag
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -132,6 +133,13 @@ export default function TreeView() {
   const [bulkTagId, setBulkTagId] = useState<string>("");
   const [bulkSelectedMembers, setBulkSelectedMembers] = useState<Set<string>>(new Set());
   const [bulkTagSearch, setBulkTagSearch] = useState("");
+  const [filterTagId, setFilterTagId] = useState<string | null>(null);
+  const [emailTagId, setEmailTagId] = useState<string>("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [createTreeTagId, setCreateTreeTagId] = useState<string>("");
+  const [createTreeName, setCreateTreeName] = useState("");
+  const [createTreeAsSubGroup, setCreateTreeAsSubGroup] = useState(true);
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
   const treeId = params?.id;
@@ -163,8 +171,16 @@ export default function TreeView() {
   });
 
   // Determine which data to use based on merged view toggle
-  const displayMembers = showMergedView && mergedData ? mergedData.members : (treeData?.members || []);
+  const allDisplayMembers = showMergedView && mergedData ? mergedData.members : (treeData?.members || []);
   const displayRelationships = showMergedView && mergedData ? mergedData.relationships : (treeData?.relationships || []);
+
+  const displayMembers = useMemo(() => {
+    if (!filterTagId) return allDisplayMembers;
+    const taggedMemberIds = new Set(
+      treeData?.memberTags?.filter(mt => mt.tagId === filterTagId).map(mt => mt.memberId) || []
+    );
+    return allDisplayMembers.filter(m => taggedMemberIds.has(m.id));
+  }, [allDisplayMembers, filterTagId, treeData?.memberTags]);
   const hasConnections = mergedData?.connections && mergedData.connections.length > 0;
 
   // Derive focusMember from ID for stable state across re-renders
@@ -561,6 +577,43 @@ export default function TreeView() {
     },
   });
 
+  const createTreeFromTagMutation = useMutation({
+    mutationFn: async ({ tagId, name, createAsSubGroup }: { tagId: string; name: string; createAsSubGroup: boolean }) => {
+      const res = await apiRequest("POST", `/api/trees/${treeId}/tags/${tagId}/create-tree`, { name, createAsSubGroup });
+      return res.json();
+    },
+    onSuccess: (newTree: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      setCreateTreeTagId("");
+      setCreateTreeName("");
+      toast({ title: "Tree created", description: `"${newTree.name}" has been created with the tagged members.` });
+      navigate(`/tree/${newTree.id}`);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create tree from tag", variant: "destructive" });
+    },
+  });
+
+  const emailTagGroupMutation = useMutation({
+    mutationFn: async ({ tagId, subject, message }: { tagId: string; subject: string; message: string }) => {
+      const res = await apiRequest("POST", `/api/trees/${treeId}/tags/${tagId}/email`, { subject, message });
+      return res.json();
+    },
+    onSuccess: (result: any) => {
+      setEmailTagId("");
+      setEmailSubject("");
+      setEmailMessage("");
+      toast({
+        title: "Emails sent",
+        description: `${result.sent} email${result.sent !== 1 ? "s" : ""} sent successfully${result.failed > 0 ? `, ${result.failed} failed` : ""}.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to send emails", variant: "destructive" });
+    },
+  });
+
   const { data: allUserTrees } = useQuery<any[]>({
     queryKey: ["/api/trees"],
     enabled: isMoveUnderParentOpen,
@@ -901,13 +954,16 @@ export default function TreeView() {
                       {treeData.tags.map((tag) => (
                         <Badge
                           key={tag.id}
-                          variant="outline"
-                          className="text-xs gap-1 px-2 py-0"
-                          style={{ borderColor: tag.color || "#6366f1", color: tag.color || "#6366f1" }}
-                          data-testid={`tag-${tag.id}`}
+                          variant={filterTagId === tag.id ? "default" : "outline"}
+                          className="text-xs gap-1 px-2 py-0 cursor-pointer transition-all"
+                          style={filterTagId === tag.id
+                            ? { backgroundColor: tag.color || "#6366f1", borderColor: tag.color || "#6366f1", color: "#fff" }
+                            : { borderColor: tag.color || "#6366f1", color: tag.color || "#6366f1" }}
+                          onClick={() => setFilterTagId(filterTagId === tag.id ? null : tag.id)}
+                          data-testid={`tag-filter-${tag.id}`}
                         >
                           {tag.label}
-                          {canEditTree && (
+                          {canEditTree && !filterTagId && (
                             <button
                               className="ml-0.5 hover:opacity-70"
                               onClick={(e) => { e.stopPropagation(); deleteTagMutation.mutate(tag.id); }}
@@ -927,6 +983,20 @@ export default function TreeView() {
                           + Tag
                         </button>
                       )}
+                    </div>
+                  )}
+                  {filterTagId && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">
+                        Filtering: {displayMembers.length} member{displayMembers.length !== 1 ? "s" : ""}
+                      </span>
+                      <button
+                        className="text-primary hover:underline"
+                        onClick={() => setFilterTagId(null)}
+                        data-testid="button-clear-tag-filter"
+                      >
+                        Clear filter
+                      </button>
                     </div>
                   )}
                   {(!treeData?.tags || treeData.tags.length === 0) && canEditTree && (
@@ -3068,7 +3138,7 @@ export default function TreeView() {
 
       <Dialog open={isTagDialogOpen} onOpenChange={(open) => {
         setIsTagDialogOpen(open);
-        if (!open) { setNewTagLabel(""); setNewTagColor("#6366f1"); setBulkTagId(""); setBulkSelectedMembers(new Set()); setBulkTagSearch(""); }
+        if (!open) { setNewTagLabel(""); setNewTagColor("#6366f1"); setBulkTagId(""); setBulkSelectedMembers(new Set()); setBulkTagSearch(""); setCreateTreeTagId(""); setCreateTreeName(""); setEmailTagId(""); setEmailSubject(""); setEmailMessage(""); }
       }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -3123,40 +3193,100 @@ export default function TreeView() {
             {treeData?.tags && treeData.tags.length > 0 && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Current Tags</Label>
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   {treeData.tags.map((tag) => {
                     const memberCount = treeData.memberTags?.filter(mt => mt.tagId === tag.id).length || 0;
+                    const emailCount = allDisplayMembers.filter(m => {
+                      const isTagged = treeData.memberTags?.some(mt => mt.tagId === tag.id && mt.memberId === m.id);
+                      return isTagged && m.email;
+                    }).length;
                     return (
-                      <Badge
-                        key={tag.id}
-                        variant={bulkTagId === tag.id ? "default" : "outline"}
-                        className="text-sm gap-1.5 px-3 py-1 cursor-pointer"
-                        style={bulkTagId === tag.id 
-                          ? { backgroundColor: tag.color || "#6366f1", borderColor: tag.color || "#6366f1" }
-                          : { borderColor: tag.color || "#6366f1", color: tag.color || "#6366f1" }}
-                        onClick={() => {
-                          if (bulkTagId === tag.id) {
-                            setBulkTagId("");
-                            setBulkSelectedMembers(new Set());
-                          } else {
-                            setBulkTagId(tag.id);
-                            const assigned = new Set(
-                              treeData.memberTags?.filter(mt => mt.tagId === tag.id).map(mt => mt.memberId) || []
-                            );
-                            setBulkSelectedMembers(assigned);
-                          }
-                        }}
-                        data-testid={`dialog-tag-${tag.id}`}
-                      >
-                        {tag.label} ({memberCount})
-                        <button
-                          className="hover:opacity-70 ml-1"
-                          onClick={(e) => { e.stopPropagation(); deleteTagMutation.mutate(tag.id); if (bulkTagId === tag.id) setBulkTagId(""); }}
-                          data-testid={`button-dialog-delete-tag-${tag.id}`}
-                        >
-                          ×
-                        </button>
-                      </Badge>
+                      <div key={tag.id} className="rounded-lg border border-border p-2 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Badge
+                            variant={bulkTagId === tag.id ? "default" : "outline"}
+                            className="text-sm gap-1.5 px-3 py-1 cursor-pointer"
+                            style={bulkTagId === tag.id
+                              ? { backgroundColor: tag.color || "#6366f1", borderColor: tag.color || "#6366f1" }
+                              : { borderColor: tag.color || "#6366f1", color: tag.color || "#6366f1" }}
+                            onClick={() => {
+                              if (bulkTagId === tag.id) {
+                                setBulkTagId("");
+                                setBulkSelectedMembers(new Set());
+                              } else {
+                                setBulkTagId(tag.id);
+                                const assigned = new Set(
+                                  treeData.memberTags?.filter(mt => mt.tagId === tag.id).map(mt => mt.memberId) || []
+                                );
+                                setBulkSelectedMembers(assigned);
+                              }
+                            }}
+                            data-testid={`dialog-tag-${tag.id}`}
+                          >
+                            {tag.label} ({memberCount})
+                          </Badge>
+                          <button
+                            className="text-muted-foreground hover:text-destructive text-xs"
+                            onClick={() => { deleteTagMutation.mutate(tag.id); if (bulkTagId === tag.id) setBulkTagId(""); }}
+                            data-testid={`button-dialog-delete-tag-${tag.id}`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        {memberCount > 0 && (
+                          <div className="flex items-center gap-1 pl-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs gap-1 px-2"
+                                  onClick={() => { setFilterTagId(tag.id); setIsTagDialogOpen(false); }}
+                                  data-testid={`button-filter-tag-${tag.id}`}
+                                >
+                                  <Filter className="h-3 w-3" />
+                                  Filter View
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Show only members with this tag</TooltipContent>
+                            </Tooltip>
+                            {(isOwner || isCoOwner) && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1 px-2"
+                                    onClick={() => { setCreateTreeTagId(tag.id); setCreateTreeName(tag.label); }}
+                                    data-testid={`button-create-tree-tag-${tag.id}`}
+                                  >
+                                    <TreeDeciduous className="h-3 w-3" />
+                                    Create Tree
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Create a new tree with these tagged members</TooltipContent>
+                              </Tooltip>
+                            )}
+                            {emailCount > 0 && canEditTree && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1 px-2"
+                                    onClick={() => { setEmailTagId(tag.id); setEmailSubject(""); setEmailMessage(""); }}
+                                    data-testid={`button-email-tag-${tag.id}`}
+                                  >
+                                    <Mail className="h-3 w-3" />
+                                    Email ({emailCount})
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Send an email to all tagged members with email addresses</TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -3177,7 +3307,7 @@ export default function TreeView() {
                 />
                 <ScrollArea className="h-48">
                   <div className="space-y-1">
-                    {displayMembers
+                    {allDisplayMembers
                       .filter(m => !bulkTagSearch || `${m.firstName} ${m.lastName}`.toLowerCase().includes(bulkTagSearch.toLowerCase()))
                       .map((member) => (
                         <label key={member.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted cursor-pointer">
@@ -3222,6 +3352,104 @@ export default function TreeView() {
                     data-testid="button-apply-bulk-tags"
                   >
                     {bulkAssignTagMutation.isPending ? "Saving..." : "Apply"}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {createTreeTagId && treeData?.tags && (
+              <div className="space-y-3 border rounded-lg p-3" data-testid="create-tree-from-tag-section">
+                <Label className="text-sm font-medium flex items-center gap-1.5">
+                  <TreeDeciduous className="h-4 w-4" />
+                  Create Tree from "{treeData.tags.find(t => t.id === createTreeTagId)?.label}"
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  This will move the {treeData.memberTags?.filter(mt => mt.tagId === createTreeTagId).length || 0} tagged member(s) into a new tree. They will be removed from this tree.
+                </p>
+                <div className="space-y-2">
+                  <Input
+                    placeholder="New tree name"
+                    value={createTreeName}
+                    onChange={(e) => setCreateTreeName(e.target.value)}
+                    data-testid="input-create-tree-name"
+                  />
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Switch
+                      checked={createTreeAsSubGroup}
+                      onCheckedChange={setCreateTreeAsSubGroup}
+                      data-testid="switch-create-as-subgroup"
+                    />
+                    Create as sub-group of this tree
+                  </label>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setCreateTreeTagId(""); setCreateTreeName(""); }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!createTreeName.trim() || createTreeFromTagMutation.isPending}
+                    onClick={() => createTreeFromTagMutation.mutate({
+                      tagId: createTreeTagId,
+                      name: createTreeName.trim(),
+                      createAsSubGroup: createTreeAsSubGroup,
+                    })}
+                    data-testid="button-confirm-create-tree"
+                  >
+                    {createTreeFromTagMutation.isPending ? "Creating..." : "Create Tree"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {emailTagId && treeData?.tags && (
+              <div className="space-y-3 border rounded-lg p-3" data-testid="email-tag-group-section">
+                <Label className="text-sm font-medium flex items-center gap-1.5">
+                  <Mail className="h-4 w-4" />
+                  Email "{treeData.tags.find(t => t.id === emailTagId)?.label}" Group
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Send an email to all tagged members who have an email address on file.
+                </p>
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Subject line"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    data-testid="input-email-subject"
+                  />
+                  <Textarea
+                    placeholder="Write your message here..."
+                    value={emailMessage}
+                    onChange={(e) => setEmailMessage(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                    data-testid="textarea-email-message"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setEmailTagId(""); setEmailSubject(""); setEmailMessage(""); }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!emailSubject.trim() || !emailMessage.trim() || emailTagGroupMutation.isPending}
+                    onClick={() => emailTagGroupMutation.mutate({
+                      tagId: emailTagId,
+                      subject: emailSubject.trim(),
+                      message: emailMessage.trim(),
+                    })}
+                    data-testid="button-send-tag-email"
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    {emailTagGroupMutation.isPending ? "Sending..." : "Send Email"}
                   </Button>
                 </div>
               </div>

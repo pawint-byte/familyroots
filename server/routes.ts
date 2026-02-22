@@ -825,6 +825,131 @@ export async function registerRoutes(
     }
   });
 
+  // Create a new tree from tagged members
+  app.post("/api/trees/:treeId/tags/:tagId/create-tree", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, tagId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || (collab.role !== "co_owner")) {
+          return res.status(403).json({ message: "Only the owner or co-owners can create trees from tags" });
+        }
+      }
+
+      const tag = (await storage.getTreeTags(treeId)).find(t => t.id === tagId);
+      if (!tag) return res.status(404).json({ message: "Tag not found" });
+
+      const memberTagAssignments = await storage.getMemberTagsByTree(treeId);
+      const taggedMemberIds = memberTagAssignments.filter(mt => mt.tagId === tagId).map(mt => mt.memberId);
+      if (taggedMemberIds.length === 0) {
+        return res.status(400).json({ message: "No members have this tag assigned" });
+      }
+
+      const allMembers = await storage.getMembers(treeId);
+      if (taggedMemberIds.length >= allMembers.length) {
+        return res.status(400).json({ message: "Cannot move all members. At least one must remain in the original tree." });
+      }
+
+      const { name, createAsSubGroup } = req.body;
+      const treeName = (name && typeof name === "string" && name.trim()) ? name.trim() : tag.label;
+
+      const newTree = await storage.splitTree(treeId, {
+        name: treeName,
+        treeType: tree.treeType || "family",
+        treeTypeLabel: tree.treeTypeLabel,
+        privacy: tree.privacy || "private",
+        parentTreeId: createAsSubGroup ? treeId : null,
+        newOwnerId: userId,
+        memberIds: taggedMemberIds,
+        createConnection: true,
+      });
+
+      res.status(201).json(newTree);
+    } catch (error) {
+      console.error("Error creating tree from tag:", error);
+      res.status(500).json({ message: "Failed to create tree from tag" });
+    }
+  });
+
+  // Email all tagged members
+  app.post("/api/trees/:treeId/tags/:tagId/email", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, tagId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const tag = (await storage.getTreeTags(treeId)).find(t => t.id === tagId);
+      if (!tag) return res.status(404).json({ message: "Tag not found" });
+
+      const { subject, message } = req.body;
+      if (!subject || typeof subject !== "string" || !subject.trim()) {
+        return res.status(400).json({ message: "Subject is required" });
+      }
+      if (!message || typeof message !== "string" || !message.trim()) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+
+      const memberTagAssignments = await storage.getMemberTagsByTree(treeId);
+      const taggedMemberIds = new Set(memberTagAssignments.filter(mt => mt.tagId === tagId).map(mt => mt.memberId));
+      const allMembers = await storage.getMembers(treeId);
+      const taggedMembers = allMembers.filter(m => taggedMemberIds.has(m.id) && m.email);
+
+      if (taggedMembers.length === 0) {
+        return res.status(400).json({ message: "No tagged members have email addresses on file" });
+      }
+
+      const sender = await storage.getUser(userId);
+      const senderName = sender?.name || "A FamilyRoots member";
+      const { sendEmail } = await import("./lib/email");
+
+      let sent = 0;
+      let failed = 0;
+      for (const member of taggedMembers) {
+        try {
+          const html = `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, ${tag.color || '#6366f1'}, ${tag.color || '#6366f1'}dd); padding: 24px; border-radius: 12px 12px 0 0;">
+                <h2 style="color: white; margin: 0; font-size: 20px;">Message from ${tree.name}</h2>
+                <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 14px;">Tag: ${tag.label}</p>
+              </div>
+              <div style="padding: 24px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+                <p style="color: #374151; font-size: 14px; margin: 0 0 4px;">From: <strong>${senderName}</strong></p>
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+                <div style="color: #374151; font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${message.trim()}</div>
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0 12px;">
+                <p style="color: #9ca3af; font-size: 12px; margin: 0;">Sent via FamilyRoots</p>
+              </div>
+            </div>
+          `;
+          await sendEmail(member.email!, subject.trim(), html);
+          sent++;
+        } catch (e) {
+          console.error(`Failed to email ${member.email}:`, e);
+          failed++;
+        }
+      }
+
+      res.json({ sent, failed, total: taggedMembers.length });
+    } catch (error) {
+      console.error("Error emailing tagged group:", error);
+      res.status(500).json({ message: "Failed to send emails" });
+    }
+  });
+
   // Add a family member
   app.post("/api/trees/:treeId/members", isAuthenticated, async (req: any, res) => {
     try {

@@ -56,9 +56,21 @@ export default function FeaturesGuide() {
         },
         {
           name: "Member Tags",
-          description: "Assign tree-level tags to individual members for granular organization. Tag multiple members at once using the bulk assignment tool.",
-          whereToFind: "Tree View > click a member > scroll to Tags section to toggle tags on/off. For bulk: Manage Tags dialog > Bulk Assignment tab.",
+          description: "Assign tree-level tags to individual members for granular organization. Tag multiple members at once using the bulk assignment tool. Click any tag in the header to filter the tree view to just those tagged members.",
+          whereToFind: "Tree View > click a member > scroll to Tags section to toggle tags on/off. For bulk: Manage Tags dialog > Bulk Assignment tab. Filter: click any tag badge in the tree header.",
           icon: <Tag className="h-5 w-5 text-purple-600" />,
+        },
+        {
+          name: "Create Tree from Tag",
+          description: "Turn a tagged group into its own tree. All members with that tag are moved into a new tree, which can be a standalone tree or a sub-group of the original. Great for organizing chapters, classes, or teams into their own manageable groups.",
+          whereToFind: "Tree View > Manage Tags dialog > click 'Create Tree' next to any tag that has members assigned.",
+          icon: <TreeDeciduous className="h-5 w-5 text-emerald-600" />,
+        },
+        {
+          name: "Email Tagged Group",
+          description: "Send a message directly to all members with a specific tag who have email addresses on file. Perfect for communicating with a chapter, class year, or team without emailing the entire tree.",
+          whereToFind: "Tree View > Manage Tags dialog > click 'Email' next to any tag that has members with email addresses.",
+          icon: <Mail className="h-5 w-5 text-blue-500" />,
         },
         {
           name: "Visual Layouts",
