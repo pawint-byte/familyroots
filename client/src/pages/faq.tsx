@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase, BookOpen, Lock, EyeOff, Globe, UserCheck } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase, BookOpen, Lock, EyeOff, Globe, UserCheck, Tag } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -532,6 +532,40 @@ export default function FAQ() {
       ]
     },
     {
+      title: "Tags & Organization",
+      icon: <Tag className="h-5 w-5" />,
+      items: [
+        {
+          question: "What are tags and how do I use them?",
+          answer: "Tags are color-coded labels you create at the tree level and assign to individual members. They help you organize and identify groups within a tree — like 'Class of 2025', 'Chapter Alpha', 'Worship Team', or 'Member Since 2020'. You can create as many tags as you need, each with its own name and color. Tags appear on member cards and in the tree header for quick visual identification."
+        },
+        {
+          question: "How do I create and assign tags?",
+          answer: "Open your tree and click the tag icon (or '+ Tag') in the tree header to open the Manage Tags dialog. Type a name, pick a color, and click Add. To assign a tag to members, click the tag in the dialog to expand it, then check the boxes next to the members you want to tag. You can also assign tags when adding a new member — tag options appear in the member creation form."
+        },
+        {
+          question: "Can I assign tags to multiple members at once?",
+          answer: "Yes. In the Manage Tags dialog, click any tag to expand its bulk assignment panel. You'll see a list of all members with checkboxes. Check or uncheck members and click 'Save' to apply changes. This is much faster than tagging members one at a time, especially for large trees."
+        },
+        {
+          question: "How do I filter my tree view by tag?",
+          answer: "Click any tag badge in the tree header. The tree will instantly filter to show only members with that tag. A 'Filtering' indicator appears showing how many members match, along with a 'Clear filter' link to go back to the full view. This is useful for focusing on a specific group like a pledge class, ministry team, or season roster."
+        },
+        {
+          question: "Can I create a new tree from tagged members?",
+          answer: "Yes — owners and co-owners can turn any tagged group into its own tree. In the Manage Tags dialog, click 'Create Tree' next to a tag that has members. Name the new tree and choose whether to make it a sub-group of the original or a standalone tree. All tagged members move to the new tree with their data. At least one member must remain in the original tree."
+        },
+        {
+          question: "Can I email all members with a specific tag?",
+          answer: "Yes. In the Manage Tags dialog, click 'Email' next to any tag that has members with email addresses on file. Enter a subject and message, and it's sent to everyone tagged. This is perfect for communicating with a specific group — like sending a meeting reminder to your Youth Ministry team or an update to your Class of 2025 — without emailing everyone in the tree."
+        },
+        {
+          question: "Are tags different from qualifier tags on relationships?",
+          answer: "Yes. Qualifier tags (like 'Varsity' or 'Youth Ministry') describe the nature of a specific relationship between two people. Member tags are labels on the person themselves, independent of any relationship. You might tag someone 'Class of 2025' regardless of whether they're a player, captain, or coach. Both types of tags can be used together for maximum organization."
+        }
+      ]
+    },
+    {
       title: "Special Features",
       icon: <Sparkles className="h-5 w-5" />,
       items: [
@@ -598,6 +632,18 @@ export default function FAQ() {
         {
           question: "How do I connect with family after scanning their QR code?",
           answer: "When you scan someone's personal QR code, you'll see their FamilyRoots profile with their name, photo, and how many family trees they're building. If you're logged in, you can send a connection request with one tap. Once they accept, you can collaborate on trees together, see shared family members, and stay connected. It's the fastest way to grow your family network!"
+        },
+        {
+          question: "What is the Membership Badge?",
+          answer: <>Your Membership Badge is a personalized digital card that shows your FamilyRoots stats — how many trees you belong to, your total connections, your activity level, and more. It's a fun way to see your impact and share it with others. Find yours at <Link href="/membership-badge" className="text-primary hover:underline font-medium">My Badge</Link> in the dashboard menu.</>
+        },
+        {
+          question: "How does the Referral System work?",
+          answer: "Every user gets a unique referral code. Share it with friends and family — when they sign up using your code, both of you benefit. You can track how many people you've referred and see your referral stats in your Account Settings. It's a great way to grow your family network and help others discover FamilyRoots."
+        },
+        {
+          question: "Can I mute specific members or branches in my tree?",
+          answer: "Yes. If you'd prefer not to see a particular member or an entire branch in your tree view, you can mute them. Muting hides them from your personal view without deleting them or affecting anyone else's view of the tree. Click on a member and look for the 'Mute' option. Muted members can be un-muted at any time."
         }
       ]
     },
