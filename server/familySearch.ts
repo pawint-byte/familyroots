@@ -198,7 +198,7 @@ export async function searchRecords(
   searchParams.set("start", "0");
   
   try {
-    const searchUrl = `${urls.api}/platform/tree/search?${searchParams.toString()}`;
+    const searchUrl = `${urls.api}/platform/records/search?${searchParams.toString()}`;
     console.log("[FamilySearch] Search URL:", searchUrl);
     
     const response = await fetch(searchUrl, {
