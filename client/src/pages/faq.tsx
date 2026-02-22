@@ -110,7 +110,7 @@ export default function FAQ() {
         },
         {
           question: "What happens if a member wants to leave my tree?",
-          answer: "If someone who claimed their profile decides they no longer want to be part of your tree, they can disassociate themselves. But here's the key protection for you as the tree owner: when they leave, only their personal data (photo, bio, contact info) is removed. The original entry you created — their name and all the relationships you set up — stays on your tree exactly as it was. Your tree structure is never broken. From their side, they've disconnected and their personal data is gone from your tree. From your side, the card is still there with the name and relationships intact, just like it was before they claimed it. They can always come back and re-claim the profile later if they change their mind."
+          answer: "If someone who claimed their profile decides they no longer want to be part of your tree, they can disassociate themselves. But here's the key protection for you as the tree owner: when they leave, only their personal data (photo, bio, contact info) is removed. The original entry you created — their name and all the relationships you set up — stays on your tree exactly as it was. Your tree structure is never broken. Plus, you'll always know who left: their member card will show a 'Left' badge with their name and the date they disassociated. This way you know exactly who it was, even after their personal details are gone. If you want to reach out and invite them back, you still have their name as a starting point. They can always re-claim the profile later if they change their mind."
         },
         {
           question: "How does the Deadman Switch protect my family tree?",

@@ -89,6 +89,8 @@ export const familyMembers = pgTable("family_members", {
   unknownLabel: text("unknown_label"),
   claimedByUserId: varchar("claimed_by_user_id"),
   claimedAt: timestamp("claimed_at"),
+  disassociatedAt: timestamp("disassociated_at"),
+  disassociatedName: text("disassociated_name"),
   custodianUserId: varchar("custodian_user_id"), // For deceased members - who has custodianship
   custodianAssignedAt: timestamp("custodian_assigned_at"),
   // Privacy visibility override (null = use tree default)

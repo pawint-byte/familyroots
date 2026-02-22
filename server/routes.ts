@@ -2133,9 +2133,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Tree owners cannot unclaim their own profile from their own tree" });
       }
       
+      const disassociatedName = [member.firstName, member.lastName].filter(Boolean).join(" ");
+      
       const updatedMember = await storage.updateMember(memberId, {
         claimedByUserId: null,
         claimedAt: null,
+        disassociatedAt: new Date(),
+        disassociatedName: disassociatedName || null,
         photoUrl: null,
         nickname: null,
         email: null,

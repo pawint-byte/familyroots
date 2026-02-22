@@ -27,7 +27,7 @@ import {
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
-  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch
+  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toPng } from "html-to-image";
@@ -1490,6 +1490,19 @@ export default function TreeView() {
                           Claimed
                         </Badge>
                       )}
+                      {!selectedMember.claimedByUserId && selectedMember.disassociatedAt && isOwner && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="text-amber-600 border-amber-600/50 gap-1" data-testid="badge-disassociated">
+                              <UserMinus className="h-3 w-3" />
+                              Left
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{selectedMember.disassociatedName || "A member"} disassociated on {new Date(selectedMember.disassociatedAt).toLocaleDateString()}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1631,6 +1644,25 @@ export default function TreeView() {
                   member={selectedMember} 
                   canEdit={canEdit}
                 />
+
+                {/* Disassociation Notice (tree owner only) */}
+                {!selectedMember.claimedByUserId && selectedMember.disassociatedAt && isOwner && (
+                  <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+                    <CardContent className="py-4">
+                      <div className="flex items-start gap-3">
+                        <UserMinus className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-amber-800 dark:text-amber-400" data-testid="text-disassociation-notice">
+                            {selectedMember.disassociatedName || "A member"} left this tree
+                          </p>
+                          <p className="text-xs text-amber-700/80 dark:text-amber-500/80">
+                            Disassociated on {new Date(selectedMember.disassociatedAt).toLocaleDateString()}. Their personal data was removed but your original entry (name and relationships) has been preserved. They can re-claim this profile if they return.
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Profile Claim Section */}
                 <ProfileClaimSection 

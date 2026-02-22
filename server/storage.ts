@@ -1133,11 +1133,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(profileClaimRequests.id, claimId))
       .returning();
 
-    // Update the family member to mark them as claimed
+    // Update the family member to mark them as claimed (clear any prior disassociation)
     await db.update(familyMembers)
       .set({
         claimedByUserId: claim.requesterId,
         claimedAt: new Date(),
+        disassociatedAt: null,
+        disassociatedName: null,
         updatedAt: new Date(),
       })
       .where(eq(familyMembers.id, claim.memberId));
