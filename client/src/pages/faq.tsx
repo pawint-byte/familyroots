@@ -718,6 +718,14 @@ export default function FAQ() {
         {
           question: "Is paying with crypto safe?",
           answer: "Yes! Crypto payments are processed securely through Stripe, the same trusted payment processor used by millions of businesses worldwide. Your wallet connects directly to Stripe - we never see or store your crypto wallet information."
+        },
+        {
+          question: "Will I get an email confirmation when I order merchandise?",
+          answer: "Yes! When you order custom merchandise (like a mug or t-shirt with your family tree), you'll receive an email confirmation with your full order details including item, quantity, pricing breakdown, and shipping address. You'll also get a second email with tracking information once your order ships."
+        },
+        {
+          question: "Do I get order emails for gift registry items from Amazon, Walmart, etc.?",
+          answer: "No — gift registry items from Amazon, Walmart, Etsy, and other retailers are purchased directly through those stores using affiliate links. The retailer handles the entire purchase, so they'll send the buyer order confirmation and tracking emails directly. FamilyRoots only sends order emails for custom merchandise printed through our site."
         }
       ]
     },
