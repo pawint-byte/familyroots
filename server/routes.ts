@@ -499,6 +499,78 @@ export async function registerRoutes(
     }
   });
 
+  // Split a tree into two - move selected members to a new tree
+  app.post("/api/trees/:id/split", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id: sourceTreeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const splitSchema = z.object({
+        name: z.string().min(1).max(200),
+        treeType: z.string().optional(),
+        treeTypeLabel: z.string().optional(),
+        privacy: z.enum(["private", "public"]).optional(),
+        parentTreeId: z.string().nullable().optional(),
+        newOwnerId: z.string().optional(),
+        memberIds: z.array(z.string()).min(1, "Select at least one member to split off"),
+        rootMemberId: z.string().optional(),
+        createConnection: z.boolean().optional(),
+      });
+
+      const parsed = splitSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid request" });
+      }
+
+      const data = parsed.data;
+
+      const sourceTree = await storage.getTree(sourceTreeId);
+      if (!sourceTree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (sourceTree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, sourceTreeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Only the owner or co-owners can split this tree" });
+        }
+      }
+
+      const members = await storage.getMembers(sourceTreeId);
+      const memberIdSet = new Set(members.map(m => m.id));
+      const invalidIds = data.memberIds.filter(id => !memberIdSet.has(id));
+      if (invalidIds.length > 0) {
+        return res.status(400).json({ message: "Some selected members do not belong to this tree" });
+      }
+
+      if (data.memberIds.length >= members.length) {
+        return res.status(400).json({ message: "You cannot move all members out of a tree. At least one member must remain." });
+      }
+
+      if (data.rootMemberId && !data.memberIds.includes(data.rootMemberId)) {
+        return res.status(400).json({ message: "The root member must be among the selected members" });
+      }
+
+      const newOwnerId = data.newOwnerId || userId;
+      if (newOwnerId !== userId) {
+        const ownerCollab = await storage.getCollaboratorByUserAndTree(newOwnerId, sourceTreeId);
+        if (!ownerCollab && sourceTree.ownerId !== newOwnerId) {
+          return res.status(400).json({ message: "New owner must be an existing collaborator on this tree" });
+        }
+      }
+
+      const newTree = await storage.splitTree(sourceTreeId, {
+        ...data,
+        newOwnerId,
+      });
+
+      res.json(newTree);
+    } catch (error) {
+      console.error("Error splitting tree:", error);
+      res.status(500).json({ message: "Failed to split tree" });
+    }
+  });
+
   // Update a tree
   app.patch("/api/trees/:id", isAuthenticated, async (req: any, res) => {
     try {

@@ -292,6 +292,18 @@ export default function FAQ() {
         {
           question: "What if our organization restructures — schools close, departments merge, or leadership changes?",
           answer: "FamilyRoots is built for this. You can move any tree under a new parent, detach it to stand on its own, or create new parent groups to reorganize from the top down. If a school closes, detach it from the district and it becomes an alumni archive. If two departments merge, create a new parent group and move both under it. Your members' data and history survive every change — nothing is ever lost just because the structure shifts."
+        },
+        {
+          question: "Can I break a tree into smaller groups and assign different owners?",
+          answer: "Yes! Use the 'Split Tree' option from the tree menu (three dots). You'll see a list of all members — check the ones you want to move into a new, separate tree. Name the new tree, optionally pick a different owner from your collaborators, and confirm. The selected members and their relationships move to the new tree, while everyone else stays in the original. You can also choose to keep the two trees linked after the split."
+        },
+        {
+          question: "What happens to relationships when I split a tree?",
+          answer: "Relationships between members who all move together are preserved in the new tree. Relationships between someone who stays and someone who moves are removed, since they would span two different trees. All other member data — profiles, life events, education, career history — moves with each member to whichever tree they end up in."
+        },
+        {
+          question: "Why would I want to split a tree?",
+          answer: "Common reasons include giving different people ownership and control over different parts of a group, separating finances (each tree can have its own billing), restructuring when a group outgrows a single tree, or simply organizing members into more focused groups. For example, a large family tree might split into separate branches managed by different family members, or a church might split its youth ministry into its own tree with its own leadership."
         }
       ]
     },

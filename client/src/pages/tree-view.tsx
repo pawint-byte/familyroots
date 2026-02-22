@@ -27,9 +27,10 @@ import {
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
-  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell
+  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toPng } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from "@shared/schema";
@@ -111,6 +112,13 @@ export default function TreeView() {
   const [newSubgroupName, setNewSubgroupName] = useState("");
   const [isMoveUnderParentOpen, setIsMoveUnderParentOpen] = useState(false);
   const [selectedParentTreeId, setSelectedParentTreeId] = useState<string>("");
+  const [isSplitTreeOpen, setIsSplitTreeOpen] = useState(false);
+  const [splitTreeName, setSplitTreeName] = useState("");
+  const [splitSelectedMembers, setSplitSelectedMembers] = useState<Set<string>>(new Set());
+  const [splitNewOwnerId, setSplitNewOwnerId] = useState<string>("");
+  const [splitRootMemberId, setSplitRootMemberId] = useState<string>("");
+  const [splitKeepLinked, setSplitKeepLinked] = useState(true);
+  const [splitMemberSearch, setSplitMemberSearch] = useState("");
   const [importConnectionData, setImportConnectionData] = useState<{
     connectionId: string;
     connectorMemberId: string;
@@ -431,6 +439,36 @@ export default function TreeView() {
       toast({
         title: "Error",
         description: error?.message || "Failed to update tree parent",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const splitTreeMutation = useMutation({
+    mutationFn: async (data: { name: string; memberIds: string[]; newOwnerId?: string; rootMemberId?: string; createConnection?: boolean }) => {
+      const res = await apiRequest("POST", `/api/trees/${treeId}/split`, data);
+      return res.json();
+    },
+    onSuccess: (newTree: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      setIsSplitTreeOpen(false);
+      setSplitTreeName("");
+      setSplitSelectedMembers(new Set());
+      setSplitNewOwnerId("");
+      setSplitRootMemberId("");
+      setSplitKeepLinked(true);
+      setSplitMemberSearch("");
+      toast({
+        title: "Tree split successfully!",
+        description: `"${newTree.name}" has been created with the selected members.`,
+      });
+      navigate(`/tree/${newTree.id}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to split tree",
         variant: "destructive",
       });
     },
@@ -842,6 +880,17 @@ export default function TreeView() {
                     >
                       <Link2 className="h-4 w-4" />
                       Manage Relationships
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="gap-2"
+                      onClick={() => {
+                        setIsSplitTreeOpen(true);
+                        setSplitNewOwnerId(userId || "");
+                      }}
+                      data-testid="button-split-tree"
+                    >
+                      <Scissors className="h-4 w-4" />
+                      Split Tree
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="gap-2"
@@ -2649,6 +2698,203 @@ export default function TreeView() {
                 data-testid="button-submit-move-parent"
               >
                 {moveTreeParentMutation.isPending ? "Moving..." : "Move Tree"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSplitTreeOpen} onOpenChange={(open) => {
+        setIsSplitTreeOpen(open);
+        if (!open) {
+          setSplitTreeName("");
+          setSplitSelectedMembers(new Set());
+          setSplitNewOwnerId("");
+          setSplitRootMemberId("");
+          setSplitKeepLinked(true);
+          setSplitMemberSearch("");
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <Scissors className="h-5 w-5" />
+              Split Tree
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Move selected members into a new separate tree. Relationships between members staying and leaving will be removed. All member data is preserved.
+            </p>
+
+            <div className="space-y-2">
+              <Label>New Tree Name</Label>
+              <Input
+                value={splitTreeName}
+                onChange={(e) => setSplitTreeName(e.target.value)}
+                placeholder="Enter name for the new tree..."
+                data-testid="input-split-tree-name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>New Owner</Label>
+              <Select value={splitNewOwnerId} onValueChange={setSplitNewOwnerId}>
+                <SelectTrigger data-testid="select-split-owner">
+                  <SelectValue placeholder="Select owner..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {userId && (
+                    <SelectItem value={userId}>
+                      {user?.firstName} {user?.lastName} (You)
+                    </SelectItem>
+                  )}
+                  {collaborators
+                    ?.filter(c => c.userId !== userId)
+                    .map(c => (
+                      <SelectItem key={c.userId} value={c.userId}>
+                        {c.userId} ({c.role})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Select Members to Move ({splitSelectedMembers.size} selected)</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const all = new Set(treeData?.members?.map(m => m.id) || []);
+                      setSplitSelectedMembers(all);
+                    }}
+                    data-testid="button-select-all-members"
+                  >
+                    All
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSplitSelectedMembers(new Set())}
+                    data-testid="button-deselect-all-members"
+                  >
+                    None
+                  </Button>
+                </div>
+              </div>
+              <Input
+                placeholder="Search members..."
+                value={splitMemberSearch}
+                onChange={(e) => setSplitMemberSearch(e.target.value)}
+                className="mb-2"
+                data-testid="input-split-member-search"
+              />
+              <ScrollArea className="h-48 rounded-md border p-2">
+                {treeData?.members
+                  ?.filter(m => {
+                    if (!splitMemberSearch) return true;
+                    const q = splitMemberSearch.toLowerCase();
+                    return (
+                      m.firstName?.toLowerCase().includes(q) ||
+                      m.lastName?.toLowerCase().includes(q) ||
+                      m.email?.toLowerCase().includes(q)
+                    );
+                  })
+                  .map(member => (
+                    <div
+                      key={member.id}
+                      className="flex items-center gap-2 py-1.5 px-1 hover:bg-muted/50 rounded"
+                      data-testid={`split-member-row-${member.id}`}
+                    >
+                      <Checkbox
+                        checked={splitSelectedMembers.has(member.id)}
+                        onCheckedChange={(checked) => {
+                          const next = new Set(splitSelectedMembers);
+                          if (checked) {
+                            next.add(member.id);
+                          } else {
+                            next.delete(member.id);
+                            if (splitRootMemberId === member.id) {
+                              setSplitRootMemberId("");
+                            }
+                          }
+                          setSplitSelectedMembers(next);
+                        }}
+                        data-testid={`checkbox-split-member-${member.id}`}
+                      />
+                      <span className="text-sm flex-1">
+                        {member.firstName} {member.lastName || ""}
+                        {member.email ? ` (${member.email})` : ""}
+                      </span>
+                    </div>
+                  ))}
+                {treeData?.members?.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No members in this tree</p>
+                )}
+              </ScrollArea>
+            </div>
+
+            {splitSelectedMembers.size > 0 && (
+              <div className="space-y-2">
+                <Label>Root Member for New Tree (optional)</Label>
+                <Select value={splitRootMemberId} onValueChange={setSplitRootMemberId}>
+                  <SelectTrigger data-testid="select-split-root-member">
+                    <SelectValue placeholder="Choose a root member..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {treeData?.members
+                      ?.filter(m => splitSelectedMembers.has(m.id))
+                      .map(m => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.firstName} {m.lastName || ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={splitKeepLinked}
+                onCheckedChange={setSplitKeepLinked}
+                data-testid="switch-keep-linked"
+              />
+              <Label className="text-sm">Keep trees linked after split</Label>
+            </div>
+
+            {splitSelectedMembers.size > 0 && splitSelectedMembers.size >= (treeData?.members?.length || 0) && (
+              <p className="text-sm text-destructive">
+                You must leave at least one member in the original tree.
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsSplitTreeOpen(false)} data-testid="button-cancel-split">
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  splitTreeMutation.mutate({
+                    name: splitTreeName,
+                    memberIds: Array.from(splitSelectedMembers),
+                    newOwnerId: splitNewOwnerId || undefined,
+                    rootMemberId: splitRootMemberId || undefined,
+                    createConnection: splitKeepLinked,
+                  });
+                }}
+                disabled={
+                  !splitTreeName.trim() ||
+                  splitSelectedMembers.size === 0 ||
+                  splitSelectedMembers.size >= (treeData?.members?.length || 0) ||
+                  splitTreeMutation.isPending
+                }
+                data-testid="button-submit-split"
+              >
+                {splitTreeMutation.isPending ? "Splitting..." : "Split Tree"}
               </Button>
             </div>
           </div>

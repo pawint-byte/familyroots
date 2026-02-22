@@ -20,6 +20,7 @@ The backend uses Node.js, Express.js, and TypeScript, providing RESTful API endp
 
 -   **Multi-Tree Type Support**: Supports diverse tree types (family, church, sports, etc.) with configurable relationship types, terminology, and visual layouts.
 -   **Nested Sub-groups**: Allows creation of hierarchical sub-groups within trees (e.g., "Class of 2025" within a school tree). Supports re-parenting (moving existing trees under another as sub-groups) and detaching (making sub-groups standalone again) via `PATCH /api/trees/:id/parent`. Circular references are prevented by ancestry traversal check.
+-   **Tree Splitting**: Owners/co-owners can split a tree by selecting members to move into a new tree via `POST /api/trees/:id/split`. Supports assigning a different owner, preserving intra-group relationships, removing cross-tree relationships, and optionally linking the trees via a tree connection. All member-scoped data (events, mutes, invitations, claims, custodianship) migrates with members.
 -   **Visual Layout Per Tree Type**: Each tree type has a unique visual layout and styling, including distinct accent colors, connection line styles, and node shapes, with visual hierarchy based on relationship ranks.
 -   **Authentication & Collaboration**: Secure login via Replit Auth; users can share trees with role-based access (Viewer, Editor, Co-owner).
 -   **Profile Management**: Members can claim and manage their profiles, record life events, and track education/career history. A custodianship system allows relatives to manage deceased members' profiles.

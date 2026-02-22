@@ -59,6 +59,17 @@ export interface IStorage {
   deleteTree(id: string): Promise<boolean>;
   getDiscoverableTrees(options?: { search?: string; category?: string; treeType?: string }): Promise<(FamilyTree & { memberCount: number; ownerName: string })[]>;
   getChildTrees(parentTreeId: string): Promise<FamilyTree[]>;
+  splitTree(sourceTreeId: string, params: {
+    name: string;
+    treeType?: string;
+    treeTypeLabel?: string;
+    privacy?: string;
+    parentTreeId?: string | null;
+    newOwnerId: string;
+    memberIds: string[];
+    rootMemberId?: string;
+    createConnection?: boolean;
+  }): Promise<FamilyTree>;
 
   // Family Members
   getMembers(treeId: string): Promise<FamilyMember[]>;
@@ -392,6 +403,154 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(familyTrees)
       .where(eq(familyTrees.parentTreeId, parentTreeId))
       .orderBy(familyTrees.name);
+  }
+
+  async splitTree(sourceTreeId: string, params: {
+    name: string;
+    treeType?: string;
+    treeTypeLabel?: string;
+    privacy?: string;
+    parentTreeId?: string | null;
+    newOwnerId: string;
+    memberIds: string[];
+    rootMemberId?: string;
+    createConnection?: boolean;
+  }): Promise<FamilyTree> {
+    const sourceTree = await this.getTree(sourceTreeId);
+    if (!sourceTree) throw new Error("Source tree not found");
+
+    const memberIdSet = new Set(params.memberIds);
+
+    return await db.transaction(async (tx) => {
+      const [newTree] = await tx.insert(familyTrees).values({
+        name: params.name,
+        ownerId: params.newOwnerId,
+        treeType: (params.treeType || sourceTree.treeType) as any,
+        treeTypeLabel: params.treeTypeLabel || sourceTree.treeTypeLabel,
+        privacy: (params.privacy || sourceTree.privacy) as any,
+        parentTreeId: params.parentTreeId !== undefined ? params.parentTreeId : null,
+        rootMemberId: params.rootMemberId || null,
+        customRelationshipTypes: sourceTree.customRelationshipTypes,
+        preferredLayout: sourceTree.preferredLayout,
+      }).returning();
+
+      await tx.update(familyMembers)
+        .set({ treeId: newTree.id, updatedAt: new Date() })
+        .where(and(
+          eq(familyMembers.treeId, sourceTreeId),
+          inArray(familyMembers.id, params.memberIds)
+        ));
+
+      const allRels = await tx.select().from(relationships)
+        .where(eq(relationships.treeId, sourceTreeId));
+
+      const relsToMove: string[] = [];
+      const relsToDelete: string[] = [];
+
+      for (const rel of allRels) {
+        const fromMoved = memberIdSet.has(rel.fromMemberId);
+        const toMoved = memberIdSet.has(rel.toMemberId);
+        if (fromMoved && toMoved) {
+          relsToMove.push(rel.id);
+        } else if (fromMoved || toMoved) {
+          relsToDelete.push(rel.id);
+        }
+      }
+
+      if (relsToMove.length > 0) {
+        await tx.update(relationships)
+          .set({ treeId: newTree.id })
+          .where(inArray(relationships.id, relsToMove));
+      }
+      if (relsToDelete.length > 0) {
+        await tx.delete(relationships)
+          .where(inArray(relationships.id, relsToDelete));
+      }
+
+      if (params.memberIds.length > 0) {
+        await tx.update(memberMutes)
+          .set({ treeId: newTree.id })
+          .where(and(
+            eq(memberMutes.treeId, sourceTreeId),
+            inArray(memberMutes.memberId, params.memberIds)
+          ));
+
+        await tx.update(familyEvents)
+          .set({ treeId: newTree.id })
+          .where(and(
+            eq(familyEvents.treeId, sourceTreeId),
+            inArray(familyEvents.memberId, params.memberIds)
+          ));
+
+        await tx.update(memberInvitations)
+          .set({ treeId: newTree.id, treeName: newTree.name })
+          .where(and(
+            eq(memberInvitations.treeId, sourceTreeId),
+            inArray(memberInvitations.memberId, params.memberIds)
+          ));
+
+        await tx.update(profileClaimRequests)
+          .set({ treeId: newTree.id })
+          .where(and(
+            eq(profileClaimRequests.treeId, sourceTreeId),
+            inArray(profileClaimRequests.memberId, params.memberIds)
+          ));
+
+        await tx.update(custodianshipRequests)
+          .set({ treeId: newTree.id })
+          .where(and(
+            eq(custodianshipRequests.treeId, sourceTreeId),
+            inArray(custodianshipRequests.memberId, params.memberIds)
+          ));
+
+        await tx.update(specialConnections)
+          .set({ fromTreeId: newTree.id })
+          .where(and(
+            eq(specialConnections.fromTreeId, sourceTreeId),
+            inArray(specialConnections.fromMemberId, params.memberIds)
+          ));
+        await tx.update(specialConnections)
+          .set({ toTreeId: newTree.id })
+          .where(and(
+            eq(specialConnections.toTreeId, sourceTreeId),
+            inArray(specialConnections.toMemberId, params.memberIds)
+          ));
+
+        await tx.update(connectionRequests)
+          .set({ fromTreeId: newTree.id })
+          .where(and(
+            eq(connectionRequests.fromTreeId, sourceTreeId),
+            inArray(connectionRequests.fromMemberId, params.memberIds)
+          ));
+        await tx.update(connectionRequests)
+          .set({ toTreeId: newTree.id })
+          .where(and(
+            eq(connectionRequests.toTreeId, sourceTreeId),
+            inArray(connectionRequests.toMemberId, params.memberIds)
+          ));
+      }
+
+      if (sourceTree.rootMemberId && memberIdSet.has(sourceTree.rootMemberId)) {
+        const remainingMembers = await tx.select({ id: familyMembers.id })
+          .from(familyMembers)
+          .where(eq(familyMembers.treeId, sourceTreeId))
+          .limit(1);
+        await tx.update(familyTrees)
+          .set({ rootMemberId: remainingMembers[0]?.id || null, updatedAt: new Date() })
+          .where(eq(familyTrees.id, sourceTreeId));
+      }
+
+      if (params.createConnection) {
+        await tx.insert(treeConnections).values({
+          tree1Id: sourceTreeId,
+          tree2Id: newTree.id,
+          connectionType: "other",
+          createdBy: params.newOwnerId,
+        });
+      }
+
+      return newTree;
+    });
   }
 
   async createTree(tree: InsertFamilyTree): Promise<FamilyTree> {
