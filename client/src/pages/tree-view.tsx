@@ -1758,7 +1758,9 @@ export default function TreeView() {
                     data-testid="button-set-focus"
                   >
                     <User className="h-4 w-4" />
-                    {focusMemberId === selectedMember.id ? "Focus Set" : "Set as Focus"}
+                    {(treeData?.tree.treeType || "family") !== "family" 
+                      ? (focusMemberId === selectedMember.id ? "Centered" : "Place at Center")
+                      : (focusMemberId === selectedMember.id ? "Focus Set" : "Set as Focus")}
                   </Button>
                   {canEditTree && (
                     <Button 

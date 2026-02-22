@@ -163,25 +163,35 @@ function calculateCircleLayout(
     return positions;
   }
 
-  const radius = Math.max(200, members.length * 35);
-  const centerX = radius + 150;
-  const centerY = radius + 150;
+  const focusMember = members.find((m) => m.id === focusId) || members[0];
+  const others = members.filter((m) => m.id !== focusMember.id);
+  const outerRadius = Math.max(220, others.length * 35);
+  const centerX = outerRadius + 200;
+  const centerY = outerRadius + 200;
 
-  const focusIndex = members.findIndex((m) => m.id === focusId);
-  const startIndex = focusIndex >= 0 ? focusIndex : 0;
-  const sorted = [...members.slice(startIndex), ...members.slice(0, startIndex)];
+  const positions: NodePosition[] = [
+    {
+      x: centerX,
+      y: centerY,
+      member: focusMember,
+      relationshipType: relMap.get(focusMember.id),
+      rank: 1,
+    },
+  ];
 
-  return sorted.map((member, i) => {
-    const angle = (2 * Math.PI * i) / sorted.length - Math.PI / 2;
+  others.forEach((member, i) => {
+    const angle = (2 * Math.PI * i) / others.length - Math.PI / 2;
     const memberRank = getMemberRank(member.id, relationships, treeType);
-    return {
-      x: centerX + radius * Math.cos(angle),
-      y: centerY + radius * Math.sin(angle),
+    positions.push({
+      x: centerX + outerRadius * Math.cos(angle),
+      y: centerY + outerRadius * Math.sin(angle),
       member,
       relationshipType: relMap.get(member.id),
       rank: memberRank,
-    };
+    });
   });
+
+  return positions;
 }
 
 function calculateRadialLayout(
