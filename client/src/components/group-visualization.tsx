@@ -13,6 +13,8 @@ import {
 } from "@shared/treeTypes";
 import { Crown, Star, Shield } from "lucide-react";
 
+export type GroupLayoutMode = "auto" | "hub" | "top-grid" | "circle" | "radial" | "grid" | "arc" | "network";
+
 interface GroupVisualizationProps {
   members: FamilyMember[];
   relationships: Relationship[];
@@ -20,6 +22,7 @@ interface GroupVisualizationProps {
   onMemberClick: (member: FamilyMember) => void;
   focusMemberId?: string | null;
   treeType: TreeType;
+  layoutOverride?: GroupLayoutMode;
 }
 
 interface NodePosition {
@@ -86,77 +89,76 @@ function sortByRank(
 
 const CIRCLE_SPOKE_THRESHOLD = 12;
 
-function calculateCircleLayout(
+function resolveLeadersAndRest(
+  members: FamilyMember[],
+  focusId: string,
+  relationships: Relationship[],
+  treeType: TreeType
+) {
+  const relMap = buildRelMap(relationships);
+  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
+  const leaders = rank1.length > 0 ? rank1 : [members.find((m) => m.id === focusId) || members[0]];
+  const subLeaders = rank1.length > 0 ? rank2 : [];
+  const rest = rank1.length > 0
+    ? rank3
+    : members.filter((m) => !leaders.some((l) => l.id === m.id));
+  return { leaders, subLeaders, rest, relMap };
+}
+
+function calculateHubLayout(
   members: FamilyMember[],
   focusId: string,
   relationships: Relationship[],
   treeType: TreeType
 ): NodePosition[] {
   if (members.length === 0) return [];
-  
-  const relMap = buildRelMap(relationships);
-  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
+  const { leaders, subLeaders, rest, relMap } = resolveLeadersAndRest(members, focusId, relationships, treeType);
 
   if (members.length === 1) {
     const rank = getMemberRank(members[0].id, relationships, treeType);
-    return [{
-      x: 500, y: 300, member: members[0],
-      relationshipType: relMap.get(members[0].id),
-      rank,
-    }];
+    return [{ x: 500, y: 300, member: members[0], relationshipType: relMap.get(members[0].id), rank }];
   }
 
-  const leaders = rank1.length > 0 ? rank1 : [members.find((m) => m.id === focusId) || members[0]];
-  const subLeaders = rank1.length > 0 ? rank2 : [];
-  const rest = rank1.length > 0
-    ? rank3
-    : members.filter((m) => !leaders.some((l) => l.id === m.id));
-  const nonLeaderCount = subLeaders.length + rest.length;
+  const allOuter = [...subLeaders, ...rest];
+  const outerRadius = Math.max(220, allOuter.length * 40);
+  const centerX = outerRadius + 200;
+  const centerY = outerRadius + 200;
+  const positions: NodePosition[] = [];
 
-  if (nonLeaderCount <= CIRCLE_SPOKE_THRESHOLD) {
-    const allOuter = [...subLeaders, ...rest];
-    const outerRadius = Math.max(220, allOuter.length * 40);
-    const centerX = outerRadius + 200;
-    const centerY = outerRadius + 200;
-    const positions: NodePosition[] = [];
-
-    if (leaders.length === 1) {
-      positions.push({
-        x: centerX,
-        y: centerY,
-        member: leaders[0],
-        relationshipType: relMap.get(leaders[0].id),
-        rank: 1,
-      });
-    } else {
-      const leaderSpread = Math.min(100, outerRadius * 0.3);
-      leaders.forEach((m, i) => {
-        const angle = (2 * Math.PI * i) / leaders.length - Math.PI / 2;
-        positions.push({
-          x: centerX + leaderSpread * Math.cos(angle),
-          y: centerY + leaderSpread * Math.sin(angle),
-          member: m,
-          relationshipType: relMap.get(m.id),
-          rank: 1,
-        });
-      });
-    }
-
-    allOuter.forEach((m, i) => {
-      const angle = (2 * Math.PI * i) / allOuter.length - Math.PI / 2;
-      const memberRank = getMemberRank(m.id, relationships, treeType);
-      positions.push({
-        x: centerX + outerRadius * Math.cos(angle),
-        y: centerY + outerRadius * Math.sin(angle),
-        member: m,
-        relationshipType: relMap.get(m.id),
-        rank: memberRank,
-      });
+  if (leaders.length === 1) {
+    positions.push({ x: centerX, y: centerY, member: leaders[0], relationshipType: relMap.get(leaders[0].id), rank: 1 });
+  } else {
+    const leaderSpread = Math.min(100, outerRadius * 0.3);
+    leaders.forEach((m, i) => {
+      const angle = (2 * Math.PI * i) / leaders.length - Math.PI / 2;
+      positions.push({ x: centerX + leaderSpread * Math.cos(angle), y: centerY + leaderSpread * Math.sin(angle), member: m, relationshipType: relMap.get(m.id), rank: 1 });
     });
-
-    return positions;
   }
 
+  allOuter.forEach((m, i) => {
+    const angle = (2 * Math.PI * i) / allOuter.length - Math.PI / 2;
+    const memberRank = getMemberRank(m.id, relationships, treeType);
+    positions.push({ x: centerX + outerRadius * Math.cos(angle), y: centerY + outerRadius * Math.sin(angle), member: m, relationshipType: relMap.get(m.id), rank: memberRank });
+  });
+
+  return positions;
+}
+
+function calculateTopGridLayout(
+  members: FamilyMember[],
+  focusId: string,
+  relationships: Relationship[],
+  treeType: TreeType
+): NodePosition[] {
+  if (members.length === 0) return [];
+  const { leaders, subLeaders, rest, relMap } = resolveLeadersAndRest(members, focusId, relationships, treeType);
+
+  if (members.length === 1) {
+    const rank = getMemberRank(members[0].id, relationships, treeType);
+    return [{ x: 500, y: 300, member: members[0], relationshipType: relMap.get(members[0].id), rank }];
+  }
+
+  const nonLeaderCount = subLeaders.length + rest.length;
   const nodeW = 170;
   const nodeH = 190;
   const gapX = 30;
@@ -164,7 +166,7 @@ function calculateCircleLayout(
   const positions: NodePosition[] = [];
 
   const leaderRowWidth = leaders.length * nodeW + (leaders.length - 1) * gapX;
-  const cols = Math.ceil(Math.sqrt(nonLeaderCount * 1.4));
+  const cols = Math.max(2, Math.ceil(Math.sqrt(nonLeaderCount * 1.4)));
   const gridWidth = cols * nodeW + (cols - 1) * gapX;
   const totalWidth = Math.max(leaderRowWidth, gridWidth);
 
@@ -173,9 +175,7 @@ function calculateCircleLayout(
     positions.push({
       x: (totalWidth - totalLeaderW) / 2 + i * (nodeW + gapX) + nodeW / 2 + 60,
       y: 80 + nodeH / 2,
-      member: m,
-      relationshipType: relMap.get(m.id),
-      rank: 1,
+      member: m, relationshipType: relMap.get(m.id), rank: 1,
     });
   });
 
@@ -187,9 +187,7 @@ function calculateCircleLayout(
       positions.push({
         x: (totalWidth - subW) / 2 + i * (nodeW + gapX) + nodeW / 2 + 60,
         y: gridStartY + nodeH / 2,
-        member: m,
-        relationshipType: relMap.get(m.id),
-        rank: 2,
+        member: m, relationshipType: relMap.get(m.id), rank: 2,
       });
     });
     gridStartY += nodeH + gapY * 2;
@@ -204,13 +202,27 @@ function calculateCircleLayout(
     positions.push({
       x: (totalWidth - rowWidth) / 2 + col * (nodeW + gapX) + nodeW / 2 + 60,
       y: gridStartY + row * (nodeH + gapY) + nodeH / 2,
-      member: m,
-      relationshipType: relMap.get(m.id),
-      rank: memberRank,
+      member: m, relationshipType: relMap.get(m.id), rank: memberRank,
     });
   });
 
   return positions;
+}
+
+function calculateCircleLayout(
+  members: FamilyMember[],
+  focusId: string,
+  relationships: Relationship[],
+  treeType: TreeType
+): NodePosition[] {
+  if (members.length === 0) return [];
+  const { subLeaders, rest } = resolveLeadersAndRest(members, focusId, relationships, treeType);
+  const nonLeaderCount = subLeaders.length + rest.length;
+
+  if (nonLeaderCount <= CIRCLE_SPOKE_THRESHOLD) {
+    return calculateHubLayout(members, focusId, relationships, treeType);
+  }
+  return calculateTopGridLayout(members, focusId, relationships, treeType);
 }
 
 function calculateRadialLayout(
@@ -453,8 +465,28 @@ function calculatePositions(
   members: FamilyMember[],
   focusId: string,
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  layoutOverride?: GroupLayoutMode
 ): NodePosition[] {
+  if (layoutOverride && layoutOverride !== "auto") {
+    switch (layoutOverride) {
+      case "hub":
+        return calculateHubLayout(members, focusId, relationships, treeType);
+      case "top-grid":
+        return calculateTopGridLayout(members, focusId, relationships, treeType);
+      case "circle":
+        return calculateCircleLayout(members, focusId, relationships, treeType);
+      case "radial":
+        return calculateRadialLayout(members, focusId, relationships, treeType);
+      case "grid":
+        return calculateGridLayout(members, focusId, relationships, treeType);
+      case "arc":
+        return calculateArcLayout(members, focusId, relationships, treeType);
+      case "network":
+        return calculateNetworkLayout(members, focusId, relationships, treeType);
+    }
+  }
+
   switch (layout) {
     case "circle":
       return calculateCircleLayout(members, focusId, relationships, treeType);
@@ -484,6 +516,7 @@ export default function GroupVisualization({
   onMemberClick,
   focusMemberId,
   treeType,
+  layoutOverride,
 }: GroupVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -519,9 +552,10 @@ export default function GroupVisualization({
         deduplicatedMembers,
         focusId,
         relationships,
-        treeType
+        treeType,
+        layoutOverride
       ),
-    [visual.layoutShape, deduplicatedMembers, focusId, relationships, treeType]
+    [visual.layoutShape, deduplicatedMembers, focusId, relationships, treeType, layoutOverride]
   );
 
   const bounds = useMemo(() => {

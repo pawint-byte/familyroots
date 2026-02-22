@@ -26,14 +26,15 @@ import {
   Trees, Plus, Search, ArrowLeft, ZoomIn, ZoomOut, Maximize2, 
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
-  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target
+  Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
+  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toPng } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from "@shared/schema";
 import FamilyTreeVisualization from "@/components/family-tree-visualization";
-import GroupVisualization from "@/components/group-visualization";
+import GroupVisualization, { type GroupLayoutMode } from "@/components/group-visualization";
 import MemberForm from "@/components/member-form";
 import { NameHistorySection } from "@/components/name-history";
 import { MemberDiscoverability } from "@/components/member-discoverability";
@@ -69,6 +70,7 @@ export default function TreeView() {
   const [activeTab, setActiveTab] = useState("tree");
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [focusMemberId, setFocusMemberId] = useState<string | null>(null);
+  const [groupLayoutMode, setGroupLayoutMode] = useState<GroupLayoutMode>("auto");
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isMemberDetailOpen, setIsMemberDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -915,6 +917,33 @@ export default function TreeView() {
                           <span className="sm:hidden">Connected</span>
                         </Label>
                       </div>
+                      {(treeData?.tree.treeType || "family") !== "family" && (
+                        <div className="mt-3 pt-3 border-t">
+                          <Label className="text-xs text-muted-foreground mb-2 block">Layout</Label>
+                          <div className="flex flex-wrap gap-1">
+                            {([
+                              { value: "auto" as GroupLayoutMode, label: "Auto", icon: <Maximize2 className="h-3.5 w-3.5" /> },
+                              { value: "hub" as GroupLayoutMode, label: "Hub", icon: <CircleDot className="h-3.5 w-3.5" /> },
+                              { value: "top-grid" as GroupLayoutMode, label: "Grid", icon: <LayoutGrid className="h-3.5 w-3.5" /> },
+                              { value: "radial" as GroupLayoutMode, label: "Radial", icon: <Orbit className="h-3.5 w-3.5" /> },
+                              { value: "arc" as GroupLayoutMode, label: "Arc", icon: <GitBranch className="h-3.5 w-3.5" /> },
+                              { value: "network" as GroupLayoutMode, label: "Network", icon: <Network className="h-3.5 w-3.5" /> },
+                            ]).map(({ value, label, icon }) => (
+                              <Button
+                                key={value}
+                                variant={groupLayoutMode === value ? "default" : "outline"}
+                                size="sm"
+                                className="h-7 px-2 text-xs gap-1"
+                                onClick={() => setGroupLayoutMode(value)}
+                                data-testid={`button-layout-${value}`}
+                              >
+                                {icon}
+                                <span className="hidden sm:inline">{label}</span>
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
                         <div className="mt-2 text-xs text-muted-foreground">
                           <span className="font-medium">{mergedData.connectedTrees.length} trees:</span>
@@ -996,6 +1025,7 @@ export default function TreeView() {
                       onMemberClick={handleMemberClick}
                       focusMemberId={focusMemberId}
                       treeType={(treeData?.tree.treeType || "family") as TreeType}
+                      layoutOverride={groupLayoutMode}
                     />
                   )}
                 </div>
