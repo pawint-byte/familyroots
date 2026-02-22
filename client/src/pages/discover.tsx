@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/seo";
@@ -15,7 +19,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
   Search, Users, Church, Trophy, GraduationCap, Heart, Briefcase,
   Sparkles, MapPin, ArrowRight, UserPlus, LogIn, Globe, Filter,
-  ArrowLeft
+  ArrowLeft, Shield
 } from "lucide-react";
 import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 import type { FamilyTree } from "@shared/schema";
@@ -53,6 +57,7 @@ export default function Discover() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedTreeType, setSelectedTreeType] = useState<string>("");
+  const [joinConfirmTree, setJoinConfirmTree] = useState<DiscoverableTree | null>(null);
 
   const queryParams = new URLSearchParams();
   if (searchQuery) queryParams.set("search", searchQuery);
@@ -241,13 +246,13 @@ export default function Discover() {
                       {user ? (
                         <Button
                           size="sm"
-                          onClick={() => joinMutation.mutate(tree.id)}
+                          onClick={() => setJoinConfirmTree(tree)}
                           disabled={joinMutation.isPending}
                           className="gap-1"
                           data-testid={`button-join-${tree.id}`}
                         >
                           <UserPlus className="h-3.5 w-3.5" />
-                          {tree.autoJoin ? "Join" : "Join"}
+                          Join
                         </Button>
                       ) : (
                         <Button
@@ -289,6 +294,45 @@ export default function Discover() {
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!joinConfirmTree} onOpenChange={(open) => !open && setJoinConfirmTree(null)}>
+        <AlertDialogContent data-testid="dialog-join-privacy">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Join {joinConfirmTree?.name}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This is a public community. By joining, your <strong>name and photo</strong> will be visible to anyone who views this group.
+                </p>
+                <p>
+                  Other personal details (email, birth date, location, etc.) remain <strong>private</strong> and are only visible to the group owner and collaborators.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  You can leave this community at any time from your tree settings.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-join">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-join"
+              onClick={() => {
+                if (joinConfirmTree) {
+                  joinMutation.mutate(joinConfirmTree.id);
+                  setJoinConfirmTree(null);
+                }
+              }}
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              Join Community
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
