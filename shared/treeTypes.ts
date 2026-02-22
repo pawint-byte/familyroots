@@ -344,17 +344,27 @@ export function getTreeTypeConfig(treeType: TreeType): TreeTypeConfig {
 
 export function getRelationshipTypesForTree(
   treeType: TreeType,
-  customRelationshipTypes?: string[] | null
+  customRelationshipTypes?: (string | { label: string; reverseLabel?: string })[] | null
 ): RelationshipTypeConfig[] {
   const config = getTreeTypeConfig(treeType);
   const defaults = config.defaultRelationshipTypes;
 
   if (customRelationshipTypes && customRelationshipTypes.length > 0) {
-    const customTypes = customRelationshipTypes.map(t => ({
-      value: t.toLowerCase().replace(/\s+/g, '_'),
-      label: t,
-      description: `Custom: ${t}`,
-    }));
+    const customTypes = customRelationshipTypes.map(t => {
+      if (typeof t === 'string') {
+        return {
+          value: t.toLowerCase().replace(/\s+/g, '_'),
+          label: t,
+          description: `Custom: ${t}`,
+        };
+      }
+      return {
+        value: t.label.toLowerCase().replace(/\s+/g, '_'),
+        label: t.label,
+        reverseLabel: t.reverseLabel,
+        description: `Custom: ${t.label}`,
+      };
+    });
 
     if (treeType === "custom") {
       return customTypes;
@@ -368,9 +378,11 @@ export function getRelationshipTypesForTree(
   return defaults;
 }
 
+export type CustomRelType = string | { label: string; reverseLabel?: string };
+
 export function getValidRelationshipValues(
   treeType: TreeType,
-  customRelationshipTypes?: string[] | null
+  customRelationshipTypes?: CustomRelType[] | null
 ): string[] {
   return getRelationshipTypesForTree(treeType, customRelationshipTypes).map(r => r.value);
 }
@@ -378,7 +390,7 @@ export function getValidRelationshipValues(
 export function getReverseRelationshipType(
   treeType: TreeType,
   relationshipType: string,
-  customRelationshipTypes?: string[] | null
+  customRelationshipTypes?: CustomRelType[] | null
 ): string | null {
   const types = getRelationshipTypesForTree(treeType, customRelationshipTypes);
   const config = types.find(t => t.value === relationshipType);
@@ -399,7 +411,7 @@ export function getReverseRelationshipType(
 export function getRelationshipRank(
   treeType: TreeType,
   relationshipType: string,
-  customRelationshipTypes?: string[] | null
+  customRelationshipTypes?: CustomRelType[] | null
 ): number {
   const types = getRelationshipTypesForTree(treeType, customRelationshipTypes);
   const config = types.find(t => t.value === relationshipType);
@@ -410,7 +422,7 @@ export function getMemberRank(
   memberId: string,
   relationships: { fromMemberId: string; toMemberId: string; relationshipType: string }[],
   treeType: TreeType,
-  customRelationshipTypes?: string[] | null
+  customRelationshipTypes?: CustomRelType[] | null
 ): number {
   let bestRank = 3;
   for (const rel of relationships) {

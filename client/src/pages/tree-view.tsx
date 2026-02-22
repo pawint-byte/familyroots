@@ -106,6 +106,9 @@ export default function TreeView() {
   const [newCustomLabel, setNewCustomLabel] = useState<string>("");
   const [newRelationshipType, setNewRelationshipType] = useState<string>("");
   const [newRelationshipQualifier, setNewRelationshipQualifier] = useState<string | null>(null);
+  const [isEditCustomType, setIsEditCustomType] = useState(false);
+  const [editCustomTypeName, setEditCustomTypeName] = useState("");
+  const [editCustomReverseLabel, setEditCustomReverseLabel] = useState("");
   const [showMergedView, setShowMergedView] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
@@ -1694,7 +1697,7 @@ export default function TreeView() {
                                 const tt = (treeData?.tree.treeType || "family") as TreeType;
                                 const leaderDefaults = getDefaultLeaderRelationship(tt);
                                 const peerDefault = getDefaultPeerRelationship(tt);
-                                const relTypes = getRelationshipTypesForTree(tt, treeData?.tree.customRelationshipTypes as string[] | null);
+                                const relTypes = getRelationshipTypesForTree(tt, treeData?.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null);
                                 const peerLabel = relTypes.find(r => r.value === peerDefault)?.label || peerDefault;
 
                                 return (
@@ -2608,7 +2611,7 @@ export default function TreeView() {
                       // All other relationship types (mentor, colleague, manager, etc.)
                       const handledTypes = new Set(["parent", "spouse", "sibling", "coparent"]);
                       const treeType = (treeData.tree.treeType || "family") as TreeType;
-                      const allRelTypes = getRelationshipTypesForTree(treeType, treeData.tree.customRelationshipTypes as string[] | null);
+                      const allRelTypes = getRelationshipTypesForTree(treeType, treeData.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null);
                       memberRelationships
                         .filter(r => !handledTypes.has(r.relationshipType))
                         .forEach(r => {
@@ -2700,7 +2703,7 @@ export default function TreeView() {
                     <AddRelationship
                       treeId={treeData.tree.id}
                       treeType={(treeData.tree.treeType || "family") as any}
-                      customRelationshipTypes={treeData.tree.customRelationshipTypes as string[] | null}
+                      customRelationshipTypes={treeData.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null}
                       currentMember={selectedMember}
                       allMembers={treeData.members}
                       existingRelationships={treeData.relationships}
@@ -2883,6 +2886,9 @@ export default function TreeView() {
           setNewRelationshipType("");
           setNewRelationshipQualifier(null);
           setNewCustomLabel("");
+          setIsEditCustomType(false);
+          setEditCustomTypeName("");
+          setEditCustomReverseLabel("");
         }
       }}>
         <DialogContent>
@@ -2896,21 +2902,68 @@ export default function TreeView() {
               </p>
               <div className="space-y-2">
                 <Label>Relationship Type</Label>
-                <Select value={newRelationshipType} onValueChange={setNewRelationshipType}>
+                <Select 
+                  value={isEditCustomType ? "__custom__" : newRelationshipType} 
+                  onValueChange={(val) => {
+                    if (val === "__custom__") {
+                      setIsEditCustomType(true);
+                      setNewRelationshipType("");
+                    } else {
+                      setIsEditCustomType(false);
+                      setEditCustomTypeName("");
+                      setNewRelationshipType(val);
+                    }
+                  }}
+                >
                   <SelectTrigger data-testid="select-new-relationship-type">
                     <SelectValue placeholder="Select relationship type" />
                   </SelectTrigger>
                   <SelectContent>
                     {treeData && getRelationshipTypesForTree(
                       (treeData.tree.treeType || "family") as TreeType,
-                      treeData.tree.customRelationshipTypes as string[] | null
+                      treeData.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null
                     ).map((relType) => (
                       <SelectItem key={relType.value} value={relType.value}>
                         {relType.label}{relType.description ? ` - ${relType.description}` : ''}
                       </SelectItem>
                     ))}
+                    <SelectItem value="__custom__" data-testid="select-edit-custom-type">
+                      <span className="flex items-center gap-1.5">
+                        <Plus className="h-3.5 w-3.5" />
+                        Create custom type...
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                {isEditCustomType && (
+                  <div className="mt-2 p-3 border rounded-md bg-muted/50 space-y-3">
+                    <div className="space-y-2">
+                      <Label>Custom Relationship Name *</Label>
+                      <Input
+                        placeholder="e.g. Mentor, Coach, Advisor..."
+                        value={editCustomTypeName}
+                        onChange={(e) => setEditCustomTypeName(e.target.value)}
+                        data-testid="input-edit-custom-type-name"
+                        autoFocus
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        This is {editingRelationship.member1Name}'s role in the relationship.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Other Person's Role (optional)</Label>
+                      <Input
+                        placeholder="e.g. Mentee, Player, Student..."
+                        value={editCustomReverseLabel}
+                        onChange={(e) => setEditCustomReverseLabel(e.target.value)}
+                        data-testid="input-edit-custom-reverse-label"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        What {editingRelationship.member2Name} is to {editingRelationship.member1Name}.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Current: {editingRelationship.currentType}
                 </p>
@@ -2954,21 +3007,53 @@ export default function TreeView() {
                     setNewRelationshipType("");
                     setNewRelationshipQualifier(null);
                     setNewCustomLabel("");
+                    setIsEditCustomType(false);
+                    setEditCustomTypeName("");
+                    setEditCustomReverseLabel("");
                   }}
                   data-testid="button-cancel-edit-relationship"
                 >
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     if (editingRelationship) {
-                      const hasTypeChange = newRelationshipType && newRelationshipType !== editingRelationship.currentType;
+                      let finalType = newRelationshipType;
+                      if (isEditCustomType && editCustomTypeName.trim()) {
+                        const typeName = editCustomTypeName.trim();
+                        finalType = typeName.toLowerCase().replace(/\s+/g, '_');
+                        const reverseLabel = editCustomReverseLabel.trim() || undefined;
+                        const existing = (treeData?.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null) || [];
+                        const alreadyExists = existing.some(t => {
+                          const label = typeof t === 'string' ? t : t.label;
+                          return label === typeName;
+                        });
+                        if (!alreadyExists) {
+                          const newEntry: string | { label: string; reverseLabel?: string } = reverseLabel 
+                            ? { label: typeName, reverseLabel }
+                            : typeName;
+                          try {
+                            await apiRequest("PATCH", `/api/trees/${treeId}`, {
+                              customRelationshipTypes: [...existing, newEntry],
+                            });
+                            queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+                          } catch {
+                            toast({
+                              title: "Error",
+                              description: "Failed to save custom relationship type",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                        }
+                      }
+                      const hasTypeChange = finalType && finalType !== editingRelationship.currentType;
                       const hasQualifierChange = newRelationshipQualifier !== editingRelationship.currentQualifier;
                       const hasCustomLabelChange = (newCustomLabel || null) !== editingRelationship.currentCustomLabel;
                       if (hasTypeChange || hasQualifierChange || hasCustomLabelChange) {
                         updateRelationshipMutation.mutate({
                           relationshipId: editingRelationship.id,
-                          newType: newRelationshipType || editingRelationship.currentType,
+                          newType: finalType || editingRelationship.currentType,
                           newQualifier: newRelationshipQualifier,
                           customLabel: newCustomLabel || null,
                         });
@@ -2977,9 +3062,12 @@ export default function TreeView() {
                   }}
                   disabled={
                     updateRelationshipMutation.isPending ||
-                    ((!newRelationshipType || newRelationshipType === editingRelationship.currentType) &&
-                     newRelationshipQualifier === editingRelationship.currentQualifier &&
-                     (newCustomLabel || null) === editingRelationship.currentCustomLabel)
+                    (isEditCustomType && !editCustomTypeName.trim()) ||
+                    (!isEditCustomType && (
+                      (!newRelationshipType || newRelationshipType === editingRelationship.currentType) &&
+                      newRelationshipQualifier === editingRelationship.currentQualifier &&
+                      (newCustomLabel || null) === editingRelationship.currentCustomLabel
+                    ))
                   }
                   data-testid="button-save-relationship"
                 >
@@ -3005,7 +3093,7 @@ export default function TreeView() {
           </DialogHeader>
           {treeData && (() => {
             const tt = (treeData.tree.treeType || "family") as TreeType;
-            const allRelTypes = getRelationshipTypesForTree(tt, treeData.tree.customRelationshipTypes as string[] | null);
+            const allRelTypes = getRelationshipTypesForTree(tt, treeData.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null);
             const typesInUse = Array.from(new Set(treeData.relationships.map(r => r.relationshipType)));
             const getMember = (id: string) => treeData.members.find(m => m.id === id);
             const getMemberName = (m: FamilyMember | undefined) => m ? (m.lastName ? `${m.firstName} ${m.lastName}` : m.firstName) + (m.suffix ? ` ${m.suffix}` : '') : "Unknown";

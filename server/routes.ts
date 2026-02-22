@@ -1841,7 +1841,7 @@ export async function registerRoutes(
       
       // Validate relationship type against tree type
       const treeTypeForValidation = (tree.treeType || "family") as TreeType;
-      const customTypesForValidation = tree.customRelationshipTypes as string[] | null;
+      const customTypesForValidation = tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null;
       const validRelTypes = getValidRelationshipValues(treeTypeForValidation, customTypesForValidation);
       if (!validRelTypes.includes(data.relationshipType)) {
         return res.status(400).json({ message: `Invalid relationship type '${data.relationshipType}' for this tree type` });
@@ -1919,7 +1919,7 @@ export async function registerRoutes(
       }
 
       const treeType = (tree.treeType || "family") as TreeType;
-      const customTypes = tree.customRelationshipTypes as string[] | null;
+      const customTypes = tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null;
       const validTypes = getValidRelationshipValues(treeType, customTypes);
       if (!validTypes.includes(newRelationshipType)) {
         return res.status(400).json({ message: `Invalid relationship type '${newRelationshipType}'` });
@@ -1970,7 +1970,7 @@ export async function registerRoutes(
       
       // Validate relationship type dynamically based on tree type
       const treeType = (tree.treeType || "family") as TreeType;
-      const customTypes = tree.customRelationshipTypes as string[] | null;
+      const customTypes = tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null;
       const validTypes = getValidRelationshipValues(treeType, customTypes);
       if (relationshipType && !validTypes.includes(relationshipType)) {
         return res.status(400).json({ message: "Invalid relationship type" });
@@ -2043,7 +2043,7 @@ export async function registerRoutes(
 
       const { mode, leaderId, leaderRelationshipType, memberRelationshipType, peerRelationshipType } = req.body;
       const treeType = (tree.treeType || "family") as TreeType;
-      const customTypes = tree.customRelationshipTypes as string[] | null;
+      const customTypes = tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null;
       const validRelTypes = getValidRelationshipValues(treeType, customTypes);
       const members = await storage.getMembers(treeId);
       const existingRelationships = await storage.getRelationships(treeId);

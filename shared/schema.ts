@@ -63,7 +63,7 @@ export const familyTrees = pgTable("family_trees", {
   visibilityDefault: visibilityTierEnum("visibility_default").default("extended"),
   treeType: treeTypeEnum("tree_type").default("family").notNull(),
   treeTypeLabel: text("tree_type_label"),
-  customRelationshipTypes: jsonb("custom_relationship_types").$type<string[]>(),
+  customRelationshipTypes: jsonb("custom_relationship_types").$type<(string | { label: string; reverseLabel?: string })[]>(),
   preferredLayout: text("preferred_layout"),
   isDiscoverable: boolean("is_discoverable").default(false),
   discoveryDescription: text("discovery_description"),
