@@ -448,6 +448,9 @@ export default function TreeView() {
         customPosition: data.position,
       });
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+    },
     onError: () => {
       toast({
         title: "Error",

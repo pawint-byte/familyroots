@@ -590,13 +590,13 @@ export default function GroupVisualization({
   }, [positions, draggedMemberId, draggedPosition]);
 
   const bounds = useMemo(() => {
-    if (effectivePositions.length === 0)
+    if (positions.length === 0)
       return { minX: 0, minY: 0, maxX: 800, maxY: 600, width: 800, height: 600 };
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
       maxY = -Infinity;
-    for (const p of effectivePositions) {
+    for (const p of positions) {
       if (p.x < minX) minX = p.x;
       if (p.y < minY) minY = p.y;
       if (p.x > maxX) maxX = p.x;
@@ -611,7 +611,7 @@ export default function GroupVisualization({
       width: maxX - minX + pad * 2,
       height: maxY - minY + pad * 2,
     };
-  }, [effectivePositions]);
+  }, [positions]);
 
   const positionMap = useMemo(() => {
     const map = new Map<string, NodePosition>();
@@ -709,7 +709,6 @@ export default function GroupVisualization({
     (e: React.PointerEvent, memberId: string) => {
       e.stopPropagation();
       e.preventDefault();
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
       const pos = positionMap.get(memberId);
       if (!pos) return;
       memberDidDragRef.current = false;
