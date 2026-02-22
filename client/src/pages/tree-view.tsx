@@ -140,6 +140,10 @@ export default function TreeView() {
   const [createTreeTagId, setCreateTreeTagId] = useState<string>("");
   const [createTreeName, setCreateTreeName] = useState("");
   const [createTreeAsSubGroup, setCreateTreeAsSubGroup] = useState(true);
+  const [isBulkRelChangeOpen, setIsBulkRelChangeOpen] = useState(false);
+  const [bulkRelFromType, setBulkRelFromType] = useState<string>("");
+  const [bulkRelToType, setBulkRelToType] = useState<string>("");
+  const [bulkRelExcludeIds, setBulkRelExcludeIds] = useState<Set<string>>(new Set());
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
   const treeId = params?.id;
@@ -707,6 +711,31 @@ export default function TreeView() {
     },
   });
 
+  const bulkUpdateRelationshipsMutation = useMutation({
+    mutationFn: async (data: { relationshipIds: string[]; newRelationshipType: string }) => {
+      const res = await apiRequest("PATCH", `/api/trees/${treeId}/relationships/bulk-update`, data);
+      return await res.json();
+    },
+    onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      setIsBulkRelChangeOpen(false);
+      setBulkRelFromType("");
+      setBulkRelToType("");
+      setBulkRelExcludeIds(new Set());
+      toast({
+        title: "Relationships Updated",
+        description: `${result.updated} relationship${result.updated !== 1 ? 's' : ''} changed successfully.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update relationships",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleRenameOpen = () => {
     setNewTreeName(treeData?.tree.name || "");
     setNewTreeType(treeData?.tree.treeType || "family");
@@ -1080,6 +1109,21 @@ export default function TreeView() {
                       <Link2 className="h-4 w-4" />
                       Manage Relationships
                     </DropdownMenuItem>
+                    {treeData && treeData.relationships.length > 0 && (
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onClick={() => {
+                          setBulkRelFromType("");
+                          setBulkRelToType("");
+                          setBulkRelExcludeIds(new Set());
+                          setIsBulkRelChangeOpen(true);
+                        }}
+                        data-testid="menu-bulk-change-relationships"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Bulk Change Relationships
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       className="gap-2"
                       onClick={() => {
@@ -1544,6 +1588,7 @@ export default function TreeView() {
                       {(treeData?.tree.treeType || "family") !== "family" && canEditTree && displayMembers.length >= 2 && (
                         <div className="mt-3 pt-3 border-t">
                           <Label className="text-xs text-muted-foreground mb-2 block">Quick Connect</Label>
+                          <div className="space-y-1.5">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -1605,6 +1650,24 @@ export default function TreeView() {
                               })()}
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          {treeData && treeData.relationships.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full h-8 text-xs gap-1.5"
+                              onClick={() => {
+                                setBulkRelFromType("");
+                                setBulkRelToType("");
+                                setBulkRelExcludeIds(new Set());
+                                setIsBulkRelChangeOpen(true);
+                              }}
+                              data-testid="button-bulk-change-relationships"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                              Bulk Change Relationships
+                            </Button>
+                          )}
+                          </div>
                         </div>
                       )}
                       {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
@@ -2837,6 +2900,151 @@ export default function TreeView() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBulkRelChangeOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsBulkRelChangeOpen(false);
+          setBulkRelFromType("");
+          setBulkRelToType("");
+          setBulkRelExcludeIds(new Set());
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Change Relationship Type</DialogTitle>
+          </DialogHeader>
+          {treeData && (() => {
+            const tt = (treeData.tree.treeType || "family") as TreeType;
+            const allRelTypes = getRelationshipTypesForTree(tt, treeData.tree.customRelationshipTypes as string[] | null);
+            const typesInUse = Array.from(new Set(treeData.relationships.map(r => r.relationshipType)));
+            const getMember = (id: string) => treeData.members.find(m => m.id === id);
+            const getMemberName = (m: FamilyMember | undefined) => m ? (m.lastName ? `${m.firstName} ${m.lastName}` : m.firstName) + (m.suffix ? ` ${m.suffix}` : '') : "Unknown";
+            const matchingRels = bulkRelFromType
+              ? treeData.relationships.filter(r => r.relationshipType === bulkRelFromType)
+              : [];
+            const selectedRels = matchingRels.filter(r => !bulkRelExcludeIds.has(r.id));
+
+            return (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Select a relationship type to change, choose which members to include, then pick the new type.
+                </p>
+                <div className="space-y-2">
+                  <Label>Current Relationship Type</Label>
+                  <Select value={bulkRelFromType} onValueChange={(v) => { setBulkRelFromType(v); setBulkRelExcludeIds(new Set()); }}>
+                    <SelectTrigger data-testid="select-bulk-from-type">
+                      <SelectValue placeholder="Select type to change..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {typesInUse.map(type => {
+                        const config = allRelTypes.find(rt => rt.value === type);
+                        const count = treeData.relationships.filter(r => r.relationshipType === type).length;
+                        return (
+                          <SelectItem key={type} value={type}>
+                            {config?.label || type} ({count} relationship{count !== 1 ? 's' : ''})
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {bulkRelFromType && matchingRels.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Members to Change ({selectedRels.length} of {matchingRels.length} selected)</Label>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setBulkRelExcludeIds(new Set())} data-testid="button-select-all-rels">
+                          Select All
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setBulkRelExcludeIds(new Set(matchingRels.map(r => r.id)))} data-testid="button-deselect-all-rels">
+                          Deselect All
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="border rounded-md max-h-48 overflow-y-auto">
+                      {matchingRels.map(rel => {
+                        const from = getMember(rel.fromMemberId);
+                        const to = getMember(rel.toMemberId);
+                        const isExcluded = bulkRelExcludeIds.has(rel.id);
+                        return (
+                          <label
+                            key={rel.id}
+                            className={`flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer border-b last:border-0 ${isExcluded ? 'opacity-50' : ''}`}
+                            data-testid={`bulk-rel-item-${rel.id}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!isExcluded}
+                              onChange={() => {
+                                const next = new Set(bulkRelExcludeIds);
+                                if (isExcluded) next.delete(rel.id);
+                                else next.add(rel.id);
+                                setBulkRelExcludeIds(next);
+                              }}
+                              className="rounded"
+                            />
+                            <span className="text-sm">
+                              {getMemberName(from)} → {getMemberName(to)}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {bulkRelFromType && (
+                  <div className="space-y-2">
+                    <Label>Change To</Label>
+                    <Select value={bulkRelToType} onValueChange={setBulkRelToType}>
+                      <SelectTrigger data-testid="select-bulk-to-type">
+                        <SelectValue placeholder="Select new type..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allRelTypes
+                          .filter(rt => rt.value !== bulkRelFromType)
+                          .map(rt => (
+                            <SelectItem key={rt.value} value={rt.value}>
+                              {rt.label}{rt.description ? ` — ${rt.description}` : ''}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="flex gap-2 justify-end pt-2">
+                  <Button variant="outline" onClick={() => setIsBulkRelChangeOpen(false)} data-testid="button-cancel-bulk-rel">
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (selectedRels.length > 0 && bulkRelToType) {
+                        bulkUpdateRelationshipsMutation.mutate({
+                          relationshipIds: selectedRels.map(r => r.id),
+                          newRelationshipType: bulkRelToType,
+                        });
+                      }
+                    }}
+                    disabled={
+                      bulkUpdateRelationshipsMutation.isPending ||
+                      !bulkRelFromType ||
+                      !bulkRelToType ||
+                      selectedRels.length === 0
+                    }
+                    data-testid="button-apply-bulk-rel"
+                  >
+                    {bulkUpdateRelationshipsMutation.isPending
+                      ? "Updating..."
+                      : `Change ${selectedRels.length} Relationship${selectedRels.length !== 1 ? 's' : ''}`}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

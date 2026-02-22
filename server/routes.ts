@@ -1735,7 +1735,63 @@ export async function registerRoutes(
     }
   });
 
-  // Delete a relationship
+  // Bulk-update relationship types
+  app.patch("/api/trees/:treeId/relationships/bulk-update", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collaborators = await storage.getCollaborators(treeId);
+        const canEdit = collaborators.some(c => c.userId === userId && c.canEdit);
+        if (!canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const { relationshipIds, newRelationshipType } = req.body;
+
+      if (!Array.isArray(relationshipIds) || relationshipIds.length === 0) {
+        return res.status(400).json({ message: "relationshipIds must be a non-empty array" });
+      }
+
+      if (!newRelationshipType || typeof newRelationshipType !== "string") {
+        return res.status(400).json({ message: "newRelationshipType is required" });
+      }
+
+      const treeType = (tree.treeType || "family") as TreeType;
+      const customTypes = tree.customRelationshipTypes as string[] | null;
+      const validTypes = getValidRelationshipValues(treeType, customTypes);
+      if (!validTypes.includes(newRelationshipType)) {
+        return res.status(400).json({ message: `Invalid relationship type '${newRelationshipType}'` });
+      }
+
+      const existingRelationships = await storage.getRelationships(treeId);
+      const treeRelIds = new Set(existingRelationships.map(r => r.id));
+      const validIds = relationshipIds.filter((id: string) => treeRelIds.has(id));
+
+      if (validIds.length === 0) {
+        return res.status(400).json({ message: "No valid relationship IDs found for this tree" });
+      }
+
+      let updated = 0;
+      for (const relId of validIds) {
+        const result = await storage.updateRelationship(relId, { relationshipType: newRelationshipType });
+        if (result) updated++;
+      }
+
+      res.json({ updated, total: validIds.length });
+    } catch (error) {
+      console.error("Error bulk-updating relationships:", error);
+      res.status(500).json({ message: "Failed to bulk-update relationships" });
+    }
+  });
+
   // Update a relationship (change type or qualifier)
   app.patch("/api/trees/:treeId/relationships/:relationshipId", isAuthenticated, async (req: any, res) => {
     try {
