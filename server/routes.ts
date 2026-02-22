@@ -1797,7 +1797,11 @@ export async function registerRoutes(
       }
       
       if (tree.ownerId !== userId) {
-        return res.status(403).json({ message: "Access denied" });
+        const collaborators = await storage.getCollaborators(treeId);
+        const canEdit = collaborators.some(c => c.userId === userId && c.canEdit);
+        if (!canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
 
       await storage.deleteRelationship(relationshipId);

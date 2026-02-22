@@ -2326,16 +2326,21 @@ export default function TreeView() {
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                       <Link2 className="h-4 w-4" />
-                      Family Relationships
+                      {(() => {
+                        const tt = (treeData.tree.treeType || "family") as TreeType;
+                        const config = getTreeTypeConfig(tt);
+                        return tt === "family" ? "Family Relationships" : `${config.label} Relationships`;
+                      })()}
                     </h4>
                     {(() => {
                       const memberRelationships = treeData.relationships.filter(
                         r => r.fromMemberId === selectedMember.id || r.toMemberId === selectedMember.id
                       );
                       if (memberRelationships.length === 0) {
+                        const treeType = (treeData.tree.treeType || "family") as TreeType;
                         return (
                           <p className="text-sm text-muted-foreground">
-                            No relationships defined yet. Use the button below to add family connections.
+                            No relationships defined yet. Use the button below to add connections.
                           </p>
                         );
                       }
@@ -2449,6 +2454,37 @@ export default function TreeView() {
                               qualifier: r.qualifier || null,
                               customLabel: r.customLabel || null,
                               otherMemberName: getMemberName(coparent)
+                            });
+                          }
+                        });
+
+                      // All other relationship types (mentor, colleague, manager, etc.)
+                      const handledTypes = new Set(["parent", "spouse", "sibling", "coparent"]);
+                      const treeType = (treeData.tree.treeType || "family") as TreeType;
+                      const allRelTypes = getRelationshipTypesForTree(treeType, treeData.tree.customRelationshipTypes as string[] | null);
+                      memberRelationships
+                        .filter(r => !handledTypes.has(r.relationshipType))
+                        .forEach(r => {
+                          const otherMemberId = r.fromMemberId === selectedMember.id ? r.toMemberId : r.fromMemberId;
+                          const otherMember = getMember(otherMemberId);
+                          if (otherMember) {
+                            const relConfig = allRelTypes.find(rt => rt.value === r.relationshipType);
+                            const isFrom = r.fromMemberId === selectedMember.id;
+                            let label = relConfig ? relConfig.label : r.relationshipType.charAt(0).toUpperCase() + r.relationshipType.slice(1).replace(/_/g, ' ');
+                            if (!isFrom && relConfig?.reverseLabel) {
+                              label = relConfig.reverseLabel;
+                            }
+                            relationshipItems.push({
+                              id: r.id,
+                              label,
+                              personName: getMemberName(otherMember),
+                              description: `${getMemberName(otherMember)} is ${selectedMember.firstName}'s ${label.toLowerCase()}`,
+                              fromMemberId: r.fromMemberId,
+                              toMemberId: r.toMemberId,
+                              relationshipType: r.relationshipType,
+                              qualifier: r.qualifier || null,
+                              customLabel: r.customLabel || null,
+                              otherMemberName: getMemberName(otherMember)
                             });
                           }
                         });
