@@ -71,6 +71,7 @@ export const familyTrees = pgTable("family_trees", {
   discoveryLocation: text("discovery_location"),
   autoJoin: boolean("auto_join").default(false),
   parentTreeId: varchar("parent_tree_id"),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -106,6 +107,7 @@ export const familyMembers = pgTable("family_members", {
   currentRegion: text("current_region"), // state/province
   currentCountry: text("current_country"),
   locationVisible: boolean("location_visible").default(false), // Whether to share location with connections
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

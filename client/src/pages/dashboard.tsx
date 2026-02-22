@@ -15,7 +15,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { trackTreeCreation } from "@/lib/tracking";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe, BookOpen, GitBranch } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe, BookOpen, GitBranch, Undo2, Clock, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -253,15 +253,64 @@ export default function Dashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/deleted/trees"] });
       toast({
-        title: "Success",
-        description: "Tree deleted successfully",
+        title: "Moved to Trash",
+        description: "Tree moved to Recently Deleted. You can restore it within 30 days.",
       });
     },
     onError: () => {
       toast({
         title: "Error",
         description: "Failed to delete tree",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const { data: deletedTrees } = useQuery<FamilyTree[]>({
+    queryKey: ["/api/deleted/trees"],
+    enabled: !!user,
+  });
+
+  const [showDeletedTrees, setShowDeletedTrees] = useState(false);
+
+  const restoreTreeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("PATCH", `/api/deleted/trees/${id}/restore`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/deleted/trees"] });
+      toast({
+        title: "Tree Restored",
+        description: "Your tree has been restored successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to restore tree",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const permanentDeleteTreeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/deleted/trees/${id}/permanent`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/deleted/trees"] });
+      toast({
+        title: "Permanently Deleted",
+        description: "Tree has been permanently deleted and cannot be recovered.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to permanently delete tree",
         variant: "destructive",
       });
     },
@@ -318,7 +367,7 @@ export default function Dashboard() {
 
   const handleDeleteClick = (e: React.MouseEvent, treeId: string) => {
     e.stopPropagation();
-    if (confirm("Are you sure you want to delete this tree? This action cannot be undone.")) {
+    if (confirm("Move this tree to Recently Deleted? You can restore it within 30 days.")) {
       deleteTreeMutation.mutate(treeId);
     }
   };
@@ -1334,6 +1383,80 @@ export default function Dashboard() {
               </Button>
             </CardContent>
           </Card>
+        )}
+
+        {/* Recently Deleted Section */}
+        {deletedTrees && deletedTrees.length > 0 && (
+          <div className="mt-8" data-testid="section-recently-deleted">
+            <button
+              onClick={() => setShowDeletedTrees(!showDeletedTrees)}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
+              data-testid="button-toggle-deleted"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="text-sm font-medium">Recently Deleted ({deletedTrees.length})</span>
+              <span className={`text-xs transition-transform ${showDeletedTrees ? "rotate-180" : ""}`}>▼</span>
+            </button>
+
+            {showDeletedTrees && (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Items are permanently deleted after 30 days
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {deletedTrees.map((tree) => {
+                    const deletedDate = tree.deletedAt ? new Date(tree.deletedAt) : new Date();
+                    const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - deletedDate.getTime()) / (1000 * 60 * 60 * 24)));
+                    return (
+                      <Card key={tree.id} className="border-dashed opacity-75 hover:opacity-100 transition-opacity" data-testid={`card-deleted-tree-${tree.id}`}>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <CardTitle className="font-serif text-base truncate text-muted-foreground">{tree.name}</CardTitle>
+                              <CardDescription className="text-xs mt-1">
+                                Deleted {deletedDate.toLocaleDateString()} · {daysLeft} days left
+                              </CardDescription>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 gap-1.5"
+                              onClick={() => restoreTreeMutation.mutate(tree.id)}
+                              disabled={restoreTreeMutation.isPending}
+                              data-testid={`button-restore-tree-${tree.id}`}
+                            >
+                              <Undo2 className="h-3.5 w-3.5" />
+                              Restore
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="flex-1 gap-1.5 text-destructive hover:text-destructive"
+                              onClick={() => {
+                                if (confirm("Permanently delete this tree? This cannot be undone and all data will be lost forever.")) {
+                                  permanentDeleteTreeMutation.mutate(tree.id);
+                                }
+                              }}
+                              disabled={permanentDeleteTreeMutation.isPending}
+                              data-testid={`button-permanent-delete-tree-${tree.id}`}
+                            >
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                              Delete Forever
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </main>
 

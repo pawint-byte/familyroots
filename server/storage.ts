@@ -49,7 +49,7 @@ import {
   type MemberMute, type InsertMemberMute,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, ilike, desc, lt, gte, isNotNull, inArray, sql, count } from "drizzle-orm";
+import { eq, and, or, ilike, desc, lt, gte, isNotNull, isNull, inArray, sql, count } from "drizzle-orm";
 
 export interface IStorage {
   // Family Trees
@@ -59,6 +59,10 @@ export interface IStorage {
   createTree(tree: InsertFamilyTree): Promise<FamilyTree>;
   updateTree(id: string, tree: Partial<InsertFamilyTree>): Promise<FamilyTree | undefined>;
   deleteTree(id: string): Promise<boolean>;
+  softDeleteTree(id: string): Promise<boolean>;
+  restoreTree(id: string): Promise<boolean>;
+  getDeletedTrees(userId: string): Promise<FamilyTree[]>;
+  permanentlyDeleteTree(id: string): Promise<boolean>;
   getDiscoverableTrees(options?: { search?: string; category?: string; treeType?: string }): Promise<(FamilyTree & { memberCount: number; ownerName: string })[]>;
   getChildTrees(parentTreeId: string): Promise<FamilyTree[]>;
   splitTree(sourceTreeId: string, params: {
@@ -81,6 +85,10 @@ export interface IStorage {
   createMember(member: InsertFamilyMember): Promise<FamilyMember>;
   updateMember(id: string, member: Partial<InsertFamilyMember>): Promise<FamilyMember | undefined>;
   deleteMember(id: string): Promise<boolean>;
+  softDeleteMember(id: string): Promise<boolean>;
+  restoreMember(id: string): Promise<boolean>;
+  getDeletedMembers(treeId: string): Promise<FamilyMember[]>;
+  permanentlyDeleteMember(id: string): Promise<boolean>;
   searchMembers(treeId: string, query: string): Promise<FamilyMember[]>;
 
   // Relationships
@@ -389,13 +397,25 @@ export class DatabaseStorage implements IStorage {
   // Family Trees
   async getTrees(userId: string): Promise<FamilyTree[]> {
     return db.select().from(familyTrees)
-      .where(eq(familyTrees.ownerId, userId))
+      .where(and(eq(familyTrees.ownerId, userId), isNull(familyTrees.deletedAt)))
       .orderBy(desc(familyTrees.updatedAt));
   }
 
   async getTree(id: string): Promise<FamilyTree | undefined> {
-    const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, id));
+    const [tree] = await db.select().from(familyTrees).where(and(eq(familyTrees.id, id), isNull(familyTrees.deletedAt)));
     return tree;
+  }
+
+  async getDeletedTrees(userId: string): Promise<FamilyTree[]> {
+    return db.select().from(familyTrees)
+      .where(and(eq(familyTrees.ownerId, userId), isNotNull(familyTrees.deletedAt)))
+      .orderBy(desc(familyTrees.deletedAt));
+  }
+
+  async getDeletedMembers(treeId: string): Promise<FamilyMember[]> {
+    return db.select().from(familyMembers)
+      .where(and(eq(familyMembers.treeId, treeId), isNotNull(familyMembers.deletedAt)))
+      .orderBy(desc(familyMembers.deletedAt));
   }
 
   async getCollaboratedTrees(userId: string): Promise<{ collaboratedTrees: FamilyTree[] }> {
@@ -415,7 +435,7 @@ export class DatabaseStorage implements IStorage {
 
   async getChildTrees(parentTreeId: string): Promise<FamilyTree[]> {
     return db.select().from(familyTrees)
-      .where(eq(familyTrees.parentTreeId, parentTreeId))
+      .where(and(eq(familyTrees.parentTreeId, parentTreeId), isNull(familyTrees.deletedAt)))
       .orderBy(familyTrees.name);
   }
 
@@ -585,8 +605,39 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
+  async softDeleteTree(id: string): Promise<boolean> {
+    const [updated] = await db.update(familyTrees)
+      .set({ deletedAt: new Date() })
+      .where(eq(familyTrees.id, id))
+      .returning();
+    return !!updated;
+  }
+
+  async restoreTree(id: string): Promise<boolean> {
+    const [updated] = await db.update(familyTrees)
+      .set({ deletedAt: null })
+      .where(eq(familyTrees.id, id))
+      .returning();
+    return !!updated;
+  }
+
+  async permanentlyDeleteTree(id: string): Promise<boolean> {
+    const members = await db.select().from(familyMembers).where(eq(familyMembers.treeId, id));
+    for (const member of members) {
+      await db.delete(relationships).where(
+        or(eq(relationships.fromMemberId, member.id), eq(relationships.toMemberId, member.id))
+      );
+      await db.delete(familyEvents).where(eq(familyEvents.memberId, member.id));
+    }
+    await db.delete(familyMembers).where(eq(familyMembers.treeId, id));
+    await db.delete(treeCollaborators).where(eq(treeCollaborators.treeId, id));
+    await db.delete(treeInvitations).where(eq(treeInvitations.treeId, id));
+    await db.delete(familyTrees).where(eq(familyTrees.id, id));
+    return true;
+  }
+
   async getDiscoverableTrees(options?: { search?: string; category?: string; treeType?: string }): Promise<(FamilyTree & { memberCount: number; ownerName: string })[]> {
-    const conditions = [eq(familyTrees.isDiscoverable, true)];
+    const conditions = [eq(familyTrees.isDiscoverable, true), isNull(familyTrees.deletedAt)];
     
     if (options?.search) {
       conditions.push(
@@ -626,12 +677,12 @@ export class DatabaseStorage implements IStorage {
   // Family Members
   async getMembers(treeId: string): Promise<FamilyMember[]> {
     return db.select().from(familyMembers)
-      .where(eq(familyMembers.treeId, treeId))
+      .where(and(eq(familyMembers.treeId, treeId), isNull(familyMembers.deletedAt)))
       .orderBy(familyMembers.firstName);
   }
 
   async getMember(id: string): Promise<FamilyMember | undefined> {
-    const [member] = await db.select().from(familyMembers).where(eq(familyMembers.id, id));
+    const [member] = await db.select().from(familyMembers).where(and(eq(familyMembers.id, id), isNull(familyMembers.deletedAt)));
     return member;
   }
 
@@ -639,16 +690,21 @@ export class DatabaseStorage implements IStorage {
     const [member] = await db.select().from(familyMembers).where(
       and(
         eq(familyMembers.claimedByUserId, userId),
-        eq(familyMembers.treeId, treeId)
+        eq(familyMembers.treeId, treeId),
+        isNull(familyMembers.deletedAt)
       )
     );
     return member;
   }
 
+  async getMemberIncludingDeleted(id: string): Promise<FamilyMember | undefined> {
+    const [member] = await db.select().from(familyMembers).where(eq(familyMembers.id, id));
+    return member;
+  }
+
   async getMembersByEmail(email: string): Promise<FamilyMember[]> {
-    // Find all family members with this email across all trees
     const members = await db.select().from(familyMembers).where(
-      eq(familyMembers.email, email.toLowerCase())
+      and(eq(familyMembers.email, email.toLowerCase()), isNull(familyMembers.deletedAt))
     );
     return members;
   }
@@ -675,10 +731,36 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
+  async softDeleteMember(id: string): Promise<boolean> {
+    const [updated] = await db.update(familyMembers)
+      .set({ deletedAt: new Date() })
+      .where(eq(familyMembers.id, id))
+      .returning();
+    return !!updated;
+  }
+
+  async restoreMember(id: string): Promise<boolean> {
+    const [updated] = await db.update(familyMembers)
+      .set({ deletedAt: null })
+      .where(eq(familyMembers.id, id))
+      .returning();
+    return !!updated;
+  }
+
+  async permanentlyDeleteMember(id: string): Promise<boolean> {
+    await db.delete(relationships).where(
+      or(eq(relationships.fromMemberId, id), eq(relationships.toMemberId, id))
+    );
+    await db.delete(familyEvents).where(eq(familyEvents.memberId, id));
+    await db.delete(familyMembers).where(eq(familyMembers.id, id));
+    return true;
+  }
+
   async searchMembers(treeId: string, query: string): Promise<FamilyMember[]> {
     return db.select().from(familyMembers)
       .where(and(
         eq(familyMembers.treeId, treeId),
+        isNull(familyMembers.deletedAt),
         or(
           ilike(familyMembers.firstName, `%${query}%`),
           ilike(familyMembers.lastName, `%${query}%`),
@@ -1752,7 +1834,7 @@ export class DatabaseStorage implements IStorage {
 
   // Location-based search
   async getMembersByLocation(city?: string, region?: string, country?: string): Promise<FamilyMember[]> {
-    const conditions = [eq(familyMembers.locationVisible, true)];
+    const conditions = [eq(familyMembers.locationVisible, true), isNull(familyMembers.deletedAt)];
     
     if (city) {
       conditions.push(ilike(familyMembers.currentCity, `%${city}%`));

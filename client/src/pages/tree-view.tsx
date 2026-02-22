@@ -28,7 +28,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
   LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors,
-  Mail, TreeDeciduous, Send, Tag
+  Mail, TreeDeciduous, Send, Tag, Undo2
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -141,6 +141,7 @@ export default function TreeView() {
   const [createTreeName, setCreateTreeName] = useState("");
   const [createTreeAsSubGroup, setCreateTreeAsSubGroup] = useState(true);
   const [isBulkRelChangeOpen, setIsBulkRelChangeOpen] = useState(false);
+  const [isDeletedMembersOpen, setIsDeletedMembersOpen] = useState(false);
   const [bulkRelFromType, setBulkRelFromType] = useState<string>("");
   const [bulkRelToType, setBulkRelToType] = useState<string>("");
   const [bulkRelExcludeIds, setBulkRelExcludeIds] = useState<Set<string>>(new Set());
@@ -354,17 +355,64 @@ export default function TreeView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/deleted/trees/${treeId}/members`] });
       setIsMemberDetailOpen(false);
       setSelectedMember(null);
       toast({
-        title: "Success",
-        description: "Family member removed",
+        title: "Moved to Trash",
+        description: "Member moved to Recently Deleted. You can restore them from the tree menu.",
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to remove family member",
+        description: "Failed to remove member",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const { data: deletedMembers } = useQuery<any[]>({
+    queryKey: [`/api/deleted/trees/${treeId}/members`],
+    enabled: !!(treeId && (isOwner || isCoOwner)),
+  });
+
+  const restoreMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      return apiRequest("PATCH", `/api/deleted/trees/${treeId}/members/${memberId}/restore`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/deleted/trees/${treeId}/members`] });
+      toast({
+        title: "Member Restored",
+        description: "Member has been restored successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to restore member",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const permanentDeleteMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      return apiRequest("DELETE", `/api/deleted/trees/${treeId}/members/${memberId}/permanent`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/deleted/trees/${treeId}/members`] });
+      toast({
+        title: "Permanently Deleted",
+        description: "Member has been permanently deleted.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to permanently delete member",
         variant: "destructive",
       });
     },
@@ -1122,6 +1170,16 @@ export default function TreeView() {
                       >
                         <Edit className="h-4 w-4" />
                         Bulk Change Relationships
+                      </DropdownMenuItem>
+                    )}
+                    {deletedMembers && deletedMembers.length > 0 && (
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onClick={() => setIsDeletedMembersOpen(true)}
+                        data-testid="menu-deleted-members"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Deleted Members ({deletedMembers.length})
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
@@ -2723,12 +2781,16 @@ export default function TreeView() {
                     <Button 
                       variant="destructive" 
                       className="gap-2"
-                      onClick={() => deleteMemberMutation.mutate(selectedMember.id)}
+                      onClick={() => {
+                        if (confirm("Remove this member? They will be moved to Recently Deleted and can be restored within 30 days.")) {
+                          deleteMemberMutation.mutate(selectedMember.id);
+                        }
+                      }}
                       disabled={deleteMemberMutation.isPending}
                       data-testid="button-delete-member"
                     >
                       <Trash2 className="h-4 w-4" />
-                      {deleteMemberMutation.isPending ? "Deleting..." : "Delete"}
+                      {deleteMemberMutation.isPending ? "Removing..." : "Remove"}
                     </Button>
                   )}
                 </div>
@@ -3697,6 +3759,70 @@ export default function TreeView() {
                   </Button>
                 </div>
               </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeletedMembersOpen} onOpenChange={setIsDeletedMembersOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Deleted Members
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {deletedMembers && deletedMembers.length > 0 ? (
+              deletedMembers.map((member: any) => {
+                const deletedDate = new Date(member.deletedAt);
+                const expiryDate = new Date(deletedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+                const daysLeft = Math.max(0, Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                return (
+                  <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border bg-card" data-testid={`deleted-member-${member.id}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="h-8 w-8 flex-shrink-0">
+                        <AvatarImage src={member.photoUrl || undefined} />
+                        <AvatarFallback className="text-xs">
+                          {(member.firstName?.[0] || "") + (member.lastName?.[0] || "")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{member.firstName} {member.lastName}</p>
+                        <p className="text-xs text-muted-foreground">{daysLeft} days left to restore</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => restoreMemberMutation.mutate(member.id)}
+                        disabled={restoreMemberMutation.isPending}
+                        data-testid={`button-restore-member-${member.id}`}
+                      >
+                        <Undo2 className="h-4 w-4 text-green-600" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          if (confirm("Permanently delete this member? This cannot be undone.")) {
+                            permanentDeleteMemberMutation.mutate(member.id);
+                          }
+                        }}
+                        disabled={permanentDeleteMemberMutation.isPending}
+                        data-testid={`button-permanent-delete-member-${member.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No deleted members</p>
             )}
           </div>
         </DialogContent>

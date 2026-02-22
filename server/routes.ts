@@ -1,9 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { 
+  familyTrees, familyMembers,
   insertFamilyTreeSchema, insertFamilyMemberSchema, 
   insertRelationshipSchema, insertFamilyEventSchema,
   insertNameHistorySchema, insertTreeConnectionSchema,
@@ -638,11 +641,162 @@ export async function registerRoutes(
         }
       }
 
-      await storage.deleteTree(id);
+      await storage.softDeleteTree(id);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting tree:", error);
       res.status(500).json({ message: "Failed to delete tree" });
+    }
+  });
+
+  // Get deleted trees for current user
+  app.get("/api/deleted/trees", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deletedTrees = await storage.getDeletedTrees(userId);
+      res.json(deletedTrees);
+    } catch (error) {
+      console.error("Error fetching deleted trees:", error);
+      res.status(500).json({ message: "Failed to fetch deleted trees" });
+    }
+  });
+
+  // Get deleted members for a tree (owner can see even if tree is soft-deleted)
+  app.get("/api/deleted/trees/:treeId/members", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, treeId));
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const deletedMembers = await storage.getDeletedMembers(treeId);
+      res.json(deletedMembers);
+    } catch (error) {
+      console.error("Error fetching deleted members:", error);
+      res.status(500).json({ message: "Failed to fetch deleted members" });
+    }
+  });
+
+  // Restore a soft-deleted tree
+  app.patch("/api/deleted/trees/:id/restore", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, id));
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only the tree owner can restore a deleted tree" });
+      }
+
+      if (!tree.deletedAt) {
+        return res.status(400).json({ message: "Tree is not deleted" });
+      }
+
+      await storage.restoreTree(id);
+      res.json({ message: "Tree restored successfully" });
+    } catch (error) {
+      console.error("Error restoring tree:", error);
+      res.status(500).json({ message: "Failed to restore tree" });
+    }
+  });
+
+  // Restore a soft-deleted member
+  app.patch("/api/deleted/trees/:treeId/members/:memberId/restore", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, memberId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, treeId));
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const member = await storage.getMemberIncludingDeleted(memberId);
+      if (!member || member.treeId !== treeId) {
+        return res.status(404).json({ message: "Member not found in this tree" });
+      }
+
+      if (!member.deletedAt) {
+        return res.status(400).json({ message: "Member is not deleted" });
+      }
+
+      await storage.restoreMember(memberId);
+      res.json({ message: "Member restored successfully" });
+    } catch (error) {
+      console.error("Error restoring member:", error);
+      res.status(500).json({ message: "Failed to restore member" });
+    }
+  });
+
+  // Permanently delete a tree
+  app.delete("/api/deleted/trees/:id/permanent", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, id));
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only the tree owner can permanently delete a tree" });
+      }
+
+      await storage.permanentlyDeleteTree(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error permanently deleting tree:", error);
+      res.status(500).json({ message: "Failed to permanently delete tree" });
+    }
+  });
+
+  // Permanently delete a member
+  app.delete("/api/deleted/trees/:treeId/members/:memberId/permanent", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, memberId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, treeId));
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only the tree owner can permanently delete a member" });
+      }
+
+      const member = await storage.getMemberIncludingDeleted(memberId);
+      if (!member || member.treeId !== treeId) {
+        return res.status(404).json({ message: "Member not found in this tree" });
+      }
+
+      await storage.permanentlyDeleteMember(memberId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error permanently deleting member:", error);
+      res.status(500).json({ message: "Failed to permanently delete member" });
     }
   });
 
@@ -1436,7 +1590,7 @@ export async function registerRoutes(
         }
       }
 
-      await storage.deleteMember(memberId);
+      await storage.softDeleteMember(memberId);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting member:", error);
