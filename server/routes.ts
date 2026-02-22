@@ -349,11 +349,18 @@ export async function registerRoutes(
       }
 
       // Validate update data - only allow specific fields
-      const allowedFields = ["name", "description", "privacy", "visibilityDefault"];
+      const allowedFields = ["name", "description", "privacy", "visibilityDefault", "treeType", "treeTypeLabel", "customRelationshipTypes"];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
           updateData[field] = req.body[field];
+        }
+      }
+
+      if (updateData.treeType) {
+        const validTreeTypes = ["family", "church", "sports", "fraternity", "friends", "professional", "custom"];
+        if (!validTreeTypes.includes(updateData.treeType)) {
+          return res.status(400).json({ message: "Invalid tree type" });
         }
       }
 

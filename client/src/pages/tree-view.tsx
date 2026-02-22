@@ -82,6 +82,8 @@ export default function TreeView() {
   const [zoom, setZoom] = useState(getInitialZoom);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [newTreeName, setNewTreeName] = useState("");
+  const [newTreeType, setNewTreeType] = useState<string>("");
+  const [newTreeTypeLabel, setNewTreeTypeLabel] = useState("");
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
   const [showPaymentGate, setShowPaymentGate] = useState(false);
@@ -295,21 +297,28 @@ export default function TreeView() {
   });
 
   const renameTreeMutation = useMutation({
-    mutationFn: async (name: string) => {
-      return apiRequest("PATCH", `/api/trees/${treeId}`, { name });
+    mutationFn: async (data: { name?: string; treeType?: string; treeTypeLabel?: string | null }) => {
+      const body: Record<string, any> = {};
+      if (data.name) body.name = data.name;
+      if (data.treeType) {
+        body.treeType = data.treeType;
+        body.treeTypeLabel = data.treeType === 'custom' ? (data.treeTypeLabel || null) : null;
+      }
+      return apiRequest("PATCH", `/api/trees/${treeId}`, body);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
       setIsRenameOpen(false);
       toast({
         title: "Success",
-        description: "Tree renamed successfully!",
+        description: "Tree settings updated!",
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to rename tree",
+        description: "Failed to update tree settings",
         variant: "destructive",
       });
     },
@@ -384,12 +393,24 @@ export default function TreeView() {
 
   const handleRenameOpen = () => {
     setNewTreeName(treeData?.tree.name || "");
+    setNewTreeType(treeData?.tree.treeType || "family");
+    setNewTreeTypeLabel((treeData?.tree as any).treeTypeLabel || "");
     setIsRenameOpen(true);
   };
 
   const handleRenameSubmit = () => {
-    if (newTreeName.trim()) {
-      renameTreeMutation.mutate(newTreeName.trim());
+    const updates: { name?: string; treeType?: string; treeTypeLabel?: string | null } = {};
+    if (newTreeName.trim() && newTreeName.trim() !== treeData?.tree.name) {
+      updates.name = newTreeName.trim();
+    }
+    if (newTreeType && newTreeType !== (treeData?.tree.treeType || "family")) {
+      updates.treeType = newTreeType;
+      updates.treeTypeLabel = newTreeType === 'custom' ? newTreeTypeLabel || null : null;
+    }
+    if (Object.keys(updates).length > 0) {
+      renameTreeMutation.mutate(updates);
+    } else {
+      setIsRenameOpen(false);
     }
   };
 
@@ -727,7 +748,7 @@ export default function TreeView() {
             }}>
               <DialogContent className="max-w-sm">
                 <DialogHeader>
-                  <DialogTitle className="font-serif">Rename Tree</DialogTitle>
+                  <DialogTitle className="font-serif">Tree Settings</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -745,6 +766,41 @@ export default function TreeView() {
                       }}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tree-type">Tree Type</Label>
+                    <Select value={newTreeType} onValueChange={setNewTreeType}>
+                      <SelectTrigger id="tree-type" data-testid="select-tree-type">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="family">Family Tree</SelectItem>
+                        <SelectItem value="church">Church / Faith Group</SelectItem>
+                        <SelectItem value="sports">Sports Team</SelectItem>
+                        <SelectItem value="fraternity">Fraternity / Sorority</SelectItem>
+                        <SelectItem value="friends">Friend Circle</SelectItem>
+                        <SelectItem value="professional">Professional Network</SelectItem>
+                        <SelectItem value="custom">Custom Group</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {newTreeType !== (treeData?.tree.treeType || "family") && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1">
+                        <RefreshCw className="h-3 w-3 mt-0.5 shrink-0" />
+                        Changing the type will update the available relationship types and visual layout. Existing relationships will be kept.
+                      </p>
+                    )}
+                  </div>
+                  {newTreeType === "custom" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="tree-type-label">Custom Type Label</Label>
+                      <Input
+                        id="tree-type-label"
+                        value={newTreeTypeLabel}
+                        onChange={(e) => setNewTreeTypeLabel(e.target.value)}
+                        placeholder="e.g. Book Club, Dance Troupe"
+                        data-testid="input-tree-type-label"
+                      />
+                    </div>
+                  )}
                   <div className="flex justify-end gap-2">
                     <Button 
                       variant="outline" 
