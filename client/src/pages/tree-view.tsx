@@ -109,6 +109,8 @@ export default function TreeView() {
   const [viewDepth, setViewDepth] = useState<'immediate' | 'extended' | 'all'>('all');
   const [isCreateSubgroupOpen, setIsCreateSubgroupOpen] = useState(false);
   const [newSubgroupName, setNewSubgroupName] = useState("");
+  const [isMoveUnderParentOpen, setIsMoveUnderParentOpen] = useState(false);
+  const [selectedParentTreeId, setSelectedParentTreeId] = useState<string>("");
   const [importConnectionData, setImportConnectionData] = useState<{
     connectionId: string;
     connectorMemberId: string;
@@ -399,6 +401,44 @@ export default function TreeView() {
         variant: "destructive",
       });
     },
+  });
+
+  const moveTreeParentMutation = useMutation({
+    mutationFn: async (parentTreeId: string | null) => {
+      const res = await apiRequest("PATCH", `/api/trees/${treeId}/parent`, { parentTreeId });
+      return res.json();
+    },
+    onSuccess: (_, parentTreeId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/discover"] });
+      if (parentTreeId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/trees", parentTreeId] });
+      }
+      if (treeData?.tree?.parentTreeId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/trees", treeData.tree.parentTreeId] });
+      }
+      setIsMoveUnderParentOpen(false);
+      setSelectedParentTreeId("");
+      toast({
+        title: parentTreeId ? "Tree moved!" : "Tree detached!",
+        description: parentTreeId
+          ? "This tree is now a sub-group of the selected parent."
+          : "This tree is now a standalone group.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update tree parent",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const { data: allUserTrees } = useQuery<any[]>({
+    queryKey: ["/api/trees"],
+    enabled: isMoveUnderParentOpen,
   });
 
   const setRootMemberMutation = useMutation({
@@ -803,6 +843,25 @@ export default function TreeView() {
                       <Link2 className="h-4 w-4" />
                       Manage Relationships
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="gap-2"
+                      onClick={() => setIsMoveUnderParentOpen(true)}
+                      data-testid="button-move-under-parent"
+                    >
+                      <ArrowLeft className="h-4 w-4 rotate-[270deg]" />
+                      Move Under Parent
+                    </DropdownMenuItem>
+                    {treeData?.parentTree && (
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onClick={() => moveTreeParentMutation.mutate(null)}
+                        disabled={moveTreeParentMutation.isPending}
+                        data-testid="button-detach-from-parent"
+                      >
+                        <GitBranch className="h-4 w-4" />
+                        Detach from Parent
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem 
                       className="gap-2 text-destructive"
                       onClick={handleDeleteTree}
@@ -2535,6 +2594,61 @@ export default function TreeView() {
                 data-testid="button-submit-subgroup"
               >
                 {createSubgroupMutation.isPending ? "Creating..." : "Create Sub-group"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isMoveUnderParentOpen} onOpenChange={(open) => {
+        setIsMoveUnderParentOpen(open);
+        if (!open) setSelectedParentTreeId("");
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <GitBranch className="h-5 w-5" />
+              Move Under Parent
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Move "{treeData?.tree.name}" under another group you own, making it a sub-group. 
+              You must own or co-own both trees.
+            </p>
+            {treeData?.parentTree && (
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                This tree is currently under "{treeData.parentTree.name}". Selecting a new parent will move it there instead.
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label>Select Parent Group</Label>
+              <Select value={selectedParentTreeId} onValueChange={setSelectedParentTreeId}>
+                <SelectTrigger data-testid="select-parent-tree">
+                  <SelectValue placeholder="Choose a group..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allUserTrees
+                    ?.filter(t => t.id !== treeId)
+                    .map(t => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                        {t.parentTreeId ? " (sub-group)" : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsMoveUnderParentOpen(false)} data-testid="button-cancel-move-parent">
+                Cancel
+              </Button>
+              <Button
+                onClick={() => moveTreeParentMutation.mutate(selectedParentTreeId)}
+                disabled={!selectedParentTreeId || moveTreeParentMutation.isPending}
+                data-testid="button-submit-move-parent"
+              >
+                {moveTreeParentMutation.isPending ? "Moving..." : "Move Tree"}
               </Button>
             </div>
           </div>

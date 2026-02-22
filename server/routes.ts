@@ -442,6 +442,63 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/trees/:id/parent", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id: treeId } = req.params;
+      const userId = req.user.claims.sub;
+      const { parentTreeId } = req.body;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Only the owner or co-owners can move this tree" });
+        }
+      }
+
+      if (parentTreeId === null || parentTreeId === undefined) {
+        const updated = await storage.updateTree(treeId, { parentTreeId: null } as any);
+        return res.json(updated);
+      }
+
+      if (parentTreeId === treeId) {
+        return res.status(400).json({ message: "A tree cannot be its own parent" });
+      }
+
+      const parentTree = await storage.getTree(parentTreeId);
+      if (!parentTree) {
+        return res.status(404).json({ message: "Parent tree not found" });
+      }
+
+      if (parentTree.ownerId !== userId) {
+        const parentCollab = await storage.getCollaboratorByUserAndTree(userId, parentTreeId);
+        if (!parentCollab || parentCollab.role !== "co_owner") {
+          return res.status(403).json({ message: "You must be the owner or co-owner of both trees to move one under the other" });
+        }
+      }
+
+      let current = parentTree;
+      while (current.parentTreeId) {
+        if (current.parentTreeId === treeId) {
+          return res.status(400).json({ message: "Cannot move a tree under one of its own sub-groups (circular reference)" });
+        }
+        const next = await storage.getTree(current.parentTreeId);
+        if (!next) break;
+        current = next;
+      }
+
+      const updated = await storage.updateTree(treeId, { parentTreeId } as any);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating tree parent:", error);
+      res.status(400).json({ message: "Failed to update tree parent" });
+    }
+  });
+
   // Update a tree
   app.patch("/api/trees/:id", isAuthenticated, async (req: any, res) => {
     try {

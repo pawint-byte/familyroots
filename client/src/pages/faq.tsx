@@ -276,6 +276,22 @@ export default function FAQ() {
         {
           question: "Can people on the Discover page see Sub-groups?",
           answer: "Yes. When browsing discoverable community trees, parent groups show a count of how many sub-groups they contain. This helps people understand the size and structure of an organization before joining. Sub-groups themselves follow the same privacy and discoverability rules as any other tree."
+        },
+        {
+          question: "Can I move an existing tree under another tree after it's already been created?",
+          answer: "Yes! You don't have to plan the hierarchy from the start. Open the tree you want to move, click the menu button (three dots), and select 'Move Under Parent'. You'll see a list of your other trees — pick the one you want as the parent and click 'Move Tree'. For example, if you started with a standalone high school tree and later created a district tree, you can move the high school under the district at any time. You must own or co-own both trees to move one under the other."
+        },
+        {
+          question: "Can I detach a sub-group back to a standalone tree?",
+          answer: "Yes. Open the sub-group, click the menu button (three dots), and select 'Detach from Parent'. The tree becomes a completely independent group again — all its members, relationships, and data stay exactly the same. This is useful when a school splits off from a district, a ministry becomes its own organization, or any group needs to stand on its own."
+        },
+        {
+          question: "What happens to my data when I move or detach a tree?",
+          answer: "Nothing is lost. Moving a tree under a parent or detaching it from one only changes the organizational link between the two groups. All members, relationships, settings, and history within the tree stay exactly the same. It's like moving a folder on your computer — the contents don't change, just where it sits in the structure."
+        },
+        {
+          question: "What if our organization restructures — schools close, departments merge, or leadership changes?",
+          answer: "FamilyRoots is built for this. You can move any tree under a new parent, detach it to stand on its own, or create new parent groups to reorganize from the top down. If a school closes, detach it from the district and it becomes an alumni archive. If two departments merge, create a new parent group and move both under it. Your members' data and history survive every change — nothing is ever lost just because the structure shifts."
         }
       ]
     },
