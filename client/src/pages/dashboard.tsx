@@ -380,6 +380,17 @@ export default function Dashboard() {
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
+                  className="flex items-start gap-2"
+                  onClick={() => navigate("/discover")}
+                  data-testid="mobile-menu-discover"
+                >
+                  <Search className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-medium">Discover</div>
+                    <div className="text-xs text-muted-foreground">Browse and join communities</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
                   className="flex items-center gap-2"
                   onClick={() => navigate("/share")}
                   data-testid="mobile-menu-share"
@@ -470,6 +481,17 @@ export default function Dashboard() {
               </TooltipTrigger>
               <TooltipContent>
                 <p>See all your trees and connections in one view</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/discover")} className="hidden md:flex gap-1" data-testid="link-discover">
+                  <Search className="h-4 w-4" />
+                  <span className="hidden lg:inline">Discover</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Browse and join public communities and groups</p>
               </TooltipContent>
             </Tooltip>
             <Tooltip>

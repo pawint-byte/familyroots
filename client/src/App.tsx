@@ -38,6 +38,7 @@ import GiftRegistry from "@/pages/gift-registry";
 import RegistryDetail from "@/pages/registry-detail";
 import NetworkOverview from "@/pages/network-overview";
 import MembershipBadge from "@/pages/membership-badge";
+import Discover from "@/pages/discover";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -87,6 +88,7 @@ function Router() {
       <Route path="/registry/:registryId" component={RegistryDetail} />
       <Route path="/network-overview" component={NetworkOverview} />
       <Route path="/my-badge" component={MembershipBadge} />
+      <Route path="/discover" component={Discover} />
       <Route component={NotFound} />
     </Switch>
   );

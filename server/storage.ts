@@ -45,7 +45,7 @@ import {
   type Announcement, type InsertAnnouncement,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, ilike, desc, lt, gte, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, or, ilike, desc, lt, gte, isNotNull, inArray, sql, count } from "drizzle-orm";
 
 export interface IStorage {
   // Family Trees
@@ -55,6 +55,7 @@ export interface IStorage {
   createTree(tree: InsertFamilyTree): Promise<FamilyTree>;
   updateTree(id: string, tree: Partial<InsertFamilyTree>): Promise<FamilyTree | undefined>;
   deleteTree(id: string): Promise<boolean>;
+  getDiscoverableTrees(options?: { search?: string; category?: string; treeType?: string }): Promise<(FamilyTree & { memberCount: number; ownerName: string })[]>;
 
   // Family Members
   getMembers(treeId: string): Promise<FamilyMember[]>;
@@ -393,6 +394,44 @@ export class DatabaseStorage implements IStorage {
   async deleteTree(id: string): Promise<boolean> {
     const result = await db.delete(familyTrees).where(eq(familyTrees.id, id));
     return true;
+  }
+
+  async getDiscoverableTrees(options?: { search?: string; category?: string; treeType?: string }): Promise<(FamilyTree & { memberCount: number; ownerName: string })[]> {
+    const conditions = [eq(familyTrees.isDiscoverable, true)];
+    
+    if (options?.search) {
+      conditions.push(
+        or(
+          ilike(familyTrees.name, `%${options.search}%`),
+          ilike(familyTrees.discoveryDescription, `%${options.search}%`),
+          ilike(familyTrees.discoveryLocation, `%${options.search}%`)
+        )!
+      );
+    }
+    if (options?.category) {
+      conditions.push(eq(familyTrees.discoveryCategory, options.category));
+    }
+    if (options?.treeType) {
+      conditions.push(eq(familyTrees.treeType, options.treeType as any));
+    }
+
+    const trees = await db
+      .select({
+        tree: familyTrees,
+        memberCount: count(familyMembers.id),
+        ownerName: sql<string>`COALESCE((SELECT u.first_name || ' ' || u.last_name FROM users u WHERE u.id = ${familyTrees.ownerId} LIMIT 1), 'Unknown')`,
+      })
+      .from(familyTrees)
+      .leftJoin(familyMembers, eq(familyMembers.treeId, familyTrees.id))
+      .where(and(...conditions))
+      .groupBy(familyTrees.id)
+      .orderBy(desc(familyTrees.createdAt));
+
+    return trees.map(t => ({
+      ...t.tree,
+      memberCount: Number(t.memberCount),
+      ownerName: t.ownerName,
+    }));
   }
 
   // Family Members

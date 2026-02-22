@@ -27,7 +27,7 @@ import {
   Users, Calendar, MapPin, Heart, User, Edit, Trash2, Share2,
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
-  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus
+  LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toPng } from "html-to-image";
@@ -86,6 +86,11 @@ export default function TreeView() {
   const [newTreeName, setNewTreeName] = useState("");
   const [newTreeType, setNewTreeType] = useState<string>("");
   const [newTreeTypeLabel, setNewTreeTypeLabel] = useState("");
+  const [discoveryEnabled, setDiscoveryEnabled] = useState(false);
+  const [discoveryDescription, setDiscoveryDescription] = useState("");
+  const [discoveryCategory, setDiscoveryCategory] = useState("");
+  const [discoveryLocation, setDiscoveryLocation] = useState("");
+  const [autoJoinEnabled, setAutoJoinEnabled] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
   const [showPaymentGate, setShowPaymentGate] = useState(false);
@@ -422,6 +427,11 @@ export default function TreeView() {
     setNewTreeName(treeData?.tree.name || "");
     setNewTreeType(treeData?.tree.treeType || "family");
     setNewTreeTypeLabel((treeData?.tree as any).treeTypeLabel || "");
+    setDiscoveryEnabled(treeData?.tree.isDiscoverable || false);
+    setDiscoveryDescription(treeData?.tree.discoveryDescription || "");
+    setDiscoveryCategory(treeData?.tree.discoveryCategory || "");
+    setDiscoveryLocation(treeData?.tree.discoveryLocation || "");
+    setAutoJoinEnabled(treeData?.tree.autoJoin || false);
     setIsRenameOpen(true);
   };
 
@@ -434,9 +444,27 @@ export default function TreeView() {
       updates.treeType = newTreeType;
       updates.treeTypeLabel = newTreeType === 'custom' ? newTreeTypeLabel || null : null;
     }
+    const discoveryUpdates = {
+      isDiscoverable: discoveryEnabled,
+      discoveryDescription: discoveryDescription.trim() || null,
+      discoveryCategory: discoveryCategory || null,
+      discoveryLocation: discoveryLocation.trim() || null,
+      autoJoin: autoJoinEnabled,
+    };
+    const discoveryChanged = 
+      discoveryEnabled !== (treeData?.tree.isDiscoverable || false) ||
+      discoveryDescription.trim() !== (treeData?.tree.discoveryDescription || "") ||
+      discoveryCategory !== (treeData?.tree.discoveryCategory || "") ||
+      discoveryLocation.trim() !== (treeData?.tree.discoveryLocation || "") ||
+      autoJoinEnabled !== (treeData?.tree.autoJoin || false);
+
     if (Object.keys(updates).length > 0) {
       renameTreeMutation.mutate(updates);
-    } else {
+    }
+    if (discoveryChanged) {
+      updateDiscoveryMutation.mutate(discoveryUpdates);
+    }
+    if (Object.keys(updates).length === 0 && !discoveryChanged) {
       setIsRenameOpen(false);
     }
   };
@@ -457,6 +485,27 @@ export default function TreeView() {
       toast({
         title: "Error",
         description: "Failed to delete tree",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateDiscoveryMutation = useMutation({
+    mutationFn: async (data: { isDiscoverable: boolean; discoveryDescription: string | null; discoveryCategory: string | null; discoveryLocation: string | null; autoJoin: boolean }) => {
+      return apiRequest("PATCH", `/api/trees/${treeId}/discovery`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      toast({
+        title: "Discovery settings updated",
+        description: discoveryEnabled ? "Your tree is now discoverable" : "Your tree is now private",
+      });
+      setIsRenameOpen(false);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update discovery settings",
         variant: "destructive",
       });
     },
@@ -780,7 +829,7 @@ export default function TreeView() {
               setIsRenameOpen(open);
               if (!open) setNewTreeName("");
             }}>
-              <DialogContent className="max-w-sm">
+              <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="font-serif">Tree Settings</DialogTitle>
                 </DialogHeader>
@@ -835,6 +884,85 @@ export default function TreeView() {
                       />
                     </div>
                   )}
+
+                  {isTreeOwner && (
+                    <div className="border-t pt-4 space-y-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Globe className="h-4 w-4 text-primary" />
+                        <Label className="text-sm font-semibold">Discovery Settings</Label>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="discovery-toggle" className="text-sm">Make Discoverable</Label>
+                          <p className="text-xs text-muted-foreground">Allow others to find and join this tree</p>
+                        </div>
+                        <Switch
+                          id="discovery-toggle"
+                          checked={discoveryEnabled}
+                          onCheckedChange={setDiscoveryEnabled}
+                          data-testid="switch-discovery"
+                        />
+                      </div>
+                      {discoveryEnabled && (
+                        <>
+                          <div className="space-y-2">
+                            <Label htmlFor="discovery-description" className="text-sm">Description</Label>
+                            <Textarea
+                              id="discovery-description"
+                              value={discoveryDescription}
+                              onChange={(e) => setDiscoveryDescription(e.target.value)}
+                              placeholder="Briefly describe your group for others to find it..."
+                              className="resize-none h-16 text-sm"
+                              maxLength={200}
+                              data-testid="input-discovery-description"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="discovery-category" className="text-sm">Category</Label>
+                            <Select value={discoveryCategory} onValueChange={setDiscoveryCategory}>
+                              <SelectTrigger id="discovery-category" data-testid="select-discovery-category">
+                                <SelectValue placeholder="Choose a category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="alumni">Alumni / School</SelectItem>
+                                <SelectItem value="church">Church / Faith</SelectItem>
+                                <SelectItem value="sports">Sports / Athletics</SelectItem>
+                                <SelectItem value="greek">Fraternity / Sorority</SelectItem>
+                                <SelectItem value="community">Community Group</SelectItem>
+                                <SelectItem value="professional">Professional Network</SelectItem>
+                                <SelectItem value="social">Friend Circle</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="discovery-location" className="text-sm">Location</Label>
+                            <Input
+                              id="discovery-location"
+                              value={discoveryLocation}
+                              onChange={(e) => setDiscoveryLocation(e.target.value)}
+                              placeholder="e.g. Chicago, IL"
+                              className="text-sm"
+                              data-testid="input-discovery-location"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <Label htmlFor="auto-join-toggle" className="text-sm">Auto-Join</Label>
+                              <p className="text-xs text-muted-foreground">Members can join instantly without approval</p>
+                            </div>
+                            <Switch
+                              id="auto-join-toggle"
+                              checked={autoJoinEnabled}
+                              onCheckedChange={setAutoJoinEnabled}
+                              data-testid="switch-auto-join"
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex justify-end gap-2">
                     <Button 
                       variant="outline" 
@@ -845,10 +973,10 @@ export default function TreeView() {
                     </Button>
                     <Button 
                       onClick={handleRenameSubmit}
-                      disabled={!newTreeName.trim() || renameTreeMutation.isPending}
+                      disabled={!newTreeName.trim() || renameTreeMutation.isPending || updateDiscoveryMutation.isPending}
                       data-testid="button-save-rename"
                     >
-                      {renameTreeMutation.isPending ? "Saving..." : "Save"}
+                      {(renameTreeMutation.isPending || updateDiscoveryMutation.isPending) ? "Saving..." : "Save"}
                     </Button>
                   </div>
                 </div>

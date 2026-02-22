@@ -1880,6 +1880,125 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== COMMUNITY DISCOVERY ROUTES ====================
+
+  app.get("/api/discover", async (req, res) => {
+    try {
+      const { search, category, treeType } = req.query;
+      const trees = await storage.getDiscoverableTrees({
+        search: search as string,
+        category: category as string,
+        treeType: treeType as string,
+      });
+      res.json(trees);
+    } catch (error: any) {
+      console.error("Error fetching discoverable trees:", error);
+      res.status(500).json({ message: "Failed to fetch discoverable communities" });
+    }
+  });
+
+  app.post("/api/discover/:treeId/join", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Community not found" });
+      }
+      if (!tree.isDiscoverable) {
+        return res.status(403).json({ message: "This community is not open for discovery" });
+      }
+      if (tree.ownerId === userId) {
+        return res.status(400).json({ message: "You already own this community" });
+      }
+
+      const existingCollab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+      if (existingCollab) {
+        return res.status(400).json({ message: "You are already a member of this community" });
+      }
+
+      if (tree.autoJoin) {
+        await storage.addCollaborator({
+          treeId,
+          userId,
+          role: "viewer",
+          canEdit: false,
+        });
+
+        const user = await storage.getUser(userId);
+        const firstName = user?.firstName || "New";
+        const lastName = user?.lastName || "Member";
+        await storage.addMember({
+          treeId,
+          firstName,
+          lastName,
+          isLiving: true,
+          claimedByUserId: userId,
+          claimedAt: new Date(),
+        } as any);
+
+        res.status(201).json({ message: "Welcome! You've joined the community.", joined: true });
+      } else {
+        const invitations = await storage.getInvitationsByTree(treeId);
+        let inviteCode: string;
+        if (invitations.length > 0) {
+          inviteCode = invitations[0].inviteCode;
+        } else {
+          const crypto = await import('crypto');
+          inviteCode = crypto.randomBytes(8).toString('hex');
+          await storage.createInvitation({
+            treeId,
+            inviteCode,
+            createdBy: tree.ownerId,
+          });
+        }
+
+        await storage.addCollaborator({
+          treeId,
+          userId,
+          role: "viewer",
+          canEdit: false,
+        });
+
+        res.status(201).json({ message: "You've joined as a viewer. Browse the community and claim your profile!", joined: true });
+      }
+    } catch (error: any) {
+      console.error("Error joining community:", error);
+      res.status(500).json({ message: error?.message || "Failed to join community" });
+    }
+  });
+
+  app.patch("/api/trees/:treeId/discovery", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      if (tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only the tree owner can change discovery settings" });
+      }
+
+      const { isDiscoverable, discoveryDescription, discoveryCategory, discoveryLocation, autoJoin } = req.body;
+
+      const updated = await storage.updateTree(treeId, {
+        isDiscoverable: isDiscoverable ?? tree.isDiscoverable,
+        discoveryDescription: discoveryDescription !== undefined ? discoveryDescription : tree.discoveryDescription,
+        discoveryCategory: discoveryCategory !== undefined ? discoveryCategory : tree.discoveryCategory,
+        discoveryLocation: discoveryLocation !== undefined ? discoveryLocation : tree.discoveryLocation,
+        autoJoin: autoJoin ?? tree.autoJoin,
+      } as any);
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating discovery settings:", error);
+      res.status(500).json({ message: "Failed to update discovery settings" });
+    }
+  });
+
   // ==================== PROFILE CLAIM ROUTES ====================
 
   // Get pending claim requests for trees owned by the current user

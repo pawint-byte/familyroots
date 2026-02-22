@@ -65,6 +65,11 @@ export const familyTrees = pgTable("family_trees", {
   treeTypeLabel: text("tree_type_label"),
   customRelationshipTypes: jsonb("custom_relationship_types").$type<string[]>(),
   preferredLayout: text("preferred_layout"),
+  isDiscoverable: boolean("is_discoverable").default(false),
+  discoveryDescription: text("discovery_description"),
+  discoveryCategory: text("discovery_category"),
+  discoveryLocation: text("discovery_location"),
+  autoJoin: boolean("auto_join").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
