@@ -414,12 +414,35 @@ export function getMemberRank(
 ): number {
   let bestRank = 3;
   for (const rel of relationships) {
-    if (rel.fromMemberId === memberId || rel.toMemberId === memberId) {
+    if (rel.fromMemberId === memberId) {
       const rank = getRelationshipRank(treeType, rel.relationshipType, customRelationshipTypes);
+      if (rank < bestRank) bestRank = rank;
+    } else if (rel.toMemberId === memberId) {
+      const reverseType = getReverseRelationshipType(treeType, rel.relationshipType, customRelationshipTypes);
+      const effectiveType = reverseType || rel.relationshipType;
+      const rank = getRelationshipRank(treeType, effectiveType, customRelationshipTypes);
       if (rank < bestRank) bestRank = rank;
     }
   }
   return bestRank;
+}
+
+export function getMemberDirectionalRole(
+  memberId: string,
+  relationships: { fromMemberId: string; toMemberId: string; relationshipType: string }[],
+  treeType: TreeType,
+  customRelationshipTypes?: string[] | null
+): string | undefined {
+  for (const rel of relationships) {
+    if (rel.fromMemberId === memberId) {
+      return rel.relationshipType;
+    }
+    if (rel.toMemberId === memberId) {
+      const reverseType = getReverseRelationshipType(treeType, rel.relationshipType, customRelationshipTypes);
+      return reverseType || rel.relationshipType;
+    }
+  }
+  return undefined;
 }
 
 export function getDefaultPeerRelationship(treeType: TreeType): string {

@@ -442,6 +442,28 @@ export default function TreeView() {
     },
   });
 
+  const updateMemberPositionMutation = useMutation({
+    mutationFn: async (data: { memberId: string; position: { x: number; y: number } }) => {
+      await apiRequest("PATCH", `/api/trees/${treeId}/members/${data.memberId}`, {
+        customPosition: data.position,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to save position",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleMemberPositionChange = useCallback(
+    (memberId: string, position: { x: number; y: number }) => {
+      updateMemberPositionMutation.mutate({ memberId, position });
+    },
+    [updateMemberPositionMutation]
+  );
+
   const renameTreeMutation = useMutation({
     mutationFn: async (data: { name?: string; treeType?: string; treeTypeLabel?: string | null }) => {
       const body: Record<string, any> = {};
@@ -1810,6 +1832,7 @@ export default function TreeView() {
                       focusMemberId={focusMemberId}
                       treeType={(treeData?.tree.treeType || "family") as TreeType}
                       layoutOverride={groupLayoutMode}
+                      onMemberPositionChange={handleMemberPositionChange}
                     />
                   )}
                 </div>

@@ -107,6 +107,7 @@ export const familyMembers = pgTable("family_members", {
   currentRegion: text("current_region"), // state/province
   currentCountry: text("current_country"),
   locationVisible: boolean("location_visible").default(false), // Whether to share location with connections
+  customPosition: jsonb("custom_position").$type<{ x: number; y: number } | null>(),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

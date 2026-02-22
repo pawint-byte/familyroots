@@ -1451,7 +1451,7 @@ export async function registerRoutes(
       }
       
       // Determine which fields are allowed based on role
-      const fullAllowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes", "visibilityOverride"];
+      const fullAllowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes", "visibilityOverride", "customPosition"];
       const custodianAllowedFields = ["firstName", "lastName", "deathDate", "notes", "photoUrl"];
       
       // Custodians can only edit limited fields (unless they're also the tree owner)

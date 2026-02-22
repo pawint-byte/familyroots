@@ -10,6 +10,8 @@ import {
   type LineStyle,
   getRelationshipTypesForTree,
   getMemberRank,
+  getMemberDirectionalRole,
+  getReverseRelationshipType,
 } from "@shared/treeTypes";
 import { Crown, Star, Shield } from "lucide-react";
 
@@ -20,6 +22,7 @@ interface GroupVisualizationProps {
   relationships: Relationship[];
   zoom: number;
   onMemberClick: (member: FamilyMember) => void;
+  onMemberPositionChange?: (memberId: string, position: { x: number; y: number }) => void;
   focusMemberId?: string | null;
   treeType: TreeType;
   layoutOverride?: GroupLayoutMode;
@@ -50,20 +53,27 @@ function getRelationshipLabel(
 
 function getMemberRelationshipType(
   memberId: string,
-  relationships: Relationship[]
+  relationships: Relationship[],
+  treeType: TreeType
 ): string | undefined {
   for (const rel of relationships) {
     if (rel.fromMemberId === memberId) return rel.relationshipType;
-    if (rel.toMemberId === memberId) return rel.relationshipType;
+    if (rel.toMemberId === memberId) {
+      const reverseType = getReverseRelationshipType(treeType, rel.relationshipType);
+      return reverseType || rel.relationshipType;
+    }
   }
   return undefined;
 }
 
-function buildRelMap(relationships: Relationship[]): Map<string, string> {
+function buildRelMap(relationships: Relationship[], treeType: TreeType): Map<string, string> {
   const relMap = new Map<string, string>();
   for (const rel of relationships) {
     if (!relMap.has(rel.fromMemberId)) relMap.set(rel.fromMemberId, rel.relationshipType);
-    if (!relMap.has(rel.toMemberId)) relMap.set(rel.toMemberId, rel.relationshipType);
+    if (!relMap.has(rel.toMemberId)) {
+      const reverseType = getReverseRelationshipType(treeType, rel.relationshipType);
+      relMap.set(rel.toMemberId, reverseType || rel.relationshipType);
+    }
   }
   return relMap;
 }
@@ -95,7 +105,7 @@ function resolveLeadersAndRest(
   relationships: Relationship[],
   treeType: TreeType
 ) {
-  const relMap = buildRelMap(relationships);
+  const relMap = buildRelMap(relationships, treeType);
   const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
   const leaders = rank1.length > 0 ? rank1 : [members.find((m) => m.id === focusId) || members[0]];
   const subLeaders = rank1.length > 0 ? rank2 : [];
@@ -239,7 +249,7 @@ function calculateRadialLayout(
 
   const focusMember = members.find((m) => m.id === focusId) || members[0];
   const others = members.filter((m) => m.id !== focusMember.id);
-  const relMap = buildRelMap(relationships);
+  const relMap = buildRelMap(relationships, treeType);
 
   const { rank1, rank2, rank3 } = sortByRank(others, relationships, treeType);
 
@@ -283,7 +293,7 @@ function calculateGridLayout(
   const startY = 100;
   const perRow = 5;
 
-  const relMap = buildRelMap(relationships);
+  const relMap = buildRelMap(relationships, treeType);
   const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
 
   const positions: NodePosition[] = [];
@@ -328,7 +338,7 @@ function calculateArcLayout(
 ): NodePosition[] {
   if (members.length === 0) return [];
 
-  const relMap = buildRelMap(relationships);
+  const relMap = buildRelMap(relationships, treeType);
   const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
 
   const focusMember = members.find((m) => m.id === focusId);
@@ -400,7 +410,7 @@ function calculateNetworkLayout(
     adjMap.get(rel.toMemberId)?.add(rel.fromMemberId);
   }
 
-  const relMap = buildRelMap(relationships);
+  const relMap = buildRelMap(relationships, treeType);
 
   const startId = members.find((m) => m.id === focusId)?.id || members[0].id;
   const dist = new Map<string, number>();
@@ -514,6 +524,7 @@ export default function GroupVisualization({
   relationships,
   zoom,
   onMemberClick,
+  onMemberPositionChange,
   focusMemberId,
   treeType,
   layoutOverride,
@@ -522,6 +533,11 @@ export default function GroupVisualization({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+
+  const [draggedMemberId, setDraggedMemberId] = useState<string | null>(null);
+  const [draggedPosition, setDraggedPosition] = useState<{ x: number; y: number } | null>(null);
+  const memberDragStartRef = useRef<{ pointerX: number; pointerY: number; memberX: number; memberY: number } | null>(null);
+  const memberDidDragRef = useRef(false);
 
   const config = getTreeTypeConfig(treeType);
   const visual = config.visual;
@@ -545,27 +561,42 @@ export default function GroupVisualization({
     return deduplicatedMembers[0]?.id || "";
   }, [focusMemberId, deduplicatedMembers]);
 
-  const positions = useMemo(
-    () =>
-      calculatePositions(
-        visual.layoutShape,
-        deduplicatedMembers,
-        focusId,
-        relationships,
-        treeType,
-        layoutOverride
-      ),
-    [visual.layoutShape, deduplicatedMembers, focusId, relationships, treeType, layoutOverride]
-  );
+  const positions = useMemo(() => {
+    const calculated = calculatePositions(
+      visual.layoutShape,
+      deduplicatedMembers,
+      focusId,
+      relationships,
+      treeType,
+      layoutOverride
+    );
+    for (const pos of calculated) {
+      const custom = pos.member.customPosition as { x: number; y: number } | null | undefined;
+      if (custom && typeof custom.x === "number" && typeof custom.y === "number") {
+        pos.x = custom.x;
+        pos.y = custom.y;
+      }
+    }
+    return calculated;
+  }, [visual.layoutShape, deduplicatedMembers, focusId, relationships, treeType, layoutOverride]);
+
+  const effectivePositions = useMemo(() => {
+    if (!draggedMemberId || !draggedPosition) return positions;
+    return positions.map((p) =>
+      p.member.id === draggedMemberId
+        ? { ...p, x: draggedPosition.x, y: draggedPosition.y }
+        : p
+    );
+  }, [positions, draggedMemberId, draggedPosition]);
 
   const bounds = useMemo(() => {
-    if (positions.length === 0)
+    if (effectivePositions.length === 0)
       return { minX: 0, minY: 0, maxX: 800, maxY: 600, width: 800, height: 600 };
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
       maxY = -Infinity;
-    for (const p of positions) {
+    for (const p of effectivePositions) {
       if (p.x < minX) minX = p.x;
       if (p.y < minY) minY = p.y;
       if (p.x > maxX) maxX = p.x;
@@ -580,13 +611,13 @@ export default function GroupVisualization({
       width: maxX - minX + pad * 2,
       height: maxY - minY + pad * 2,
     };
-  }, [positions]);
+  }, [effectivePositions]);
 
   const positionMap = useMemo(() => {
     const map = new Map<string, NodePosition>();
-    for (const p of positions) map.set(p.member.id, p);
+    for (const p of effectivePositions) map.set(p.member.id, p);
     return map;
-  }, [positions]);
+  }, [effectivePositions]);
 
   const connectionLines = useMemo(() => {
     const lines: {
@@ -594,7 +625,8 @@ export default function GroupVisualization({
       y1: number;
       x2: number;
       y2: number;
-      label: string;
+      fromLabel: string;
+      toLabel: string;
       key: string;
     }[] = [];
 
@@ -602,12 +634,17 @@ export default function GroupVisualization({
       const from = positionMap.get(rel.fromMemberId);
       const to = positionMap.get(rel.toMemberId);
       if (from && to) {
+        const fromLabel = getRelationshipLabel(rel.relationshipType, treeType);
+        const types = getRelationshipTypesForTree(treeType);
+        const typeConfig = types.find((t) => t.value === rel.relationshipType);
+        const toLabel = typeConfig?.reverseLabel || fromLabel;
         lines.push({
           x1: from.x,
           y1: from.y,
           x2: to.x,
           y2: to.y,
-          label: getRelationshipLabel(rel.relationshipType, treeType),
+          fromLabel,
+          toLabel,
           key: rel.id,
         });
       }
@@ -667,6 +704,59 @@ export default function GroupVisualization({
   const handleTouchEnd = useCallback(() => {
     setIsDragging(false);
   }, []);
+
+  const handleMemberPointerDown = useCallback(
+    (e: React.PointerEvent, memberId: string) => {
+      e.stopPropagation();
+      e.preventDefault();
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      const pos = positionMap.get(memberId);
+      if (!pos) return;
+      memberDidDragRef.current = false;
+      setDraggedMemberId(memberId);
+      setDraggedPosition({ x: pos.x, y: pos.y });
+      memberDragStartRef.current = {
+        pointerX: e.clientX,
+        pointerY: e.clientY,
+        memberX: pos.x,
+        memberY: pos.y,
+      };
+    },
+    [positionMap]
+  );
+
+  const handleMemberPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggedMemberId || !memberDragStartRef.current) return;
+      e.preventDefault();
+      const rawDx = e.clientX - memberDragStartRef.current.pointerX;
+      const rawDy = e.clientY - memberDragStartRef.current.pointerY;
+      if (Math.abs(rawDx) > 3 || Math.abs(rawDy) > 3) {
+        memberDidDragRef.current = true;
+      }
+      const dx = rawDx / zoom;
+      const dy = rawDy / zoom;
+      setDraggedPosition({
+        x: memberDragStartRef.current.memberX + dx,
+        y: memberDragStartRef.current.memberY + dy,
+      });
+    },
+    [draggedMemberId, zoom]
+  );
+
+  const handleMemberPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggedMemberId) return;
+      e.preventDefault();
+      if (memberDidDragRef.current && draggedPosition && onMemberPositionChange) {
+        onMemberPositionChange(draggedMemberId, draggedPosition);
+      }
+      setDraggedMemberId(null);
+      setDraggedPosition(null);
+      memberDragStartRef.current = null;
+    },
+    [draggedMemberId, draggedPosition, onMemberPositionChange]
+  );
 
   if (deduplicatedMembers.length === 0) {
     return (
@@ -792,6 +882,8 @@ export default function GroupVisualization({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onPointerMove={handleMemberPointerMove}
+      onPointerUp={handleMemberPointerUp}
       data-testid="group-visualization-canvas"
     >
       <div
@@ -824,8 +916,15 @@ export default function GroupVisualization({
             const cx = mx + nx * curvature;
             const cy = my + ny * curvature;
 
-            const labelX = (line.x1 + 2 * cx + line.x2) / 4;
-            const labelY = (line.y1 + 2 * cy + line.y2) / 4;
+            const hasDirectional = line.fromLabel !== line.toLabel;
+
+            const fromLabelX = line.x1 * 0.65 + cx * 0.2 + line.x2 * 0.15;
+            const fromLabelY = line.y1 * 0.65 + cy * 0.2 + line.y2 * 0.15;
+            const toLabelX = line.x1 * 0.15 + cx * 0.2 + line.x2 * 0.65;
+            const toLabelY = line.y1 * 0.15 + cy * 0.2 + line.y2 * 0.65;
+
+            const midLabelX = (line.x1 + 2 * cx + line.x2) / 4;
+            const midLabelY = (line.y1 + 2 * cy + line.y2) / 4;
 
             return (
               <g key={line.key}>
@@ -837,34 +936,85 @@ export default function GroupVisualization({
                   strokeDasharray={dashArray}
                   strokeLinecap="round"
                 />
-                <rect
-                  x={labelX - 30}
-                  y={labelY - 8}
-                  width={60}
-                  height={16}
-                  rx={4}
-                  fill="var(--background, white)"
-                  fillOpacity={0.85}
-                  className="pointer-events-none"
-                />
-                <text
-                  x={labelX}
-                  y={labelY}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={10}
-                  fontWeight={500}
-                  fill={visual.lineColor}
-                  className="pointer-events-none"
-                >
-                  {line.label}
-                </text>
+                {hasDirectional ? (
+                  <>
+                    <rect
+                      x={fromLabelX - 30}
+                      y={fromLabelY - 8}
+                      width={60}
+                      height={16}
+                      rx={4}
+                      fill="var(--background, white)"
+                      fillOpacity={0.85}
+                      className="pointer-events-none"
+                    />
+                    <text
+                      x={fromLabelX}
+                      y={fromLabelY}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={10}
+                      fontWeight={500}
+                      fill={visual.lineColor}
+                      className="pointer-events-none"
+                    >
+                      {line.fromLabel}
+                    </text>
+                    <rect
+                      x={toLabelX - 30}
+                      y={toLabelY - 8}
+                      width={60}
+                      height={16}
+                      rx={4}
+                      fill="var(--background, white)"
+                      fillOpacity={0.85}
+                      className="pointer-events-none"
+                    />
+                    <text
+                      x={toLabelX}
+                      y={toLabelY}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={10}
+                      fontWeight={500}
+                      fill={visual.lineColor}
+                      className="pointer-events-none"
+                    >
+                      {line.toLabel}
+                    </text>
+                  </>
+                ) : (
+                  <>
+                    <rect
+                      x={midLabelX - 30}
+                      y={midLabelY - 8}
+                      width={60}
+                      height={16}
+                      rx={4}
+                      fill="var(--background, white)"
+                      fillOpacity={0.85}
+                      className="pointer-events-none"
+                    />
+                    <text
+                      x={midLabelX}
+                      y={midLabelY}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={10}
+                      fontWeight={500}
+                      fill={visual.lineColor}
+                      className="pointer-events-none"
+                    >
+                      {line.fromLabel}
+                    </text>
+                  </>
+                )}
               </g>
             );
           })}
         </svg>
 
-        {positions.map((pos) => {
+        {effectivePositions.map((pos) => {
           const isFocus = pos.member.id === focusId;
           const memberRank = pos.rank || 3;
           const nodeSize = getNodeSize(memberRank);
@@ -875,6 +1025,7 @@ export default function GroupVisualization({
 
           const isLeader = memberRank === 1;
           const isSubLeader = memberRank === 2;
+          const isMemberDragging = draggedMemberId === pos.member.id;
 
           const borderWidth = isLeader ? 3 : isSubLeader ? 2.5 : 2;
           const glowIntensity = isLeader ? "0 0 20px 4px" : isSubLeader ? "0 0 12px 2px" : "0 0 16px 2px";
@@ -885,7 +1036,9 @@ export default function GroupVisualization({
               key={pos.member.id}
               data-member-card
               data-testid={`group-member-${pos.member.id}`}
-              className={`absolute flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 hover:scale-105 ${
+              className={`absolute flex flex-col items-center gap-1 ${
+                isMemberDragging ? "cursor-grabbing" : "cursor-pointer"
+              } ${isMemberDragging ? "" : "transition-all duration-200 hover:scale-105"} ${
                 isCircleNode
                   ? "rounded-full justify-center"
                   : "rounded-lg p-2 justify-start pt-3"
@@ -903,7 +1056,10 @@ export default function GroupVisualization({
                   : undefined,
                 zIndex: isLeader ? 3 : isSubLeader ? 2 : 1,
               }}
-              onClick={() => onMemberClick(pos.member)}
+              onPointerDown={(e) => handleMemberPointerDown(e, pos.member.id)}
+              onClick={() => {
+                if (!memberDidDragRef.current) onMemberClick(pos.member);
+              }}
             >
               {isLeader && (
                 <div

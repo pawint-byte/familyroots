@@ -130,7 +130,7 @@ export function AddRelationship({
         </DialogHeader>
         <div className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label>{isFamily ? `Who is ${getMemberName(currentMember)} to the other person?` : "Select role/relationship"}</Label>
+            <Label>{`What is ${getMemberName(currentMember)}'s role?`}</Label>
             <Select 
               value={relationshipType} 
               onValueChange={(val) => setRelationshipType(val)}
@@ -141,25 +141,14 @@ export function AddRelationship({
               <SelectContent>
                 {availableRelTypes.map((relType) => (
                   <SelectItem key={relType.value} value={relType.value}>
-                    {isFamily ? (
-                      <>
-                        {getMemberName(currentMember)} is their <strong>{relType.label.toUpperCase()}</strong>
-                        {relType.reverseLabel && ` (they are ${getMemberName(currentMember)}'s ${relType.reverseLabel.toLowerCase()})`}
-                      </>
-                    ) : (
-                      <>
-                        <strong>{relType.label}</strong>
-                        {relType.description && ` - ${relType.description}`}
-                      </>
-                    )}
+                    {getMemberName(currentMember)} is their <strong>{relType.label.toUpperCase()}</strong>
+                    {relType.reverseLabel && ` (they are ${getMemberName(currentMember)}'s ${relType.reverseLabel.toLowerCase()})`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {isFamily 
-                ? `Select what ${getMemberName(currentMember)} is to the person you'll select next.`
-                : `Select the role of ${getMemberName(currentMember)} relative to the other ${treeConfig.memberLabel.toLowerCase()}.`}
+              {`Select what ${getMemberName(currentMember)} is to the person you'll select next.`}
             </p>
           </div>
 
