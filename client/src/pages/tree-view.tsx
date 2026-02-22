@@ -934,7 +934,7 @@ export default function TreeView() {
                     </div>
                   )}
 
-                  {isTreeOwner && (
+                  {isOwner && (
                     <div className="border-t pt-4 space-y-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Globe className="h-4 w-4 text-primary" />
