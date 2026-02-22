@@ -232,6 +232,50 @@ export default function FAQ() {
         {
           question: "Why should our organization choose FamilyRoots over a spreadsheet or social media?",
           answer: "Spreadsheets go stale the moment someone graduates, moves, or changes roles. Social media groups are public, noisy, and treat everyone the same. FamilyRoots defines your organization's structure upfront — every role, every position, every qualifier — and then members fill in the map. Members own their own profiles, connections are labeled with real meaning (Coach/Player, not just 'member'), qualifier tags add context (Varsity, Class of 2028, Youth Ministry), leadership roles are visible, and the whole history is preserved. When a new pledge, player, or member joins, they see exactly where they fit. When an alumni comes back, their legacy is still there. It's the difference between a contact list and a real network."
+        },
+        {
+          question: "What are Sub-groups and how do they work?",
+          answer: "Sub-groups let you create smaller groups inside a larger one, building a natural hierarchy. Think of it like folders inside folders. A school tree can have sub-groups for 'Class of 2025', 'Class of 2026', and 'History Department'. A church can have 'Youth Ministry', 'Worship Team', and 'Bible Study' as sub-groups. A sports club can split into 'Varsity', 'JV', and 'Alumni'. Each sub-group has its own members, its own visualization, and its own page — but it's all connected under the parent group. You can navigate between them with a single click."
+        },
+        {
+          question: "How do I create a Sub-group?",
+          answer: "Open the tree you want to add a sub-group to. If you're the owner or a co-owner, you'll see a 'Create Sub-group' button below the tree header in the sub-groups bar. Click it, give your sub-group a name, and it's created instantly. The sub-group automatically inherits the same type and privacy settings as the parent. For example, if your parent tree is a sports team, the sub-group will also be a sports team with the same roles and structure available."
+        },
+        {
+          question: "Who can create Sub-groups?",
+          answer: "Only the owner and co-owners of a tree can create sub-groups. Editors and viewers cannot create them. This keeps the organizational structure under the control of the people who manage the group."
+        },
+        {
+          question: "How do I navigate between a parent group and its Sub-groups?",
+          answer: "When you're viewing a parent group, all its sub-groups appear in a navigation bar just below the header. Click any sub-group name to jump to it. When you're inside a sub-group, you'll see a breadcrumb link at the top showing the parent group's name — click it to go back up. It works just like navigating folders on your computer."
+        },
+        {
+          question: "Can I see which groups are Sub-groups on my Dashboard?",
+          answer: "Yes. On your Dashboard, any tree that is a sub-group shows a small badge with its parent group's name. This makes it easy to tell at a glance which groups are standalone and which are nested under a larger group."
+        },
+        {
+          question: "How would a sorority or fraternity use Sub-groups?",
+          answer: "Create your main chapter as the parent tree, then add sub-groups for each pledge class: 'Class of 2025', 'Class of 2026', 'Class of 2027', and so on. You could also create sub-groups by committee or role: 'Executive Board', 'Philanthropy Committee', 'Social Committee'. Each sub-group has its own members and visualization while staying connected to the chapter as a whole. Navigate between them instantly from the parent tree."
+        },
+        {
+          question: "How would a sports club use Sub-groups?",
+          answer: "Set up your main club as the parent tree, then create sub-groups for each team or division: 'Varsity', 'JV', 'U-16', 'U-14'. Or organize by season: 'Spring 2025', 'Fall 2025'. Coaches and staff can be in the parent group while players are organized into the appropriate sub-groups. Everyone can navigate between the main club and individual teams with one click."
+        },
+        {
+          question: "How would a church use Sub-groups?",
+          answer: "Your main congregation is the parent tree. Create sub-groups for each ministry or program: 'Youth Ministry', 'Worship Team', 'Sunday School', 'Women's Group', 'Men's Group', 'Bible Study'. Each ministry has its own members and structure, but they're all connected under the main church. Leaders can see the full picture from the parent tree and drill into any ministry."
+        },
+        {
+          question: "Can Sub-groups have their own Sub-groups?",
+          answer: "Yes, you can nest sub-groups if your organization needs it. For example, a university could have a 'College of Arts & Sciences' sub-group, which itself has 'History Department' and 'Biology Department' sub-groups inside it. That said, most organizations find one level of nesting is all they need — school → departments, church → ministries, club → teams. Keep it simple so everyone can navigate easily."
+        },
+        {
+          question: "Do Sub-groups count toward my credit total?",
+          answer: "Sub-groups are separate trees, so members added to a sub-group count toward your overall member total just like any other tree. Your 20 free member slots and any purchased credits apply across all your trees and sub-groups combined."
+        },
+        {
+          question: "Can people on the Discover page see Sub-groups?",
+          answer: "Yes. When browsing discoverable community trees, parent groups show a count of how many sub-groups they contain. This helps people understand the size and structure of an organization before joining. Sub-groups themselves follow the same privacy and discoverability rules as any other tree."
         }
       ]
     },
