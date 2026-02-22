@@ -106,7 +106,7 @@ type VisibilityTier = "full" | "extended" | "limited";
 const VISIBILITY_FIELDS: Record<VisibilityTier, string[]> = {
   full: ["id", "treeId", "firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes", "isUnknown", "unknownLabel", "claimedByUserId", "claimedAt", "custodianUserId", "custodianAssignedAt", "visibilityOverride", "createdAt", "updatedAt"],
   extended: ["id", "treeId", "firstName", "lastName", "gender", "birthDate", "photoUrl", "isLiving", "isUnknown", "unknownLabel", "visibilityOverride"],
-  limited: ["id", "treeId", "firstName", "lastName", "isLiving", "isUnknown", "unknownLabel", "visibilityOverride"],
+  limited: ["id", "treeId", "firstName", "lastName", "photoUrl", "isLiving", "isUnknown", "unknownLabel", "visibilityOverride"],
 };
 
 // Filter member data based on visibility tier
@@ -245,15 +245,26 @@ export async function registerRoutes(
       const members = await storage.getMembers(id);
       const relationships = await storage.getRelationships(id);
 
+      let viewerRole: "owner" | "co_owner" | "collaborator" | "public" = "public";
+      if (tree.ownerId === userId) {
+        viewerRole = "owner";
+      } else {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, id);
+        if (collab?.role === "co_owner") viewerRole = "co_owner";
+        else if (collab) viewerRole = "collaborator";
+      }
+
+      const isPublicViewer = tree.isDiscoverable && viewerRole === "public";
+
       // Merge claimed member data with user profiles (single source of truth)
       const mergedMembers = await Promise.all(
         members.map(async (member) => {
+          let merged = member;
           if (member.claimedByUserId) {
             const claimedUser = await storage.getUser(member.claimedByUserId);
             const mergedProfile = mergeMemberWithUserProfile(member, claimedUser);
-            return {
+            merged = {
               ...member,
-              // Apply merged personal data fields
               firstName: mergedProfile.firstName ?? member.firstName,
               lastName: mergedProfile.lastName ?? member.lastName,
               nickname: mergedProfile.nickname ?? member.nickname,
@@ -267,11 +278,14 @@ export async function registerRoutes(
               currentRegion: mergedProfile.currentRegion ?? member.currentRegion,
               currentCountry: mergedProfile.currentCountry ?? member.currentCountry,
               locationVisible: mergedProfile.locationVisible,
-              // Include source info for UI to show sync indicators
               _profileSourceInfo: mergedProfile._sourceInfo,
             };
           }
-          return member;
+
+          if (isPublicViewer && member.claimedByUserId !== userId) {
+            return filterMemberByVisibility(merged, "limited");
+          }
+          return merged;
         })
       );
 
