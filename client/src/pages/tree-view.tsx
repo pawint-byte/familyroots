@@ -672,6 +672,19 @@ export default function TreeView() {
                     <Badge variant="secondary" className="text-xs">
                       {treeData?.tree.privacy}
                     </Badge>
+                    {treeData?.tree.isDiscoverable && !isOwner && !isCoOwner && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="text-xs gap-1" data-testid="badge-moderated">
+                            <BellOff className="h-3 w-3" />
+                            Moderated
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-[200px] text-xs">Notifications are moderated. Only the tree owner and co-owners can send group-wide notifications.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {treeData?.members?.length || 0} members
                     </span>
