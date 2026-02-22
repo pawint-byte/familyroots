@@ -404,6 +404,14 @@ export default function FAQ() {
         {
           question: "What happens if I add an email that already exists?",
           answer: "If you add a family member with an email that already exists in another tree, you'll see a warning showing which trees contain that email. This doesn't block you from creating the member - it's just a heads-up that this person may already be tracked elsewhere in the FamilyRoots network. This can help you discover cross-tree connections with other families!"
+        },
+        {
+          question: "What happens when I delete a tree or member?",
+          answer: "Deleted trees and members are moved to a 'Recently Deleted' area instead of being permanently removed. You have 30 days to restore them if you change your mind. For trees, check the 'Recently Deleted' section at the bottom of your dashboard. For members, look for 'Deleted Members' in the tree settings menu. After 30 days, items are automatically removed for good."
+        },
+        {
+          question: "How do I restore a deleted tree or member?",
+          answer: "To restore a deleted tree, scroll down to the 'Recently Deleted' section on your dashboard and click the restore button next to the tree you want back. To restore a deleted member, open the tree they belonged to, click the settings menu, and select 'Deleted Members' to see and restore them. You can also permanently delete items from these sections if you're sure you don't need them."
         }
       ]
     },
