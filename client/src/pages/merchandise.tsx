@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
 import { getTreeTypeConfig, getMemberRank, getRelationshipRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
-import type { GroupLayoutMode } from "@/components/group-visualization";
+import GroupVisualization, { type GroupLayoutMode } from "@/components/group-visualization";
 
 interface PrintPlacement {
   id: string;
@@ -191,299 +191,91 @@ function ProductCard({
 }
 
 function MiniTreePreview({ members, relationships, treeName, treeType, layoutOverride }: { members: any[]; relationships: any[]; treeName: string; treeType: string; layoutOverride?: GroupLayoutMode }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.2);
   const config = getTreeTypeConfig((treeType || "custom") as TreeType);
-  const { layoutShape, accentColor, lineStyle, lineColor, nodeShape } = config.visual;
-  const width = 300;
-  const height = 300;
-  const cx = width / 2;
-  const cy = height / 2;
-  const nodeRadius = 12;
-  const maxDisplay = 30;
-  const rankedMembers = [...members].sort((a: any, b: any) => {
-    const rankA = getMemberRank(a.id, relationships, (treeType || "custom") as TreeType);
-    const rankB = getMemberRank(b.id, relationships, (treeType || "custom") as TreeType);
-    return rankA - rankB;
-  });
-  const displayMembers = rankedMembers.slice(0, maxDisplay);
-  const count = displayMembers.length;
 
-  const positions = new Map<string, { x: number; y: number }>();
-  const leaderIds = new Set<string>();
-
-  const effectiveLayout = (layoutOverride && layoutOverride !== "auto") ? layoutOverride : layoutShape;
-
-  const tt = (treeType || "custom") as TreeType;
-  displayMembers.forEach((m: any) => {
-    for (const rel of relationships) {
-      if (rel.fromMemberId === m.id) {
-        const rank = getRelationshipRank(tt, rel.relationshipType);
-        if (rank <= 2) { leaderIds.add(m.id); break; }
+  const focusMemberId = useMemo(() => {
+    const tt = (treeType || "custom") as TreeType;
+    for (const m of members) {
+      for (const rel of relationships) {
+        if (rel.fromMemberId === m.id) {
+          const rank = getRelationshipRank(tt, rel.relationshipType);
+          if (rank <= 2) return m.id;
+        }
       }
     }
-  });
-  if (leaderIds.size === 0 && displayMembers.length > 0) {
-    leaderIds.add(displayMembers[0].id);
-  }
+    return members[0]?.id || "";
+  }, [members, relationships, treeType]);
 
-  if (count === 0) {
+  useEffect(() => {
+    if (!containerRef.current || !innerRef.current) return;
+    const observer = new ResizeObserver(() => {
+      if (!containerRef.current || !innerRef.current) return;
+      const cw = containerRef.current.clientWidth;
+      const ch = containerRef.current.clientHeight;
+      const iw = innerRef.current.scrollWidth;
+      const ih = innerRef.current.scrollHeight;
+      if (iw > 0 && ih > 0) {
+        const s = Math.min(cw / iw, ch / ih, 0.35) * 0.9;
+        setScale(s);
+      }
+    });
+    observer.observe(innerRef.current);
+    const timer = setTimeout(() => {
+      if (!containerRef.current || !innerRef.current) return;
+      const cw = containerRef.current.clientWidth;
+      const ch = containerRef.current.clientHeight;
+      const iw = innerRef.current.scrollWidth;
+      const ih = innerRef.current.scrollHeight;
+      if (iw > 0 && ih > 0) {
+        const s = Math.min(cw / iw, ch / ih, 0.35) * 0.9;
+        setScale(s);
+      }
+    }, 100);
+    return () => { observer.disconnect(); clearTimeout(timer); };
+  }, [members, relationships, treeType, layoutOverride]);
+
+  if (members.length === 0) {
     return (
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" data-testid="mini-tree-preview">
-        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={10} className="fill-gray-500 dark:fill-gray-400">No members</text>
-      </svg>
+      <div className="flex items-center justify-center w-full h-full text-xs text-muted-foreground" data-testid="mini-tree-preview">
+        No members
+      </div>
     );
   }
 
-  if (effectiveLayout === "hub") {
-    const leaders = displayMembers.filter((m: any) => leaderIds.has(m.id));
-    const others = displayMembers.filter((m: any) => !leaderIds.has(m.id));
-    const hubCenter = leaders.length > 0 ? leaders[0] : displayMembers[0];
-    const spokes = leaders.length > 0 ? others : displayMembers.filter((m: any) => m.id !== hubCenter.id);
-    positions.set(hubCenter.id, { x: cx, y: cy });
-    const spokeRadius = Math.min(cx, cy) - 35;
-    spokes.forEach((m: any, i: number) => {
-      const angle = (2 * Math.PI * i) / spokes.length - Math.PI / 2;
-      positions.set(m.id, { x: cx + spokeRadius * Math.cos(angle), y: cy + spokeRadius * Math.sin(angle) });
-    });
-    leaders.slice(1).forEach((m: any, i: number) => {
-      const angle = (2 * Math.PI * i) / Math.max(leaders.length - 1, 1) - Math.PI / 2;
-      positions.set(m.id, { x: cx + 25 * Math.cos(angle), y: cy + 25 * Math.sin(angle) });
-    });
-  } else if (effectiveLayout === "top-grid") {
-    const leaders = displayMembers.filter((m: any) => leaderIds.has(m.id));
-    const others = displayMembers.filter((m: any) => !leaderIds.has(m.id));
-    const effectiveLeaders = leaders.length > 0 ? leaders : [displayMembers[0]];
-    const effectiveOthers = leaders.length > 0 ? others : displayMembers.slice(1);
-    const leaderSpacing = (width - 40) / (effectiveLeaders.length + 1);
-    effectiveLeaders.forEach((m: any, i: number) => {
-      positions.set(m.id, { x: 20 + leaderSpacing * (i + 1), y: 40 });
-    });
-    const cols = Math.max(2, Math.ceil(Math.sqrt(effectiveOthers.length * 1.4)));
-    const rows = Math.ceil(effectiveOthers.length / cols);
-    const cellW = (width - 40) / cols;
-    const startY = 80;
-    const cellH = Math.min(40, (height - startY - 20) / Math.max(rows, 1));
-    effectiveOthers.forEach((m: any, i: number) => {
-      const row = Math.floor(i / cols);
-      const col = i % cols;
-      const rowCount = Math.min(cols, effectiveOthers.length - row * cols);
-      const offsetX = (cols - rowCount) * cellW / 2;
-      positions.set(m.id, { x: 20 + offsetX + col * cellW + cellW / 2, y: startY + row * cellH + cellH / 2 });
-    });
-  } else if (effectiveLayout === "circle") {
-    const circleRadius = Math.min(cx, cy) - 40;
-    displayMembers.forEach((m: any, i: number) => {
-      const angle = (2 * Math.PI * i) / count - Math.PI / 2;
-      positions.set(m.id, {
-        x: cx + circleRadius * Math.cos(angle),
-        y: cy + circleRadius * Math.sin(angle),
-      });
-    });
-  } else if (effectiveLayout === "radial") {
-    if (count > 0) {
-      positions.set(displayMembers[0].id, { x: cx, y: cy });
-      const rings = Math.ceil((count - 1) / 8);
-      let idx = 1;
-      for (let ring = 1; ring <= rings && idx < count; ring++) {
-        const ringRadius = (Math.min(cx, cy) - 30) * (ring / rings);
-        const spotsInRing = Math.min(count - idx, ring * 8);
-        for (let s = 0; s < spotsInRing && idx < count; s++, idx++) {
-          const angle = (2 * Math.PI * s) / spotsInRing - Math.PI / 2;
-          positions.set(displayMembers[idx].id, {
-            x: cx + ringRadius * Math.cos(angle),
-            y: cy + ringRadius * Math.sin(angle),
-          });
-        }
-      }
-    }
-  } else if (effectiveLayout === "grid") {
-    const leaders = displayMembers.filter((m: any) => leaderIds.has(m.id));
-    const others = displayMembers.filter((m: any) => !leaderIds.has(m.id));
-    const cols = Math.max(2, Math.ceil(Math.sqrt(count * 1.5)));
-    let currentY = 30;
-    const cellW = (width - 40) / cols;
-    const rowH = (height - 60) / Math.max(Math.ceil(count / cols) + (leaders.length > 0 ? 1 : 0), 1);
-
-    if (leaders.length > 0) {
-      const leaderSpacing = (width - 40) / (leaders.length + 1);
-      leaders.forEach((m: any, i: number) => {
-        positions.set(m.id, { x: 20 + leaderSpacing * (i + 1), y: currentY + rowH / 2 });
-      });
-      currentY += rowH;
-    }
-
-    others.forEach((m: any, i: number) => {
-      const row = Math.floor(i / cols);
-      const col = i % cols;
-      const rowCount = Math.min(cols, others.length - row * cols);
-      const offsetX = (cols - rowCount) * cellW / 2;
-      positions.set(m.id, {
-        x: 20 + offsetX + col * cellW + cellW / 2,
-        y: currentY + row * rowH + rowH / 2,
-      });
-    });
-  } else if (effectiveLayout === "arc") {
-    const arcRadius = Math.min(cx, cy) - 30;
-    const arcSpan = Math.PI * 0.8;
-    const startAngle = Math.PI / 2 - arcSpan / 2;
-    displayMembers.forEach((m, i) => {
-      const angle = count > 1
-        ? startAngle + (arcSpan * i) / (count - 1)
-        : Math.PI / 2;
-      positions.set(m.id, {
-        x: cx + arcRadius * Math.cos(angle),
-        y: cy + arcRadius * Math.sin(angle) * 0.6,
-      });
-    });
-  } else if (effectiveLayout === "network") {
-    const seed = treeName.length;
-    displayMembers.forEach((m, i) => {
-      const golden = (i * 137.508 + seed) % 360;
-      const r = 20 + ((i * 47 + seed * 3) % ((Math.min(cx, cy) - 40)));
-      const angle = (golden * Math.PI) / 180;
-      positions.set(m.id, {
-        x: cx + r * Math.cos(angle) * 0.8,
-        y: cy + r * Math.sin(angle) * 0.8,
-      });
-    });
-  } else {
-    const parentChildPairs = relationships
-      .filter((r: any) => r.relationshipType === "parent")
-      .map((r: any) => ({ from: r.fromMemberId, to: r.toMemberId }));
-    const childPairs = relationships
-      .filter((r: any) => r.relationshipType === "child")
-      .map((r: any) => ({ from: r.toMemberId, to: r.fromMemberId }));
-    const allPairs = [...parentChildPairs, ...childPairs];
-
-    const spouseMap = new Map<string, string>();
-    relationships
-      .filter((r: any) => r.relationshipType === "spouse")
-      .forEach((r: any) => {
-        const memberIds = new Set(displayMembers.map(m => m.id));
-        if (memberIds.has(r.fromMemberId) && memberIds.has(r.toMemberId)) {
-          if (!spouseMap.has(r.fromMemberId)) spouseMap.set(r.fromMemberId, r.toMemberId);
-          if (!spouseMap.has(r.toMemberId)) spouseMap.set(r.toMemberId, r.fromMemberId);
-        }
-      });
-
-    const childrenOf = new Map<string, string[]>();
-    displayMembers.forEach(m => childrenOf.set(m.id, []));
-    allPairs.forEach(({ from, to }) => {
-      if (childrenOf.has(from) && !childrenOf.get(from)!.includes(to)) {
-        childrenOf.get(from)!.push(to);
-      }
-    });
-
-    const parentIds = new Set(allPairs.map(p => p.from));
-    const childIds = new Set(allPairs.map(p => p.to));
-    const roots = displayMembers.filter(m => parentIds.has(m.id) && !childIds.has(m.id));
-    if (roots.length === 0 && count > 0) {
-      const anyParent = displayMembers.find(m => parentIds.has(m.id));
-      roots.push(anyParent || displayMembers[0]);
-    }
-
-    const depths = new Map<string, number>();
-    const assignDepth = (id: string, d: number) => {
-      if (depths.has(id)) return;
-      depths.set(id, d);
-      const spouse = spouseMap.get(id);
-      if (spouse && !depths.has(spouse)) depths.set(spouse, d);
-      (childrenOf.get(id) || []).forEach(cid => assignDepth(cid, d + 1));
-    };
-    roots.forEach(r => assignDepth(r.id, 0));
-    displayMembers.forEach(m => { if (!depths.has(m.id)) depths.set(m.id, 0); });
-
-    const maxDepth = Math.max(0, ...Array.from(depths.values()));
-    const depthRows = new Map<number, any[]>();
-    const placed = new Set<string>();
-    displayMembers.forEach(m => {
-      if (placed.has(m.id)) return;
-      const d = depths.get(m.id) ?? 0;
-      if (!depthRows.has(d)) depthRows.set(d, []);
-      depthRows.get(d)!.push(m);
-      placed.add(m.id);
-      const spouse = spouseMap.get(m.id);
-      if (spouse && !placed.has(spouse)) {
-        const spouseMember = displayMembers.find(dm => dm.id === spouse);
-        if (spouseMember) {
-          depthRows.get(d)!.push(spouseMember);
-          placed.add(spouse);
-        }
-      }
-    });
-
-    const rowCount = maxDepth + 1;
-    const topMargin = 24;
-    const bottomMargin = 16;
-    const usableHeight = height - topMargin - bottomMargin;
-    const ySpacing = usableHeight / (rowCount + 1);
-    depthRows.forEach((row, depth) => {
-      const xSpacing = width / (row.length + 1);
-      row.forEach((m: any, i: number) => {
-        positions.set(m.id, { x: xSpacing * (i + 1), y: topMargin + ySpacing * (depth + 1) });
-      });
-    });
-  }
-
-  const connectionPairs = relationships
-    .map((r: any) => ({ from: r.fromMemberId, to: r.toMemberId }))
-    .filter(({ from, to }: any) => positions.has(from) && positions.has(to));
-  const seen = new Set<string>();
-  const uniqueConnections = connectionPairs.filter(({ from, to }: any) => {
-    const key = from < to ? `${from}-${to}` : `${to}-${from}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  const strokeDasharray = lineStyle === "dashed" ? "4,3" : lineStyle === "dotted" ? "2,2" : undefined;
-
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" data-testid="mini-tree-preview">
-      <text x={cx} y={14} textAnchor="middle" fontSize={10} fontWeight="bold" className="fill-gray-700 dark:fill-gray-200">{treeName}</text>
-      <text x={cx} y={height - 6} textAnchor="middle" fontSize={8} className="fill-gray-500 dark:fill-gray-400">{config.visual.shapeName}</text>
-      {effectiveLayout === "circle" && count > 1 && (
-        <circle cx={cx} cy={cy} r={Math.min(cx, cy) - 40} fill="none" stroke={lineColor} strokeWidth={1} strokeDasharray={strokeDasharray} opacity={0.3} />
-      )}
-      {uniqueConnections.map(({ from, to }: any, i: number) => {
-        const p1 = positions.get(from)!;
-        const p2 = positions.get(to)!;
-        return <line key={`edge-${i}`} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={lineColor} strokeWidth={1.5} strokeDasharray={strokeDasharray} opacity={0.5} />;
-      })}
-      {displayMembers.map(m => {
-        const pos = positions.get(m.id);
-        if (!pos) return null;
-        const initials = `${(m.firstName || "")[0] || ""}${(m.lastName || "")[0] || ""}`.toUpperCase();
-        const isLeader = leaderIds.has(m.id);
-        const r = isLeader ? nodeRadius * 1.5 : nodeRadius;
-        const fillColor = isLeader ? accentColor : accentColor;
-        const strokeW = isLeader ? 2 : 1;
-        return (
-          <g key={m.id}>
-            {nodeShape === "hexagon" ? (
-              <polygon
-                points={Array.from({ length: 6 }, (_, i) => {
-                  const a = (Math.PI / 3) * i - Math.PI / 6;
-                  return `${pos.x + r * Math.cos(a)},${pos.y + r * Math.sin(a)}`;
-                }).join(" ")}
-                fill={fillColor} stroke={fillColor} strokeWidth={strokeW}
-              />
-            ) : nodeShape === "rounded" ? (
-              <rect x={pos.x - r} y={pos.y - r * 0.8} width={r * 2} height={r * 1.6} rx={4} fill={fillColor} stroke={fillColor} strokeWidth={strokeW} />
-            ) : (
-              <circle cx={pos.x} cy={pos.y} r={r} fill={fillColor} stroke={fillColor} strokeWidth={strokeW} />
-            )}
-            {isLeader && (
-              <text x={pos.x} y={pos.y - r - 4} textAnchor="middle" fontSize={8}>👑</text>
-            )}
-            <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="central" fontSize={isLeader ? 8 : 7} fontWeight="600" fill="white">{initials}</text>
-            <text x={pos.x} y={pos.y + r + 9} textAnchor="middle" fontSize={isLeader ? 7 : 6} fontWeight={isLeader ? "bold" : "normal"} className="fill-gray-700 dark:fill-gray-200">{m.firstName || ""}</text>
-          </g>
-        );
-      })}
-      {members.length > maxDisplay && (
-        <text x={cx} y={height - 16} textAnchor="middle" fontSize={8} className="fill-gray-500 dark:fill-gray-400">+{members.length - maxDisplay} more</text>
-      )}
-    </svg>
+    <div ref={containerRef} className="w-full h-full overflow-hidden relative" data-testid="mini-tree-preview">
+      <div className="text-center pt-0.5 pb-0.5 relative z-10">
+        <span className="text-[9px] font-bold text-gray-700 dark:text-gray-200 leading-none">{treeName}</span>
+      </div>
+      <div className="absolute inset-0 top-3 overflow-hidden">
+        <div
+          ref={innerRef}
+          style={{
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+            pointerEvents: "none",
+            width: "1200px",
+            height: "1200px",
+          }}
+        >
+          <GroupVisualization
+            members={members as any}
+            relationships={relationships as any}
+            zoom={1}
+            onMemberClick={() => {}}
+            focusMemberId={focusMemberId}
+            treeType={(treeType || "custom") as TreeType}
+            layoutOverride={layoutOverride}
+          />
+        </div>
+      </div>
+      <div className="absolute bottom-0.5 left-0 right-0 text-center z-10">
+        <span className="text-[7px] text-gray-500 dark:text-gray-400">{config.visual.shapeName}</span>
+      </div>
+    </div>
   );
 }
 
