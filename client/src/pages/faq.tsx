@@ -796,9 +796,12 @@ export default function FAQ() {
               <p className="text-muted-foreground mb-4">
                 Our AI assistant is available 24/7 to help you with any questions about FamilyRoots or genealogy research.
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground mb-3">
                 Look for the <span className="font-medium text-primary">Help</span> button at the bottom of any page.
               </p>
+              <a href="/features" className="text-sm text-primary font-medium hover:underline" data-testid="link-features-guide">
+                View the full Features Guide
+              </a>
             </div>
           </CardContent>
         </Card>

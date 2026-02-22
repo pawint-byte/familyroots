@@ -50,6 +50,7 @@ export default function Landing() {
             <a href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">{t.nav.pricing}</a>
             <a href="/gifts" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-gifts">{t.nav.gifts}</a>
             <a href="/faq" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-faq">FAQ</a>
+            <a href="/features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features-guide">Features Guide</a>
             <a href="/comparison" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-comparison">Compare</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -854,6 +855,7 @@ export default function Landing() {
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <a href="/faq" className="hover:text-foreground transition-colors">FAQ</a>
+              <a href="/features" className="hover:text-foreground transition-colors">Features</a>
               <a href="/comparison" className="hover:text-foreground transition-colors">Compare</a>
               <a href="/share" className="hover:text-foreground transition-colors">Share</a>
               <a href="#" className="hover:text-foreground transition-colors">Privacy</a>

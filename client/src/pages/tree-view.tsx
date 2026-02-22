@@ -33,7 +33,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Checkbox } from "@/components/ui/checkbox";
 import { toPng } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember } from "@shared/schema";
+import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember, TreeTag, MemberTag } from "@shared/schema";
 import FamilyTreeVisualization from "@/components/family-tree-visualization";
 import GroupVisualization, { type GroupLayoutMode } from "@/components/group-visualization";
 import MemberForm from "@/components/member-form";
@@ -63,6 +63,8 @@ interface TreeData {
   relationships: Relationship[];
   parentTree?: { id: string; name: string } | null;
   childTrees?: { id: string; name: string }[];
+  tags?: TreeTag[];
+  memberTags?: MemberTag[];
 }
 
 export default function TreeView() {
@@ -124,6 +126,12 @@ export default function TreeView() {
     connectorMemberId: string;
     sourceTreeName: string;
   } | null>(null);
+  const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
+  const [newTagLabel, setNewTagLabel] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#6366f1");
+  const [bulkTagId, setBulkTagId] = useState<string>("");
+  const [bulkSelectedMembers, setBulkSelectedMembers] = useState<Set<string>>(new Set());
+  const [bulkTagSearch, setBulkTagSearch] = useState("");
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
   const treeId = params?.id;
@@ -271,11 +279,12 @@ export default function TreeView() {
   const canEdit = canEditTree || isClaimedOwnerOfSelectedMember || isCustodianOfSelectedMember;
 
   const addMemberMutation = useMutation({
-    mutationFn: async (data: InsertFamilyMember) => {
+    mutationFn: async (data: InsertFamilyMember & { selectedTagIds?: string[] }) => {
+      const { selectedTagIds, ...memberData } = data as any;
       const res = await fetch(`/api/trees/${treeId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(memberData),
         credentials: "include",
       });
       if (!res.ok) {
@@ -285,7 +294,15 @@ export default function TreeView() {
         }
         throw new Error(errorData.message || "Failed to add member");
       }
-      return res.json();
+      const result = await res.json();
+      if (selectedTagIds && selectedTagIds.length > 0 && result.id) {
+        for (const tagId of selectedTagIds) {
+          try {
+            await apiRequest("POST", `/api/trees/${treeId}/members/${result.id}/tags`, { tagId });
+          } catch {}
+        }
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
@@ -471,6 +488,76 @@ export default function TreeView() {
         description: error?.message || "Failed to split tree",
         variant: "destructive",
       });
+    },
+  });
+
+  const addTagMutation = useMutation({
+    mutationFn: async (data: { label: string; color: string }) => {
+      const res = await apiRequest("POST", `/api/trees/${treeId}/tags`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      setNewTagLabel("");
+      setNewTagColor("#6366f1");
+      toast({ title: "Tag added" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error?.message || "Failed to add tag", variant: "destructive" });
+    },
+  });
+
+  const deleteTagMutation = useMutation({
+    mutationFn: async (tagId: string) => {
+      await apiRequest("DELETE", `/api/trees/${treeId}/tags/${tagId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      toast({ title: "Tag removed" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to remove tag", variant: "destructive" });
+    },
+  });
+
+  const addMemberTagMutation = useMutation({
+    mutationFn: async ({ memberId, tagId }: { memberId: string; tagId: string }) => {
+      const res = await apiRequest("POST", `/api/trees/${treeId}/members/${memberId}/tags`, { tagId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to add tag", variant: "destructive" });
+    },
+  });
+
+  const removeMemberTagMutation = useMutation({
+    mutationFn: async ({ memberId, tagId }: { memberId: string; tagId: string }) => {
+      await apiRequest("DELETE", `/api/trees/${treeId}/members/${memberId}/tags/${tagId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to remove tag", variant: "destructive" });
+    },
+  });
+
+  const bulkAssignTagMutation = useMutation({
+    mutationFn: async ({ tagId, memberIds }: { tagId: string; memberIds: string[] }) => {
+      const res = await apiRequest("POST", `/api/trees/${treeId}/tags/${tagId}/members`, { memberIds });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      toast({ title: "Tags assigned" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to assign tags", variant: "destructive" });
     },
   });
 
@@ -809,6 +896,48 @@ export default function TreeView() {
                       {treeData?.members?.length || 0} members
                     </span>
                   </div>
+                  {(treeData?.tags && treeData.tags.length > 0) && (
+                    <div className="flex items-center gap-1 flex-wrap" data-testid="tree-tags-display">
+                      {treeData.tags.map((tag) => (
+                        <Badge
+                          key={tag.id}
+                          variant="outline"
+                          className="text-xs gap-1 px-2 py-0"
+                          style={{ borderColor: tag.color || "#6366f1", color: tag.color || "#6366f1" }}
+                          data-testid={`tag-${tag.id}`}
+                        >
+                          {tag.label}
+                          {canEditTree && (
+                            <button
+                              className="ml-0.5 hover:opacity-70"
+                              onClick={(e) => { e.stopPropagation(); deleteTagMutation.mutate(tag.id); }}
+                              data-testid={`button-delete-tag-${tag.id}`}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </Badge>
+                      ))}
+                      {canEditTree && (
+                        <button
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => setIsTagDialogOpen(true)}
+                          data-testid="button-add-tag-inline"
+                        >
+                          + Tag
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {(!treeData?.tags || treeData.tags.length === 0) && canEditTree && (
+                    <button
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setIsTagDialogOpen(true)}
+                      data-testid="button-add-first-tag"
+                    >
+                      + Add Tag
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -1019,6 +1148,7 @@ export default function TreeView() {
                   treeId={treeId!}
                   onSubmit={(data) => addMemberMutation.mutate(data)}
                   isLoading={addMemberMutation.isPending}
+                  availableTags={treeData?.tags}
                 />
               </DialogContent>
               </Dialog>
@@ -1873,6 +2003,41 @@ export default function TreeView() {
                   </div>
                 </div>
               </SheetHeader>
+
+              {/* Member Tags */}
+              {treeData?.tags && treeData.tags.length > 0 && (
+                <div className="mb-4 px-1" data-testid="member-tags-section">
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    {treeData.tags.map((tag) => {
+                      const isAssigned = treeData.memberTags?.some(
+                        (mt) => mt.tagId === tag.id && mt.memberId === selectedMember.id
+                      );
+                      return (
+                        <Badge
+                          key={tag.id}
+                          variant={isAssigned ? "default" : "outline"}
+                          className={`text-xs cursor-pointer transition-all ${isAssigned ? "opacity-100" : "opacity-50 hover:opacity-75"}`}
+                          style={isAssigned ? { backgroundColor: tag.color || "#6366f1", borderColor: tag.color || "#6366f1" } : { borderColor: tag.color || "#6366f1", color: tag.color || "#6366f1" }}
+                          onClick={() => {
+                            if (!canEditTree) return;
+                            if (isAssigned) {
+                              removeMemberTagMutation.mutate({ memberId: selectedMember.id, tagId: tag.id });
+                            } else {
+                              addMemberTagMutation.mutate({ memberId: selectedMember.id, tagId: tag.id });
+                            }
+                          }}
+                          data-testid={`member-tag-toggle-${tag.id}`}
+                        >
+                          {tag.label}
+                          {canEditTree && (
+                            <span className="ml-1 text-[10px]">{isAssigned ? "x" : "+"}</span>
+                          )}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Prominent Relationship to Focus Person / Root Member */}
               {treeData && selectedMember && (() => {
@@ -2897,6 +3062,170 @@ export default function TreeView() {
                 {splitTreeMutation.isPending ? "Splitting..." : "Split Tree"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isTagDialogOpen} onOpenChange={(open) => {
+        setIsTagDialogOpen(open);
+        if (!open) { setNewTagLabel(""); setNewTagColor("#6366f1"); setBulkTagId(""); setBulkSelectedMembers(new Set()); setBulkTagSearch(""); }
+      }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Tags</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Create New Tag</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g. Class of 2025, Chapter Alpha"
+                  value={newTagLabel}
+                  onChange={(e) => setNewTagLabel(e.target.value)}
+                  maxLength={50}
+                  className="flex-1"
+                  data-testid="input-tag-label"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newTagLabel.trim()) {
+                      addTagMutation.mutate({ label: newTagLabel.trim(), color: newTagColor });
+                    }
+                  }}
+                />
+                <input
+                  type="color"
+                  value={newTagColor}
+                  onChange={(e) => setNewTagColor(e.target.value)}
+                  className="w-10 h-10 rounded border cursor-pointer"
+                  data-testid="input-tag-color"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => addTagMutation.mutate({ label: newTagLabel.trim(), color: newTagColor })}
+                  disabled={!newTagLabel.trim() || addTagMutation.isPending}
+                  data-testid="button-add-tag"
+                >
+                  Add
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                {["#6366f1", "#f43f5e", "#10b981", "#f59e0b", "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6"].map((c) => (
+                  <button
+                    key={c}
+                    className="w-6 h-6 rounded-full border-2 transition-all"
+                    style={{ backgroundColor: c, borderColor: newTagColor === c ? "currentColor" : "transparent" }}
+                    onClick={() => setNewTagColor(c)}
+                    data-testid={`button-color-${c.replace("#", "")}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {treeData?.tags && treeData.tags.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Current Tags</Label>
+                <div className="flex flex-wrap gap-2">
+                  {treeData.tags.map((tag) => {
+                    const memberCount = treeData.memberTags?.filter(mt => mt.tagId === tag.id).length || 0;
+                    return (
+                      <Badge
+                        key={tag.id}
+                        variant={bulkTagId === tag.id ? "default" : "outline"}
+                        className="text-sm gap-1.5 px-3 py-1 cursor-pointer"
+                        style={bulkTagId === tag.id 
+                          ? { backgroundColor: tag.color || "#6366f1", borderColor: tag.color || "#6366f1" }
+                          : { borderColor: tag.color || "#6366f1", color: tag.color || "#6366f1" }}
+                        onClick={() => {
+                          if (bulkTagId === tag.id) {
+                            setBulkTagId("");
+                            setBulkSelectedMembers(new Set());
+                          } else {
+                            setBulkTagId(tag.id);
+                            const assigned = new Set(
+                              treeData.memberTags?.filter(mt => mt.tagId === tag.id).map(mt => mt.memberId) || []
+                            );
+                            setBulkSelectedMembers(assigned);
+                          }
+                        }}
+                        data-testid={`dialog-tag-${tag.id}`}
+                      >
+                        {tag.label} ({memberCount})
+                        <button
+                          className="hover:opacity-70 ml-1"
+                          onClick={(e) => { e.stopPropagation(); deleteTagMutation.mutate(tag.id); if (bulkTagId === tag.id) setBulkTagId(""); }}
+                          data-testid={`button-dialog-delete-tag-${tag.id}`}
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {bulkTagId && treeData?.tags && (
+              <div className="space-y-3 border rounded-lg p-3" data-testid="bulk-assign-section">
+                <Label className="text-sm font-medium">
+                  Assign "{treeData.tags.find(t => t.id === bulkTagId)?.label}" to Members
+                </Label>
+                <Input
+                  placeholder="Search members..."
+                  value={bulkTagSearch}
+                  onChange={(e) => setBulkTagSearch(e.target.value)}
+                  className="text-sm"
+                  data-testid="input-bulk-tag-search"
+                />
+                <ScrollArea className="h-48">
+                  <div className="space-y-1">
+                    {displayMembers
+                      .filter(m => !bulkTagSearch || `${m.firstName} ${m.lastName}`.toLowerCase().includes(bulkTagSearch.toLowerCase()))
+                      .map((member) => (
+                        <label key={member.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted cursor-pointer">
+                          <Checkbox
+                            checked={bulkSelectedMembers.has(member.id)}
+                            onCheckedChange={(checked) => {
+                              const next = new Set(bulkSelectedMembers);
+                              if (checked) next.add(member.id);
+                              else next.delete(member.id);
+                              setBulkSelectedMembers(next);
+                            }}
+                            data-testid={`checkbox-bulk-member-${member.id}`}
+                          />
+                          <span className="text-sm">{member.firstName} {member.lastName || ""}</span>
+                        </label>
+                      ))}
+                  </div>
+                </ScrollArea>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground">
+                    {bulkSelectedMembers.size} member{bulkSelectedMembers.size !== 1 ? "s" : ""} selected
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const currentlyAssigned = new Set(
+                        treeData.memberTags?.filter(mt => mt.tagId === bulkTagId).map(mt => mt.memberId) || []
+                      );
+                      const toAdd = [...bulkSelectedMembers].filter(id => !currentlyAssigned.has(id));
+                      const toRemove = [...currentlyAssigned].filter(id => !bulkSelectedMembers.has(id));
+                      if (toAdd.length > 0) {
+                        bulkAssignTagMutation.mutate({ tagId: bulkTagId, memberIds: toAdd });
+                      }
+                      toRemove.forEach(memberId => {
+                        removeMemberTagMutation.mutate({ memberId, tagId: bulkTagId });
+                      });
+                      if (toAdd.length === 0 && toRemove.length === 0) {
+                        toast({ title: "No changes" });
+                      }
+                    }}
+                    disabled={bulkAssignTagMutation.isPending}
+                    data-testid="button-apply-bulk-tags"
+                  >
+                    {bulkAssignTagMutation.isPending ? "Saving..." : "Apply"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

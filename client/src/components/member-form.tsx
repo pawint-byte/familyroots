@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Upload, X, Loader2, User, HelpCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Upload, X, Loader2, User, HelpCircle, Tag } from "lucide-react";
 import { useUpload } from "@/hooks/use-upload";
-import type { InsertFamilyMember } from "@shared/schema";
+import type { InsertFamilyMember, TreeTag } from "@shared/schema";
 
 function formatDateForInput(value: string | Date | null | undefined): string {
   if (!value) return "";
@@ -60,14 +61,16 @@ type MemberFormValues = z.infer<typeof memberFormSchema>;
 interface MemberFormProps {
   treeId: string;
   initialData?: Partial<MemberFormValues>;
-  onSubmit: (data: InsertFamilyMember & { visibilityOverride?: string | null }) => void;
+  onSubmit: (data: InsertFamilyMember & { visibilityOverride?: string | null; selectedTagIds?: string[] }) => void;
   isLoading?: boolean;
   showVisibilityControl?: boolean;
+  availableTags?: TreeTag[];
 }
 
-export default function MemberForm({ treeId, initialData, onSubmit, isLoading, showVisibilityControl }: MemberFormProps) {
+export default function MemberForm({ treeId, initialData, onSubmit, isLoading, showVisibilityControl, availableTags }: MemberFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(initialData?.photoUrl || null);
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   
   const { uploadFile, isUploading } = useUpload({
     onSuccess: (response) => {
@@ -140,6 +143,9 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
       unknownLabel: values.unknownLabel || null,
       visibilityOverride: values.visibilityOverride || null,
     };
+    if (selectedTagIds.size > 0) {
+      (data as any).selectedTagIds = Array.from(selectedTagIds);
+    }
     onSubmit(data);
   };
 
@@ -480,6 +486,39 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
               </FormItem>
             )}
           />
+        )}
+
+        {availableTags && availableTags.length > 0 && (
+          <div className="rounded-lg border border-border p-4 bg-muted/30 space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <Tag className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Tags</span>
+              <span className="text-xs text-muted-foreground">(optional)</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {availableTags.map((tag) => {
+                const isSelected = selectedTagIds.has(tag.id);
+                return (
+                  <Badge
+                    key={tag.id}
+                    variant={isSelected ? "default" : "outline"}
+                    className="cursor-pointer text-xs select-none transition-colors"
+                    style={isSelected ? { backgroundColor: tag.color, borderColor: tag.color, color: "#fff" } : { borderColor: tag.color, color: tag.color }}
+                    onClick={() => {
+                      setSelectedTagIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(tag.id)) { next.delete(tag.id); } else { next.add(tag.id); }
+                        return next;
+                      });
+                    }}
+                    data-testid={`member-form-tag-${tag.id}`}
+                  >
+                    {tag.label}
+                  </Badge>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-submit-member">

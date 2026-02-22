@@ -417,6 +417,14 @@ export default function Dashboard() {
                   <HelpCircle className="h-4 w-4" />
                   <span>Help & FAQ</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/features")}
+                  data-testid="mobile-menu-features-guide"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span>Features Guide</span>
+                </DropdownMenuItem>
                 {isAdmin && (
                   <>
                     <DropdownMenuSeparator />
@@ -686,6 +694,14 @@ export default function Dashboard() {
                 >
                   <HelpCircle className="h-4 w-4" />
                   <span>Help & FAQ</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/features")}
+                  data-testid="menu-features-guide"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span>Features Guide</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-center gap-2"
@@ -1271,9 +1287,23 @@ export default function Dashboard() {
                   </DropdownMenu>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                  <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                     {tree.description || "No description"}
                   </p>
+                  {tree.tags && tree.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3" data-testid={`tree-tags-${tree.id}`}>
+                      {tree.tags.map((tag: any) => (
+                        <Badge
+                          key={tag.id}
+                          variant="outline"
+                          className="text-xs px-1.5 py-0"
+                          style={{ borderColor: tag.color || "#6366f1", color: tag.color || "#6366f1" }}
+                        >
+                          {tag.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Users className="h-4 w-4" />

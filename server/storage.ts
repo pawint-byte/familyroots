@@ -6,7 +6,7 @@ import {
   discoverableMembers, matchRequests, memberInvitations, merchandiseOrders, profileClaimRequests,
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
   giftRegistries, giftRegistryItems, userConnectionRequests, userConnections, memberMergeHistory,
-  externalPersonIdentifiers, pendingMemberSuggestions, crossTreeMatches, referrals, treeTags,
+  externalPersonIdentifiers, pendingMemberSuggestions, crossTreeMatches, referrals, treeTags, memberTags,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -41,6 +41,7 @@ import {
   type CrossTreeMatch, type InsertCrossTreeMatch,
   type Referral,
   type TreeTag, type InsertTreeTag,
+  type MemberTag, type InsertMemberTag,
   type User,
   announcements,
   type Announcement, type InsertAnnouncement,
@@ -375,6 +376,13 @@ export interface IStorage {
   getTreeTags(treeId: string): Promise<TreeTag[]>;
   createTreeTag(data: InsertTreeTag): Promise<TreeTag>;
   deleteTreeTag(id: string): Promise<boolean>;
+
+  // Member Tags
+  getMemberTags(memberId: string): Promise<MemberTag[]>;
+  getMemberTagsByTree(treeId: string): Promise<MemberTag[]>;
+  addMemberTag(data: InsertMemberTag): Promise<MemberTag>;
+  removeMemberTag(tagId: string, memberId: string): Promise<boolean>;
+  bulkAddMemberTags(tagId: string, memberIds: string[], treeId: string): Promise<MemberTag[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2747,8 +2755,46 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteTreeTag(id: string): Promise<boolean> {
+    await db.delete(memberTags).where(eq(memberTags.tagId, id));
     const result = await db.delete(treeTags).where(eq(treeTags.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getMemberTags(memberId: string): Promise<MemberTag[]> {
+    return db.select().from(memberTags)
+      .where(eq(memberTags.memberId, memberId));
+  }
+
+  async getMemberTagsByTree(treeId: string): Promise<MemberTag[]> {
+    return db.select().from(memberTags)
+      .where(eq(memberTags.treeId, treeId));
+  }
+
+  async addMemberTag(data: InsertMemberTag): Promise<MemberTag> {
+    const existing = await db.select().from(memberTags)
+      .where(and(eq(memberTags.tagId, data.tagId), eq(memberTags.memberId, data.memberId)));
+    if (existing.length > 0) return existing[0];
+    const [tag] = await db.insert(memberTags).values(data).returning();
+    return tag;
+  }
+
+  async removeMemberTag(tagId: string, memberId: string): Promise<boolean> {
+    const result = await db.delete(memberTags)
+      .where(and(eq(memberTags.tagId, tagId), eq(memberTags.memberId, memberId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async bulkAddMemberTags(tagId: string, memberIds: string[], treeId: string): Promise<MemberTag[]> {
+    const existing = await db.select().from(memberTags)
+      .where(and(eq(memberTags.tagId, tagId), inArray(memberTags.memberId, memberIds)));
+    const existingMemberIds = new Set(existing.map(e => e.memberId));
+    const newMemberIds = memberIds.filter(id => !existingMemberIds.has(id));
+    if (newMemberIds.length === 0) return existing;
+    const newTags = await db.insert(memberTags)
+      .values(newMemberIds.map(memberId => ({ tagId, memberId, treeId })))
+      .returning();
+    return [...existing, ...newTags];
   }
 }
 

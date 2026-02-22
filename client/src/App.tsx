@@ -39,6 +39,7 @@ import RegistryDetail from "@/pages/registry-detail";
 import NetworkOverview from "@/pages/network-overview";
 import MembershipBadge from "@/pages/membership-badge";
 import Discover from "@/pages/discover";
+import FeaturesGuide from "@/pages/features-guide";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -89,6 +90,7 @@ function Router() {
       <Route path="/network-overview" component={NetworkOverview} />
       <Route path="/my-badge" component={MembershipBadge} />
       <Route path="/discover" component={Discover} />
+      <Route path="/features" component={FeaturesGuide} />
       <Route component={NotFound} />
     </Switch>
   );

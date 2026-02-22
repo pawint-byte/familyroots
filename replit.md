@@ -30,6 +30,7 @@ The backend uses Node.js, Express.js, and TypeScript, providing RESTful API endp
 -   **Merchandise & Customization**: Integration with Printful for custom merchandise orders, allowing extensive customization options including tree prints, QR codes, and custom text.
 -   **QR Code Sharing**: Facilitates sharing of app links, profiles, and tree invitations via QR codes.
 -   **Referral System**: Tracks user referrals and provides referral codes.
+-   **Tree & Member Tagging**: Customizable color-coded tags for trees and members (e.g., "Class of 2025", "Chapter Alpha", "Member Since 2020"). Tags are defined at the tree level (`tree_tags` table) and can be assigned to individual members (`member_tags` join table). Supports bulk assignment via the Manage Tags dialog. Tags display on dashboard tree cards, tree view header, and member detail panels. API: `GET/POST /api/trees/:id/tags`, `DELETE /api/trees/:id/tags/:tagId`, `POST /api/trees/:id/members/:memberId/tags`, `DELETE /api/trees/:id/members/:memberId/tags/:tagId`, `POST /api/trees/:id/tags/:tagId/members` (bulk).
 -   **User Engagement**: Includes features like member muting, life event broadcasting, and a "Membership Badge" with user stats.
 
 ## External Dependencies

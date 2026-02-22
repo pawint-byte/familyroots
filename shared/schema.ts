@@ -1211,3 +1211,19 @@ export const insertTreeTagSchema = createInsertSchema(treeTags).omit({
 
 export type TreeTag = typeof treeTags.$inferSelect;
 export type InsertTreeTag = z.infer<typeof insertTreeTagSchema>;
+
+export const memberTags = pgTable("member_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tagId: varchar("tag_id").notNull(),
+  memberId: varchar("member_id").notNull(),
+  treeId: varchar("tree_id").notNull(),
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+});
+
+export const insertMemberTagSchema = createInsertSchema(memberTags).omit({
+  id: true,
+  assignedAt: true,
+});
+
+export type MemberTag = typeof memberTags.$inferSelect;
+export type InsertMemberTag = z.infer<typeof insertMemberTagSchema>;

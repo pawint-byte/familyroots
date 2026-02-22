@@ -1,0 +1,424 @@
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { SEO } from "@/components/seo";
+import {
+  TreeDeciduous, ArrowLeft, Users, Shield, Sparkles, Tag, Gift, User, Heart, Zap,
+  Church, Trophy, GraduationCap, Briefcase, BookOpen, QrCode, Share2, Globe, MapPin,
+  Search, Bell, Camera, Palette, ShoppingBag, Video, Bot, Link2, Layers, Split,
+  Settings, Eye, Lock, Mail, Award, UserCheck, ScrollText, Network
+} from "lucide-react";
+
+interface FeatureEntry {
+  name: string;
+  description: string;
+  whereToFind: string;
+  icon: React.ReactNode;
+}
+
+interface FeatureCategory {
+  title: string;
+  icon: React.ReactNode;
+  features: FeatureEntry[];
+}
+
+export default function FeaturesGuide() {
+  const categories: FeatureCategory[] = [
+    {
+      title: "Trees & Organization",
+      icon: <TreeDeciduous className="h-5 w-5" />,
+      features: [
+        {
+          name: "Multi-Tree Types",
+          description: "Create different kinds of trees beyond family - church groups, sports teams, fraternities, professional networks, friend circles, and fully custom groups. Each type has its own relationship labels and visual style.",
+          whereToFind: "Dashboard > Create New Tree > choose your tree type from the dropdown.",
+          icon: <TreeDeciduous className="h-5 w-5 text-green-600" />,
+        },
+        {
+          name: "Nested Sub-groups",
+          description: "Organize trees into parent-child hierarchies. For example, a school tree can have \"Class of 2025\" as a sub-group. You can move existing trees under another tree or detach them to stand alone again.",
+          whereToFind: "Tree View > Settings (gear icon) > Parent Tree section. Use 'Set Parent' to nest or 'Detach' to separate.",
+          icon: <Layers className="h-5 w-5 text-blue-600" />,
+        },
+        {
+          name: "Tree Splitting",
+          description: "Reorganize your tree by selecting specific members to move into a brand new tree. Relationships within the group are kept, cross-tree relationships are removed, and all member data (events, invitations) moves with them.",
+          whereToFind: "Tree View > Settings (gear icon) > Split Tree button. Select members to move, name the new tree, and confirm.",
+          icon: <Split className="h-5 w-5 text-orange-600" />,
+        },
+        {
+          name: "Tree Tags",
+          description: "Add color-coded labels to your trees for quick identification and organization. Tags like 'Class of 2025', 'Chapter Alpha', or 'Active' appear on dashboard cards and tree headers.",
+          whereToFind: "Tree View > click the tag icon next to the tree name, or open 'Manage Tags' from the tree header.",
+          icon: <Tag className="h-5 w-5 text-indigo-600" />,
+        },
+        {
+          name: "Member Tags",
+          description: "Assign tree-level tags to individual members for granular organization. Tag multiple members at once using the bulk assignment tool.",
+          whereToFind: "Tree View > click a member > scroll to Tags section to toggle tags on/off. For bulk: Manage Tags dialog > Bulk Assignment tab.",
+          icon: <Tag className="h-5 w-5 text-purple-600" />,
+        },
+        {
+          name: "Visual Layouts",
+          description: "Each tree type has a unique visual appearance with distinct accent colors, connection line styles, and node shapes. The visual hierarchy is based on relationship importance.",
+          whereToFind: "Automatic based on tree type. Family trees use classic style, church trees use warm colors, sports teams use bold accent colors, etc.",
+          icon: <Palette className="h-5 w-5 text-pink-600" />,
+        },
+      ],
+    },
+    {
+      title: "Members & Profiles",
+      icon: <Users className="h-5 w-5" />,
+      features: [
+        {
+          name: "Add Members",
+          description: "Add people to your tree with their name, photo, birth date, and other details. You can also add 'unknown' placeholders for people whose details you don't know yet. Tags can be assigned during or after creation.",
+          whereToFind: "Tree View > 'Add Member' button in the header toolbar.",
+          icon: <User className="h-5 w-5 text-blue-600" />,
+        },
+        {
+          name: "Profile Claiming",
+          description: "Members added by others can claim their own profile to take ownership. Once claimed, they can edit their own information directly. Disassociation protections prevent unwanted removals.",
+          whereToFind: "Tree View > click your name > 'Claim Profile' button (appears if you haven't claimed it yet).",
+          icon: <UserCheck className="h-5 w-5 text-green-600" />,
+        },
+        {
+          name: "Custodianship",
+          description: "Manage profiles of deceased family members. A custodian can update information, add photos, and record life events on behalf of someone who has passed.",
+          whereToFind: "Tree View > click a deceased member > 'Request Custodianship' in their profile panel.",
+          icon: <Heart className="h-5 w-5 text-rose-600" />,
+        },
+        {
+          name: "Life Events",
+          description: "Record important milestones like graduations, weddings, military service, promotions, and more. Events are displayed on member profiles as a timeline.",
+          whereToFind: "Tree View > click a member > scroll to 'Life Events' section > 'Add Event' button.",
+          icon: <ScrollText className="h-5 w-5 text-amber-600" />,
+        },
+        {
+          name: "Education & Career History",
+          description: "Track schools attended, degrees earned, jobs held, and professional achievements for each member.",
+          whereToFind: "Tree View > click a member > Education and Career sections in the profile panel.",
+          icon: <GraduationCap className="h-5 w-5 text-blue-600" />,
+        },
+        {
+          name: "Photo Upload",
+          description: "Upload profile photos for each member. Photos are stored securely and displayed on tree nodes and profile cards.",
+          whereToFind: "Tree View > click a member > Edit > click the photo area or upload button.",
+          icon: <Camera className="h-5 w-5 text-cyan-600" />,
+        },
+      ],
+    },
+    {
+      title: "Relationships",
+      icon: <Link2 className="h-5 w-5" />,
+      features: [
+        {
+          name: "Relationship Types",
+          description: "Each tree type has its own set of relationship labels. Family trees use Parent, Child, Spouse, Sibling. Church trees use Pastor, Deacon, etc. Sports teams use Coach, Captain, Player.",
+          whereToFind: "Tree View > click a member > 'Add Relationship' button > choose the relationship type and select the other person.",
+          icon: <Link2 className="h-5 w-5 text-purple-600" />,
+        },
+        {
+          name: "Manage Relationships",
+          description: "View and edit all relationships across your trees. Remove incorrect connections or change relationship types.",
+          whereToFind: "Dashboard > menu (top right) > 'Manage Relationships'. Or Tree View > click a member > scroll to Relationships section.",
+          icon: <Settings className="h-5 w-5 text-gray-600" />,
+        },
+      ],
+    },
+    {
+      title: "Sharing & Collaboration",
+      icon: <Share2 className="h-5 w-5" />,
+      features: [
+        {
+          name: "Invite Members",
+          description: "Share your tree with others by sending invite links. Set their role (Viewer, Editor, Co-owner) to control what they can do.",
+          whereToFind: "Tree View > 'Share' button > generate an invite link or enter an email address.",
+          icon: <Mail className="h-5 w-5 text-blue-600" />,
+        },
+        {
+          name: "Role-Based Access",
+          description: "Viewers can see the tree. Editors can add/edit members and relationships. Co-owners can manage settings, tags, and invite others. Owners have full control.",
+          whereToFind: "Automatically applied when you invite someone. Change roles in Tree View > Settings > Members & Roles.",
+          icon: <Shield className="h-5 w-5 text-amber-600" />,
+        },
+        {
+          name: "QR Code Sharing",
+          description: "Generate QR codes for your profile, tree invitations, or app links. Perfect for printing on reunion materials, church bulletins, or team rosters.",
+          whereToFind: "Dashboard > 'My QR' in the menu. Also available in Tree View > Share > QR Code tab.",
+          icon: <QrCode className="h-5 w-5 text-gray-700" />,
+        },
+        {
+          name: "Discoverable Community Trees",
+          description: "Opt in to make your tree discoverable so others can find and request to join your community group. Only community trees (church, sports, etc.) can be made discoverable.",
+          whereToFind: "Tree View > Settings > toggle 'Make Discoverable'. Browse others at Dashboard > 'Discover' in the menu.",
+          icon: <Globe className="h-5 w-5 text-green-600" />,
+        },
+      ],
+    },
+    {
+      title: "Privacy & Security",
+      icon: <Lock className="h-5 w-5" />,
+      features: [
+        {
+          name: "Three-Tier Visibility",
+          description: "Control how much information is visible: Full Access (all details), Extended (name, year, photo only), or Limited (name and relationship only). Set at the tree level or override per member.",
+          whereToFind: "Tree View > Settings > Privacy section. Per-member overrides available when editing a member.",
+          icon: <Eye className="h-5 w-5 text-blue-600" />,
+        },
+        {
+          name: "Deadman Switch",
+          description: "Designate someone to inherit management of your trees if you become inactive for a set period. Ensures your family history is preserved.",
+          whereToFind: "Dashboard > Account Settings > Deadman Switch section.",
+          icon: <Shield className="h-5 w-5 text-red-600" />,
+        },
+        {
+          name: "Muting Members/Branches",
+          description: "Mute specific members or entire branches to hide them from your view without deleting them. Useful for managing complex family situations.",
+          whereToFind: "Tree View > click a member > 'Mute' button in their profile panel.",
+          icon: <Bell className="h-5 w-5 text-gray-500" />,
+        },
+      ],
+    },
+    {
+      title: "AI & Research Tools",
+      icon: <Sparkles className="h-5 w-5" />,
+      features: [
+        {
+          name: "AI Chat Assistant",
+          description: "Get help with genealogy questions, tree organization advice, or platform guidance from our AI assistant powered by GPT-4.1-mini.",
+          whereToFind: "Click the 'Help' floating button at the bottom of any page.",
+          icon: <Bot className="h-5 w-5 text-violet-600" />,
+        },
+        {
+          name: "AI Avatar Videos",
+          description: "Generate personalized AI avatar videos using HeyGen technology. Create video introductions, family stories, or tree presentations.",
+          whereToFind: "Dashboard > menu > 'Videos' or use the Video button when available on tree pages.",
+          icon: <Video className="h-5 w-5 text-red-500" />,
+        },
+        {
+          name: "FamilySearch Integration",
+          description: "Connect to FamilySearch's genealogical database to research ancestors, find records, and selectively import members into your tree.",
+          whereToFind: "Dashboard > 'Records' in the menu, or navigate to the FamilySearch page directly.",
+          icon: <Search className="h-5 w-5 text-green-700" />,
+        },
+        {
+          name: "Selective Member Import",
+          description: "When researching on FamilySearch, pick and choose which discovered relatives to import into your tree rather than importing everything at once.",
+          whereToFind: "FamilySearch page > search for ancestors > check the ones you want > 'Import Selected'.",
+          icon: <Users className="h-5 w-5 text-teal-600" />,
+        },
+      ],
+    },
+    {
+      title: "Merchandise & Gifts",
+      icon: <ShoppingBag className="h-5 w-5" />,
+      features: [
+        {
+          name: "Custom Merchandise",
+          description: "Order custom print-on-demand items featuring your tree - prints, mugs, shirts, and more. Powered by Printful with extensive customization including QR codes and custom text.",
+          whereToFind: "Dashboard > 'Merchandise' in the menu. Customize items with your tree data and order directly.",
+          icon: <ShoppingBag className="h-5 w-5 text-orange-600" />,
+        },
+        {
+          name: "Gift Registry",
+          description: "Create and manage gift registries linked to your trees. Perfect for family reunions, weddings, baby showers, or group fundraising. Uses Amazon Associates for product recommendations.",
+          whereToFind: "Tree View > 'Gift Registry' button, or Dashboard > 'Gifts' in the navigation.",
+          icon: <Gift className="h-5 w-5 text-pink-600" />,
+        },
+      ],
+    },
+    {
+      title: "Networking & Discovery",
+      icon: <Network className="h-5 w-5" />,
+      features: [
+        {
+          name: "Network Overview",
+          description: "Visualize all your connections across multiple trees in one unified view. See how different communities and families overlap and connect.",
+          whereToFind: "Dashboard > 'Network Overview' in the menu.",
+          icon: <Network className="h-5 w-5 text-indigo-600" />,
+        },
+        {
+          name: "Membership Badge",
+          description: "View your personalized membership badge showing your stats, trees you belong to, and your activity. Share it with others as a digital card.",
+          whereToFind: "Dashboard > 'My Badge' in the menu.",
+          icon: <Award className="h-5 w-5 text-yellow-600" />,
+        },
+        {
+          name: "Referral System",
+          description: "Invite friends to FamilyRoots with your unique referral code. Track who you've referred and earn recognition.",
+          whereToFind: "Dashboard > Account Settings > Referral section.",
+          icon: <Zap className="h-5 w-5 text-yellow-500" />,
+        },
+        {
+          name: "Location Sharing",
+          description: "Optionally share your location to see family members or group members on a map. Great for planning reunions or seeing where your network spans.",
+          whereToFind: "Dashboard > Account Settings > Location section. Map views available in Tree View.",
+          icon: <MapPin className="h-5 w-5 text-red-500" />,
+        },
+        {
+          name: "Public Profiles",
+          description: "Share a public-facing profile page that shows your trees and basic information. Others can view it without needing an account.",
+          whereToFind: "Dashboard > 'My Profile' in the menu. Share the link with anyone.",
+          icon: <User className="h-5 w-5 text-blue-500" />,
+        },
+      ],
+    },
+    {
+      title: "Tree Types at a Glance",
+      icon: <BookOpen className="h-5 w-5" />,
+      features: [
+        {
+          name: "Family Tree",
+          description: "Traditional family tree with Parent, Child, Spouse, and Sibling relationships. Classic hierarchical layout centered on a main person.",
+          whereToFind: "Dashboard > Create New Tree > select 'Family'.",
+          icon: <Heart className="h-5 w-5 text-rose-500" />,
+        },
+        {
+          name: "Church / Faith Group",
+          description: "Organize congregations with roles like Pastor, Elder, Deacon, and Member. Warm color scheme with community-focused layout.",
+          whereToFind: "Dashboard > Create New Tree > select 'Church'.",
+          icon: <Church className="h-5 w-5 text-amber-600" />,
+        },
+        {
+          name: "Sports Team",
+          description: "Manage rosters with Coach, Captain, Player, and Staff roles. Bold accent colors and team-oriented visual hierarchy.",
+          whereToFind: "Dashboard > Create New Tree > select 'Sports Team'.",
+          icon: <Trophy className="h-5 w-5 text-yellow-500" />,
+        },
+        {
+          name: "Fraternity / Sorority",
+          description: "Track Greek life organizations with roles like President, Rush Chair, Pledge, and Alumni. Chapter-focused organization.",
+          whereToFind: "Dashboard > Create New Tree > select 'Fraternity'.",
+          icon: <GraduationCap className="h-5 w-5 text-purple-600" />,
+        },
+        {
+          name: "Professional Network",
+          description: "Map professional connections with roles like Mentor, Colleague, Manager, and Report. Business-oriented styling.",
+          whereToFind: "Dashboard > Create New Tree > select 'Professional'.",
+          icon: <Briefcase className="h-5 w-5 text-gray-600" />,
+        },
+        {
+          name: "Friends Circle",
+          description: "Casual group tree for friend networks with flexible, informal relationship types.",
+          whereToFind: "Dashboard > Create New Tree > select 'Friends'.",
+          icon: <Users className="h-5 w-5 text-sky-500" />,
+        },
+        {
+          name: "Custom Tree",
+          description: "Build your own tree type with completely custom relationship labels and terminology. Fully flexible for any group structure you can imagine.",
+          whereToFind: "Dashboard > Create New Tree > select 'Custom'.",
+          icon: <Sparkles className="h-5 w-5 text-violet-500" />,
+        },
+      ],
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background">
+      <SEO
+        title="Features Guide | FamilyRoots"
+        description="A complete glossary of all FamilyRoots features and where to find them."
+      />
+
+      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/">
+              <Button variant="ghost" size="sm" className="gap-2" data-testid="button-back-home">
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+            </Link>
+            <div className="flex items-center gap-2">
+              <TreeDeciduous className="h-5 w-5 text-primary" />
+              <span className="font-serif font-bold text-lg">FamilyRoots</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-4 py-8" data-testid="features-guide-page">
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <BookOpen className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold font-serif" data-testid="features-guide-title">Features Guide</h1>
+          </div>
+          <p className="text-muted-foreground text-lg">
+            Everything FamilyRoots can do, explained in plain language with directions on where to find each feature.
+          </p>
+        </div>
+
+        <div className="mb-6 p-4 rounded-lg border border-primary/20 bg-primary/5">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">Tip:</span> Use this page as a reference whenever you're looking for a specific feature.
+            Each entry includes a description and step-by-step directions to find it in the app.
+          </p>
+        </div>
+
+        <div className="space-y-8">
+          {categories.map((category, catIdx) => (
+            <Card key={catIdx} data-testid={`feature-category-${catIdx}`}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-serif">
+                  {category.icon}
+                  {category.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {category.features.map((feature, featIdx) => (
+                    <div
+                      key={featIdx}
+                      className="flex gap-4 p-4 rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors"
+                      data-testid={`feature-entry-${catIdx}-${featIdx}`}
+                    >
+                      <div className="shrink-0 mt-0.5">{feature.icon}</div>
+                      <div className="space-y-1.5">
+                        <h3 className="font-semibold text-foreground" data-testid={`feature-name-${catIdx}-${featIdx}`}>{feature.name}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                        <div className="flex items-start gap-2 mt-2 pt-2 border-t border-border/50">
+                          <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
+                          <p className="text-xs text-primary font-medium leading-relaxed" data-testid={`feature-location-${catIdx}-${featIdx}`}>
+                            {feature.whereToFind}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="mt-8 flex flex-wrap gap-3 justify-center">
+          <Link href="/faq">
+            <Button variant="outline" className="gap-2" data-testid="link-to-faq">
+              <BookOpen className="h-4 w-4" />
+              View FAQ
+            </Button>
+          </Link>
+          <Link href="/dashboard">
+            <Button className="gap-2" data-testid="link-to-dashboard">
+              <TreeDeciduous className="h-4 w-4" />
+              Go to Dashboard
+            </Button>
+          </Link>
+        </div>
+      </main>
+
+      <footer className="border-t border-border mt-16 py-8">
+        <div className="max-w-7xl mx-auto px-4 text-center text-muted-foreground">
+          <p>&copy; {new Date().getFullYear()} FamilyRoots. All rights reserved.</p>
+        </div>
+      </footer>
+    </div>
+  );
+}

@@ -208,9 +208,11 @@ export async function registerRoutes(
       const treesWithCounts = await Promise.all(
         allTrees.map(async (tree) => {
           const members = await storage.getMembers(tree.id);
+          const tags = await storage.getTreeTags(tree.id);
           return {
             ...tree,
             memberCount: members.length,
+            tags,
           };
         })
       );
@@ -300,7 +302,10 @@ export async function registerRoutes(
       const childTrees = await storage.getChildTrees(id);
       const childTreesSummary = childTrees.map(c => ({ id: c.id, name: c.name }));
 
-      res.json({ tree, members: mergedMembers, relationships, parentTree, childTrees: childTreesSummary });
+      const tags = await storage.getTreeTags(id);
+      const memberTagAssignments = await storage.getMemberTagsByTree(id);
+
+      res.json({ tree, members: mergedMembers, relationships, parentTree, childTrees: childTreesSummary, tags, memberTags: memberTagAssignments });
     } catch (error) {
       console.error("Error fetching tree:", error);
       res.status(500).json({ message: "Failed to fetch tree" });
@@ -638,6 +643,185 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting tree:", error);
       res.status(500).json({ message: "Failed to delete tree" });
+    }
+  });
+
+  // Tree Tags
+  app.get("/api/trees/:treeId/tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const tags = await storage.getTreeTags(treeId);
+      res.json(tags);
+    } catch (error) {
+      console.error("Error getting tree tags:", error);
+      res.status(500).json({ message: "Failed to get tags" });
+    }
+  });
+
+  app.post("/api/trees/:treeId/tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") {
+          return res.status(403).json({ message: "Only editors, co-owners, or the owner can manage tags" });
+        }
+      }
+
+      const { label, color } = req.body;
+      if (!label || typeof label !== "string" || label.trim().length === 0) {
+        return res.status(400).json({ message: "Tag label is required" });
+      }
+
+      if (label.trim().length > 50) {
+        return res.status(400).json({ message: "Tag label must be 50 characters or less" });
+      }
+
+      const existingTags = await storage.getTreeTags(treeId);
+      if (existingTags.some(t => t.label.toLowerCase() === label.trim().toLowerCase())) {
+        return res.status(400).json({ message: "This tag already exists on this tree" });
+      }
+
+      const tag = await storage.createTreeTag({
+        treeId,
+        label: label.trim(),
+        color: color || "#6366f1",
+      });
+      res.status(201).json(tag);
+    } catch (error) {
+      console.error("Error creating tree tag:", error);
+      res.status(500).json({ message: "Failed to create tag" });
+    }
+  });
+
+  app.delete("/api/trees/:treeId/tags/:tagId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, tagId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") {
+          return res.status(403).json({ message: "Only editors, co-owners, or the owner can manage tags" });
+        }
+      }
+
+      const deleted = await storage.deleteTreeTag(tagId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Tag not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting tree tag:", error);
+      res.status(500).json({ message: "Failed to delete tag" });
+    }
+  });
+
+  // Member Tags - get all member-tag assignments for a tree
+  app.get("/api/trees/:treeId/member-tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) return res.status(403).json({ message: "Access denied" });
+      }
+      const memberTagAssignments = await storage.getMemberTagsByTree(treeId);
+      res.json(memberTagAssignments);
+    } catch (error) {
+      console.error("Error getting member tags:", error);
+      res.status(500).json({ message: "Failed to get member tags" });
+    }
+  });
+
+  // Add tag to a member
+  app.post("/api/trees/:treeId/members/:memberId/tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, memberId } = req.params;
+      const userId = req.user.claims.sub;
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") return res.status(403).json({ message: "Access denied" });
+      }
+      const { tagId } = req.body;
+      if (!tagId) return res.status(400).json({ message: "tagId is required" });
+      const memberTag = await storage.addMemberTag({ tagId, memberId, treeId });
+      res.status(201).json(memberTag);
+    } catch (error) {
+      console.error("Error adding member tag:", error);
+      res.status(500).json({ message: "Failed to add tag to member" });
+    }
+  });
+
+  // Remove tag from a member
+  app.delete("/api/trees/:treeId/members/:memberId/tags/:tagId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, memberId, tagId } = req.params;
+      const userId = req.user.claims.sub;
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") return res.status(403).json({ message: "Access denied" });
+      }
+      await storage.removeMemberTag(tagId, memberId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing member tag:", error);
+      res.status(500).json({ message: "Failed to remove tag from member" });
+    }
+  });
+
+  // Bulk assign tag to multiple members
+  app.post("/api/trees/:treeId/tags/:tagId/members", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, tagId } = req.params;
+      const userId = req.user.claims.sub;
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") return res.status(403).json({ message: "Access denied" });
+      }
+      const { memberIds } = req.body;
+      if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
+        return res.status(400).json({ message: "memberIds array is required" });
+      }
+      const results = await storage.bulkAddMemberTags(tagId, memberIds, treeId);
+      res.status(201).json(results);
+    } catch (error) {
+      console.error("Error bulk adding member tags:", error);
+      res.status(500).json({ message: "Failed to bulk add tags" });
     }
   });
 
