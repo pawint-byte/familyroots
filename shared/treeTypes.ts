@@ -1,6 +1,6 @@
 export type TreeType = "family" | "church" | "sports" | "fraternity" | "friends" | "professional" | "custom";
 
-export type LayoutShape = "tree" | "circle" | "radial" | "grid" | "arc" | "network";
+export type LayoutShape = "tree" | "circle" | "radial" | "grid" | "top-grid" | "arc" | "network";
 
 export type LineStyle = "solid" | "dashed" | "dotted";
 
@@ -155,7 +155,7 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "training_partner", label: "Training Partner", description: "Regular workout or practice partner" },
     ],
     visual: {
-      layoutShape: "grid",
+      layoutShape: "top-grid",
       accentColor: "hsl(25 90% 55%)",
       accentColorLight: "hsl(25 90% 92%)",
       lineStyle: "solid",

@@ -288,18 +288,29 @@ function MiniTreePreview({ members, relationships, treeName, treeType, layoutOve
       }
     }
   } else if (effectiveLayout === "grid") {
-    const cols = Math.ceil(Math.sqrt(count * 1.5));
-    const rows = Math.ceil(count / cols);
+    const leaders = displayMembers.filter((m: any) => leaderIds.has(m.id));
+    const others = displayMembers.filter((m: any) => !leaderIds.has(m.id));
+    const cols = Math.max(2, Math.ceil(Math.sqrt(count * 1.5)));
+    let currentY = 30;
     const cellW = (width - 40) / cols;
-    const cellH = (height - 60) / Math.max(rows, 1);
-    displayMembers.forEach((m, i) => {
+    const rowH = (height - 60) / Math.max(Math.ceil(count / cols) + (leaders.length > 0 ? 1 : 0), 1);
+
+    if (leaders.length > 0) {
+      const leaderSpacing = (width - 40) / (leaders.length + 1);
+      leaders.forEach((m: any, i: number) => {
+        positions.set(m.id, { x: 20 + leaderSpacing * (i + 1), y: currentY + rowH / 2 });
+      });
+      currentY += rowH;
+    }
+
+    others.forEach((m: any, i: number) => {
       const row = Math.floor(i / cols);
       const col = i % cols;
-      const rowCount = Math.min(cols, count - row * cols);
+      const rowCount = Math.min(cols, others.length - row * cols);
       const offsetX = (cols - rowCount) * cellW / 2;
       positions.set(m.id, {
         x: 20 + offsetX + col * cellW + cellW / 2,
-        y: 30 + row * cellH + cellH / 2,
+        y: currentY + row * rowH + rowH / 2,
       });
     });
   } else if (effectiveLayout === "arc") {
