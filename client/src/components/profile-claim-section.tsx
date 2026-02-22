@@ -6,8 +6,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { UserCheck, Clock, XCircle, CheckCircle, Send } from "lucide-react";
+import { UserCheck, Clock, XCircle, CheckCircle, Send, UserMinus, AlertTriangle } from "lucide-react";
 import type { FamilyMember } from "@shared/schema";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface ClaimStatus {
   status: 'available' | 'pending' | 'approved' | 'denied' | 'owned' | 'claimed_by_other';
@@ -37,6 +48,29 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
       return response.json();
     },
     enabled: !isOwner && member.isLiving !== false, // Query only runs for living members in non-owned trees
+  });
+
+  const unclaimMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/members/${member.id}/unclaim`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Disassociated from profile",
+        description: "You have been removed from this profile. The tree owner's original entry has been preserved.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/members', member.id, 'claim-status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/trees'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/members'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to disassociate",
+        description: error?.message || "Please try again later.",
+        variant: "destructive",
+      });
+    },
   });
 
   const submitClaimMutation = useMutation({
@@ -86,14 +120,56 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
     return (
       <Card className="border-primary/50 bg-primary/5">
         <CardContent className="py-4">
-          <div className="flex items-center gap-2 text-primary">
-            <UserCheck className="h-5 w-5" />
-            <span className="font-medium">This is your profile</span>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-primary">
+                <UserCheck className="h-5 w-5" />
+                <span className="font-medium">This is your profile</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                You claimed this profile on {claimStatus.claimedAt ? new Date(claimStatus.claimedAt).toLocaleDateString() : 'a previous date'}.
+                You can edit your personal details.
+              </p>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            You claimed this profile on {claimStatus.claimedAt ? new Date(claimStatus.claimedAt).toLocaleDateString() : 'a previous date'}.
-            You can edit your personal details.
-          </p>
+          <div className="mt-3 pt-3 border-t border-border/50">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive gap-2" data-testid="button-disassociate">
+                  <UserMinus className="h-4 w-4" />
+                  Disassociate from this tree
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    Disassociate from this tree?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-2">
+                    <p>This will remove your connection to this profile. Here's what happens:</p>
+                    <ul className="list-disc pl-5 space-y-1 text-sm">
+                      <li>Your personal data (photo, bio, contact info) will be removed from this tree</li>
+                      <li>The tree owner's original entry (your name, relationships) will stay on the tree</li>
+                      <li>You will lose access to this tree as a collaborator</li>
+                      <li>You can request to re-claim this profile later if you change your mind</li>
+                    </ul>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel data-testid="button-cancel-disassociate">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => unclaimMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    disabled={unclaimMutation.isPending}
+                    data-testid="button-confirm-disassociate"
+                  >
+                    {unclaimMutation.isPending ? "Disassociating..." : "Yes, disassociate me"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </CardContent>
       </Card>
     );

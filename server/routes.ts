@@ -2109,6 +2109,59 @@ export async function registerRoutes(
     }
   });
 
+  // Unclaim / disassociate from a profile (claimed member only)
+  app.post("/api/members/:memberId/unclaim", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const member = await storage.getMember(memberId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      
+      if (member.claimedByUserId !== userId) {
+        return res.status(403).json({ message: "You can only unclaim profiles that you own" });
+      }
+      
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (tree.ownerId === userId) {
+        return res.status(400).json({ message: "Tree owners cannot unclaim their own profile from their own tree" });
+      }
+      
+      const updatedMember = await storage.updateMember(memberId, {
+        claimedByUserId: null,
+        claimedAt: null,
+        photoUrl: null,
+        nickname: null,
+        email: null,
+        gender: null,
+        birthDate: null,
+        birthPlace: null,
+        notes: null,
+        currentCity: null,
+        currentRegion: null,
+        currentCountry: null,
+        locationVisible: false,
+        visibilityOverride: null,
+      } as any);
+      
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, member.treeId);
+      if (collaborator) {
+        await storage.removeCollaborator(collaborator.id);
+      }
+      
+      res.json({ message: "You have been disassociated from this profile. The tree owner's original entry has been preserved." });
+    } catch (error: any) {
+      console.error("Error unclaiming profile:", error);
+      res.status(500).json({ message: error?.message || "Failed to unclaim profile" });
+    }
+  });
+
   // ==================== CUSTODIANSHIP ROUTES ====================
 
   // Get pending custodianship requests for trees owned by the current user (including co-owned)
