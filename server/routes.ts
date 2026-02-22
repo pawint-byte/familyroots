@@ -2907,8 +2907,16 @@ export async function registerRoutes(
           'achievement': 'milestones',
         };
         
+        let canSendGroupNotifications = true;
+        if (tree.isDiscoverable && tree.ownerId !== userId) {
+          const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+          if (!collab || collab.role !== 'co_owner') {
+            canSendGroupNotifications = false;
+          }
+        }
+        
         const prefKey = eventTypeToPreference[event.eventType];
-        if (prefKey) {
+        if (prefKey && canSendGroupNotifications) {
           const treeUsers = await storage.getTreeMembersWithNotificationPrefs(treeId);
           
           // Get member name for the notification
