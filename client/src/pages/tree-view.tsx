@@ -659,7 +659,14 @@ export default function TreeView() {
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="flex items-start gap-2"
-                  onClick={() => navigate("/merchandise")}
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if ((treeData?.tree.treeType || "family") !== "family" && groupLayoutMode !== "auto") {
+                      params.set("layout", groupLayoutMode);
+                    }
+                    if (treeId) params.set("treeId", treeId);
+                    navigate(`/merchandise${params.toString() ? `?${params.toString()}` : ""}`);
+                  }}
                   data-testid="menu-shop"
                 >
                   <ShoppingBag className="h-4 w-4 mt-0.5 shrink-0" />

@@ -22,7 +22,8 @@ import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
-import { getTreeTypeConfig, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
+import { getTreeTypeConfig, getMemberRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
+import type { GroupLayoutMode } from "@/components/group-visualization";
 
 interface PrintPlacement {
   id: string;
@@ -189,7 +190,7 @@ function ProductCard({
   );
 }
 
-function MiniTreePreview({ members, relationships, treeName, treeType }: { members: any[]; relationships: any[]; treeName: string; treeType: string }) {
+function MiniTreePreview({ members, relationships, treeName, treeType, layoutOverride }: { members: any[]; relationships: any[]; treeName: string; treeType: string; layoutOverride?: GroupLayoutMode }) {
   const config = getTreeTypeConfig((treeType || "custom") as TreeType);
   const { layoutShape, accentColor, lineStyle, lineColor, nodeShape } = config.visual;
   const width = 300;
@@ -202,6 +203,14 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
   const count = displayMembers.length;
 
   const positions = new Map<string, { x: number; y: number }>();
+  const leaderIds = new Set<string>();
+
+  const effectiveLayout = (layoutOverride && layoutOverride !== "auto") ? layoutOverride : layoutShape;
+
+  displayMembers.forEach((m: any) => {
+    const rank = getMemberRank(m.id, relationships, (treeType || "custom") as TreeType);
+    if (rank === 1) leaderIds.add(m.id);
+  });
 
   if (count === 0) {
     return (
@@ -211,16 +220,52 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
     );
   }
 
-  if (layoutShape === "circle") {
+  if (effectiveLayout === "hub") {
+    const leaders = displayMembers.filter((m: any) => leaderIds.has(m.id));
+    const others = displayMembers.filter((m: any) => !leaderIds.has(m.id));
+    const hubCenter = leaders.length > 0 ? leaders[0] : displayMembers[0];
+    const spokes = leaders.length > 0 ? others : displayMembers.filter((m: any) => m.id !== hubCenter.id);
+    positions.set(hubCenter.id, { x: cx, y: cy });
+    const spokeRadius = Math.min(cx, cy) - 35;
+    spokes.forEach((m: any, i: number) => {
+      const angle = (2 * Math.PI * i) / spokes.length - Math.PI / 2;
+      positions.set(m.id, { x: cx + spokeRadius * Math.cos(angle), y: cy + spokeRadius * Math.sin(angle) });
+    });
+    leaders.slice(1).forEach((m: any, i: number) => {
+      const angle = (2 * Math.PI * i) / Math.max(leaders.length - 1, 1) - Math.PI / 2;
+      positions.set(m.id, { x: cx + 25 * Math.cos(angle), y: cy + 25 * Math.sin(angle) });
+    });
+  } else if (effectiveLayout === "top-grid") {
+    const leaders = displayMembers.filter((m: any) => leaderIds.has(m.id));
+    const others = displayMembers.filter((m: any) => !leaderIds.has(m.id));
+    const effectiveLeaders = leaders.length > 0 ? leaders : [displayMembers[0]];
+    const effectiveOthers = leaders.length > 0 ? others : displayMembers.slice(1);
+    const leaderSpacing = (width - 40) / (effectiveLeaders.length + 1);
+    effectiveLeaders.forEach((m: any, i: number) => {
+      positions.set(m.id, { x: 20 + leaderSpacing * (i + 1), y: 40 });
+    });
+    const cols = Math.max(2, Math.ceil(Math.sqrt(effectiveOthers.length * 1.4)));
+    const rows = Math.ceil(effectiveOthers.length / cols);
+    const cellW = (width - 40) / cols;
+    const startY = 80;
+    const cellH = Math.min(40, (height - startY - 20) / Math.max(rows, 1));
+    effectiveOthers.forEach((m: any, i: number) => {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const rowCount = Math.min(cols, effectiveOthers.length - row * cols);
+      const offsetX = (cols - rowCount) * cellW / 2;
+      positions.set(m.id, { x: 20 + offsetX + col * cellW + cellW / 2, y: startY + row * cellH + cellH / 2 });
+    });
+  } else if (effectiveLayout === "circle") {
     const circleRadius = Math.min(cx, cy) - 40;
-    displayMembers.forEach((m, i) => {
+    displayMembers.forEach((m: any, i: number) => {
       const angle = (2 * Math.PI * i) / count - Math.PI / 2;
       positions.set(m.id, {
         x: cx + circleRadius * Math.cos(angle),
         y: cy + circleRadius * Math.sin(angle),
       });
     });
-  } else if (layoutShape === "radial") {
+  } else if (effectiveLayout === "radial") {
     if (count > 0) {
       positions.set(displayMembers[0].id, { x: cx, y: cy });
       const rings = Math.ceil((count - 1) / 8);
@@ -237,7 +282,7 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
         }
       }
     }
-  } else if (layoutShape === "grid") {
+  } else if (effectiveLayout === "grid") {
     const cols = Math.ceil(Math.sqrt(count * 1.5));
     const rows = Math.ceil(count / cols);
     const cellW = (width - 40) / cols;
@@ -252,7 +297,7 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
         y: 30 + row * cellH + cellH / 2,
       });
     });
-  } else if (layoutShape === "arc") {
+  } else if (effectiveLayout === "arc") {
     const arcRadius = Math.min(cx, cy) - 30;
     const arcSpan = Math.PI * 0.8;
     const startAngle = Math.PI / 2 - arcSpan / 2;
@@ -265,7 +310,7 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
         y: cy + arcRadius * Math.sin(angle) * 0.6,
       });
     });
-  } else if (layoutShape === "network") {
+  } else if (effectiveLayout === "network") {
     const seed = treeName.length;
     displayMembers.forEach((m, i) => {
       const golden = (i * 137.508 + seed) % 360;
@@ -372,7 +417,7 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" data-testid="mini-tree-preview">
       <text x={cx} y={14} textAnchor="middle" fontSize={10} fontWeight="bold" className="fill-gray-700 dark:fill-gray-200">{treeName}</text>
       <text x={cx} y={height - 6} textAnchor="middle" fontSize={8} className="fill-gray-500 dark:fill-gray-400">{config.visual.shapeName}</text>
-      {layoutShape === "circle" && count > 1 && (
+      {effectiveLayout === "circle" && count > 1 && (
         <circle cx={cx} cy={cy} r={Math.min(cx, cy) - 40} fill="none" stroke={lineColor} strokeWidth={1} strokeDasharray={strokeDasharray} opacity={0.3} />
       )}
       {uniqueConnections.map(({ from, to }: any, i: number) => {
@@ -384,7 +429,10 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
         const pos = positions.get(m.id);
         if (!pos) return null;
         const initials = `${(m.firstName || "")[0] || ""}${(m.lastName || "")[0] || ""}`.toUpperCase();
-        const r = nodeRadius;
+        const isLeader = leaderIds.has(m.id);
+        const r = isLeader ? nodeRadius * 1.5 : nodeRadius;
+        const fillColor = isLeader ? accentColor : accentColor;
+        const strokeW = isLeader ? 2 : 1;
         return (
           <g key={m.id}>
             {nodeShape === "hexagon" ? (
@@ -393,15 +441,18 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
                   const a = (Math.PI / 3) * i - Math.PI / 6;
                   return `${pos.x + r * Math.cos(a)},${pos.y + r * Math.sin(a)}`;
                 }).join(" ")}
-                fill={accentColor} stroke={accentColor} strokeWidth={1}
+                fill={fillColor} stroke={fillColor} strokeWidth={strokeW}
               />
             ) : nodeShape === "rounded" ? (
-              <rect x={pos.x - r} y={pos.y - r * 0.8} width={r * 2} height={r * 1.6} rx={4} fill={accentColor} stroke={accentColor} strokeWidth={1} />
+              <rect x={pos.x - r} y={pos.y - r * 0.8} width={r * 2} height={r * 1.6} rx={4} fill={fillColor} stroke={fillColor} strokeWidth={strokeW} />
             ) : (
-              <circle cx={pos.x} cy={pos.y} r={r} fill={accentColor} stroke={accentColor} strokeWidth={1} />
+              <circle cx={pos.x} cy={pos.y} r={r} fill={fillColor} stroke={fillColor} strokeWidth={strokeW} />
             )}
-            <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="central" fontSize={7} fontWeight="600" fill="white">{initials}</text>
-            <text x={pos.x} y={pos.y + r + 9} textAnchor="middle" fontSize={6} className="fill-gray-700 dark:fill-gray-200">{m.firstName || ""}</text>
+            {isLeader && (
+              <text x={pos.x} y={pos.y - r - 4} textAnchor="middle" fontSize={8}>👑</text>
+            )}
+            <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="central" fontSize={isLeader ? 8 : 7} fontWeight="600" fill="white">{initials}</text>
+            <text x={pos.x} y={pos.y + r + 9} textAnchor="middle" fontSize={isLeader ? 7 : 6} fontWeight={isLeader ? "bold" : "normal"} className="fill-gray-700 dark:fill-gray-200">{m.firstName || ""}</text>
           </g>
         );
       })}
@@ -431,6 +482,7 @@ function ProductCustomizer({
   onOrderCreated,
   userId,
   prefill,
+  layoutOverride,
 }: {
   product: Product;
   trees: FamilyTree[];
@@ -438,6 +490,7 @@ function ProductCustomizer({
   onOrderCreated: () => void;
   userId?: string;
   prefill?: { treeId?: string; includeQR?: boolean; skipToShipping?: boolean };
+  layoutOverride?: GroupLayoutMode;
 }) {
   const isQRFirst = !!(product.isConnectionShirt || product.isPromoItem);
   const [selectedTreeId, setSelectedTreeId] = useState<string>(prefill?.treeId || "");
@@ -668,7 +721,7 @@ function ProductCustomizer({
                     'w-3/4 h-3/4'
                   }`}
                 >
-                  <MiniTreePreview members={treeMembers} relationships={treeDetail?.relationships ?? []} treeName={selectedTree.name} treeType={selectedTree.treeType || "family"} />
+                  <MiniTreePreview members={treeMembers} relationships={treeDetail?.relationships ?? []} treeName={selectedTree.name} treeType={selectedTree.treeType || "family"} layoutOverride={layoutOverride} />
                 </div>
               </div>
             )}
@@ -1460,6 +1513,8 @@ export default function MerchandisePage() {
   const orderId = urlParams.get("order");
   const tabParam = urlParams.get("tab");
   const qrTreeIdParam = urlParams.get("qrTreeId");
+  const layoutParam = urlParams.get("layout") as GroupLayoutMode | null;
+  const treeIdParam = urlParams.get("treeId");
 
   useEffect(() => {
     if (tabParam === "orders") {
@@ -1492,7 +1547,7 @@ export default function MerchandisePage() {
     enabled: !!user,
   });
 
-  const firstTree = trees.length > 0 ? trees[0] : null;
+  const firstTree = (treeIdParam ? trees.find(t => String(t.id) === treeIdParam) : null) || (trees.length > 0 ? trees[0] : null);
   const firstTreeId = firstTree?.id ?? null;
   
   const { data: firstTreeMembers = [] } = useQuery<{ id: number }[]>({
@@ -1786,6 +1841,7 @@ export default function MerchandisePage() {
                                               relationships={previewRelationships}
                                               treeName={previewTreeName}
                                               treeType={previewTreeType}
+                                              layoutOverride={layoutParam || undefined}
                                             />
                                           </div>
                                         </div>
@@ -2045,6 +2101,7 @@ export default function MerchandisePage() {
               onOrderCreated={() => setActiveTab("orders")}
               userId={user?.id}
               prefill={productPrefill}
+              layoutOverride={layoutParam || undefined}
             />
           )}
         </DialogContent>
