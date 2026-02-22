@@ -58,6 +58,7 @@ export interface IStorage {
   updateTree(id: string, tree: Partial<InsertFamilyTree>): Promise<FamilyTree | undefined>;
   deleteTree(id: string): Promise<boolean>;
   getDiscoverableTrees(options?: { search?: string; category?: string; treeType?: string }): Promise<(FamilyTree & { memberCount: number; ownerName: string })[]>;
+  getChildTrees(parentTreeId: string): Promise<FamilyTree[]>;
 
   // Family Members
   getMembers(treeId: string): Promise<FamilyMember[]>;
@@ -385,6 +386,12 @@ export class DatabaseStorage implements IStorage {
     }
     
     return { collaboratedTrees };
+  }
+
+  async getChildTrees(parentTreeId: string): Promise<FamilyTree[]> {
+    return db.select().from(familyTrees)
+      .where(eq(familyTrees.parentTreeId, parentTreeId))
+      .orderBy(familyTrees.name);
   }
 
   async createTree(tree: InsertFamilyTree): Promise<FamilyTree> {

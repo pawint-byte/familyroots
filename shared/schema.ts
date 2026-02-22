@@ -70,6 +70,7 @@ export const familyTrees = pgTable("family_trees", {
   discoveryCategory: text("discovery_category"),
   discoveryLocation: text("discovery_location"),
   autoJoin: boolean("auto_join").default(false),
+  parentTreeId: varchar("parent_tree_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

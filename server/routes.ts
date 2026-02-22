@@ -289,7 +289,18 @@ export async function registerRoutes(
         })
       );
 
-      res.json({ tree, members: mergedMembers, relationships });
+      let parentTree: any = null;
+      if (tree.parentTreeId) {
+        const parent = await storage.getTree(tree.parentTreeId);
+        if (parent) {
+          parentTree = { id: parent.id, name: parent.name };
+        }
+      }
+
+      const childTrees = await storage.getChildTrees(id);
+      const childTreesSummary = childTrees.map(c => ({ id: c.id, name: c.name }));
+
+      res.json({ tree, members: mergedMembers, relationships, parentTree, childTrees: childTreesSummary });
     } catch (error) {
       console.error("Error fetching tree:", error);
       res.status(500).json({ message: "Failed to fetch tree" });
@@ -340,6 +351,94 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating tree:", error);
       res.status(400).json({ message: "Failed to create tree" });
+    }
+  });
+
+  // Get child/sub-group trees for a parent tree
+  app.get("/api/trees/:id/children", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(id);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (tree.ownerId !== userId && tree.privacy !== "public") {
+        const collaborators = await storage.getCollaborators(id);
+        const hasAccess = collaborators.some(c => c.userId === userId);
+        if (!hasAccess) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const children = await storage.getChildTrees(id);
+
+      const childrenWithCounts = await Promise.all(
+        children.map(async (child) => {
+          const members = await storage.getMembers(child.id);
+          return { ...child, memberCount: members.length };
+        })
+      );
+
+      res.json(childrenWithCounts);
+    } catch (error) {
+      console.error("Error fetching child trees:", error);
+      res.status(500).json({ message: "Failed to fetch child trees" });
+    }
+  });
+
+  // Create a sub-group under a parent tree
+  app.post("/api/trees/:id/children", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id: parentId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const parentTree = await storage.getTree(parentId);
+      if (!parentTree) {
+        return res.status(404).json({ message: "Parent tree not found" });
+      }
+
+      if (parentTree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, parentId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Only the owner or co-owners can create sub-groups" });
+        }
+      }
+
+      const data = insertFamilyTreeSchema.parse({
+        ...req.body,
+        ownerId: userId,
+        parentTreeId: parentId,
+        treeType: req.body.treeType || parentTree.treeType,
+        privacy: req.body.privacy || parentTree.privacy,
+      });
+
+      const child = await storage.createTree(data);
+
+      const user = await storage.getUser(userId);
+      if (user) {
+        try {
+          const creatorMember = await storage.createMember({
+            treeId: child.id,
+            firstName: user.firstName || 'Me',
+            lastName: user.lastName || null,
+            email: user.email || null,
+            claimedByUserId: userId,
+            claimedAt: new Date(),
+            isLiving: true,
+          } as any);
+          await storage.updateTree(child.id, { rootMemberId: creatorMember.id });
+        } catch (memberError) {
+          console.error("Failed to auto-add creator to sub-group (non-fatal):", memberError);
+        }
+      }
+
+      res.status(201).json(child);
+    } catch (error) {
+      console.error("Error creating sub-group:", error);
+      res.status(400).json({ message: "Failed to create sub-group" });
     }
   });
 
@@ -1904,7 +2003,15 @@ export async function registerRoutes(
         category: category as string,
         treeType: treeType as string,
       });
-      res.json(trees);
+
+      const treesWithChildren = await Promise.all(
+        trees.map(async (tree) => {
+          const children = await storage.getChildTrees(tree.id);
+          return { ...tree, childCount: children.length };
+        })
+      );
+
+      res.json(treesWithChildren);
     } catch (error: any) {
       console.error("Error fetching discoverable trees:", error);
       res.status(500).json({ message: "Failed to fetch discoverable communities" });

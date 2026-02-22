@@ -60,6 +60,8 @@ interface TreeData {
   tree: FamilyTree;
   members: FamilyMember[];
   relationships: Relationship[];
+  parentTree?: { id: string; name: string } | null;
+  childTrees?: { id: string; name: string }[];
 }
 
 export default function TreeView() {
@@ -105,6 +107,8 @@ export default function TreeView() {
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const [isFocusPanelCollapsed, setIsFocusPanelCollapsed] = useState(false);
   const [viewDepth, setViewDepth] = useState<'immediate' | 'extended' | 'all'>('all');
+  const [isCreateSubgroupOpen, setIsCreateSubgroupOpen] = useState(false);
+  const [newSubgroupName, setNewSubgroupName] = useState("");
   const [importConnectionData, setImportConnectionData] = useState<{
     connectionId: string;
     connectorMemberId: string;
@@ -366,6 +370,32 @@ export default function TreeView() {
       toast({
         title: "Error",
         description: "Failed to update tree settings",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const createSubgroupMutation = useMutation({
+    mutationFn: async (data: { name: string }) => {
+      const res = await apiRequest("POST", `/api/trees/${treeId}/children`, { name: data.name });
+      return res.json();
+    },
+    onSuccess: (newTree) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/discover"] });
+      setIsCreateSubgroupOpen(false);
+      setNewSubgroupName("");
+      toast({
+        title: "Sub-group created!",
+        description: `"${newTree.name}" has been created under this group.`,
+      });
+      navigate(`/tree/${newTree.id}`);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to create sub-group",
         variant: "destructive",
       });
     },
@@ -654,6 +684,18 @@ export default function TreeView() {
                 <Skeleton className="h-6 w-40" />
               ) : (
                 <>
+                  {treeData?.parentTree && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <button
+                        onClick={() => navigate(`/tree/${treeData.parentTree!.id}`)}
+                        className="hover:text-primary hover:underline truncate max-w-[120px]"
+                        data-testid="link-parent-tree"
+                      >
+                        {treeData.parentTree.name}
+                      </button>
+                      <ChevronRight className="h-3 w-3 shrink-0" />
+                    </div>
+                  )}
                   <div className="flex items-center gap-1">
                     <h1 className="font-serif text-base sm:text-lg font-semibold truncate">{treeData?.tree.name}</h1>
                     {(isOwner || isCoOwner) && (
@@ -1067,6 +1109,39 @@ export default function TreeView() {
               </TabsList>
             </div>
           </div>
+
+          {(treeData?.childTrees && treeData.childTrees.length > 0 || (isOwner || isCoOwner)) && (
+            <div className="border-b border-border bg-muted/30 px-4 py-2">
+              <div className="container mx-auto flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-medium text-muted-foreground shrink-0">Sub-groups:</span>
+                {treeData?.childTrees?.map(child => (
+                  <Button
+                    key={child.id}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => navigate(`/tree/${child.id}`)}
+                    data-testid={`button-subgroup-${child.id}`}
+                  >
+                    <GitBranch className="h-3 w-3" />
+                    {child.name}
+                  </Button>
+                ))}
+                {(isOwner || isCoOwner) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs gap-1 border border-dashed border-muted-foreground/30"
+                    onClick={() => setIsCreateSubgroupOpen(true)}
+                    data-testid="button-create-subgroup"
+                  >
+                    <Plus className="h-3 w-3" />
+                    New Sub-group
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
 
           <TabsContent value="tree" className="flex-1 m-0 relative overflow-hidden">
             {isLoading || (showMergedView && isMergedLoading) ? (
@@ -2418,6 +2493,53 @@ export default function TreeView() {
           treeId={treeData.tree.id}
         />
       )}
+
+      <Dialog open={isCreateSubgroupOpen} onOpenChange={(open) => {
+        setIsCreateSubgroupOpen(open);
+        if (!open) setNewSubgroupName("");
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <GitBranch className="h-5 w-5" />
+              Create Sub-group
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Create a smaller group within "{treeData?.tree.name}". 
+              Examples: graduating classes (Class of 2025), subject groups (Math, History), teams, or committees.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="subgroup-name">Sub-group Name</Label>
+              <Input
+                id="subgroup-name"
+                value={newSubgroupName}
+                onChange={(e) => setNewSubgroupName(e.target.value)}
+                placeholder="e.g. Class of 2025, History Department"
+                data-testid="input-subgroup-name"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newSubgroupName.trim()) {
+                    createSubgroupMutation.mutate({ name: newSubgroupName.trim() });
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsCreateSubgroupOpen(false)} data-testid="button-cancel-subgroup">
+                Cancel
+              </Button>
+              <Button
+                onClick={() => createSubgroupMutation.mutate({ name: newSubgroupName.trim() })}
+                disabled={!newSubgroupName.trim() || createSubgroupMutation.isPending}
+                data-testid="button-submit-subgroup"
+              >
+                {createSubgroupMutation.isPending ? "Creating..." : "Create Sub-group"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

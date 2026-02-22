@@ -19,12 +19,12 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
   Search, Users, Church, Trophy, GraduationCap, Heart, Briefcase,
   Sparkles, MapPin, ArrowRight, UserPlus, LogIn, Globe, Filter,
-  ArrowLeft, Shield
+  ArrowLeft, Shield, GitBranch
 } from "lucide-react";
 import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 import type { FamilyTree } from "@shared/schema";
 
-type DiscoverableTree = FamilyTree & { memberCount: number; ownerName: string };
+type DiscoverableTree = FamilyTree & { memberCount: number; ownerName: string; childCount?: number };
 
 const DISCOVERY_CATEGORIES = [
   { value: "alumni", label: "Alumni / School", icon: GraduationCap },
@@ -241,6 +241,12 @@ export default function Discover() {
                           <Users className="h-3.5 w-3.5" />
                           {tree.memberCount} {tree.memberCount === 1 ? "member" : "members"}
                         </span>
+                        {(tree.childCount ?? 0) > 0 && (
+                          <span className="flex items-center gap-1" data-testid={`text-subgroup-count-${tree.id}`}>
+                            <GitBranch className="h-3.5 w-3.5" />
+                            {tree.childCount} {tree.childCount === 1 ? "sub-group" : "sub-groups"}
+                          </span>
+                        )}
                         <span className="text-muted-foreground/60">by {tree.ownerName}</span>
                       </div>
                       {user ? (

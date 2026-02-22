@@ -2,7 +2,7 @@
 
 ## Overview
 
-FamilyRoots is a full-stack web application for creating, managing, and visualizing interactive trees for families and communities. While family trees remain the flagship, the platform now supports multiple tree types: church/faith groups, sports teams, fraternities/sororities, friend circles, professional networks, and custom groups. Each tree type has its own relationship types and terminology, with the user as the common anchor across all their trees. The platform emphasizes user collaboration, robust privacy controls, and secure authentication.
+FamilyRoots is a full-stack web application designed for creating, managing, and visualizing interactive trees. Initially focused on family trees, the platform has expanded to support various community structures such as church groups, sports teams, and professional networks. It allows users to anchor themselves across multiple tree types, each with its unique relationship types and terminology. The project's vision is to offer a collaborative, privacy-aware, and securely authenticated platform for diverse group visualization, fostering connections and preserving legacies.
 
 ## User Preferences
 
@@ -10,97 +10,35 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend
-The frontend uses React 18, TypeScript, Wouter for routing, TanStack React Query for server state, and React Context for UI state. Tailwind CSS manages styling with light/dark modes. shadcn/ui components, based on Radix UI, provide a consistent design, built with Vite. The design is inspired by Ancestry.com and Linear, using Inter and Merriweather fonts.
+### UI/UX
+The frontend is built with React 18, TypeScript, and Wouter for routing. Styling is managed with Tailwind CSS, supporting light/dark modes, and utilizing shadcn/ui components for a consistent design. The aesthetic is inspired by Ancestry.com and Linear, using Inter and Merriweather fonts.
 
-### Backend
-The backend is built with Node.js, Express.js, and TypeScript (ES modules). It provides RESTful API endpoints and integrates Replit Auth for authentication via OpenID Connect with Passport.js. Sessions are managed using PostgreSQL.
-
-### Data Storage
-PostgreSQL is the primary database, utilizing Drizzle ORM and drizzle-zod for schema validation. Key tables store family trees, members, relationships, collaboration data, events, sessions, and user information.
+### Technical Implementation
+The backend uses Node.js, Express.js, and TypeScript, providing RESTful API endpoints. Authentication is handled via Replit Auth (OpenID Connect) with Passport.js and PostgreSQL for session management. Data is stored in PostgreSQL, with Drizzle ORM and drizzle-zod for schema validation. The application supports internationalization (English, Spanish, French, German) and PWA features.
 
 ### Core Features
 
-- **Authentication**: Secure login via Replit Auth (OpenID Connect) with PostgreSQL session management.
-- **Collaboration**: Users can share family trees with defined roles (Viewer, Editor, Co-owner) via invitation links and link co-owned trees.
-- **Multi-Tree-Type Support**: Supports family, church, sports, fraternity/sorority, friends, professional, and custom tree types. Each type has its own relationship types, terminology, and qualifiers defined upfront. Configured via `shared/treeTypes.ts`. Schema uses `treeType`, `treeTypeLabel`, and `customRelationshipTypes` columns on `family_trees` table. Both `relationships.relationship_type` and `relationships.qualifier` columns are `text` (not enum) to support dynamic types. Tree creation dialog shows the full relationship structure preview and allows adding custom relationship types for ANY tree type. Qualifiers are type-specific (e.g., Starter/Varsity/JV for sports, Class of 2026-2030 for fraternity, Youth Ministry/Worship Team for church, Department for professional).
-- **Visual Layout Per Tree Type**: Each tree type has a unique visual layout and styling. Family uses hierarchical tree layout (`family-tree-visualization.tsx`), while other types use `group-visualization.tsx` with: circle (friends/custom), radial starburst (church), grid formation (sports), arc chain (fraternity/sorority), and network graph (professional). Each type also has distinct accent colors, connection line styles (solid/dashed/dotted), and node shapes. Config stored in `shared/treeTypes.ts` under `visual` property. **Visual Hierarchy**: Relationship types have an optional `rank` property (1=leader, 2=sub-leader, 3=member). Leaders (rank 1) get larger nodes, crown icons, filled accent badges, and top/center positioning. Sub-leaders (rank 2) get star icons and medium sizing. Regular members get default styling. Peer relationships (friends, best friends, study partners, training partners, etc.) are available across all group tree types for member-to-member connections.
-- **Relationship Management**: Comprehensive control over family relationships, allowing manual additions and definitions.
-- **Profile Claiming**: Family members can claim their profiles in trees they don't own, gaining limited editing rights upon owner approval. Members can also disassociate (unclaim) from a tree, which strips their personal data but preserves the tree owner's original entry (name, relationships). Tree structure is never broken by disassociation.
-- **Life Events Recording**: Track significant life events with dates, descriptions, locations, and media attachments, including email notifications for collaborators.
-- **Custodianship System**: Direct relatives can request custodianship of deceased members' profiles, gaining limited edit permissions after an approval window.
-- **Privacy Controls**: Three-tier visibility (Full Access, Extended Family View, Limited) with immediate family exceptions and per-member overrides.
-- **Special Connections**: Add non-blood relationships (e.g., godparents, friends) and manage cross-tree connection requests.
-- **Location Sharing**: Optional location fields with opt-in visibility and a network page for location-based discovery.
-- **Deadman Switch**: Users can designate an heir to inherit their family trees after inactivity.
-- **Smart Family Member Matching**: Opt-in, privacy-focused cross-tree matching for shared connections using a weighted scoring algorithm.
-- **Cross-Tree Person Matching**: Automatic detection of the same person across multiple trees using external IDs and name/date similarity, with a pending review system.
-- **Discoverable Community Trees**: Opt-in discovery system allowing tree owners to make their groups publicly browsable at /discover. Settings include description, category (alumni, church, sports, etc.), location, and auto-join toggle. Managed via Tree Settings dialog. Browse page supports search, category filters, and tree type filters. **Privacy Protection**: Public viewers of discoverable trees only see limited member data (name, photo, living status) — sensitive details (email, birth date, location, notes) are stripped server-side via `filterMemberByVisibility("limited")`. Users who have claimed their own profile always see their full data. A privacy consent dialog explains what's visible before joining. **Moderated Notifications**: Discoverable trees automatically have moderated notifications — only the tree owner and co-owners can trigger group-wide email notifications (life events). Regular members can still use the tree normally but their activity won't spam the group. A "Moderated" badge shows in the tree header for non-owner members.
-- **Member Muting**: Per-user notification suppression without leaving a tree. Users can mute individual members or entire branches (member + all descendants) from the member detail panel. Muted members show a "Muted" badge. Branch muting uses BFS descendant traversal. Life event notifications are filtered to skip muted members. Schema: `member_mutes` table with scope enum (member/branch).
-- **Network Connection Discovery**: Automated expansion of extended family networks when trees connect, with dashboard approval.
-- **Dynamic Relationship Calculator**: Uses a BFS algorithm to determine genealogical relationships between any two family members.
-- **Education & Career History**: Detailed tracking of education and employment records.
-- **AI Chatbot**: An OpenAI GPT-4.1-mini powered chatbot for genealogy assistance and app guidance.
-- **Internationalization (i18n)**: Supports English, Spanish, French, and German with language detection and switching.
-- **HeyGen Video Generation**: Admin interface for creating AI avatar videos with public playback and social sharing.
-- **SEO**: Client-side SEO for meta tags, Open Graph, Twitter cards, and JSON-LD.
-- **Email Service**: Uses Resend for transactional emails (invites, notifications).
-- **Photo Uploads**: Secure photo uploads via Replit Object Storage with presigned URLs.
-- **Tree Export**: Export family tree visualizations as high-resolution PNG images with theme-aware backgrounds.
-- **Custom Merchandise**: Order custom products with family tree prints via Printful integration, with Stripe checkout. Features a "Popular Picks" quick-order section with Premium Fleece Blanket as flagship product, tree-type-aware previews on product mockups. **Flexible Product Customizer**: ANY product can independently include up to 4 elements — tree/group print, QR code, custom uploaded image, and custom text — all are optional toggles. Users can upload their own images (saved tree exports, logos, artwork) via Object Storage presigned URL upload flow. Custom text supports up to 100 characters (family names, mottos, dates). QR code type selection (Site Signup, My Profile, or Tree/Group Invite) is available on ALL products. Each element has independent placement controls. Tree print on merchandise shows the actual GroupVisualization component scaled down, matching the tree-view page exactly. Includes "The Connection Shirt" (Fan Favorite) and "QR Connection Sticker" (Bulk Promo) which default to QR-first. Inline "Create a New Group" flow lets users create blank placeholder groups directly from the merchandise customizer, get the QR code printed, and have members scan to auto-join. Invite links auto-generated via `/api/trees/:treeId/invite-link` endpoint.
-- **QR Code Sharing**: Share page with scannable QR code for app linking, download, and native sharing.
-- **Personal Profile QR Codes**: Unique QR codes for users' public profiles to facilitate in-person connection requests with specified relationships.
-- **Tiered Subscription Discounts**: Dynamic pricing based on total family members across all trees, including milestone payments for larger trees.
-- **Selective Branch Import**: Control which members from connected trees count towards subscription tiers, with scope options and preview.
-- **FamilySearch Integration**: OAuth-based integration for searching historical records, attaching sources, and importing family tree data. Features tree browser with selectable import for ancestors/descendants, duplicate detection, and sandbox mode for testing without production API key.
-- **Comparison Page**: Marketing page comparing FamilyRoots features against Ancestry.
-- **Progressive Web App (PWA)**: Full PWA support for mobile installation and offline caching.
-- **Google Analytics**: Optional integration for user engagement tracking.
-- **Reddit Pixel**: Conversion tracking for Reddit Ads campaigns (ID: a2_iepozq36wg7a). Tracks page visits and sign-up conversions.
-- **Discord Integration**: Automated notifications for new signups, tree creation, and milestone achievements sent to Discord community channel.
-- **Network Overview**: Visual hub showing all user's trees, expanded member grids, and cross-tree shared connections at /network-overview.
-- **Life Event Broadcasting**: Cross-tree announcement system allowing users to broadcast life events from one tree to selected other trees, with email notifications to opted-in members.
-- **Referral System**: User referral tracking with unique codes (format: FR{userId}{timestamp}), click tracking, and completion stats displayed on dashboard. Referral codes captured from ?ref= URL parameter and completed on signup.
-- **Automatic Maintenance Mode**: User-friendly maintenance page displayed during server unavailability with auto-retry.
-- **My Family Connections**: Dashboard section displaying approved user-to-user connections with relationship badges.
-- **Single Source of Truth (Profile Sync)**: Claimed users manage their canonical profile, syncing personal data across all claimed profiles in family trees.
-- **Membership Badge**: Downloadable/shareable digital membership card at /my-badge showing user stats (trees, members, invites), tier level (Root Starter through Legacy Builder), and embedded referral QR code. Uses html-to-image for PNG export and Web Share API for native sharing. Tiers based on total member count across all trees.
+-   **Multi-Tree Type Support**: Supports diverse tree types (family, church, sports, etc.) with configurable relationship types, terminology, and visual layouts.
+-   **Nested Sub-groups**: Allows creation of hierarchical sub-groups within trees (e.g., "Class of 2025" within a school tree).
+-   **Visual Layout Per Tree Type**: Each tree type has a unique visual layout and styling, including distinct accent colors, connection line styles, and node shapes, with visual hierarchy based on relationship ranks.
+-   **Authentication & Collaboration**: Secure login via Replit Auth; users can share trees with role-based access (Viewer, Editor, Co-owner).
+-   **Profile Management**: Members can claim and manage their profiles, record life events, and track education/career history. A custodianship system allows relatives to manage deceased members' profiles.
+-   **Privacy & Security**: Three-tier visibility controls, per-member overrides, and a "Deadman Switch" for inheritance of trees. Profile claiming and disassociation features are implemented to manage personal data.
+-   **Community & Discovery**: Opt-in discoverable community trees, location sharing, and a "Network Overview" for visualizing connections across trees.
+-   **AI & Integrations**: An OpenAI GPT-4.1-mini chatbot for assistance, HeyGen for AI avatar video generation, and FamilySearch integration for genealogical research.
+-   **Merchandise & Customization**: Integration with Printful for custom merchandise orders, allowing extensive customization options including tree prints, QR codes, and custom text.
+-   **QR Code Sharing**: Facilitates sharing of app links, profiles, and tree invitations via QR codes.
+-   **Referral System**: Tracks user referrals and provides referral codes.
+-   **User Engagement**: Includes features like member muting, life event broadcasting, and a "Membership Badge" with user stats.
 
 ## External Dependencies
 
-- **Database**: PostgreSQL
-- **Authentication**: Replit OpenID Connect provider
-- **AI**: OpenAI via Replit AI Integrations
-- **Email**: Resend
-- **Video Generation**: HeyGen API
-- **Social Media**: Bluesky
-- **Payments**: Stripe (subscription management, merchandise checkout, supports card and crypto payments)
-- **Print-on-Demand**: Printful API
-- **Genealogy Research**: FamilySearch API
-- **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image, react-leaflet.
-
-## Critical Implementation Notes
-
-### Family Tree Visualization (DO NOT MODIFY without testing)
-
-The family tree visualization (`client/src/components/family-tree-visualization.tsx`) has specific requirements that must be maintained:
-
-1. **Transform Origin**: Must be `"0 0"` (top-left) - NOT `"center center"`. This ensures SVG connection lines align with HTML member cards.
-
-2. **Container Hierarchy** (in `tree-view.tsx`):
-   - Outer container: `h-screen` (fixed height, not `min-h-screen`)
-   - Add `overflow-hidden` to prevent scroll issues
-   - TabsContent: `flex-1 overflow-hidden`
-   - Tree container: `w-full h-full`
-
-3. **Coordinate System**: SVG paths and HTML elements share the same coordinate space. Both use absolute positioning within the transformed container.
-
-4. **Centering Logic**: The useEffect that centers on focusMemberId calculates offset based on container dimensions and node positions.
-
-5. **Layout Rules** (Updated Jan 2026):
-   - **Blood relatives on vertical line**: Grandparents → Parents → Focus → Children → Grandchildren
-   - **Siblings**: ALL positioned to the LEFT of focus person
-   - **Spouse/Partner**: Positioned to the RIGHT of focus person
-   - This creates clear visual separation between bloodline and marriage connections
-
-**Why this matters**: Changes to layout (min-h-screen vs h-screen, overflow settings, transform origin) can break the alignment between connection lines and member cards. Always test tree visualization on both desktop and mobile after any layout changes.
+-   **Database**: PostgreSQL
+-   **Authentication**: Replit OpenID Connect provider
+-   **AI**: OpenAI (via Replit AI Integrations)
+-   **Email**: Resend
+-   **Video Generation**: HeyGen API
+-   **Payments**: Stripe
+-   **Print-on-Demand**: Printful API
+-   **Genealogy Research**: FamilySearch API
+-   **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image, react-leaflet.
