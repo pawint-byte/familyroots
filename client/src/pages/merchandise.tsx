@@ -199,7 +199,12 @@ function MiniTreePreview({ members, relationships, treeName, treeType, layoutOve
   const cy = height / 2;
   const nodeRadius = 12;
   const maxDisplay = 30;
-  const displayMembers = members.slice(0, maxDisplay);
+  const rankedMembers = [...members].sort((a: any, b: any) => {
+    const rankA = getMemberRank(a.id, relationships, (treeType || "custom") as TreeType);
+    const rankB = getMemberRank(b.id, relationships, (treeType || "custom") as TreeType);
+    return rankA - rankB;
+  });
+  const displayMembers = rankedMembers.slice(0, maxDisplay);
   const count = displayMembers.length;
 
   const positions = new Map<string, { x: number; y: number }>();
@@ -721,7 +726,7 @@ function ProductCustomizer({
                     'w-3/4 h-3/4'
                   }`}
                 >
-                  <MiniTreePreview members={treeMembers} relationships={treeDetail?.relationships ?? []} treeName={selectedTree.name} treeType={selectedTree.treeType || "family"} layoutOverride={layoutOverride} />
+                  <MiniTreePreview members={treeMembers} relationships={treeDetail?.relationships ?? []} treeName={selectedTree.name} treeType={selectedTree.treeType || "family"} layoutOverride={(treeDetail?.tree?.preferredLayout as GroupLayoutMode) || layoutOverride} />
                 </div>
               </div>
             )}
@@ -1843,7 +1848,7 @@ export default function MerchandisePage() {
                                               relationships={previewRelationships}
                                               treeName={previewTreeName}
                                               treeType={previewTreeType}
-                                              layoutOverride={effectiveLayout}
+                                              layoutOverride={(firstTreeDetail?.tree?.preferredLayout as GroupLayoutMode) || effectiveLayout}
                                             />
                                           </div>
                                         </div>
