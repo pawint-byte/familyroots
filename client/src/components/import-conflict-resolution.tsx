@@ -460,9 +460,9 @@ export default function ImportConflictResolution({
               <p className="text-muted-foreground mt-1">
                 Deepest ancestor chain: {importSummary.integrity.maxAncestorDepth} generation{importSummary.integrity.maxAncestorDepth !== 1 ? 's' : ''}
               </p>
-              {importSummary.integrity.rootAncestors > 0 && (
+              {(importSummary.integrity.rootAncestors ?? 0) > 0 && (
                 <p className="text-muted-foreground mt-1">
-                  {importSummary.integrity.rootAncestors} root ancestor{importSummary.integrity.rootAncestors !== 1 ? 's' : ''}, {importSummary.integrity.leafMembers} leaf member{importSummary.integrity.leafMembers !== 1 ? 's' : ''}
+                  {importSummary.integrity.rootAncestors} root ancestor{importSummary.integrity.rootAncestors !== 1 ? 's' : ''}, {importSummary.integrity.leafMembers ?? 0} leaf member{(importSummary.integrity.leafMembers ?? 0) !== 1 ? 's' : ''}
                 </p>
               )}
               {importSummary.integrity.relationshipTypes && (
