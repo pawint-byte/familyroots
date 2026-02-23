@@ -632,24 +632,28 @@ export default function FamilyTreeVisualization({
       });
     }
 
-    let extraX = centerX + 600;
-    let hasUnconnected = false;
-    deduplicatedMembers.forEach((member) => {
-      if (!placed.has(member.id)) {
-        if (!hasUnconnected) {
-          labels.push({ x: extraX, y: centerY - 40, text: 'No Relationship Defined', type: 'unconnected' });
-          hasUnconnected = true;
-        }
+    const unconnectedMembers = deduplicatedMembers.filter(m => !placed.has(m.id));
+    if (unconnectedMembers.length > 0) {
+      const maxY = positioned.length > 0
+        ? Math.max(...positioned.map(p => p.y)) + nodeHeight + verticalGap
+        : centerY;
+      const columnsPerRow = Math.min(unconnectedMembers.length, 5);
+      const gridStartX = centerX - ((columnsPerRow - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+
+      labels.push({ x: centerX, y: maxY - 40, text: 'No Relationship Defined', type: 'unconnected' });
+
+      unconnectedMembers.forEach((member, idx) => {
+        const col = idx % columnsPerRow;
+        const row = Math.floor(idx / columnsPerRow);
         positioned.push({
-          x: extraX,
-          y: centerY,
+          x: gridStartX + col * (nodeWidth + horizontalGap / 2),
+          y: maxY + row * (nodeHeight + verticalGap / 2),
           member,
           branchType: 'unconnected'
         });
-        extraX += nodeWidth + horizontalGap;
         placed.add(member.id);
-      }
-    });
+      });
+    }
 
     return { positions: positioned, labels };
   }, [deduplicatedMembers, relationships, focusMemberId, getRelationshipMaps, getSiblings, nodeWidth, nodeHeight, horizontalGap, verticalGap, viewDepth]);

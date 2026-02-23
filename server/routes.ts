@@ -9202,8 +9202,11 @@ export async function registerRoutes(
           
           if (alreadyExists) continue;
           
-          if (rel.type === "parent-child") {
-            // person1 is parent, person2 is child
+          const relType = rel.type?.toLowerCase() || "";
+          const isParentChild = relType === "parent-child" || relType.includes("parentchild");
+          const isCouple = relType === "couple" || relType.includes("couple");
+
+          if (isParentChild) {
             const relationship = await storage.createRelationship({
               treeId,
               fromMemberId: member1Id,
@@ -9211,8 +9214,7 @@ export async function registerRoutes(
               relationshipType: "parent",
             });
             createdRelationships.push(relationship);
-          } else if (rel.type === "couple") {
-            // Create spouse relationship
+          } else if (isCouple) {
             const relationship = await storage.createRelationship({
               treeId,
               fromMemberId: member1Id,

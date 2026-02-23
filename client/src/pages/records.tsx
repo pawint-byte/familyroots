@@ -346,6 +346,35 @@ export default function RecordsPage() {
     setActiveSearch(false);
   };
 
+  const applySearchResultFallback = (result: SearchResult) => {
+    if (!result.relatedPersons || result.relatedPersons.length === 0) return;
+    const mainPerson: FamilySearchPerson = {
+      id: result.person.id,
+      name: result.person.display?.name || "Unknown",
+      gender: result.person.display?.gender?.toLowerCase(),
+      birthDate: result.person.display?.birthDate,
+      birthPlace: result.person.display?.birthPlace,
+      deathDate: result.person.display?.deathDate,
+      living: !result.person.display?.deathDate,
+    };
+    const relatedPersons: FamilySearchPerson[] = result.relatedPersons.map((rp: any) => ({
+      id: rp.id,
+      name: rp.display?.name || "Unknown",
+      gender: rp.display?.gender?.toLowerCase(),
+      birthDate: rp.display?.birthDate,
+      birthPlace: rp.display?.birthPlace,
+      deathDate: rp.display?.deathDate,
+      living: !rp.display?.deathDate,
+    }));
+    const normalizedRels = (result.relationships || []).map(r => ({
+      ...r,
+      type: r.type.includes("ParentChild") ? "parent-child" : r.type.includes("Couple") ? "couple" : r.type,
+    }));
+    setFamilyMembers([mainPerson, ...relatedPersons]);
+    setFamilyRelationships(normalizedRels);
+    setSelectedFamilyIds(new Set([mainPerson.id, ...relatedPersons.map(p => p.id)]));
+  };
+
   const handleImportClick = async (result: SearchResult) => {
     setSelectedResult(result);
     if (trees.length === 1) {
@@ -365,9 +394,12 @@ export default function RecordsPage() {
           setFamilyMembers(data.persons);
           setFamilyRelationships(data.relationships || []);
           setSelectedFamilyIds(new Set(data.persons.map((p: FamilySearchPerson) => p.id)));
+        } else {
+          applySearchResultFallback(result);
         }
       } catch (err) {
-        console.log("Could not fetch family data:", err);
+        console.log("Could not fetch family data, using search result data:", err);
+        applySearchResultFallback(result);
       } finally {
         setLoadingFamily(false);
       }
