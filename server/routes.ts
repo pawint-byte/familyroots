@@ -7839,6 +7839,35 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== TREE CONNECT INFO (public endpoint for connection invite pages) ====================
+
+  app.get("/api/trees/:treeId/connect-info", async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const tree = await storage.getTree(treeId);
+      if (!tree || tree.deletedAt) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const owner = await storage.getUser(tree.ownerId);
+      const ownerProfiles = await storage.getAllClaimedProfilesForUser(tree.ownerId);
+      const primaryProfile = ownerProfiles[0];
+
+      res.json({
+        treeId: tree.id,
+        treeName: tree.name,
+        treeType: tree.treeType || "family",
+        ownerId: tree.ownerId,
+        ownerFirstName: owner?.firstName || primaryProfile?.firstName || "Unknown",
+        ownerLastName: owner?.lastName || primaryProfile?.lastName || "",
+        ownerPhoto: owner?.profileImageUrl || primaryProfile?.photoUrl || null,
+      });
+    } catch (error) {
+      console.error("Error fetching tree connect info:", error);
+      res.status(500).json({ message: "Failed to fetch tree info" });
+    }
+  });
+
   // ==================== USER-TO-USER CONNECTION REQUESTS (QR Code) ====================
 
   // Send a user-to-user connection request (from scanned QR code)
@@ -7846,7 +7875,17 @@ export async function registerRoutes(
   const VALID_RELATIONSHIP_TYPES = [
     "son", "daughter", "parent", "spouse", "sibling", 
     "grandparent", "grandchild", "aunt", "uncle", "niece", "nephew",
-    "cousin", "in_law", "step_relative", "other"
+    "cousin", "in_law", "step_relative", "other",
+    "child", "coparent", "unknown",
+    "pastor", "elder", "worship_leader", "ministry_leader", "teacher", "member",
+    "ministry_member", "student", "volunteer", "mentor", "mentee", "prayer_partner", "friend",
+    "coach", "assistant_coach", "captain", "trainer", "manager", "player", "teammate", "alumni",
+    "best_friend", "rival", "training_partner",
+    "chapter_president", "advisor", "officer", "big", "little", "pledge_class", "active",
+    "study_partner", "roommate",
+    "close_friend", "neighbor", "acquaintance", "travel_buddy",
+    "supervisor", "direct_report", "colleague", "intern", "client", "partner",
+    "leader", "co_leader", "connected"
   ] as const;
 
   // Now properly stores the request with relationship type

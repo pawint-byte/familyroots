@@ -40,6 +40,7 @@ import NetworkOverview from "@/pages/network-overview";
 import MembershipBadge from "@/pages/membership-badge";
 import Discover from "@/pages/discover";
 import FeaturesGuide from "@/pages/features-guide";
+import ConnectToTree from "@/pages/connect-to-tree";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -91,6 +92,7 @@ function Router() {
       <Route path="/my-badge" component={MembershipBadge} />
       <Route path="/discover" component={Discover} />
       <Route path="/features" component={FeaturesGuide} />
+      <Route path="/connect/:treeId" component={ConnectToTree} />
       <Route component={NotFound} />
     </Switch>
   );

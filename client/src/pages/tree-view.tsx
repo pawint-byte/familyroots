@@ -28,7 +28,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
   LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors,
-  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight
+  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight, UserPlus
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1156,6 +1156,19 @@ export default function TreeView() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => {
+                    const connectUrl = `${window.location.origin}/connect/${treeId}`;
+                    navigator.clipboard.writeText(connectUrl);
+                    toast({ title: "Link Copied!", description: "Share this link so others can request to connect to your tree." });
+                  }}
+                  data-testid="menu-invite-to-connect"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Copy Connection Invite Link
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="gap-2" 
                   onClick={handleExportImage}
