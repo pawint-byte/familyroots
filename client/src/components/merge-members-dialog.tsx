@@ -69,7 +69,9 @@ export function MergeMembersDialog({
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return null;
-    return new Date(date).toLocaleDateString('en-US', {
+    const parsed = parseDateString(date);
+    if (!parsed) return date;
+    return parsed.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
