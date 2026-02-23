@@ -164,7 +164,7 @@ export default function ImportConflictResolution({
         <div>
           <h2 className="text-xl font-bold" data-testid="text-resolution-title">Review Import: {subTreeName}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {importedCount} people imported. Review potential duplicates before connecting to your tree.
+            {importedCount} people imported with their relationships. Review potential duplicates below, then confirm to add everyone into your tree. Any members without connections can be linked manually from the tree view.
           </p>
         </div>
       </div>
@@ -200,8 +200,13 @@ export default function ImportConflictResolution({
             Potential Duplicates ({conflicts.length})
           </h3>
           <p className="text-sm text-muted-foreground">
-            These imported members look similar to people already in your tree. Decide how to handle each one.
+            These imported members look similar to people already in your tree. Decide how to handle each one:
           </p>
+          <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 space-y-1">
+            <p><strong>Same Person</strong> — Merges them into your existing member. All imported relationships (parents, children, spouses) will connect to your existing member. Works great for blended families where the same child might have different parents in each tree.</p>
+            <p><strong>Different People</strong> — Keeps both as separate members in your tree. You can manually add relationships to them later from the tree view.</p>
+            <p><strong>Skip</strong> — Removes this person from the import entirely.</p>
+          </div>
 
           {conflicts.map((conflict) => {
             const resolution = resolutions.get(conflict.sourceMember.id);
@@ -367,7 +372,7 @@ export default function ImportConflictResolution({
         <Alert>
           <CheckCircle className="h-4 w-4" />
           <AlertDescription>
-            No duplicates found. All {cleanMembers.length} imported members are unique. You can connect the import directly.
+            No duplicates found. All {cleanMembers.length} imported members are unique and will be added to your tree with their relationships intact. Click below to confirm.
           </AlertDescription>
         </Alert>
       )}
