@@ -1146,7 +1146,12 @@ export default function TreeView() {
               variant="outline"
               size="sm"
               className="gap-1.5 hidden sm:flex"
-              onClick={() => setIsInviteConnectOpen(true)}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log("[DEBUG] Invite button clicked (desktop), setting isInviteConnectOpen=true");
+                setIsInviteConnectOpen(true);
+              }}
               data-testid="button-invite-connect"
               title="Invite someone to connect"
             >
@@ -1157,7 +1162,12 @@ export default function TreeView() {
               variant="outline"
               size="icon"
               className="sm:hidden"
-              onClick={() => setIsInviteConnectOpen(true)}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log("[DEBUG] Invite button clicked (mobile), setting isInviteConnectOpen=true");
+                setIsInviteConnectOpen(true);
+              }}
               data-testid="button-invite-connect-mobile"
               title="Invite someone to connect"
             >
@@ -1181,7 +1191,10 @@ export default function TreeView() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   className="gap-2"
-                  onClick={() => setIsInviteConnectOpen(true)}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setTimeout(() => setIsInviteConnectOpen(true), 10);
+                  }}
                   data-testid="menu-invite-to-connect"
                 >
                   <UserPlus className="h-4 w-4" />
@@ -1231,11 +1244,12 @@ export default function TreeView() {
                     {treeData && treeData.relationships.length > 0 && (
                       <DropdownMenuItem
                         className="gap-2"
-                        onClick={() => {
+                        onSelect={(e) => {
+                          e.preventDefault();
                           setBulkRelFromType("");
                           setBulkRelToType("");
                           setBulkRelExcludeIds(new Set());
-                          setIsBulkRelChangeOpen(true);
+                          setTimeout(() => setIsBulkRelChangeOpen(true), 10);
                         }}
                         data-testid="menu-bulk-change-relationships"
                       >
@@ -1246,7 +1260,10 @@ export default function TreeView() {
                     {deletedMembers && deletedMembers.length > 0 && (
                       <DropdownMenuItem
                         className="gap-2"
-                        onClick={() => setIsDeletedMembersOpen(true)}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setTimeout(() => setIsDeletedMembersOpen(true), 10);
+                        }}
                         data-testid="menu-deleted-members"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1255,9 +1272,10 @@ export default function TreeView() {
                     )}
                     <DropdownMenuItem
                       className="gap-2"
-                      onClick={() => {
-                        setIsSplitTreeOpen(true);
+                      onSelect={(e) => {
+                        e.preventDefault();
                         setSplitNewOwnerId(userId || "");
+                        setTimeout(() => setIsSplitTreeOpen(true), 10);
                       }}
                       data-testid="button-split-tree"
                     >
@@ -1266,7 +1284,10 @@ export default function TreeView() {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="gap-2"
-                      onClick={() => setIsMoveUnderParentOpen(true)}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        setTimeout(() => setIsMoveUnderParentOpen(true), 10);
+                      }}
                       data-testid="button-move-under-parent"
                     >
                       <ArrowLeft className="h-4 w-4 rotate-[270deg]" />

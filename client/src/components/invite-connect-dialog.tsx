@@ -71,8 +71,8 @@ export function InviteConnectDialog({ open, onOpenChange, treeId, treeName, tree
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
