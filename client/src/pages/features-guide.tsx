@@ -163,6 +163,12 @@ export default function FeaturesGuide() {
           icon: <QrCode className="h-5 w-5 text-gray-700" />,
         },
         {
+          name: "Connection Invite Links",
+          description: "Generate a shareable link from inside any tree that lets others request to connect. The recipient sees your tree name and owner, and just picks their role or relationship — no extra setup needed. The link adapts to your tree type, showing the right options for family, sports, church, or any other group.",
+          whereToFind: "Tree View > Menu (three lines) > 'Copy Connection Invite Link'. Share the link via text, email, or social media.",
+          icon: <UserCheck className="h-5 w-5 text-teal-600" />,
+        },
+        {
           name: "Discoverable Community Trees",
           description: "Opt in to make your tree discoverable so others can find and request to join your community group. Only community trees (church, sports, etc.) can be made discoverable.",
           whereToFind: "Tree View > Settings > toggle 'Make Discoverable'. Browse others at Dashboard > 'Discover' in the menu.",

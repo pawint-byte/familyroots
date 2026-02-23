@@ -430,6 +430,18 @@ export default function FAQ() {
         {
           question: "Can I remove someone's access to my tree?",
           answer: "Yes, as the tree owner or co-owner, you can remove any collaborator's access at any time. Go to your tree settings and manage collaborators to revoke access."
+        },
+        {
+          question: "How do I invite someone to connect to my tree?",
+          answer: "The easiest way is from inside the tree itself. Open your tree, tap the menu icon (three lines), and choose 'Copy Connection Invite Link'. Share that link with anyone you'd like to invite. When they open it, they'll see your tree name and who owns it — all they need to do is pick their role or relationship and send the request. You'll get a notification to approve it."
+        },
+        {
+          question: "What's the difference between an Invite Link and a Connection Invite?",
+          answer: "An Invite Link (from the Share button) gives someone a specific role in your tree — Viewer, Editor, or Co-owner — so they can see or edit it. A Connection Invite (from the menu) is a relationship request. The person tells you how they're connected to your group (e.g., 'I'm your cousin' or 'I'm a player on the team'), and you approve it. After approval, they get added as a member of the tree with their relationship established."
+        },
+        {
+          question: "Does the connection invite work for non-family trees?",
+          answer: "Yes! The connection invite page automatically adapts to your tree type. If it's a sports team, the person picks from roles like Coach, Player, or Teammate. For a church group, they see options like Pastor, Member, or Volunteer. For a professional network, they choose Manager, Colleague, Mentor, and so on."
         }
       ]
     },
