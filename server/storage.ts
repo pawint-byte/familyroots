@@ -85,6 +85,7 @@ export interface IStorage {
   createMember(member: InsertFamilyMember): Promise<FamilyMember>;
   updateMember(id: string, member: Partial<InsertFamilyMember>): Promise<FamilyMember | undefined>;
   deleteMember(id: string): Promise<boolean>;
+  removeMemberRecord(id: string): Promise<boolean>;
   softDeleteMember(id: string): Promise<boolean>;
   restoreMember(id: string): Promise<boolean>;
   getDeletedMembers(treeId: string): Promise<FamilyMember[]>;
@@ -727,6 +728,12 @@ export class DatabaseStorage implements IStorage {
     await db.delete(relationships).where(
       or(eq(relationships.fromMemberId, id), eq(relationships.toMemberId, id))
     );
+    await db.delete(familyEvents).where(eq(familyEvents.memberId, id));
+    await db.delete(familyMembers).where(eq(familyMembers.id, id));
+    return true;
+  }
+
+  async removeMemberRecord(id: string): Promise<boolean> {
     await db.delete(familyEvents).where(eq(familyEvents.memberId, id));
     await db.delete(familyMembers).where(eq(familyMembers.id, id));
     return true;
@@ -2442,19 +2449,20 @@ export class DatabaseStorage implements IStorage {
       // Skip if this would create a self-reference
       if (newFromId === newToId) continue;
       
-      // Check if relationship already exists
       const existingRel = allRelationships.find(r => 
-        r.fromMemberId === newFromId && r.toMemberId === newToId && r.relationshipType === rel.relationshipType
+        r.relationshipType === rel.relationshipType &&
+        ((r.fromMemberId === newFromId && r.toMemberId === newToId) ||
+         (r.fromMemberId === newToId && r.toMemberId === newFromId))
       );
       
       if (!existingRel) {
-        // Create new relationship pointing to survivor
         await db.insert(relationships).values({
           treeId: treeId,
           fromMemberId: newFromId,
           toMemberId: newToId,
           relationshipType: rel.relationshipType,
         });
+        console.log(`[mergeMembers] Preserved relationship: ${rel.relationshipType} ${newFromId.substring(0,8)} -> ${newToId.substring(0,8)}`);
       }
       
       // Delete the old relationship

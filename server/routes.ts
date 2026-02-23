@@ -10899,6 +10899,15 @@ export async function registerRoutes(
             continue;
           }
 
+          const existingTargetConnections = await storage.getRelationships(treeId);
+          const targetExistingCount = existingTargetConnections.filter(
+            r => r.fromMemberId === targetMemberId || r.toMemberId === targetMemberId
+          ).length;
+          const sourceConnectionCount = sourceRelationships.filter(
+            r => r.fromMemberId === sourceMemberId || r.toMemberId === sourceMemberId
+          ).length;
+          console.log(`[resolve-conflicts] Merging ${sourceMember.firstName} ${sourceMember.lastName || ''} → ${targetMember.firstName} ${targetMember.lastName || ''}: target has ${targetExistingCount} existing connections, source has ${sourceConnectionCount} to transfer`);
+
           const updates: Record<string, any> = {};
           if (!targetMember.nickname && sourceMember.nickname) updates.nickname = sourceMember.nickname;
           if (!targetMember.birthDate && sourceMember.birthDate) updates.birthDate = sourceMember.birthDate;
@@ -10952,15 +10961,26 @@ export async function registerRoutes(
                   relationshipType: rel.relationshipType,
                   qualifier: rel.qualifier,
                 });
+                console.log(`[resolve-conflicts] Preserved ${rel.relationshipType}: ${newFromId.substring(0,8)} -> ${newToId.substring(0,8)} in parent tree`);
               } catch (e) {
                 console.log(`[resolve-conflicts] Could not re-point relationship ${rel.id}:`, e);
               }
+            } else {
+              console.log(`[resolve-conflicts] Skipped duplicate ${rel.relationshipType}: ${newFromId.substring(0,8)} -> ${newToId.substring(0,8)} (already exists in parent tree)`);
             }
 
-            await storage.deleteRelationship(rel.id);
+            try { await storage.deleteRelationship(rel.id); } catch (e) { }
           }
 
-          await storage.deleteMember(sourceMemberId);
+          const remainingSourceRels = await storage.getRelationships(sourceTreeId);
+          const leftoverRels = remainingSourceRels.filter(
+            r => r.fromMemberId === sourceMemberId || r.toMemberId === sourceMemberId
+          );
+          for (const leftover of leftoverRels) {
+            await storage.deleteRelationship(leftover.id);
+          }
+
+          await storage.removeMemberRecord(sourceMemberId);
 
           results.push({ sourceMemberId, action, status: "merged", targetMemberId });
         } else if (action === "keep_both") {
@@ -10973,7 +10993,7 @@ export async function registerRoutes(
             await storage.deleteRelationship(rel.id);
           }
 
-          await storage.deleteMember(sourceMemberId);
+          await storage.removeMemberRecord(sourceMemberId);
 
           results.push({ sourceMemberId, action, status: "removed" });
         }
@@ -11012,6 +11032,9 @@ export async function registerRoutes(
       }
 
       const finalRemainingMembers = await storage.getMembers(sourceTreeId);
+      const finalParentMembers = await storage.getMembers(treeId);
+      const finalParentRels = await storage.getRelationships(treeId);
+      console.log(`[resolve-conflicts] Complete. Parent tree now has ${finalParentMembers.length} members and ${finalParentRels.length} relationships`);
 
       res.json({
         message: "Conflicts resolved and members integrated into tree",
