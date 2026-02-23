@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import type { FamilyMember, Relationship } from "@shared/schema";
 import {
   type TreeType,
+  type CustomRelType,
   getTreeTypeConfig,
   type TreeVisualConfig,
   type LayoutShape,
@@ -12,6 +13,7 @@ import {
   getMemberRank,
   getMemberDirectionalRole,
   getReverseRelationshipType,
+  getDirectionalRoles,
 } from "@shared/treeTypes";
 import { Crown, Star, Shield } from "lucide-react";
 
@@ -26,6 +28,7 @@ interface GroupVisualizationProps {
   focusMemberId?: string | null;
   treeType: TreeType;
   layoutOverride?: GroupLayoutMode;
+  customRelationshipTypes?: CustomRelType[] | null;
 }
 
 interface NodePosition {
@@ -44,35 +47,35 @@ function getStrokeDashArray(lineStyle: LineStyle): string {
 
 function getRelationshipLabel(
   relationshipType: string,
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ): string {
-  const types = getRelationshipTypesForTree(treeType);
+  const types = getRelationshipTypesForTree(treeType, customRelationshipTypes);
   const found = types.find((t) => t.value === relationshipType);
   return found ? found.label : relationshipType;
 }
 
-function getMemberRelationshipType(
-  memberId: string,
+function buildRelMap(
   relationships: Relationship[],
-  treeType: TreeType
-): string | undefined {
-  for (const rel of relationships) {
-    if (rel.fromMemberId === memberId) return rel.relationshipType;
-    if (rel.toMemberId === memberId) {
-      const reverseType = getReverseRelationshipType(treeType, rel.relationshipType);
-      return reverseType || rel.relationshipType;
-    }
-  }
-  return undefined;
-}
-
-function buildRelMap(relationships: Relationship[], treeType: TreeType): Map<string, string> {
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
+): Map<string, string> {
   const relMap = new Map<string, string>();
+  const rankMap = new Map<string, number>();
+  const types = getRelationshipTypesForTree(treeType, customRelationshipTypes);
   for (const rel of relationships) {
-    if (!relMap.has(rel.fromMemberId)) relMap.set(rel.fromMemberId, rel.relationshipType);
-    if (!relMap.has(rel.toMemberId)) {
-      const reverseType = getReverseRelationshipType(treeType, rel.relationshipType);
-      relMap.set(rel.toMemberId, reverseType || rel.relationshipType);
+    const { fromRole, toRole } = getDirectionalRoles(treeType, rel.relationshipType, customRelationshipTypes);
+    const effectiveFrom = fromRole || rel.relationshipType;
+    const effectiveTo = toRole || rel.relationshipType;
+    const fromRank = types.find(t => t.value === effectiveFrom)?.rank || 3;
+    const toRank = types.find(t => t.value === effectiveTo)?.rank || 3;
+    if (!rankMap.has(rel.fromMemberId) || fromRank < (rankMap.get(rel.fromMemberId) || 3)) {
+      relMap.set(rel.fromMemberId, effectiveFrom);
+      rankMap.set(rel.fromMemberId, fromRank);
+    }
+    if (!rankMap.has(rel.toMemberId) || toRank < (rankMap.get(rel.toMemberId) || 3)) {
+      relMap.set(rel.toMemberId, effectiveTo);
+      rankMap.set(rel.toMemberId, toRank);
     }
   }
   return relMap;
@@ -81,14 +84,15 @@ function buildRelMap(relationships: Relationship[], treeType: TreeType): Map<str
 function sortByRank(
   members: FamilyMember[],
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ): { rank1: FamilyMember[]; rank2: FamilyMember[]; rank3: FamilyMember[] } {
   const rank1: FamilyMember[] = [];
   const rank2: FamilyMember[] = [];
   const rank3: FamilyMember[] = [];
 
   for (const m of members) {
-    const rank = getMemberRank(m.id, relationships, treeType);
+    const rank = getMemberRank(m.id, relationships, treeType, customRelationshipTypes);
     if (rank === 1) rank1.push(m);
     else if (rank === 2) rank2.push(m);
     else rank3.push(m);
@@ -103,10 +107,11 @@ function resolveLeadersAndRest(
   members: FamilyMember[],
   focusId: string,
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ) {
-  const relMap = buildRelMap(relationships, treeType);
-  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
+  const relMap = buildRelMap(relationships, treeType, customRelationshipTypes);
+  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType, customRelationshipTypes);
   const leaders = rank1.length > 0 ? rank1 : [members.find((m) => m.id === focusId) || members[0]];
   const subLeaders = rank1.length > 0 ? rank2 : [];
   const rest = rank1.length > 0
@@ -119,13 +124,14 @@ function calculateHubLayout(
   members: FamilyMember[],
   focusId: string,
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
   if (members.length === 0) return [];
-  const { leaders, subLeaders, rest, relMap } = resolveLeadersAndRest(members, focusId, relationships, treeType);
+  const { leaders, subLeaders, rest, relMap } = resolveLeadersAndRest(members, focusId, relationships, treeType, customRelationshipTypes);
 
   if (members.length === 1) {
-    const rank = getMemberRank(members[0].id, relationships, treeType);
+    const rank = getMemberRank(members[0].id, relationships, treeType, customRelationshipTypes);
     return [{ x: 500, y: 300, member: members[0], relationshipType: relMap.get(members[0].id), rank }];
   }
 
@@ -147,7 +153,7 @@ function calculateHubLayout(
 
   allOuter.forEach((m, i) => {
     const angle = (2 * Math.PI * i) / allOuter.length - Math.PI / 2;
-    const memberRank = getMemberRank(m.id, relationships, treeType);
+    const memberRank = getMemberRank(m.id, relationships, treeType, customRelationshipTypes);
     positions.push({ x: centerX + outerRadius * Math.cos(angle), y: centerY + outerRadius * Math.sin(angle), member: m, relationshipType: relMap.get(m.id), rank: memberRank });
   });
 
@@ -158,13 +164,14 @@ function calculateTopGridLayout(
   members: FamilyMember[],
   focusId: string,
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
   if (members.length === 0) return [];
-  const { leaders, subLeaders, rest, relMap } = resolveLeadersAndRest(members, focusId, relationships, treeType);
+  const { leaders, subLeaders, rest, relMap } = resolveLeadersAndRest(members, focusId, relationships, treeType, customRelationshipTypes);
 
   if (members.length === 1) {
-    const rank = getMemberRank(members[0].id, relationships, treeType);
+    const rank = getMemberRank(members[0].id, relationships, treeType, customRelationshipTypes);
     return [{ x: 500, y: 300, member: members[0], relationshipType: relMap.get(members[0].id), rank }];
   }
 
@@ -208,7 +215,7 @@ function calculateTopGridLayout(
     const col = i % cols;
     const rowCount = Math.min(cols, rest.length - row * cols);
     const rowWidth = rowCount * nodeW + (rowCount - 1) * gapX;
-    const memberRank = getMemberRank(m.id, relationships, treeType);
+    const memberRank = getMemberRank(m.id, relationships, treeType, customRelationshipTypes);
     positions.push({
       x: (totalWidth - rowWidth) / 2 + col * (nodeW + gapX) + nodeW / 2 + 60,
       y: gridStartY + row * (nodeH + gapY) + nodeH / 2,
@@ -223,23 +230,25 @@ function calculateCircleLayout(
   members: FamilyMember[],
   focusId: string,
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
   if (members.length === 0) return [];
-  const { subLeaders, rest } = resolveLeadersAndRest(members, focusId, relationships, treeType);
+  const { subLeaders, rest } = resolveLeadersAndRest(members, focusId, relationships, treeType, customRelationshipTypes);
   const nonLeaderCount = subLeaders.length + rest.length;
 
   if (nonLeaderCount <= CIRCLE_SPOKE_THRESHOLD) {
-    return calculateHubLayout(members, focusId, relationships, treeType);
+    return calculateHubLayout(members, focusId, relationships, treeType, customRelationshipTypes);
   }
-  return calculateTopGridLayout(members, focusId, relationships, treeType);
+  return calculateTopGridLayout(members, focusId, relationships, treeType, customRelationshipTypes);
 }
 
 function calculateRadialLayout(
   members: FamilyMember[],
   focusId: string,
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
   if (members.length === 0) return [];
 
@@ -249,11 +258,11 @@ function calculateRadialLayout(
 
   const focusMember = members.find((m) => m.id === focusId) || members[0];
   const others = members.filter((m) => m.id !== focusMember.id);
-  const relMap = buildRelMap(relationships, treeType);
+  const relMap = buildRelMap(relationships, treeType, customRelationshipTypes);
 
-  const { rank1, rank2, rank3 } = sortByRank(others, relationships, treeType);
+  const { rank1, rank2, rank3 } = sortByRank(others, relationships, treeType, customRelationshipTypes);
 
-  const focusRank = getMemberRank(focusMember.id, relationships, treeType);
+  const focusRank = getMemberRank(focusMember.id, relationships, treeType, customRelationshipTypes);
   const positions: NodePosition[] = [
     { x: centerX, y: centerY, member: focusMember, relationshipType: relMap.get(focusMember.id), rank: focusRank },
   ];
@@ -261,7 +270,7 @@ function calculateRadialLayout(
   const placeRing = (ring: FamilyMember[], radius: number) => {
     ring.forEach((m, i) => {
       const angle = (2 * Math.PI * i) / ring.length - Math.PI / 2;
-      const memberRank = getMemberRank(m.id, relationships, treeType);
+      const memberRank = getMemberRank(m.id, relationships, treeType, customRelationshipTypes);
       positions.push({
         x: centerX + radius * Math.cos(angle),
         y: centerY + radius * Math.sin(angle),
@@ -283,7 +292,8 @@ function calculateGridLayout(
   members: FamilyMember[],
   _focusId: string,
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
   if (members.length === 0) return [];
 
@@ -293,8 +303,8 @@ function calculateGridLayout(
   const startY = 100;
   const perRow = 5;
 
-  const relMap = buildRelMap(relationships, treeType);
-  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
+  const relMap = buildRelMap(relationships, treeType, customRelationshipTypes);
+  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType, customRelationshipTypes);
 
   const positions: NodePosition[] = [];
   let currentRow = 0;
@@ -334,12 +344,13 @@ function calculateArcLayout(
   members: FamilyMember[],
   focusId: string,
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
   if (members.length === 0) return [];
 
-  const relMap = buildRelMap(relationships, treeType);
-  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType);
+  const relMap = buildRelMap(relationships, treeType, customRelationshipTypes);
+  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType, customRelationshipTypes);
 
   const focusMember = members.find((m) => m.id === focusId);
   const focusInRank1 = focusMember && rank1.some(m => m.id === focusMember.id);
@@ -365,7 +376,7 @@ function calculateArcLayout(
         y: 120,
         member: m,
         relationshipType: relMap.get(m.id),
-        rank: getMemberRank(m.id, relationships, treeType),
+        rank: getMemberRank(m.id, relationships, treeType, customRelationshipTypes),
       });
     });
   }
@@ -383,7 +394,7 @@ function calculateArcLayout(
         y: centerY + radius * Math.sin(angle),
         member,
         relationshipType: relMap.get(member.id),
-        rank: getMemberRank(member.id, relationships, treeType),
+        rank: getMemberRank(member.id, relationships, treeType, customRelationshipTypes),
       });
     });
   }
@@ -395,7 +406,8 @@ function calculateNetworkLayout(
   members: FamilyMember[],
   focusId: string,
   relationships: Relationship[],
-  treeType: TreeType
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
   if (members.length === 0) return [];
 
@@ -410,7 +422,7 @@ function calculateNetworkLayout(
     adjMap.get(rel.toMemberId)?.add(rel.fromMemberId);
   }
 
-  const relMap = buildRelMap(relationships, treeType);
+  const relMap = buildRelMap(relationships, treeType, customRelationshipTypes);
 
   const startId = members.find((m) => m.id === focusId)?.id || members[0].id;
   const dist = new Map<string, number>();
@@ -445,7 +457,7 @@ function calculateNetworkLayout(
 
   Array.from(layers.entries()).forEach(([d, layerMembers]) => {
     if (d === 0) {
-      const memberRank = getMemberRank(layerMembers[0].id, relationships, treeType);
+      const memberRank = getMemberRank(layerMembers[0].id, relationships, treeType, customRelationshipTypes);
       positions.push({
         x: centerX, y: centerY, member: layerMembers[0],
         relationshipType: relMap.get(layerMembers[0].id),
@@ -456,7 +468,7 @@ function calculateNetworkLayout(
     const radius = d === 999 ? (maxRealDist + 2) * layerGap : d * layerGap;
     layerMembers.forEach((m: FamilyMember, i: number) => {
       const angle = (2 * Math.PI * i) / layerMembers.length - Math.PI / 2;
-      const memberRank = getMemberRank(m.id, relationships, treeType);
+      const memberRank = getMemberRank(m.id, relationships, treeType, customRelationshipTypes);
       positions.push({
         x: centerX + radius * Math.cos(angle),
         y: centerY + radius * Math.sin(angle),
@@ -476,40 +488,41 @@ function calculatePositions(
   focusId: string,
   relationships: Relationship[],
   treeType: TreeType,
-  layoutOverride?: GroupLayoutMode
+  layoutOverride?: GroupLayoutMode,
+  customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
   if (layoutOverride && layoutOverride !== "auto") {
     switch (layoutOverride) {
       case "hub":
-        return calculateHubLayout(members, focusId, relationships, treeType);
+        return calculateHubLayout(members, focusId, relationships, treeType, customRelationshipTypes);
       case "top-grid":
-        return calculateTopGridLayout(members, focusId, relationships, treeType);
+        return calculateTopGridLayout(members, focusId, relationships, treeType, customRelationshipTypes);
       case "circle":
-        return calculateCircleLayout(members, focusId, relationships, treeType);
+        return calculateCircleLayout(members, focusId, relationships, treeType, customRelationshipTypes);
       case "radial":
-        return calculateRadialLayout(members, focusId, relationships, treeType);
+        return calculateRadialLayout(members, focusId, relationships, treeType, customRelationshipTypes);
       case "grid":
-        return calculateGridLayout(members, focusId, relationships, treeType);
+        return calculateGridLayout(members, focusId, relationships, treeType, customRelationshipTypes);
       case "arc":
-        return calculateArcLayout(members, focusId, relationships, treeType);
+        return calculateArcLayout(members, focusId, relationships, treeType, customRelationshipTypes);
       case "network":
-        return calculateNetworkLayout(members, focusId, relationships, treeType);
+        return calculateNetworkLayout(members, focusId, relationships, treeType, customRelationshipTypes);
     }
   }
 
   switch (layout) {
     case "circle":
-      return calculateCircleLayout(members, focusId, relationships, treeType);
+      return calculateCircleLayout(members, focusId, relationships, treeType, customRelationshipTypes);
     case "radial":
-      return calculateRadialLayout(members, focusId, relationships, treeType);
+      return calculateRadialLayout(members, focusId, relationships, treeType, customRelationshipTypes);
     case "grid":
-      return calculateGridLayout(members, focusId, relationships, treeType);
+      return calculateGridLayout(members, focusId, relationships, treeType, customRelationshipTypes);
     case "arc":
-      return calculateArcLayout(members, focusId, relationships, treeType);
+      return calculateArcLayout(members, focusId, relationships, treeType, customRelationshipTypes);
     case "network":
-      return calculateNetworkLayout(members, focusId, relationships, treeType);
+      return calculateNetworkLayout(members, focusId, relationships, treeType, customRelationshipTypes);
     default:
-      return calculateCircleLayout(members, focusId, relationships, treeType);
+      return calculateCircleLayout(members, focusId, relationships, treeType, customRelationshipTypes);
   }
 }
 
@@ -528,6 +541,7 @@ export default function GroupVisualization({
   focusMemberId,
   treeType,
   layoutOverride,
+  customRelationshipTypes,
 }: GroupVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -568,7 +582,8 @@ export default function GroupVisualization({
       focusId,
       relationships,
       treeType,
-      layoutOverride
+      layoutOverride,
+      customRelationshipTypes
     );
     for (const pos of calculated) {
       const custom = pos.member.customPosition as { x: number; y: number } | null | undefined;
@@ -578,7 +593,7 @@ export default function GroupVisualization({
       }
     }
     return calculated;
-  }, [visual.layoutShape, deduplicatedMembers, focusId, relationships, treeType, layoutOverride]);
+  }, [visual.layoutShape, deduplicatedMembers, focusId, relationships, treeType, layoutOverride, customRelationshipTypes]);
 
   const effectivePositions = useMemo(() => {
     if (!draggedMemberId || !draggedPosition) return positions;
@@ -634,10 +649,9 @@ export default function GroupVisualization({
       const from = positionMap.get(rel.fromMemberId);
       const to = positionMap.get(rel.toMemberId);
       if (from && to) {
-        const fromLabel = getRelationshipLabel(rel.relationshipType, treeType);
-        const types = getRelationshipTypesForTree(treeType);
-        const typeConfig = types.find((t) => t.value === rel.relationshipType);
-        const toLabel = typeConfig?.reverseLabel || fromLabel;
+        const { fromRole, toRole } = getDirectionalRoles(treeType, rel.relationshipType, customRelationshipTypes);
+        const fromLabel = getRelationshipLabel(fromRole, treeType, customRelationshipTypes);
+        const toLabel = getRelationshipLabel(toRole, treeType, customRelationshipTypes);
         lines.push({
           x1: from.x,
           y1: from.y,
@@ -650,7 +664,7 @@ export default function GroupVisualization({
       }
     }
     return lines;
-  }, [relationships, positionMap, treeType]);
+  }, [relationships, positionMap, treeType, customRelationshipTypes]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -1019,7 +1033,7 @@ export default function GroupVisualization({
           const nodeSize = getNodeSize(memberRank);
           const initials = `${pos.member.firstName?.[0] || ""}${pos.member.lastName?.[0] || ""}`.toUpperCase();
           const relLabel = pos.relationshipType
-            ? getRelationshipLabel(pos.relationshipType, treeType)
+            ? getRelationshipLabel(pos.relationshipType, treeType, customRelationshipTypes)
             : undefined;
 
           const isLeader = memberRank === 1;

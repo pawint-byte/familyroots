@@ -418,6 +418,22 @@ export function getRelationshipRank(
   return config?.rank || 3;
 }
 
+export function getDirectionalRoles(
+  treeType: TreeType,
+  relationshipType: string,
+  customRelationshipTypes?: CustomRelType[] | null
+): { fromRole: string; toRole: string } {
+  const directRank = getRelationshipRank(treeType, relationshipType, customRelationshipTypes);
+  const reverseType = getReverseRelationshipType(treeType, relationshipType, customRelationshipTypes);
+  if (reverseType && reverseType !== relationshipType) {
+    const reverseRank = getRelationshipRank(treeType, reverseType, customRelationshipTypes);
+    if (reverseRank < directRank) {
+      return { fromRole: reverseType, toRole: relationshipType };
+    }
+  }
+  return { fromRole: relationshipType, toRole: reverseType || relationshipType };
+}
+
 export function getMemberRank(
   memberId: string,
   relationships: { fromMemberId: string; toMemberId: string; relationshipType: string }[],
@@ -426,13 +442,12 @@ export function getMemberRank(
 ): number {
   let bestRank = 3;
   for (const rel of relationships) {
+    const { fromRole, toRole } = getDirectionalRoles(treeType, rel.relationshipType, customRelationshipTypes);
     if (rel.fromMemberId === memberId) {
-      const rank = getRelationshipRank(treeType, rel.relationshipType, customRelationshipTypes);
+      const rank = getRelationshipRank(treeType, fromRole, customRelationshipTypes);
       if (rank < bestRank) bestRank = rank;
     } else if (rel.toMemberId === memberId) {
-      const reverseType = getReverseRelationshipType(treeType, rel.relationshipType, customRelationshipTypes);
-      const effectiveType = reverseType || rel.relationshipType;
-      const rank = getRelationshipRank(treeType, effectiveType, customRelationshipTypes);
+      const rank = getRelationshipRank(treeType, toRole, customRelationshipTypes);
       if (rank < bestRank) bestRank = rank;
     }
   }
@@ -443,15 +458,15 @@ export function getMemberDirectionalRole(
   memberId: string,
   relationships: { fromMemberId: string; toMemberId: string; relationshipType: string }[],
   treeType: TreeType,
-  customRelationshipTypes?: string[] | null
+  customRelationshipTypes?: CustomRelType[] | null
 ): string | undefined {
   for (const rel of relationships) {
+    const { fromRole, toRole } = getDirectionalRoles(treeType, rel.relationshipType, customRelationshipTypes);
     if (rel.fromMemberId === memberId) {
-      return rel.relationshipType;
+      return fromRole;
     }
     if (rel.toMemberId === memberId) {
-      const reverseType = getReverseRelationshipType(treeType, rel.relationshipType, customRelationshipTypes);
-      return reverseType || rel.relationshipType;
+      return toRole;
     }
   }
   return undefined;

@@ -1839,6 +1839,7 @@ export default function TreeView() {
                       treeType={(treeData?.tree.treeType || "family") as TreeType}
                       layoutOverride={groupLayoutMode}
                       onMemberPositionChange={handleMemberPositionChange}
+                      customRelationshipTypes={(treeData?.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null) || null}
                     />
                   )}
                 </div>
