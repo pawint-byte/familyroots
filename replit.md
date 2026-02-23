@@ -42,5 +42,5 @@ The backend uses Node.js, Express.js, and TypeScript, providing RESTful API endp
 -   **Video Generation**: HeyGen API
 -   **Payments**: Stripe
 -   **Print-on-Demand**: Printful API
--   **Genealogy Research**: FamilySearch API
+-   **Genealogy Research**: FamilySearch API (Beta environment). Tree import infers parent-child relationships from ahnentafel numbering (ancestry) and descendancy numbering when explicit relationship data is unavailable. Re-importing merges relationships into existing members without creating duplicates.
 -   **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image, react-leaflet.

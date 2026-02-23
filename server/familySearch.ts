@@ -531,6 +531,15 @@ export async function getPersonWithFamily(
 function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeData {
   const persons: FamilySearchTreePerson[] = [];
   const relationships: FamilySearchRelationship[] = [];
+  const addedRelKeys = new Set<string>();
+  
+  const addRelationship = (rel: FamilySearchRelationship) => {
+    const key = `${rel.type}:${rel.person1Id}:${rel.person2Id}`;
+    if (!addedRelKeys.has(key)) {
+      addedRelKeys.add(key);
+      relationships.push(rel);
+    }
+  };
   
   if (data.persons) {
     for (const person of data.persons) {
@@ -549,7 +558,7 @@ function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeDat
     }
   }
   
-  // Parse parent-child relationships
+  // Parse explicit parent-child relationships
   if (data.childAndParentsRelationships) {
     for (const rel of data.childAndParentsRelationships) {
       const childId = rel.child?.resourceId;
@@ -557,18 +566,10 @@ function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeDat
       const motherId = rel.mother?.resourceId;
       
       if (childId && fatherId) {
-        relationships.push({
-          type: "parent-child",
-          person1Id: fatherId,
-          person2Id: childId,
-        });
+        addRelationship({ type: "parent-child", person1Id: fatherId, person2Id: childId });
       }
       if (childId && motherId) {
-        relationships.push({
-          type: "parent-child",
-          person1Id: motherId,
-          person2Id: childId,
-        });
+        addRelationship({ type: "parent-child", person1Id: motherId, person2Id: childId });
       }
     }
   }
@@ -580,16 +581,68 @@ function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeDat
         const person1Id = rel.person1?.resourceId;
         const person2Id = rel.person2?.resourceId;
         if (person1Id && person2Id) {
-          relationships.push({
-            type: "couple",
-            person1Id,
-            person2Id,
-          });
+          addRelationship({ type: "couple", person1Id, person2Id });
         }
       }
     }
   }
   
+  // Infer relationships from ascendancyNumber (ahnentafel numbering) when
+  // explicit relationship data is missing. Ancestry endpoints return persons
+  // with display.ascendancyNumber: 1=self, 2=father, 3=mother, 4=paternal grandfather, etc.
+  // A person at position N is the parent of the person at position floor(N/2).
+  if (data.persons && relationships.length === 0) {
+    const ahnentafelMap = new Map<number, string>();
+    let hasAhnentafel = false;
+    
+    for (const person of data.persons) {
+      const num = parseInt(person.display?.ascendancyNumber, 10);
+      if (!isNaN(num) && num > 0) {
+        ahnentafelMap.set(num, person.id);
+        hasAhnentafel = true;
+      }
+    }
+    
+    if (hasAhnentafel) {
+      console.log("[FamilySearch] Inferring relationships from ascendancyNumber, persons:", ahnentafelMap.size);
+      for (const [num, personId] of ahnentafelMap) {
+        if (num <= 1) continue;
+        const childNum = Math.floor(num / 2);
+        const childId = ahnentafelMap.get(childNum);
+        if (childId) {
+          addRelationship({ type: "parent-child", person1Id: personId, person2Id: childId });
+        }
+      }
+    }
+    
+    // Infer relationships from descendancyNumber (e.g., "1", "1.1", "1.2", "1.1.1").
+    // A person "1.2.3" is a child of "1.2", whose parent path is everything before the last dot.
+    const descendancyMap = new Map<string, string>();
+    let hasDescendancy = false;
+    
+    for (const person of data.persons) {
+      const dNum = person.display?.descendancyNumber;
+      if (dNum && typeof dNum === "string") {
+        descendancyMap.set(dNum, person.id);
+        hasDescendancy = true;
+      }
+    }
+    
+    if (hasDescendancy) {
+      console.log("[FamilySearch] Inferring relationships from descendancyNumber, persons:", descendancyMap.size);
+      for (const [dNum, personId] of descendancyMap) {
+        const lastDot = dNum.lastIndexOf(".");
+        if (lastDot === -1) continue;
+        const parentNum = dNum.substring(0, lastDot);
+        const parentId = descendancyMap.get(parentNum);
+        if (parentId) {
+          addRelationship({ type: "parent-child", person1Id: parentId, person2Id: personId });
+        }
+      }
+    }
+  }
+  
+  console.log("[FamilySearch] parseTreeResponse result: persons:", persons.length, "relationships:", relationships.length);
   return { persons, relationships, rootPersonId };
 }
 

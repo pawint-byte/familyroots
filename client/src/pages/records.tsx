@@ -236,9 +236,13 @@ export default function RecordsPage() {
       return response.json();
     },
     onSuccess: (result) => {
+      const parts = [];
+      if (result.imported.members > 0) parts.push(`Added ${result.imported.members} person${result.imported.members !== 1 ? 's' : ''}`);
+      if (result.imported.relationships > 0) parts.push(`${result.imported.relationships} relationship${result.imported.relationships !== 1 ? 's' : ''}`);
+      if (result.skipped.duplicates > 0) parts.push(`Skipped ${result.skipped.duplicates} duplicate${result.skipped.duplicates !== 1 ? 's' : ''}`);
       toast({
         title: "Import Successful",
-        description: `Added ${result.imported.members} person${result.imported.members !== 1 ? 's' : ''} to your tree.${result.skipped.duplicates > 0 ? ` Skipped ${result.skipped.duplicates} duplicate${result.skipped.duplicates !== 1 ? 's' : ''}.` : ""}`,
+        description: parts.length > 0 ? parts.join(". ") + "." : "Import completed.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
       setImportDialogOpen(false);
