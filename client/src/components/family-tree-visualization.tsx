@@ -99,7 +99,7 @@ export default function FamilyTreeVisualization({
     relationships.forEach((rel) => {
       const qualifier = (rel.qualifier as RelationshipQualifier) || null;
       
-      if (rel.relationshipType === "parent") {
+      if (rel.relationshipType === "parent" || rel.relationshipType === "parent-child") {
         // fromMember is the PARENT of toMember
         if (!parentChildMap.has(rel.fromMemberId)) {
           parentChildMap.set(rel.fromMemberId, []);

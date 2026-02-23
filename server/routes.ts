@@ -11154,26 +11154,39 @@ export async function registerRoutes(
         const updates: Record<string, any> = {};
         const notesAppendParts: string[] = [];
         const syncField = (field: string, sourceVal: any, targetVal: any) => {
-          if (!targetVal && sourceVal) {
+          const srcEmpty = sourceVal == null || sourceVal === '' || sourceVal === undefined;
+          const tgtEmpty = targetVal == null || targetVal === '' || targetVal === undefined;
+          if (tgtEmpty && !srcEmpty) {
             updates[field] = sourceVal;
-          } else if (targetVal && sourceVal && targetVal !== sourceVal) {
+          } else if (!tgtEmpty && !srcEmpty && String(targetVal) !== String(sourceVal)) {
             if (field === 'notes') {
               updates[field] = `${targetVal}\n\n[Merged from FamilySearch]: ${sourceVal}`;
             } else if (field === 'birthDate' || field === 'deathDate') {
               if (String(sourceVal).length > String(targetVal).length) {
                 updates[field] = sourceVal;
+                notesAppendParts.push(`Original ${field}: ${targetVal}`);
+              } else {
+                notesAppendParts.push(`Alternate ${field}: ${sourceVal}`);
               }
             } else if (field === 'birthPlace' || field === 'currentCity' || field === 'currentRegion' || field === 'currentCountry') {
               if (String(sourceVal).length > String(targetVal).length) {
                 updates[field] = sourceVal;
+                notesAppendParts.push(`Original ${field}: ${targetVal}`);
               } else {
-                notesAppendParts.push(`${field}: ${sourceVal}`);
+                notesAppendParts.push(`Alternate ${field}: ${sourceVal}`);
               }
             } else if (field === 'nickname') {
               notesAppendParts.push(`Alternate name: ${sourceVal}`);
+            } else if (field === 'firstName' || field === 'lastName') {
+              notesAppendParts.push(`Alternate ${field}: ${sourceVal}`);
+            } else if (field === 'suffix') {
+              notesAppendParts.push(`Alternate suffix: ${sourceVal}`);
             }
           }
         };
+        syncField('firstName', sourceMember.firstName, targetMember.firstName);
+        syncField('lastName', sourceMember.lastName, targetMember.lastName);
+        syncField('suffix', (sourceMember as any).suffix, (targetMember as any).suffix);
         syncField('nickname', sourceMember.nickname, targetMember.nickname);
         syncField('birthDate', sourceMember.birthDate, targetMember.birthDate);
         syncField('birthPlace', sourceMember.birthPlace, targetMember.birthPlace);
@@ -11182,6 +11195,7 @@ export async function registerRoutes(
         syncField('notes', sourceMember.notes, targetMember.notes);
         syncField('gender', sourceMember.gender, targetMember.gender);
         syncField('email', sourceMember.email, targetMember.email);
+        syncField('isLiving', sourceMember.isLiving, targetMember.isLiving);
         syncField('currentCity', sourceMember.currentCity, targetMember.currentCity);
         syncField('currentRegion', sourceMember.currentRegion, targetMember.currentRegion);
         syncField('currentCountry', sourceMember.currentCountry, targetMember.currentCountry);
@@ -11437,10 +11451,11 @@ export async function registerRoutes(
             }
           }
 
-          // Re-route spouse connections: if this skipped member had a merge target equivalent,
-          // connect the spouse to that merge target as spouse
-          if (resolution.targetMemberId && mergedSourceToTarget.has(sourceMemberId)) {
-            const mergeTarget = mergedSourceToTarget.get(sourceMemberId)!;
+          // Re-route spouse connections: if this skipped member matched a target member,
+          // connect the spouse to that target member as spouse
+          const skipTarget = resolution.targetMemberId || mergedSourceToTarget.get(sourceMemberId);
+          if (skipTarget) {
+            const mergeTarget = skipTarget;
             for (const spouse of spouses) {
               if (spouse.memberId === mergeTarget) continue;
               const key = `spouse:${spouse.memberId}:${mergeTarget}`;
@@ -11619,6 +11634,68 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error resolving conflicts:", error);
       res.status(500).json({ message: "Failed to resolve conflicts" });
+    }
+  });
+
+  app.get("/api/trees/:treeId/relationship-chains", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const members = await storage.getMembers(treeId);
+      const rels = await storage.getRelationships(treeId);
+      const memberMap = new Map(members.map(m => [m.id, m]));
+
+      const chains: any[] = [];
+      const childToParents = new Map<string, string[]>();
+      for (const rel of rels) {
+        if (rel.relationshipType === "parent" || rel.relationshipType === "parent-child") {
+          if (!childToParents.has(rel.toMemberId)) childToParents.set(rel.toMemberId, []);
+          childToParents.get(rel.toMemberId)!.push(rel.fromMemberId);
+        }
+      }
+
+      const memberName = (id: string) => {
+        const m = memberMap.get(id);
+        return m ? `${m.firstName} ${m.lastName || ''}`.trim() : `Unknown(${id.substring(0,8)})`;
+      };
+
+      for (const member of members) {
+        const parents = childToParents.get(member.id) || [];
+        if (parents.length > 0) {
+          chains.push({
+            member: memberName(member.id),
+            memberId: member.id,
+            parents: parents.map(pid => ({ name: memberName(pid), id: pid })),
+          });
+        }
+      }
+
+      const relSummary = rels.map(r => ({
+        type: r.relationshipType,
+        from: memberName(r.fromMemberId),
+        to: memberName(r.toMemberId),
+        fromId: r.fromMemberId,
+        toId: r.toMemberId,
+      }));
+
+      res.json({
+        totalMembers: members.length,
+        totalRelationships: rels.length,
+        chains,
+        relationships: relSummary,
+      });
+    } catch (error) {
+      console.error("Error fetching relationship chains:", error);
+      res.status(500).json({ message: "Failed to fetch relationship chains" });
     }
   });
 

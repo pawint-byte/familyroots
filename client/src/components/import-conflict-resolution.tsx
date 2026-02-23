@@ -460,6 +460,11 @@ export default function ImportConflictResolution({
               <p className="text-muted-foreground mt-1">
                 Deepest ancestor chain: {importSummary.integrity.maxAncestorDepth} generation{importSummary.integrity.maxAncestorDepth !== 1 ? 's' : ''}
               </p>
+              {importSummary.integrity.rootAncestors > 0 && (
+                <p className="text-muted-foreground mt-1">
+                  {importSummary.integrity.rootAncestors} root ancestor{importSummary.integrity.rootAncestors !== 1 ? 's' : ''}, {importSummary.integrity.leafMembers} leaf member{importSummary.integrity.leafMembers !== 1 ? 's' : ''}
+                </p>
+              )}
               {importSummary.integrity.relationshipTypes && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {Object.entries(importSummary.integrity.relationshipTypes).map(([type, count]) => (
