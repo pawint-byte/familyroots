@@ -1639,17 +1639,15 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Both members must be from the same tree" });
       }
       
-      // Don't allow merging claimed members (they represent real users)
-      if (sourceMember.claimedByUserId) {
+      if (sourceMember.claimedByUserId && sourceMember.claimedByUserId !== userId) {
         return res.status(400).json({ 
-          message: "Cannot merge a member that has been claimed by a user. The claimed profile represents a real person." 
+          message: "Cannot merge a member that has been claimed by another user." 
         });
       }
       
-      // Also prevent merging INTO a claimed member (would modify their relationships)
-      if (targetMember.claimedByUserId) {
+      if (targetMember.claimedByUserId && targetMember.claimedByUserId !== userId) {
         return res.status(400).json({ 
-          message: "Cannot merge into a member that has been claimed by a user. Choose a different target member." 
+          message: "Cannot merge into a member that has been claimed by another user." 
         });
       }
       

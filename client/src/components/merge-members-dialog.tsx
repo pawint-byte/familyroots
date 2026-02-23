@@ -20,6 +20,7 @@ interface MergeMembersDialogProps {
   allMembers: FamilyMember[];
   relationships: Relationship[];
   treeId: string;
+  currentUserId?: string;
 }
 
 export function MergeMembersDialog({
@@ -28,7 +29,8 @@ export function MergeMembersDialog({
   sourceMember,
   allMembers,
   relationships,
-  treeId
+  treeId,
+  currentUserId
 }: MergeMembersDialogProps) {
   const [targetMemberId, setTargetMemberId] = useState<string>("");
   const { toast } = useToast();
@@ -40,9 +42,9 @@ export function MergeMembersDialog({
   const eligibleMembers = useMemo(() => {
     return allMembers.filter(m => 
       m.id !== sourceMember.id && 
-      !m.claimedByUserId
+      (!m.claimedByUserId || m.claimedByUserId === currentUserId)
     );
-  }, [allMembers, sourceMember.id]);
+  }, [allMembers, sourceMember.id, currentUserId]);
 
   const handleClose = (open: boolean) => {
     if (!open) {

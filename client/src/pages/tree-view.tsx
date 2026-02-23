@@ -2800,7 +2800,7 @@ export default function TreeView() {
                       Edit
                     </Button>
                   )}
-                  {canEditTree && !selectedMember.claimedByUserId && (
+                  {canEditTree && (!selectedMember.claimedByUserId || selectedMember.claimedByUserId === user?.id) && (
                     <Button 
                       variant="outline" 
                       className="gap-2"
@@ -3316,6 +3316,7 @@ export default function TreeView() {
           allMembers={treeData.members}
           relationships={treeData.relationships}
           treeId={treeData.tree.id}
+          currentUserId={user?.id}
         />
       )}
 
