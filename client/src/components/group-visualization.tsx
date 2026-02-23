@@ -137,8 +137,8 @@ function calculateHubLayout(
 
   const allOuter = [...subLeaders, ...rest];
   const outerRadius = Math.max(220, allOuter.length * 40);
-  const centerX = outerRadius + 200;
-  const centerY = outerRadius + 200;
+  const centerX = outerRadius + 100;
+  const centerY = outerRadius + 100;
   const positions: NodePosition[] = [];
 
   if (leaders.length === 1) {
@@ -182,6 +182,8 @@ function calculateUnifiedGridLayout(
   const gapX = 30;
   const gapY = 40;
   const perRow = Math.max(2, Math.ceil(Math.sqrt(members.length * 1.4)));
+  const totalGridWidth = perRow * nodeW + (perRow - 1) * gapX;
+  const centerX = totalGridWidth / 2 + 100;
 
   const positions: NodePosition[] = [];
   let currentRow = 0;
@@ -190,11 +192,10 @@ function calculateUnifiedGridLayout(
     for (let i = 0; i < group.length; i += perRow) {
       const chunk = group.slice(i, i + perRow);
       const rowWidth = chunk.length * nodeW + (chunk.length - 1) * gapX;
-      const totalWidth = perRow * nodeW + (perRow - 1) * gapX;
-      const offsetX = (totalWidth - rowWidth) / 2 + 60;
+      const startX = centerX - rowWidth / 2;
       chunk.forEach((m, col) => {
         positions.push({
-          x: offsetX + col * (nodeW + gapX) + nodeW / 2,
+          x: startX + col * (nodeW + gapX) + nodeW / 2,
           y: 80 + currentRow * (nodeH + gapY) + nodeH / 2,
           member: m,
           relationshipType: relMap.get(m.id),
@@ -338,15 +339,15 @@ function calculateArcLayout(
 
   if (others.length > 0) {
     const radius = Math.max(300, others.length * 30);
-    const centerX = 500;
-    const centerY = 200;
+    const arcCenterX = 500;
+    const arcCenterY = 180;
 
     others.forEach((member, i) => {
       const t = others.length > 1 ? i / (others.length - 1) : 0.5;
-      const angle = Math.PI * 0.15 + t * Math.PI * 0.7;
+      const angle = Math.PI * 0.1 + t * Math.PI * 0.8;
       positions.push({
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle),
+        x: arcCenterX + radius * Math.cos(angle),
+        y: arcCenterY + radius * Math.sin(angle),
         member,
         relationshipType: relMap.get(member.id),
         rank: getMemberRank(member.id, relationships, treeType, customRelationshipTypes),
@@ -534,7 +535,7 @@ export default function GroupVisualization({
   }, [focusMemberId, deduplicatedMembers]);
 
   const positions = useMemo(() => {
-    const calculated = calculatePositions(
+    return calculatePositions(
       visual.layoutShape,
       deduplicatedMembers,
       focusId,
@@ -543,14 +544,6 @@ export default function GroupVisualization({
       layoutOverride,
       customRelationshipTypes
     );
-    for (const pos of calculated) {
-      const custom = pos.member.customPosition as { x: number; y: number } | null | undefined;
-      if (custom && typeof custom.x === "number" && typeof custom.y === "number") {
-        pos.x = custom.x;
-        pos.y = custom.y;
-      }
-    }
-    return calculated;
   }, [visual.layoutShape, deduplicatedMembers, focusId, relationships, treeType, layoutOverride, customRelationshipTypes]);
 
   const effectivePositions = useMemo(() => {
@@ -623,8 +616,6 @@ export default function GroupVisualization({
   }, [isGridLayout, effectivePositions]);
 
   const connectionLines = useMemo(() => {
-    if (isGridLayout) return [];
-
     const lines: {
       x1: number;
       y1: number;
@@ -654,7 +645,7 @@ export default function GroupVisualization({
       }
     }
     return lines;
-  }, [isGridLayout, relationships, positionMap, treeType, customRelationshipTypes]);
+  }, [relationships, positionMap, treeType, customRelationshipTypes]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
