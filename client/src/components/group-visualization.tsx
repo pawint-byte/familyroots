@@ -160,9 +160,8 @@ function calculateHubLayout(
   return positions;
 }
 
-function calculateTopGridLayout(
+function calculateUnifiedGridLayout(
   members: FamilyMember[],
-  focusId: string,
   relationships: Relationship[],
   treeType: TreeType,
   customRelationshipTypes?: CustomRelType[] | null
@@ -176,29 +175,51 @@ function calculateTopGridLayout(
     return [{ x: 500, y: 300, member: members[0], relationshipType: relMap.get(members[0].id), rank }];
   }
 
+  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType, customRelationshipTypes);
+
   const nodeW = 170;
   const nodeH = 190;
   const gapX = 30;
   const gapY = 40;
+  const perRow = Math.max(2, Math.ceil(Math.sqrt(members.length * 1.4)));
+
   const positions: NodePosition[] = [];
+  let currentRow = 0;
 
-  const cols = Math.max(2, Math.ceil(Math.sqrt(members.length * 1.4)));
-  const gridWidth = cols * nodeW + (cols - 1) * gapX;
+  const placeGroup = (group: FamilyMember[], rank: number) => {
+    for (let i = 0; i < group.length; i += perRow) {
+      const chunk = group.slice(i, i + perRow);
+      const rowWidth = chunk.length * nodeW + (chunk.length - 1) * gapX;
+      const totalWidth = perRow * nodeW + (perRow - 1) * gapX;
+      const offsetX = (totalWidth - rowWidth) / 2 + 60;
+      chunk.forEach((m, col) => {
+        positions.push({
+          x: offsetX + col * (nodeW + gapX) + nodeW / 2,
+          y: 80 + currentRow * (nodeH + gapY) + nodeH / 2,
+          member: m,
+          relationshipType: relMap.get(m.id),
+          rank,
+        });
+      });
+      currentRow++;
+    }
+  };
 
-  members.forEach((m, i) => {
-    const row = Math.floor(i / cols);
-    const col = i % cols;
-    const rowCount = Math.min(cols, members.length - row * cols);
-    const rowWidth = rowCount * nodeW + (rowCount - 1) * gapX;
-    const memberRank = getMemberRank(m.id, relationships, treeType, customRelationshipTypes);
-    positions.push({
-      x: (gridWidth - rowWidth) / 2 + col * (nodeW + gapX) + nodeW / 2 + 60,
-      y: 80 + row * (nodeH + gapY) + nodeH / 2,
-      member: m, relationshipType: relMap.get(m.id), rank: memberRank,
-    });
-  });
+  if (rank1.length > 0) placeGroup(rank1, 1);
+  if (rank2.length > 0) placeGroup(rank2, 2);
+  if (rank3.length > 0) placeGroup(rank3, 3);
 
   return positions;
+}
+
+function calculateTopGridLayout(
+  members: FamilyMember[],
+  _focusId: string,
+  relationships: Relationship[],
+  treeType: TreeType,
+  customRelationshipTypes?: CustomRelType[] | null
+): NodePosition[] {
+  return calculateUnifiedGridLayout(members, relationships, treeType, customRelationshipTypes);
 }
 
 function calculateCircleLayout(
@@ -231,15 +252,18 @@ function calculateRadialLayout(
   const centerY = 600;
   const ringGap = 180;
 
-  const focusMember = members.find((m) => m.id === focusId) || members[0];
-  const others = members.filter((m) => m.id !== focusMember.id);
   const relMap = buildRelMap(relationships, treeType, customRelationshipTypes);
+  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType, customRelationshipTypes);
 
-  const { rank1, rank2, rank3 } = sortByRank(others, relationships, treeType, customRelationshipTypes);
+  const focusMember = members.find((m) => m.id === focusId);
+  const focusIsLeader = focusMember && rank1.some(m => m.id === focusMember.id);
+  const centerMember = focusIsLeader ? focusMember! : (rank1.length > 0 ? rank1[0] : (focusMember || members[0]));
 
-  const focusRank = getMemberRank(focusMember.id, relationships, treeType, customRelationshipTypes);
+  const remainingRank1 = rank1.filter(m => m.id !== centerMember.id);
+
+  const centerRank = getMemberRank(centerMember.id, relationships, treeType, customRelationshipTypes);
   const positions: NodePosition[] = [
-    { x: centerX, y: centerY, member: focusMember, relationshipType: relMap.get(focusMember.id), rank: focusRank },
+    { x: centerX, y: centerY, member: centerMember, relationshipType: relMap.get(centerMember.id), rank: centerRank },
   ];
 
   const placeRing = (ring: FamilyMember[], radius: number) => {
@@ -256,9 +280,9 @@ function calculateRadialLayout(
     });
   };
 
-  if (rank1.length > 0) placeRing(rank1, ringGap);
-  if (rank2.length > 0) placeRing(rank2, ringGap * 2);
-  if (rank3.length > 0) placeRing(rank3, ringGap * 3);
+  if (remainingRank1.length > 0) placeRing(remainingRank1, ringGap);
+  if (rank2.length > 0) placeRing(rank2, ringGap * (remainingRank1.length > 0 ? 2 : 1));
+  if (rank3.length > 0) placeRing(rank3, ringGap * (remainingRank1.length > 0 ? 3 : rank2.length > 0 ? 2 : 1));
 
   return positions;
 }
@@ -270,49 +294,7 @@ function calculateGridLayout(
   treeType: TreeType,
   customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
-  if (members.length === 0) return [];
-
-  const colWidth = 180;
-  const rowHeight = 200;
-  const startX = 100;
-  const startY = 100;
-  const perRow = 5;
-
-  const relMap = buildRelMap(relationships, treeType, customRelationshipTypes);
-  const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType, customRelationshipTypes);
-
-  const positions: NodePosition[] = [];
-  let currentRow = 0;
-
-  const placeRow = (group: FamilyMember[], row: number, rank: number) => {
-    const offsetX = startX + ((perRow - group.length) * colWidth) / 2;
-    group.forEach((m, i) => {
-      positions.push({
-        x: offsetX + i * colWidth,
-        y: startY + row * rowHeight,
-        member: m,
-        relationshipType: relMap.get(m.id),
-        rank,
-      });
-    });
-  };
-
-  if (rank1.length > 0) {
-    placeRow(rank1, currentRow, 1);
-    currentRow++;
-  }
-  if (rank2.length > 0) {
-    placeRow(rank2, currentRow, 2);
-    currentRow++;
-  }
-
-  for (let i = 0; i < rank3.length; i += perRow) {
-    const chunk = rank3.slice(i, i + perRow);
-    placeRow(chunk, currentRow, 3);
-    currentRow++;
-  }
-
-  return positions;
+  return calculateUnifiedGridLayout(members, relationships, treeType, customRelationshipTypes);
 }
 
 function calculateArcLayout(
@@ -328,14 +310,12 @@ function calculateArcLayout(
   const { rank1, rank2, rank3 } = sortByRank(members, relationships, treeType, customRelationshipTypes);
 
   const focusMember = members.find((m) => m.id === focusId);
-  const focusInRank1 = focusMember && rank1.some(m => m.id === focusMember.id);
-  
-  const leaders = focusInRank1 ? rank1 : (rank1.length > 0 ? rank1 : (focusMember ? [focusMember] : []));
+  const leaders = rank1.length > 0 ? rank1 : (focusMember ? [focusMember] : [members[0]]);
   const others = [...rank2, ...rank3].filter(m => !leaders.some(l => l.id === m.id));
-  if (!focusInRank1 && focusMember) {
+  if (focusMember && !leaders.some(l => l.id === focusMember.id)) {
     const idx = others.findIndex(m => m.id === focusMember.id);
-    if (idx >= 0) others.splice(idx, 1);
-    if (!leaders.some(l => l.id === focusMember.id)) {
+    if (idx > 0) {
+      others.splice(idx, 1);
       others.unshift(focusMember);
     }
   }
@@ -399,7 +379,10 @@ function calculateNetworkLayout(
 
   const relMap = buildRelMap(relationships, treeType, customRelationshipTypes);
 
-  const startId = members.find((m) => m.id === focusId)?.id || members[0].id;
+  const { rank1 } = sortByRank(members, relationships, treeType, customRelationshipTypes);
+  const focusMember = members.find((m) => m.id === focusId);
+  const focusIsLeader = focusMember && rank1.some(m => m.id === focusMember.id);
+  const startId = focusIsLeader ? focusMember!.id : (rank1.length > 0 ? rank1[0].id : (focusMember?.id || members[0].id));
   const dist = new Map<string, number>();
   dist.set(startId, 0);
   const queue = [startId];
@@ -839,15 +822,21 @@ export default function GroupVisualization({
     }
 
     if (visual.layoutShape === "grid") {
+      const gridNodeW = 170;
+      const gridNodeH = 190;
+      const gridGapX = 30;
+      const gridGapY = 40;
+      const gridStepX = gridNodeW + gridGapX;
+      const gridStepY = gridNodeH + gridGapY;
       const lines: JSX.Element[] = [];
       for (let r = 0; r <= 6; r++) {
         lines.push(
           <line
             key={`gh-${r}`}
             x1={bounds.minX}
-            y1={100 + r * 200}
+            y1={80 + r * gridStepY}
             x2={bounds.maxX}
-            y2={100 + r * 200}
+            y2={80 + r * gridStepY}
             stroke={shapeColor}
             strokeWidth={1}
             opacity={opacity * 0.7}
@@ -858,9 +847,9 @@ export default function GroupVisualization({
         lines.push(
           <line
             key={`gv-${c}`}
-            x1={100 + c * 180}
+            x1={60 + c * gridStepX}
             y1={bounds.minY}
-            x2={100 + c * 180}
+            x2={60 + c * gridStepX}
             y2={bounds.maxY}
             stroke={shapeColor}
             strokeWidth={1}
