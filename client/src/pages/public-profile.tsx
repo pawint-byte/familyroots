@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 
 interface PublicProfile {
   id: string;
@@ -26,7 +27,7 @@ interface PublicProfile {
   totalMembers: number;
 }
 
-const RELATIONSHIP_OPTIONS = [
+const FAMILY_RELATIONSHIP_OPTIONS = [
   { value: "son", label: "Their Son" },
   { value: "daughter", label: "Their Daughter" },
   { value: "parent", label: "Their Parent" },
@@ -43,6 +44,19 @@ const RELATIONSHIP_OPTIONS = [
   { value: "step_relative", label: "Their Step-Relative" },
   { value: "other", label: "Other Relationship" },
 ];
+
+function getRelationshipOptionsForTreeType(treeType?: string) {
+  if (!treeType || treeType === "family") return FAMILY_RELATIONSHIP_OPTIONS;
+  const config = TREE_TYPE_CONFIGS[treeType as TreeType];
+  if (!config) return FAMILY_RELATIONSHIP_OPTIONS;
+  return [
+    ...config.defaultRelationshipTypes.map(r => ({
+      value: r.value,
+      label: r.label,
+    })),
+    { value: "other", label: "Other" },
+  ];
+}
 
 export default function PublicProfilePage() {
   const [, params] = useRoute("/profile/:userId");
@@ -291,11 +305,11 @@ export default function PublicProfilePage() {
             <div className="grid grid-cols-2 gap-4 text-center">
               <div className="p-4 rounded-lg bg-muted/50">
                 <div className="text-2xl font-bold text-primary">{profile.treeCount}</div>
-                <div className="text-sm text-muted-foreground">Family Trees</div>
+                <div className="text-sm text-muted-foreground">Trees</div>
               </div>
               <div className="p-4 rounded-lg bg-muted/50">
                 <div className="text-2xl font-bold text-primary">{profile.totalMembers}</div>
-                <div className="text-sm text-muted-foreground">Family Members</div>
+                <div className="text-sm text-muted-foreground">Members</div>
               </div>
             </div>
 
@@ -356,7 +370,7 @@ export default function PublicProfilePage() {
                       Connect with {profile.firstName || 'this person'}
                     </Button>
                     <p className="text-xs text-center text-muted-foreground">
-                      Tell {profile.firstName || 'them'} how you're related to collaborate on family trees together
+                      Tell {profile.firstName || 'them'} how you're connected to collaborate on trees together
                     </p>
                   </>
                 )}
@@ -370,7 +384,7 @@ export default function PublicProfilePage() {
                   </Button>
                 </Link>
                 <p className="text-xs text-center text-muted-foreground">
-                  Create a free account to connect with {profile.firstName || 'this person'} and start building your family tree
+                  Create a free account to connect with {profile.firstName || 'this person'} and start building your tree
                 </p>
               </div>
             )}
@@ -378,10 +392,10 @@ export default function PublicProfilePage() {
             <div className="border-t pt-4">
               <div className="bg-primary/5 rounded-lg p-4 text-center">
                 <Users className="h-8 w-8 mx-auto text-primary mb-2" />
-                <h4 className="font-medium text-sm mb-1">Build Your Family Tree Together</h4>
+                <h4 className="font-medium text-sm mb-1">Build Your Tree Together</h4>
                 <p className="text-xs text-muted-foreground">
-                  FamilyRoots makes it easy for family members to collaborate, 
-                  share profiles, and connect at reunions.
+                  FamilyRoots makes it easy for members to collaborate, 
+                  share profiles, and connect.
                 </p>
               </div>
             </div>
@@ -406,51 +420,76 @@ export default function PublicProfilePage() {
               Connect with {profile.firstName}
             </DialogTitle>
             <DialogDescription>
-              Tell {profile.firstName} how you're related so they can add you to their family tree.
+              {(() => {
+                const selectedTree = targetUserTrees?.find(t => t.id === selectedTreeId);
+                const treeConfig = selectedTree ? TREE_TYPE_CONFIGS[selectedTree.treeType as TreeType] : null;
+                if (treeConfig && selectedTree?.treeType !== "family") {
+                  return `Tell ${profile.firstName} your role so they can add you to their ${treeConfig.label.toLowerCase()}.`;
+                }
+                return `Tell ${profile.firstName} how you're connected so they can add you to their tree.`;
+              })()}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="relationship">I am {profile.firstName}'s...</Label>
-              <Select value={relationshipType} onValueChange={setRelationshipType}>
-                <SelectTrigger id="relationship" data-testid="select-relationship">
-                  <SelectValue placeholder="Select your relationship" />
-                </SelectTrigger>
-                <SelectContent>
-                  {RELATIONSHIP_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {targetUserTrees && targetUserTrees.length > 0 && (
               <div className="space-y-2">
-                <Label htmlFor="targetTree">Connect to which tree? (optional)</Label>
-                <Select value={selectedTreeId} onValueChange={setSelectedTreeId}>
+                <Label htmlFor="targetTree">Connect to which tree?</Label>
+                <Select value={selectedTreeId} onValueChange={(val) => {
+                  setSelectedTreeId(val);
+                  setRelationshipType("");
+                }}>
                   <SelectTrigger id="targetTree" data-testid="select-target-tree">
                     <SelectValue placeholder="Select a tree" />
                   </SelectTrigger>
                   <SelectContent>
-                    {targetUserTrees.map((tree) => (
-                      <SelectItem key={tree.id} value={tree.id}>
-                        {tree.name}
-                      </SelectItem>
-                    ))}
+                    {targetUserTrees.map((tree) => {
+                      const config = TREE_TYPE_CONFIGS[tree.treeType as TreeType];
+                      return (
+                        <SelectItem key={tree.id} value={tree.id}>
+                          {tree.name} {config ? `(${config.label})` : ''}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
             )}
 
+            <div className="space-y-2">
+              <Label htmlFor="relationship">
+                {(() => {
+                  const selectedTree = targetUserTrees?.find(t => t.id === selectedTreeId);
+                  if (selectedTree && selectedTree.treeType !== "family") {
+                    return `My role in ${selectedTree.name}...`;
+                  }
+                  return `I am ${profile.firstName}'s...`;
+                })()}
+              </Label>
+              <Select value={relationshipType} onValueChange={setRelationshipType}>
+                <SelectTrigger id="relationship" data-testid="select-relationship">
+                  <SelectValue placeholder="Select your role or relationship" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(() => {
+                    const selectedTree = targetUserTrees?.find(t => t.id === selectedTreeId);
+                    const options = getRelationshipOptionsForTreeType(selectedTree?.treeType);
+                    return options.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ));
+                  })()}
+                </SelectContent>
+              </Select>
+            </div>
+
             {relationshipType === "other" && (
               <div className="space-y-2">
-                <Label htmlFor="customLabel">Describe your relationship</Label>
+                <Label htmlFor="customLabel">Describe your connection</Label>
                 <Input
                   id="customLabel"
-                  placeholder="e.g., Family friend, Godchild..."
+                  placeholder="e.g., Team supporter, Family friend..."
                   value={customLabel}
                   onChange={(e) => setCustomLabel(e.target.value)}
                   data-testid="input-custom-label"
@@ -462,7 +501,7 @@ export default function PublicProfilePage() {
               <Label htmlFor="message">Add a message (optional)</Label>
               <Textarea
                 id="message"
-                placeholder={`Hi ${profile.firstName || 'there'}, it was great seeing you at the reunion!`}
+                placeholder={`Hi ${profile.firstName || 'there'}, it was great seeing you!`}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 className="resize-none"
@@ -477,9 +516,14 @@ export default function PublicProfilePage() {
                 {selectedTreeId && targetUserTrees ? (
                   <> to <span className="font-medium text-foreground">{targetUserTrees.find(t => t.id === selectedTreeId)?.name}</span></>
                 ) : null}
-                {" "}as {profile.firstName}'s{" "}
+                {" "}as{" "}
                 <span className="font-medium text-foreground">
-                  {RELATIONSHIP_OPTIONS.find(o => o.value === relationshipType)?.label.replace("Their ", "") || relationshipType}
+                  {(() => {
+                    const selectedTree = targetUserTrees?.find(t => t.id === selectedTreeId);
+                    const options = getRelationshipOptionsForTreeType(selectedTree?.treeType);
+                    const found = options.find(o => o.value === relationshipType);
+                    return found?.label || relationshipType;
+                  })()}
                 </span>
               </div>
             )}

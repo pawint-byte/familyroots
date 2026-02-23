@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { Check, X, Loader2, Heart, TreePine } from "lucide-react";
 import { Link } from "wouter";
+import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,7 @@ interface PendingConnectionRequest {
   sourceType: string | null;
   targetTreeId: string | null;
   targetTreeName: string | null;
+  targetTreeType: string | null;
   createdAt: string;
   fromUser: {
     id: string;
@@ -65,7 +67,7 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   other: "Related to You",
 };
 
-const APPROVER_RELATIONSHIP_OPTIONS = [
+const FAMILY_APPROVER_OPTIONS = [
   { value: "parent", label: "Their Parent" },
   { value: "son", label: "Their Son" },
   { value: "daughter", label: "Their Daughter" },
@@ -82,6 +84,19 @@ const APPROVER_RELATIONSHIP_OPTIONS = [
   { value: "step_relative", label: "Their Step-Relative" },
   { value: "other", label: "Other (specify)" },
 ];
+
+function getApproverOptionsForTreeType(treeType?: string | null) {
+  if (!treeType || treeType === "family") return FAMILY_APPROVER_OPTIONS;
+  const config = TREE_TYPE_CONFIGS[treeType as TreeType];
+  if (!config) return FAMILY_APPROVER_OPTIONS;
+  return [
+    ...config.defaultRelationshipTypes.map(r => ({
+      value: r.value,
+      label: r.label,
+    })),
+    { value: "other", label: "Other (specify)" },
+  ];
+}
 
 export function PendingConnectionsSection() {
   const { toast } = useToast();
@@ -205,10 +220,10 @@ export function PendingConnectionsSection() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Heart className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Family Connection Requests</CardTitle>
+            <CardTitle className="text-lg">Connection Requests</CardTitle>
           </div>
           <CardDescription>
-            People who want to connect with you as family
+            People who want to connect with you
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -319,22 +334,26 @@ export function PendingConnectionsSection() {
                   <span className="font-medium text-foreground">{selectedRequest.targetTreeName}</span>
                 </>
               )}
-              . How would you describe your relationship to them?
+              . How would you describe your connection to them?
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="approver-relationship">I am their...</Label>
+              <Label htmlFor="approver-relationship">
+                {selectedRequest?.targetTreeType && selectedRequest.targetTreeType !== "family"
+                  ? "My role..."
+                  : "I am their..."}
+              </Label>
               <Select
                 value={approverRelationship}
                 onValueChange={setApproverRelationship}
               >
                 <SelectTrigger id="approver-relationship" data-testid="select-approver-relationship">
-                  <SelectValue placeholder="Select your relationship (optional)" />
+                  <SelectValue placeholder="Select your role or relationship (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  {APPROVER_RELATIONSHIP_OPTIONS.map((option) => (
+                  {getApproverOptionsForTreeType(selectedRequest?.targetTreeType).map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -342,18 +361,18 @@ export function PendingConnectionsSection() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                You can have a different perspective on the relationship than they do.
+                You can have a different perspective on the connection than they do.
               </p>
             </div>
 
             {approverRelationship === "other" && (
               <div className="space-y-2">
-                <Label htmlFor="approver-custom-label">Describe your relationship</Label>
+                <Label htmlFor="approver-custom-label">Describe your connection</Label>
                 <Input
                   id="approver-custom-label"
                   value={approverCustomLabel}
                   onChange={(e) => setApproverCustomLabel(e.target.value)}
-                  placeholder="e.g., Family Friend, Godparent"
+                  placeholder="e.g., Team supporter, Coach, Friend..."
                   maxLength={100}
                   data-testid="input-approver-custom-label"
                 />

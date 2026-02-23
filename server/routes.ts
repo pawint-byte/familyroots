@@ -7948,7 +7948,7 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const requests = await storage.getPendingUserConnectionRequestsForUser(userId);
 
-      // Enrich with user info and claimed member profiles
+      // Enrich with user info, claimed member profiles, and tree type
       const enrichedRequests = await Promise.all(
         requests.map(async (request) => {
           const fromUser = await storage.getUser(request.fromUserId);
@@ -7958,8 +7958,15 @@ export async function registerRoutes(
           const displayLastName = fromUser?.lastName || primaryProfile?.lastName || null;
           const displayPhoto = fromUser?.profileImageUrl || primaryProfile?.photoUrl || null;
 
+          let targetTreeType: string | null = null;
+          if (request.targetTreeId) {
+            const targetTree = await storage.getTree(request.targetTreeId);
+            targetTreeType = targetTree?.treeType || null;
+          }
+
           return {
             ...request,
+            targetTreeType,
             fromUser: {
               id: request.fromUserId,
               firstName: displayFirstName,
@@ -8180,29 +8187,32 @@ export async function registerRoutes(
             }
           }
           
-          // Map user connection relationship to family tree relationship
-          // requesterRelationship is how the requester relates TO the approver
-          // e.g., if requester says "I am your son", relationship should be: approver is parent of requester
+          // Map user connection relationship to tree relationship
+          // For family trees: maps family-specific types (son→parent, etc.)
+          // For non-family trees: uses the relationship type directly from the tree's config
           const mapToTreeRelationship = (userRel: string): { type: string; fromId: string; toId: string } | null => {
-            // In both trees, we need to create the correct relationship
-            // fromUserMemberInToTree = requester in approver's tree
-            // toUserMemberInFromTree = approver in requester's tree
+            const treeType = toTree.treeType || 'family';
             
+            if (treeType !== 'family') {
+              // For non-family trees (church, sports, etc.), the relationship type
+              // is used directly — it describes the requester's role in the tree
+              // e.g., "player", "member", "mentor" — stored as a direct relationship
+              return { type: userRel, fromId: 'from', toId: 'to' };
+            }
+            
+            // Family tree mapping
             switch(userRel) {
               case 'son':
               case 'daughter':
-                // Requester is child of approver
-                // In approver's tree: approver's member -> parent -> fromUser's member
-                return { type: 'parent', fromId: 'from', toId: 'to' }; // from is child, to is parent
+                return { type: 'parent', fromId: 'from', toId: 'to' };
               case 'parent':
-                // Requester is parent of approver
-                return { type: 'parent', fromId: 'to', toId: 'from' }; // to is child, from is parent
+                return { type: 'parent', fromId: 'to', toId: 'from' };
               case 'spouse':
                 return { type: 'spouse', fromId: 'from', toId: 'to' };
               case 'sibling':
                 return { type: 'sibling', fromId: 'from', toId: 'to' };
               default:
-                return null; // Complex relationships like grandparent need manual setup
+                return null;
             }
           };
           

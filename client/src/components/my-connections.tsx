@@ -134,7 +134,7 @@ export function MyConnectionsSection() {
 
             const firstName = otherUser.firstName || "";
             const lastName = otherUser.lastName || "";
-            const fullName = `${firstName} ${lastName}`.trim() || "Family Member";
+            const fullName = `${firstName} ${lastName}`.trim() || "Member";
             const initials = `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase() || '?';
             
             const myRelationship = connection.myRelationshipToThem 

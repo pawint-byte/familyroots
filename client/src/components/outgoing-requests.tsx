@@ -55,7 +55,7 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   cousin: "Cousin",
   in_law: "In-Law",
   step_relative: "Step-Relative",
-  other: "Family",
+  other: "Other",
 };
 
 const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -124,7 +124,7 @@ export function OutgoingRequestsSection() {
             <CardTitle className="text-lg">Sent Connection Requests</CardTitle>
           </div>
           <CardDescription>
-            Connection requests you've sent to family members
+            Connection requests you've sent
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -135,7 +135,7 @@ export function OutgoingRequestsSection() {
 
               const firstName = toUser.firstName || "";
               const lastName = toUser.lastName || "";
-              const fullName = `${firstName} ${lastName}`.trim() || "Family Member";
+              const fullName = `${firstName} ${lastName}`.trim() || "Member";
               const initials = `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase() || "?";
 
               const relationshipLabel = request.customLabel ||
