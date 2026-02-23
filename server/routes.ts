@@ -9420,17 +9420,19 @@ export async function registerRoutes(
       const createdRelationships: any[] = [];
 
       if (relationships && Array.isArray(relationships)) {
+        console.log(`[ImportAsTree] Processing ${relationships.length} relationships`);
         for (const rel of relationships) {
           const member1Id = fsIdToMemberId.get(rel.person1Id);
           const member2Id = fsIdToMemberId.get(rel.person2Id);
 
           if (!member1Id || !member2Id) {
+            console.log(`[ImportAsTree] Skipped relationship: person1=${rel.person1Id} (mapped=${!!member1Id}) person2=${rel.person2Id} (mapped=${!!member2Id}) type=${rel.type}`);
             continue;
           }
 
           const relType = rel.type?.toLowerCase() || "";
-          const isParentChild = relType === "parent-child" || relType.includes("parentchild");
-          const isCouple = relType === "couple" || relType.includes("couple");
+          const isParentChild = relType === "parent-child" || relType.includes("parentchild") || relType.includes("parent");
+          const isCouple = relType === "couple" || relType.includes("couple") || relType.includes("spouse");
 
           if (isParentChild) {
             const relationship = await storage.createRelationship({
@@ -9448,9 +9450,15 @@ export async function registerRoutes(
               relationshipType: "spouse",
             });
             createdRelationships.push(relationship);
+          } else {
+            console.log(`[ImportAsTree] Unknown relationship type: "${rel.type}" between person1=${rel.person1Id} person2=${rel.person2Id}`);
           }
         }
+      } else {
+        console.log(`[ImportAsTree] No relationships provided in request body`);
       }
+
+      console.log(`[ImportAsTree] Created ${createdRelationships.length} relationships for ${createdMembers.length} members in sub-tree ${subTree.id}`);
 
       res.json({
         success: true,
@@ -10972,11 +10980,13 @@ export async function registerRoutes(
       }
 
       const remainingSourceMembers = await storage.getMembers(sourceTreeId);
+      console.log(`[resolve-conflicts] Moving ${remainingSourceMembers.length} remaining members from sub-tree ${sourceTreeId} to parent tree ${treeId}`);
       if (remainingSourceMembers.length > 0) {
         for (const member of remainingSourceMembers) {
-          await storage.updateMember(member.id, { treeId });
+          await storage.updateMember(member.id, { treeId } as any);
         }
         const remainingRels = await storage.getRelationships(sourceTreeId);
+        console.log(`[resolve-conflicts] Migrating ${remainingRels.length} remaining relationships to parent tree`);
         for (const rel of remainingRels) {
           const existingTargetRels = await storage.getRelationships(treeId);
           const alreadyExists = existingTargetRels.some(

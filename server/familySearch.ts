@@ -587,11 +587,13 @@ function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeDat
     }
   }
   
-  // Infer relationships from ascendancyNumber (ahnentafel numbering) when
-  // explicit relationship data is missing. Ancestry endpoints return persons
-  // with display.ascendancyNumber: 1=self, 2=father, 3=mother, 4=paternal grandfather, etc.
+  // Always try to infer relationships from ascendancyNumber (ahnentafel numbering)
+  // even when some explicit relationships exist, because the API may only return
+  // explicit relationships for a subset of the tree.
+  // Ancestry endpoints return persons with display.ascendancyNumber:
+  // 1=self, 2=father, 3=mother, 4=paternal grandfather, etc.
   // A person at position N is the parent of the person at position floor(N/2).
-  if (data.persons && relationships.length === 0) {
+  if (data.persons) {
     const ahnentafelMap = new Map<number, string>();
     let hasAhnentafel = false;
     
@@ -615,10 +617,9 @@ function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeDat
       }
     }
     
-    // Fallback: if no ascendancyNumber fields found, use array index as ahnentafel number.
-    // The FamilySearch ancestry endpoint returns persons in ahnentafel order by position:
-    // index 0 = self (ahnentafel 1), index 1 = father (2), index 2 = mother (3), etc.
-    if (!hasAhnentafel && data.persons.length > 1) {
+    // Fallback: if no ascendancyNumber fields found and no explicit relationships,
+    // use array index as ahnentafel number.
+    if (!hasAhnentafel && relationships.length === 0 && data.persons.length > 1) {
       const rootId = data.persons[0]?.id;
       const hasRootPerson = rootId === rootPersonId;
       if (hasRootPerson || data.persons.length >= 3) {
@@ -665,8 +666,17 @@ function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeDat
     }
   }
   
-  console.log("[FamilySearch] parseTreeResponse result: persons:", persons.length, "relationships:", relationships.length);
-  return { persons, relationships, rootPersonId };
+  const personIds = new Set(persons.map(p => p.id));
+  const validRelationships = relationships.filter(r => {
+    const valid = personIds.has(r.person1Id) && personIds.has(r.person2Id);
+    if (!valid) {
+      console.log(`[FamilySearch] Dropping relationship ${r.type} between ${r.person1Id} (known=${personIds.has(r.person1Id)}) and ${r.person2Id} (known=${personIds.has(r.person2Id)}) - person not in persons list`);
+    }
+    return valid;
+  });
+  
+  console.log("[FamilySearch] parseTreeResponse result: persons:", persons.length, "relationships:", validRelationships.length, "(dropped:", relationships.length - validRelationships.length, "with unknown person refs)");
+  return { persons, relationships: validRelationships, rootPersonId };
 }
 
 export function getMockSearchResults(params: {
