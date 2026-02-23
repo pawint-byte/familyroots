@@ -939,12 +939,16 @@ export default function FamilyTreeVisualization({
 
     // === ANCESTORS BEYOND PARENTS: Lines from any ancestor to their child (grandparent, great-grandparent, etc.) ===
     const greatGrandparentPositions = positions.filter(p => p.branchType === 'greatgrandparent');
-    const ancestorTargets = [...grandparentPositions, ...greatGrandparentPositions];
+    const { parentChildMap: pcMap, childParentMap: cpMap } = getRelationshipMaps();
+    const allAncestorPositions = [...parentPositions, ...grandparentPositions, ...greatGrandparentPositions];
     greatGrandparentPositions.forEach(ggpPos => {
-      const { parentChildMap } = getRelationshipMaps();
-      const ggpChildren = parentChildMap.get(ggpPos.member.id) || [];
-      ancestorTargets.forEach(childPos => {
+      const ggpChildren = pcMap.get(ggpPos.member.id) || [];
+      const drawnConnections = new Set<string>();
+      allAncestorPositions.forEach(childPos => {
         if (ggpChildren.includes(childPos.member.id)) {
+          const connKey = `${ggpPos.member.id}-${childPos.member.id}`;
+          if (drawnConnections.has(connKey)) return;
+          drawnConnections.add(connKey);
           const fromX = ggpPos.x + nodeWidth / 2;
           const fromY = ggpPos.y + nodeHeight;
           const toX = childPos.x + nodeWidth / 2;
@@ -953,6 +957,30 @@ export default function FamilyTreeVisualization({
           lines.push(
             <path
               key={`ancestor-line-${ggpPos.member.id}-${childPos.member.id}`}
+              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+              stroke={BRANCH_COLORS.greatgrandparent.line}
+              strokeWidth="1.5"
+              fill="none"
+              strokeLinecap="round"
+              opacity="0.5"
+            />
+          );
+        }
+      });
+      const ggpParents = cpMap.get(ggpPos.member.id) || [];
+      allAncestorPositions.forEach(parentPos => {
+        if (parentPos.branchType === 'greatgrandparent' && ggpParents.includes(parentPos.member.id)) {
+          const connKey = `${parentPos.member.id}-${ggpPos.member.id}`;
+          if (drawnConnections.has(connKey)) return;
+          drawnConnections.add(connKey);
+          const fromX = parentPos.x + nodeWidth / 2;
+          const fromY = parentPos.y + nodeHeight;
+          const toX = ggpPos.x + nodeWidth / 2;
+          const toY = ggpPos.y;
+          
+          lines.push(
+            <path
+              key={`ancestor-line-${parentPos.member.id}-${ggpPos.member.id}`}
               d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
               stroke={BRANCH_COLORS.greatgrandparent.line}
               strokeWidth="1.5"

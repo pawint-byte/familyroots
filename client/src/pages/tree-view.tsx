@@ -2881,12 +2881,21 @@ export default function TreeView() {
       </Sheet>
 
       {treeData?.tree && (
-        <ShareTreeDialog
-          open={isShareOpen}
-          onOpenChange={setIsShareOpen}
-          treeId={treeData.tree.id}
-          treeName={treeData.tree.name}
-        />
+        <>
+          <ShareTreeDialog
+            open={isShareOpen}
+            onOpenChange={setIsShareOpen}
+            treeId={treeData.tree.id}
+            treeName={treeData.tree.name}
+          />
+          <InviteConnectDialog
+            open={isInviteConnectOpen}
+            onOpenChange={setIsInviteConnectOpen}
+            treeId={treeData.tree.id}
+            treeName={treeData.tree.name}
+            treeType={treeData.tree.treeType || "family"}
+          />
+        </>
       )}
 
       {/* Edit Member Dialog */}
