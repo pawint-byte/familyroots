@@ -73,6 +73,14 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     
+    // Check for pending connect-to-tree redirect (from invite link before login)
+    const pendingConnectRedirect = localStorage.getItem("pendingConnectRedirect");
+    if (pendingConnectRedirect) {
+      localStorage.removeItem("pendingConnectRedirect");
+      navigate(pendingConnectRedirect);
+      return;
+    }
+
     const pendingRedirect = localStorage.getItem("pendingProfileRedirect");
     const pendingConnectionUserId = localStorage.getItem("pendingConnectionUserId");
     

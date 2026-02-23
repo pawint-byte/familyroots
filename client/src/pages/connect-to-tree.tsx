@@ -252,7 +252,10 @@ export default function ConnectToTree() {
               </p>
               <Button
                 className="w-full"
-                onClick={() => navigate("/")}
+                onClick={() => {
+                  localStorage.setItem("pendingConnectRedirect", `/connect/${treeId}`);
+                  navigate("/");
+                }}
                 data-testid="button-sign-in"
               >
                 Sign In to Connect

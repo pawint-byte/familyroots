@@ -11152,18 +11152,25 @@ export async function registerRoutes(
         console.log(`[resolve-conflicts] Phase 4: Merging ${sourceMember.firstName} ${sourceMember.lastName || ''} → ${targetMember.firstName} ${targetMember.lastName || ''}`);
 
         const updates: Record<string, any> = {};
+        const notesAppendParts: string[] = [];
         const syncField = (field: string, sourceVal: any, targetVal: any) => {
           if (!targetVal && sourceVal) {
             updates[field] = sourceVal;
           } else if (targetVal && sourceVal && targetVal !== sourceVal) {
             if (field === 'notes') {
               updates[field] = `${targetVal}\n\n[Merged from FamilySearch]: ${sourceVal}`;
-            }
-            if ((field === 'birthDate' || field === 'deathDate') && String(sourceVal).length > String(targetVal).length) {
-              updates[field] = sourceVal;
-            }
-            if (field === 'birthPlace' && !targetVal) {
-              updates[field] = sourceVal;
+            } else if (field === 'birthDate' || field === 'deathDate') {
+              if (String(sourceVal).length > String(targetVal).length) {
+                updates[field] = sourceVal;
+              }
+            } else if (field === 'birthPlace' || field === 'currentCity' || field === 'currentRegion' || field === 'currentCountry') {
+              if (String(sourceVal).length > String(targetVal).length) {
+                updates[field] = sourceVal;
+              } else {
+                notesAppendParts.push(`${field}: ${sourceVal}`);
+              }
+            } else if (field === 'nickname') {
+              notesAppendParts.push(`Alternate name: ${sourceVal}`);
             }
           }
         };
@@ -11178,6 +11185,12 @@ export async function registerRoutes(
         syncField('currentCity', sourceMember.currentCity, targetMember.currentCity);
         syncField('currentRegion', sourceMember.currentRegion, targetMember.currentRegion);
         syncField('currentCountry', sourceMember.currentCountry, targetMember.currentCountry);
+
+        if (notesAppendParts.length > 0) {
+          const existingNotes = updates['notes'] || targetMember.notes || '';
+          const appendText = `\n\n[FamilySearch alternate data]: ${notesAppendParts.join(', ')}`;
+          updates['notes'] = existingNotes ? existingNotes + appendText : appendText.trim();
+        }
 
         if (Object.keys(updates).length > 0) {
           await storage.updateMember(targetMemberId, updates);
