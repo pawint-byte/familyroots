@@ -10989,13 +10989,59 @@ export async function registerRoutes(
           const affectedRels = sourceRelationships.filter(
             r => r.fromMemberId === sourceMemberId || r.toMemberId === sourceMemberId
           );
+
+          const neighbors: { memberId: string; relType: string; direction: "parent" | "child" | "other" }[] = [];
           for (const rel of affectedRels) {
-            await storage.deleteRelationship(rel.id);
+            const otherId = rel.fromMemberId === sourceMemberId ? rel.toMemberId : rel.fromMemberId;
+            if (skippedIds.has(otherId)) continue;
+            const isParentOfSkipped = rel.relationshipType === "parent-child" && rel.toMemberId === sourceMemberId;
+            const isChildOfSkipped = rel.relationshipType === "parent-child" && rel.fromMemberId === sourceMemberId;
+            neighbors.push({
+              memberId: otherId,
+              relType: rel.relationshipType,
+              direction: isParentOfSkipped ? "parent" : isChildOfSkipped ? "child" : "other",
+            });
+          }
+
+          const parents = neighbors.filter(n => n.direction === "parent");
+          const children = neighbors.filter(n => n.direction === "child");
+          if (parents.length > 0 && children.length > 0) {
+            for (const parent of parents) {
+              for (const child of children) {
+                const resolvedParentId = mergedSourceToTarget.get(parent.memberId) || parent.memberId;
+                const resolvedChildId = mergedSourceToTarget.get(child.memberId) || child.memberId;
+                if (resolvedParentId === resolvedChildId) continue;
+                const bridgeTreeId = treeId;
+                const existingRels = await storage.getRelationships(bridgeTreeId);
+                const alreadyExists = existingRels.some(
+                  r => r.relationshipType === "parent-child" &&
+                    ((r.fromMemberId === resolvedParentId && r.toMemberId === resolvedChildId) ||
+                     (r.fromMemberId === resolvedChildId && r.toMemberId === resolvedParentId))
+                );
+                if (!alreadyExists) {
+                  try {
+                    await storage.createRelationship({
+                      treeId: bridgeTreeId,
+                      fromMemberId: resolvedParentId,
+                      toMemberId: resolvedChildId,
+                      relationshipType: "parent-child",
+                    });
+                    console.log(`[resolve-conflicts] Bridged connection: skipped member's parent ${resolvedParentId.substring(0,8)} -> child ${resolvedChildId.substring(0,8)}`);
+                  } catch (e) {
+                    console.log(`[resolve-conflicts] Could not bridge connection:`, e);
+                  }
+                }
+              }
+            }
+          }
+
+          for (const rel of affectedRels) {
+            try { await storage.deleteRelationship(rel.id); } catch (e) { }
           }
 
           await storage.removeMemberRecord(sourceMemberId);
 
-          results.push({ sourceMemberId, action, status: "removed" });
+          results.push({ sourceMemberId, action, status: "removed", bridgedConnections: parents.length > 0 && children.length > 0 ? parents.length * children.length : 0 } as any);
         }
       }
 
