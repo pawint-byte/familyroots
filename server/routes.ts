@@ -9533,6 +9533,9 @@ export async function registerRoutes(
       const sourceMembers = await storage.getMembers(sourceTreeId);
       const targetMembers = await storage.getMembers(treeId);
 
+      const isSourceRootMember = (memberId: string) => sourceTree.rootMemberId === memberId;
+      const isTargetRootMember = (memberId: string) => targetTree.rootMemberId === memberId;
+
       const conflicts: Array<{
         sourceMember: any;
         targetMember: any;
@@ -9548,6 +9551,17 @@ export async function registerRoutes(
         for (const tm of targetMembers) {
           let score = 0;
           const diffs: Array<{ field: string; sourceValue: any; targetValue: any }> = [];
+
+          const isRootToRoot = isSourceRootMember(sm.id) && isTargetRootMember(tm.id);
+          if (isRootToRoot) {
+            score += 40;
+            if (sm.firstName !== tm.firstName) {
+              diffs.push({ field: "firstName", sourceValue: sm.firstName, targetValue: tm.firstName });
+            }
+            if (sm.lastName !== tm.lastName) {
+              diffs.push({ field: "lastName", sourceValue: sm.lastName, targetValue: tm.lastName });
+            }
+          }
 
           const sFirst = (sm.firstName || "").trim().toLowerCase();
           const tFirst = (tm.firstName || "").trim().toLowerCase();
