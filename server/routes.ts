@@ -9098,7 +9098,7 @@ export async function registerRoutes(
   app.post("/api/familysearch/import", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { treeId, persons, relationships } = req.body;
+      const { treeId, persons, relationships, rootPersonId } = req.body;
       
       if (!treeId || !persons || !Array.isArray(persons)) {
         return res.status(400).json({ message: "Missing required fields: treeId, persons" });
@@ -9125,8 +9125,24 @@ export async function registerRoutes(
       const createdMembers: any[] = [];
       const skippedDuplicates: string[] = [];
       
+      // Pre-map the FamilySearch root person (the user's "self") to their claimed member
+      // This prevents the "self" from being matched to a same-named relative (e.g., Peter Wint Jr matching Peter Wint Sr)
+      if (rootPersonId) {
+        const claimedMember = existingMembers.find((m: any) => m.claimedByUserId === userId);
+        if (claimedMember) {
+          fsIdToMemberId.set(rootPersonId, claimedMember.id);
+          skippedDuplicates.push(`${claimedMember.firstName} ${claimedMember.lastName || ''}`.trim());
+          console.log(`[Import] Pre-mapped FamilySearch self (${rootPersonId}) to claimed member: ${claimedMember.firstName} ${claimedMember.lastName || ''} (${claimedMember.id})`);
+        }
+      }
+      
       // Import each person
       for (const person of persons) {
+        // Skip if already mapped (e.g., root person pre-mapped above)
+        if (fsIdToMemberId.has(person.id)) {
+          continue;
+        }
+        
         // Parse the name into first and last name
         const nameParts = (person.name || "Unknown").split(" ");
         const firstName = nameParts[0] || "Unknown";
@@ -9135,6 +9151,10 @@ export async function registerRoutes(
         // Check for potential duplicates by name and birth year
         const birthYear = person.birthDate?.slice(0, 4);
         const duplicate = existingMembers.find((m: any) => {
+          // Skip members already mapped to a FamilySearch ID (prevents double-matching)
+          const alreadyMapped = Array.from(fsIdToMemberId.values()).includes(m.id);
+          if (alreadyMapped) return false;
+          
           const existingBirthYear = m.birthDate?.slice(0, 4);
           return m.firstName.toLowerCase() === firstName.toLowerCase() &&
             m.lastName?.toLowerCase() === lastName?.toLowerCase() &&
@@ -9145,6 +9165,7 @@ export async function registerRoutes(
           // Map to existing member, don't create duplicate
           fsIdToMemberId.set(person.id, duplicate.id);
           skippedDuplicates.push(person.name);
+          console.log(`[Import] Duplicate match: "${person.name}" (${person.id}) → existing member ${duplicate.firstName} ${duplicate.lastName || ''} (${duplicate.id})`);
           continue;
         }
         
@@ -9179,6 +9200,7 @@ export async function registerRoutes(
         
         fsIdToMemberId.set(person.id, newMember.id);
         createdMembers.push(newMember);
+        console.log(`[Import] Created new member: "${firstName} ${lastName || ''}" (${newMember.id}) from FS person ${person.id}`);
       }
       
       // Create relationships
@@ -9189,7 +9211,10 @@ export async function registerRoutes(
           const member1Id = fsIdToMemberId.get(rel.person1Id);
           const member2Id = fsIdToMemberId.get(rel.person2Id);
           
-          if (!member1Id || !member2Id) continue;
+          if (!member1Id || !member2Id) {
+            console.log(`[Import] Skipping relationship: unmapped FS IDs ${rel.person1Id}→${rel.person2Id} (mapped: ${member1Id || 'NONE'}, ${member2Id || 'NONE'})`);
+            continue;
+          }
           
           // Check if relationship already exists
           const existingRels = await storage.getRelationships(treeId);
@@ -9198,7 +9223,10 @@ export async function registerRoutes(
             (r.fromMemberId === member2Id && r.toMemberId === member1Id)
           );
           
-          if (alreadyExists) continue;
+          if (alreadyExists) {
+            console.log(`[Import] Relationship already exists between ${member1Id} and ${member2Id}, skipping`);
+            continue;
+          }
           
           const relType = rel.type?.toLowerCase() || "";
           const isParentChild = relType === "parent-child" || relType.includes("parentchild");
@@ -9212,6 +9240,7 @@ export async function registerRoutes(
               relationshipType: "parent",
             });
             createdRelationships.push(relationship);
+            console.log(`[Import] Created parent relationship: ${member1Id} → ${member2Id}`);
           } else if (isCouple) {
             const relationship = await storage.createRelationship({
               treeId,
@@ -9220,6 +9249,7 @@ export async function registerRoutes(
               relationshipType: "spouse",
             });
             createdRelationships.push(relationship);
+            console.log(`[Import] Created spouse relationship: ${member1Id} ↔ ${member2Id}`);
           }
         }
       }

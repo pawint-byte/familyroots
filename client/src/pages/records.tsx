@@ -489,6 +489,7 @@ export default function RecordsPage() {
       treeId: targetTreeId,
       persons: personsToImport,
       relationships: relationshipsToImport,
+      rootPersonId: treeData!.rootPersonId,
     });
   };
 

@@ -440,7 +440,7 @@ export async function getAncestry(
     console.log("[FamilySearch] getAncestry relationships:", data.relationships?.length || 0);
     if (data.persons) {
       data.persons.forEach((p: any, i: number) => {
-        console.log(`[FamilySearch] Ancestry person ${i}: ${p.display?.name || 'Unknown'} (${p.id}) living=${p.living}`);
+        console.log(`[FamilySearch] Ancestry person ${i}: ${p.display?.name || 'Unknown'} (${p.id}) living=${p.living} ascNum=${p.display?.ascendancyNumber} descNum=${p.display?.descendancyNumber}`);
       });
     }
     return parseTreeResponse(data, personId);
@@ -611,6 +611,29 @@ function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeDat
         const childId = ahnentafelMap.get(childNum);
         if (childId) {
           addRelationship({ type: "parent-child", person1Id: personId, person2Id: childId });
+        }
+      }
+    }
+    
+    // Fallback: if no ascendancyNumber fields found, use array index as ahnentafel number.
+    // The FamilySearch ancestry endpoint returns persons in ahnentafel order by position:
+    // index 0 = self (ahnentafel 1), index 1 = father (2), index 2 = mother (3), etc.
+    if (!hasAhnentafel && data.persons.length > 1) {
+      const rootId = data.persons[0]?.id;
+      const hasRootPerson = rootId === rootPersonId;
+      if (hasRootPerson || data.persons.length >= 3) {
+        console.log("[FamilySearch] No ascendancyNumber found, using array index as ahnentafel (persons:", data.persons.length, ")");
+        for (let i = 0; i < data.persons.length; i++) {
+          const ahnNum = i + 1;
+          ahnentafelMap.set(ahnNum, data.persons[i].id);
+        }
+        for (const [num, personId] of ahnentafelMap) {
+          if (num <= 1) continue;
+          const childNum = Math.floor(num / 2);
+          const childId = ahnentafelMap.get(childNum);
+          if (childId) {
+            addRelationship({ type: "parent-child", person1Id: personId, person2Id: childId });
+          }
         }
       }
     }
