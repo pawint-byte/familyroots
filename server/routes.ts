@@ -9098,9 +9098,10 @@ export async function registerRoutes(
   app.post("/api/familysearch/import", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { treeId, persons, relationships, rootPersonId } = req.body;
+      const { treeId, persons, relationships } = req.body;
+      let { rootPersonId } = req.body;
       
-      console.log(`[Import] Starting import: treeId=${treeId}, persons=${persons?.length}, relationships=${relationships?.length}, rootPersonId=${rootPersonId || 'NONE'}`);
+      console.log(`[Import] Starting import: treeId=${treeId}, persons=${persons?.length}, relationships=${relationships?.length}, rootPersonId=${rootPersonId || 'NONE (will attempt lookup)'}`);
       
       if (!treeId || !persons || !Array.isArray(persons)) {
         return res.status(400).json({ message: "Missing required fields: treeId, persons" });
@@ -9117,6 +9118,22 @@ export async function registerRoutes(
       
       if (!canEdit) {
         return res.status(403).json({ message: "Permission denied" });
+      }
+      
+      // Server-side fallback: if rootPersonId wasn't provided, try to look it up
+      if (!rootPersonId) {
+        try {
+          const fsConnection = await storage.getFamilySearchConnection(userId);
+          if (fsConnection?.accessToken && familySearchService.isConfigured()) {
+            const fsPersonId = await familySearchService.getCurrentUserPersonId(fsConnection.accessToken);
+            if (fsPersonId) {
+              rootPersonId = fsPersonId;
+              console.log(`[Import] rootPersonId resolved via FamilySearch lookup: ${rootPersonId}`);
+            }
+          }
+        } catch (e) {
+          console.log(`[Import] Could not resolve rootPersonId via FamilySearch lookup:`, e);
+        }
       }
       
       // Get existing members to check for duplicates
@@ -9281,6 +9298,8 @@ export async function registerRoutes(
             });
             createdRelationships.push(relationship);
             console.log(`[Import] Created spouse relationship: ${member1Id} ↔ ${member2Id}`);
+          } else {
+            console.log(`[Import] Unrecognized relationship type: "${rel.type}" between ${rel.person1Id} and ${rel.person2Id}`);
           }
         }
       }

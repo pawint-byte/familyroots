@@ -259,7 +259,7 @@ export default function RecordsPage() {
   });
 
   const treeImportMutation = useMutation({
-    mutationFn: async (data: { treeId: string; persons: FamilySearchPerson[]; relationships: FamilySearchRelationship[] }) => {
+    mutationFn: async (data: { treeId: string; persons: FamilySearchPerson[]; relationships: FamilySearchRelationship[]; rootPersonId?: string }) => {
       const response = await apiRequest("POST", "/api/familysearch/import", data);
       return response.json();
     },

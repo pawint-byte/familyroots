@@ -1403,33 +1403,36 @@ export default function FamilyTreeVisualization({
           </defs>
           {getConnectionLines()}
           
-          {branchLabels.map((label, index) => (
-            <g key={`label-${index}`}>
-              <rect
-                x={label.x - 40}
-                y={label.y - 12}
-                width="80"
-                height="24"
-                rx="12"
-                fill={label.type === 'parent' ? BRANCH_COLORS.parent.line : 
-                      label.type === 'sibling' ? BRANCH_COLORS.sibling.line : 
-                      label.type === 'unconnected' ? BRANCH_COLORS.unconnected.line :
-                      BRANCH_COLORS.child.line}
-                opacity="0.9"
-              />
-              <text
-                x={label.x}
-                y={label.y + 5}
-                textAnchor="middle"
-                fill="hsl(var(--primary-foreground))"
-                fontSize="12"
-                fontWeight="600"
-                className="select-none"
-              >
-                {label.text}
-              </text>
-            </g>
-          ))}
+          {branchLabels.map((label, index) => {
+            const labelWidth = Math.max(80, label.text.length * 8 + 24);
+            return (
+              <g key={`label-${index}`}>
+                <rect
+                  x={label.x - labelWidth / 2}
+                  y={label.y - 12}
+                  width={labelWidth}
+                  height="24"
+                  rx="12"
+                  fill={label.type === 'parent' ? BRANCH_COLORS.parent.line : 
+                        label.type === 'sibling' ? BRANCH_COLORS.sibling.line : 
+                        label.type === 'unconnected' ? BRANCH_COLORS.unconnected.line :
+                        BRANCH_COLORS.child.line}
+                  opacity="0.9"
+                />
+                <text
+                  x={label.x}
+                  y={label.y + 5}
+                  textAnchor="middle"
+                  fill="hsl(var(--primary-foreground))"
+                  fontSize="12"
+                  fontWeight="600"
+                  className="select-none"
+                >
+                  {label.text}
+                </text>
+              </g>
+            );
+          })}
         </svg>
 
         {positions.map((pos) => {
