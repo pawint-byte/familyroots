@@ -57,6 +57,7 @@ import { SpecialConnectionsSection, LocationSection } from "@/components/special
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 import { BranchImportDialog } from "@/components/branch-import-dialog";
 import { MergeMembersDialog } from "@/components/merge-members-dialog";
+import { InviteConnectDialog } from "@/components/invite-connect-dialog";
 
 interface TreeData {
   tree: FamilyTree;
@@ -99,6 +100,7 @@ export default function TreeView() {
   const [discoveryLocation, setDiscoveryLocation] = useState("");
   const [autoJoinEnabled, setAutoJoinEnabled] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isInviteConnectOpen, setIsInviteConnectOpen] = useState(false);
   const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
   const [showPaymentGate, setShowPaymentGate] = useState(false);
   const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit?: number; current: number; credits?: number }>({ current: 0 });
@@ -1144,13 +1146,9 @@ export default function TreeView() {
               variant="outline"
               size="sm"
               className="gap-1.5 hidden sm:flex"
-              onClick={() => {
-                const connectUrl = `${window.location.origin}/connect/${treeId}`;
-                navigator.clipboard.writeText(connectUrl);
-                toast({ title: "Link Copied!", description: "Share this link so others can request to connect to your tree." });
-              }}
+              onClick={() => setIsInviteConnectOpen(true)}
               data-testid="button-invite-connect"
-              title="Copy connection invite link"
+              title="Invite someone to connect"
             >
               <UserPlus className="h-4 w-4" />
               <span className="hidden lg:inline">Invite</span>
@@ -1159,13 +1157,9 @@ export default function TreeView() {
               variant="outline"
               size="icon"
               className="sm:hidden"
-              onClick={() => {
-                const connectUrl = `${window.location.origin}/connect/${treeId}`;
-                navigator.clipboard.writeText(connectUrl);
-                toast({ title: "Link Copied!", description: "Share this link so others can request to connect to your tree." });
-              }}
+              onClick={() => setIsInviteConnectOpen(true)}
               data-testid="button-invite-connect-mobile"
-              title="Copy connection invite link"
+              title="Invite someone to connect"
             >
               <UserPlus className="h-4 w-4" />
             </Button>
@@ -1187,15 +1181,11 @@ export default function TreeView() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   className="gap-2"
-                  onClick={() => {
-                    const connectUrl = `${window.location.origin}/connect/${treeId}`;
-                    navigator.clipboard.writeText(connectUrl);
-                    toast({ title: "Link Copied!", description: "Share this link so others can request to connect to your tree." });
-                  }}
+                  onClick={() => setIsInviteConnectOpen(true)}
                   data-testid="menu-invite-to-connect"
                 >
                   <UserPlus className="h-4 w-4" />
-                  Copy Connection Invite Link
+                  Invite to Connect
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
