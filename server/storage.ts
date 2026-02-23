@@ -2441,6 +2441,8 @@ export class DatabaseStorage implements IStorage {
       r.fromMemberId === mergedId || r.toMemberId === mergedId
     );
     
+    console.log(`[mergeMembers] Tree ${treeId.substring(0,8)} has ${allRelationships.length} total relationships, ${mergedRelationships.length} involve merged member ${mergedId.substring(0,8)}`);
+    
     // Remap relationships from merged member to survivor
     for (const rel of mergedRelationships) {
       const newFromId = rel.fromMemberId === mergedId ? survivorId : rel.fromMemberId;
@@ -2515,6 +2517,9 @@ export class DatabaseStorage implements IStorage {
     
     // Delete the merged member
     await db.delete(familyMembers).where(eq(familyMembers.id, mergedId));
+    
+    const finalRels = await db.select().from(relationships).where(eq(relationships.treeId, treeId));
+    console.log(`[mergeMembers] Complete. Tree now has ${finalRels.length} relationships after merge`);
     
     return { success: true, mergeHistoryId: historyRecord.id };
   }

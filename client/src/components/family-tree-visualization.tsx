@@ -236,9 +236,10 @@ export default function FamilyTreeVisualization({
 
     // View depth controls which generations to show:
     // 'immediate': only parents, spouse, children (1 generation each direction)
-    // 'extended': includes grandparents, grandchildren, siblings (2 generations)
+    // 'extended': includes grandparents, grandchildren, siblings, great-grandparents (3 generations up)
     // 'all': show everything including in-laws, great-grandparents, etc.
     const showGrandparents = viewDepth !== 'immediate';
+    const showGreatGrandparents = viewDepth !== 'immediate';
     const showSiblings = viewDepth !== 'immediate';
     const showGrandchildren = viewDepth !== 'immediate';
     const showInlaws = viewDepth === 'all';
@@ -426,7 +427,7 @@ export default function FamilyTreeVisualization({
                 });
                 placed.add(gpId);
                 
-                if (viewDepth === 'all') {
+                if (showGreatGrandparents) {
                   const greatGrandparents = (childParentMap.get(gpId) || []).filter(ggpId => !placed.has(ggpId));
                   if (greatGrandparents.length > 0) {
                     const ggpY = gpY - verticalGap - nodeHeight;
