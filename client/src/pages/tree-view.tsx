@@ -28,7 +28,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
   LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors,
-  Mail, TreeDeciduous, Send, Tag, Undo2
+  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -102,7 +102,8 @@ export default function TreeView() {
   const [showPaymentGate, setShowPaymentGate] = useState(false);
   const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit?: number; current: number; credits?: number }>({ current: 0 });
   const [isExporting, setIsExporting] = useState(false);
-  const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; currentQualifier: string | null; currentCustomLabel: string | null; member1Name: string; member2Name: string; member1Id: string; member2Id: string } | null>(null);
+  const [editingRelationship, setEditingRelationship] = useState<{ id: string; currentType: string; currentQualifier: string | null; currentCustomLabel: string | null; member1Name: string; member2Name: string; member1Id: string; member2Id: string; fromMemberId: string; toMemberId: string } | null>(null);
+  const [editSwapDirection, setEditSwapDirection] = useState(false);
   const [newCustomLabel, setNewCustomLabel] = useState<string>("");
   const [newRelationshipType, setNewRelationshipType] = useState<string>("");
   const [newRelationshipQualifier, setNewRelationshipQualifier] = useState<string | null>(null);
@@ -760,11 +761,12 @@ export default function TreeView() {
   });
 
   const updateRelationshipMutation = useMutation({
-    mutationFn: async ({ relationshipId, newType, newQualifier, customLabel }: { relationshipId: string; newType?: string; newQualifier?: string | null; customLabel?: string | null }) => {
+    mutationFn: async ({ relationshipId, newType, newQualifier, customLabel, swapDirection }: { relationshipId: string; newType?: string; newQualifier?: string | null; customLabel?: string | null; swapDirection?: boolean }) => {
       return apiRequest("PATCH", `/api/trees/${treeId}/relationships/${relationshipId}`, {
         relationshipType: newType,
         qualifier: newQualifier,
         customLabel: customLabel,
+        swapDirection: swapDirection || false,
       });
     },
     onSuccess: () => {
@@ -773,6 +775,7 @@ export default function TreeView() {
       setNewRelationshipType("");
       setNewRelationshipQualifier(null);
       setNewCustomLabel("");
+      setEditSwapDirection(false);
       toast({
         title: "Success",
         description: "Relationship updated",
@@ -2657,19 +2660,23 @@ export default function TreeView() {
                                     variant="ghost" 
                                     size="icon"
                                     onClick={() => {
+                                      const isSelectedFrom = item.fromMemberId === selectedMember.id;
                                       setEditingRelationship({
                                         id: item.id,
                                         currentType: item.relationshipType,
                                         currentQualifier: item.qualifier,
                                         currentCustomLabel: item.customLabel || null,
-                                        member1Name: selectedMember.firstName,
-                                        member2Name: item.otherMemberName,
+                                        member1Name: isSelectedFrom ? selectedMember.firstName : item.otherMemberName,
+                                        member2Name: isSelectedFrom ? item.otherMemberName : selectedMember.firstName,
                                         member1Id: item.fromMemberId,
-                                        member2Id: item.toMemberId
+                                        member2Id: item.toMemberId,
+                                        fromMemberId: item.fromMemberId,
+                                        toMemberId: item.toMemberId,
                                       });
                                       setNewRelationshipType(item.relationshipType);
                                       setNewRelationshipQualifier(item.qualifier);
                                       setNewCustomLabel(item.customLabel || "");
+                                      setEditSwapDirection(false);
                                     }}
                                     data-testid={`button-edit-relationship-${item.id}`}
                                   >
@@ -2890,17 +2897,68 @@ export default function TreeView() {
           setIsEditCustomType(false);
           setEditCustomTypeName("");
           setEditCustomReverseLabel("");
+          setEditSwapDirection(false);
         }
       }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Relationship</DialogTitle>
           </DialogHeader>
-          {editingRelationship && (
+          {editingRelationship && (() => {
+            const currentTreeType = (treeData?.tree.treeType || "family") as TreeType;
+            const customTypes = treeData?.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null;
+            const activeRelType = isEditCustomType 
+              ? editCustomTypeName.trim().toLowerCase().replace(/\s+/g, '_') 
+              : (newRelationshipType || editingRelationship.currentType);
+            const allRelTypes = getRelationshipTypesForTree(currentTreeType, customTypes);
+            const activeConfig = allRelTypes.find(rt => rt.value === activeRelType);
+            const fromName = editSwapDirection ? editingRelationship.member2Name : editingRelationship.member1Name;
+            const toName = editSwapDirection ? editingRelationship.member1Name : editingRelationship.member2Name;
+            const fromRoleLabel = isEditCustomType
+              ? (editCustomTypeName.trim() || "...")
+              : (activeConfig?.label || activeRelType);
+            const toRoleLabel = isEditCustomType
+              ? (editCustomReverseLabel.trim() || editCustomTypeName.trim() || "...")
+              : (activeConfig?.reverseLabel || activeConfig?.label || activeRelType);
+            const hasReverse = isEditCustomType 
+              ? !!editCustomReverseLabel.trim()
+              : !!(activeConfig?.reverseLabel && activeConfig.reverseLabel !== activeConfig.label);
+            
+            return (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Change the relationship between {editingRelationship.member1Name} and {editingRelationship.member2Name}
               </p>
+
+              {hasReverse && (
+                <div className="p-3 border rounded-lg bg-muted/30 space-y-2" data-testid="role-assignment-preview">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Role Assignment</Label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 p-2 rounded-md bg-background border text-center">
+                      <p className="text-xs text-muted-foreground">{fromName}</p>
+                      <p className="text-sm font-semibold" data-testid="text-from-role">{fromRoleLabel}</p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => setEditSwapDirection(!editSwapDirection)}
+                      data-testid="button-swap-roles"
+                      type="button"
+                    >
+                      <ArrowLeftRight className="h-4 w-4" />
+                    </Button>
+                    <div className="flex-1 p-2 rounded-md bg-background border text-center">
+                      <p className="text-xs text-muted-foreground">{toName}</p>
+                      <p className="text-sm font-semibold" data-testid="text-to-role">{toRoleLabel}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Use the swap button to change who has which role
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Relationship Type</Label>
                 <Select 
@@ -2921,8 +2979,8 @@ export default function TreeView() {
                   </SelectTrigger>
                   <SelectContent>
                     {treeData && getRelationshipTypesForTree(
-                      (treeData.tree.treeType || "family") as TreeType,
-                      treeData.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null
+                      currentTreeType,
+                      customTypes
                     ).map((relType) => (
                       <SelectItem key={relType.value} value={relType.value}>
                         {relType.label}{relType.description ? ` - ${relType.description}` : ''}
@@ -2948,7 +3006,7 @@ export default function TreeView() {
                         autoFocus
                       />
                       <p className="text-xs text-muted-foreground">
-                        This is {editingRelationship.member1Name}'s role in the relationship.
+                        This is {fromName}'s role in the relationship.
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -2960,7 +3018,7 @@ export default function TreeView() {
                         data-testid="input-edit-custom-reverse-label"
                       />
                       <p className="text-xs text-muted-foreground">
-                        What {editingRelationship.member2Name} is to {editingRelationship.member1Name}.
+                        What {toName} is to {fromName}.
                       </p>
                     </div>
                   </div>
@@ -3011,6 +3069,7 @@ export default function TreeView() {
                     setIsEditCustomType(false);
                     setEditCustomTypeName("");
                     setEditCustomReverseLabel("");
+                    setEditSwapDirection(false);
                   }}
                   data-testid="button-cancel-edit-relationship"
                 >
@@ -3051,12 +3110,13 @@ export default function TreeView() {
                       const hasTypeChange = finalType && finalType !== editingRelationship.currentType;
                       const hasQualifierChange = newRelationshipQualifier !== editingRelationship.currentQualifier;
                       const hasCustomLabelChange = (newCustomLabel || null) !== editingRelationship.currentCustomLabel;
-                      if (hasTypeChange || hasQualifierChange || hasCustomLabelChange) {
+                      if (hasTypeChange || hasQualifierChange || hasCustomLabelChange || editSwapDirection) {
                         updateRelationshipMutation.mutate({
                           relationshipId: editingRelationship.id,
                           newType: finalType || editingRelationship.currentType,
                           newQualifier: newRelationshipQualifier,
                           customLabel: newCustomLabel || null,
+                          swapDirection: editSwapDirection,
                         });
                       }
                     }
@@ -3064,7 +3124,7 @@ export default function TreeView() {
                   disabled={
                     updateRelationshipMutation.isPending ||
                     (isEditCustomType && !editCustomTypeName.trim()) ||
-                    (!isEditCustomType && (
+                    (!isEditCustomType && !editSwapDirection && (
                       (!newRelationshipType || newRelationshipType === editingRelationship.currentType) &&
                       newRelationshipQualifier === editingRelationship.currentQualifier &&
                       (newCustomLabel || null) === editingRelationship.currentCustomLabel
@@ -3076,7 +3136,8 @@ export default function TreeView() {
                 </Button>
               </div>
             </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

@@ -423,14 +423,7 @@ export function getDirectionalRoles(
   relationshipType: string,
   customRelationshipTypes?: CustomRelType[] | null
 ): { fromRole: string; toRole: string } {
-  const directRank = getRelationshipRank(treeType, relationshipType, customRelationshipTypes);
   const reverseType = getReverseRelationshipType(treeType, relationshipType, customRelationshipTypes);
-  if (reverseType && reverseType !== relationshipType) {
-    const reverseRank = getRelationshipRank(treeType, reverseType, customRelationshipTypes);
-    if (reverseRank < directRank) {
-      return { fromRole: reverseType, toRole: relationshipType };
-    }
-  }
   return { fromRole: relationshipType, toRole: reverseType || relationshipType };
 }
 

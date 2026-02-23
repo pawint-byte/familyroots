@@ -1966,7 +1966,7 @@ export async function registerRoutes(
         }
       }
 
-      const { relationshipType, qualifier, customLabel } = req.body;
+      const { relationshipType, qualifier, customLabel, swapDirection } = req.body;
       
       // Validate relationship type dynamically based on tree type
       const treeType = (tree.treeType || "family") as TreeType;
@@ -1986,6 +1986,16 @@ export async function registerRoutes(
       if (relationshipType !== undefined) updatePayload.relationshipType = relationshipType;
       if (qualifier !== undefined) updatePayload.qualifier = qualifier === null ? null : qualifier;
       if (customLabel !== undefined) updatePayload.customLabel = customLabel === "" ? null : customLabel;
+
+      if (swapDirection) {
+        const treeRels = await storage.getRelationships(treeId);
+        const existing = treeRels.find(r => r.id === relationshipId);
+        if (!existing) {
+          return res.status(404).json({ message: "Relationship not found in this tree" });
+        }
+        updatePayload.fromMemberId = existing.toMemberId;
+        updatePayload.toMemberId = existing.fromMemberId;
+      }
 
       const updated = await storage.updateRelationship(relationshipId, updatePayload);
       
