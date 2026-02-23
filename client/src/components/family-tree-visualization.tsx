@@ -247,6 +247,28 @@ export default function FamilyTreeVisualization({
     const centerX = 400;
     const centerY = 400;
 
+    const placeAncestorsRecursively = (memberId: string, memberX: number, memberY: number, generation: number) => {
+      const ancestors = (childParentMap.get(memberId) || []).filter(id => !placed.has(id));
+      if (ancestors.length === 0) return;
+      const ancY = memberY - verticalGap - nodeHeight;
+      const spacing = Math.max(nodeWidth + horizontalGap / 3, (nodeWidth + horizontalGap / 2) / Math.max(1, generation - 2));
+      const ancStartX = memberX - ((ancestors.length - 1) * spacing) / 2;
+      ancestors.forEach((ancId, ancIndex) => {
+        const anc = deduplicatedMembers.find(m => m.id === ancId);
+        if (anc && !placed.has(ancId)) {
+          const ancX = ancStartX + ancIndex * spacing;
+          positioned.push({
+            x: ancX,
+            y: ancY,
+            member: anc,
+            branchType: 'greatgrandparent'
+          });
+          placed.add(ancId);
+          placeAncestorsRecursively(ancId, ancX, ancY, generation + 1);
+        }
+      });
+    };
+
     positioned.push({ x: centerX, y: centerY, member: focusMember, branchType: 'focus' });
     placed.add(focusId);
 
@@ -428,23 +450,7 @@ export default function FamilyTreeVisualization({
                 placed.add(gpId);
                 
                 if (showGreatGrandparents) {
-                  const greatGrandparents = (childParentMap.get(gpId) || []).filter(ggpId => !placed.has(ggpId));
-                  if (greatGrandparents.length > 0) {
-                    const ggpY = gpY - verticalGap - nodeHeight;
-                    const ggpStartX = gpX - ((greatGrandparents.length - 1) * (nodeWidth + horizontalGap / 3)) / 2;
-                    greatGrandparents.forEach((ggpId, ggpIndex) => {
-                      const ggp = deduplicatedMembers.find(m => m.id === ggpId);
-                      if (ggp && !placed.has(ggpId)) {
-                        positioned.push({
-                          x: ggpStartX + ggpIndex * (nodeWidth + horizontalGap / 3),
-                          y: ggpY,
-                          member: ggp,
-                          branchType: 'greatgrandparent'
-                        });
-                        placed.add(ggpId);
-                      }
-                    });
-                  }
+                  placeAncestorsRecursively(gpId, gpX, gpY, 3);
                 }
               }
             });
@@ -567,23 +573,7 @@ export default function FamilyTreeVisualization({
                       placed.add(cpGpId);
                       
                       if (showGreatGrandparents) {
-                        const cpGreatGrandparents = (childParentMap.get(cpGpId) || []).filter(ggpId => !placed.has(ggpId));
-                        if (cpGreatGrandparents.length > 0) {
-                          const cpGgpY = cpGpY - verticalGap - nodeHeight;
-                          const cpGgpStartX = cpGpX - ((cpGreatGrandparents.length - 1) * (nodeWidth + horizontalGap / 3)) / 2;
-                          cpGreatGrandparents.forEach((ggpId, ggpIndex) => {
-                            const ggp = deduplicatedMembers.find(m => m.id === ggpId);
-                            if (ggp && !placed.has(ggpId)) {
-                              positioned.push({
-                                x: cpGgpStartX + ggpIndex * (nodeWidth + horizontalGap / 3),
-                                y: cpGgpY,
-                                member: ggp,
-                                branchType: 'greatgrandparent'
-                              });
-                              placed.add(ggpId);
-                            }
-                          });
-                        }
+                        placeAncestorsRecursively(cpGpId, cpGpX, cpGpY, 3);
                       }
                     }
                   });
@@ -947,21 +937,22 @@ export default function FamilyTreeVisualization({
       });
     });
 
-    // === GREAT-GRANDPARENTS: Lines from great-grandparent's BOTTOM to grandparent's TOP ===
+    // === ANCESTORS BEYOND PARENTS: Lines from any ancestor to their child (grandparent, great-grandparent, etc.) ===
     const greatGrandparentPositions = positions.filter(p => p.branchType === 'greatgrandparent');
+    const ancestorTargets = [...grandparentPositions, ...greatGrandparentPositions];
     greatGrandparentPositions.forEach(ggpPos => {
-      grandparentPositions.forEach(gpPos => {
-        const { parentChildMap } = getRelationshipMaps();
-        const ggpChildren = parentChildMap.get(ggpPos.member.id) || [];
-        if (ggpChildren.includes(gpPos.member.id)) {
+      const { parentChildMap } = getRelationshipMaps();
+      const ggpChildren = parentChildMap.get(ggpPos.member.id) || [];
+      ancestorTargets.forEach(childPos => {
+        if (ggpChildren.includes(childPos.member.id)) {
           const fromX = ggpPos.x + nodeWidth / 2;
           const fromY = ggpPos.y + nodeHeight;
-          const toX = gpPos.x + nodeWidth / 2;
-          const toY = gpPos.y;
+          const toX = childPos.x + nodeWidth / 2;
+          const toY = childPos.y;
           
           lines.push(
             <path
-              key={`greatgp-to-gp-${ggpPos.member.id}-${gpPos.member.id}`}
+              key={`ancestor-line-${ggpPos.member.id}-${childPos.member.id}`}
               d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
               stroke={BRANCH_COLORS.greatgrandparent.line}
               strokeWidth="1.5"

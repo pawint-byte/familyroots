@@ -413,7 +413,7 @@ export async function getCurrentUserPersonId(accessToken: string): Promise<strin
 export async function getAncestry(
   accessToken: string, 
   personId: string, 
-  generations: number = 3
+  generations: number = 4
 ): Promise<FamilySearchTreeData | null> {
   const urls = getBaseUrls();
   
