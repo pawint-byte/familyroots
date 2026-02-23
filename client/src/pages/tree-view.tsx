@@ -1140,6 +1140,35 @@ export default function TreeView() {
                 data-testid="input-search-members"
               />
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 hidden sm:flex"
+              onClick={() => {
+                const connectUrl = `${window.location.origin}/connect/${treeId}`;
+                navigator.clipboard.writeText(connectUrl);
+                toast({ title: "Link Copied!", description: "Share this link so others can request to connect to your tree." });
+              }}
+              data-testid="button-invite-connect"
+              title="Copy connection invite link"
+            >
+              <UserPlus className="h-4 w-4" />
+              <span className="hidden lg:inline">Invite</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="sm:hidden"
+              onClick={() => {
+                const connectUrl = `${window.location.origin}/connect/${treeId}`;
+                navigator.clipboard.writeText(connectUrl);
+                toast({ title: "Link Copied!", description: "Share this link so others can request to connect to your tree." });
+              }}
+              data-testid="button-invite-connect-mobile"
+              title="Copy connection invite link"
+            >
+              <UserPlus className="h-4 w-4" />
+            </Button>
             <Button 
               variant="outline" 
               size="icon" 
