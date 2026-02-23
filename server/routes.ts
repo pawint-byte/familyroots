@@ -220,7 +220,15 @@ export async function registerRoutes(
         })
       );
       
-      res.json(treesWithCounts);
+      const includeImportTrees = req.query.includeImportTrees === "true";
+      const filteredTrees = includeImportTrees ? treesWithCounts : treesWithCounts.filter(tree => {
+        const isEmptyImportSubTree = tree.parentTreeId && 
+          tree.name?.startsWith("FamilySearch Import") && 
+          tree.memberCount === 0;
+        return !isEmptyImportSubTree;
+      });
+      
+      res.json(filteredTrees);
     } catch (error) {
       console.error("Error fetching trees:", error);
       res.status(500).json({ message: "Failed to fetch trees" });
@@ -9360,6 +9368,17 @@ export async function registerRoutes(
         }
       }
 
+      const existingChildTrees = await storage.getChildTrees(targetTreeId);
+      for (const child of existingChildTrees) {
+        if (child.name?.startsWith("FamilySearch Import") && child.ownerId === userId) {
+          const childMembers = await storage.getMembers(child.id);
+          if (childMembers.length === 0) {
+            console.log(`[ImportAsTree] Cleaning up empty previous import sub-tree ${child.id}: "${child.name}"`);
+            await storage.deleteTree(child.id);
+          }
+        }
+      }
+
       const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
       const subTree = await storage.createTree({
         name: `FamilySearch Import - ${dateStr}`,
@@ -11081,6 +11100,11 @@ export async function registerRoutes(
       const finalParentMembers = await storage.getMembers(treeId);
       const finalParentRels = await storage.getRelationships(treeId);
       console.log(`[resolve-conflicts] Complete. Parent tree now has ${finalParentMembers.length} members and ${finalParentRels.length} relationships`);
+
+      if (finalRemainingMembers.length === 0) {
+        console.log(`[resolve-conflicts] Sub-tree ${sourceTreeId} is now empty, deleting it`);
+        await storage.deleteTree(sourceTreeId);
+      }
 
       res.json({
         message: "Conflicts resolved and members integrated into tree",
