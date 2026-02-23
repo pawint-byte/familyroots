@@ -11119,6 +11119,16 @@ export async function registerRoutes(
       console.log(`[resolve-conflicts] Phase 3 complete: All data now in target tree`);
 
       // === PHASE 4: Process merges — re-point relationships, sync data, transfer linked records ===
+      // Build a tracking set of all existing relationship keys for O(1) dedup
+      const mergeRelTracker = new Set<string>();
+      const snapshotRelsForMerge = await storage.getRelationships(treeId);
+      for (const r of snapshotRelsForMerge) {
+        mergeRelTracker.add(`${r.relationshipType}:${r.fromMemberId}:${r.toMemberId}`);
+        if (SYMMETRIC_REL_TYPES.has(r.relationshipType)) {
+          mergeRelTracker.add(`${r.relationshipType}:${r.toMemberId}:${r.fromMemberId}`);
+        }
+      }
+
       for (const resolution of resolutions) {
         if (resolution.action !== "merge") continue;
         const { sourceMemberId, targetMemberId } = resolution;
@@ -11141,18 +11151,18 @@ export async function registerRoutes(
 
         console.log(`[resolve-conflicts] Phase 4: Merging ${sourceMember.firstName} ${sourceMember.lastName || ''} → ${targetMember.firstName} ${targetMember.lastName || ''}`);
 
-        // Sync member data — keep the most complete version from both sides
         const updates: Record<string, any> = {};
         const syncField = (field: string, sourceVal: any, targetVal: any) => {
           if (!targetVal && sourceVal) {
             updates[field] = sourceVal;
           } else if (targetVal && sourceVal && targetVal !== sourceVal) {
-            // Both have data — for notes, append source info if different
             if (field === 'notes') {
               updates[field] = `${targetVal}\n\n[Merged from FamilySearch]: ${sourceVal}`;
             }
-            // For dates, prefer the more specific one (longer string = more specific)
             if ((field === 'birthDate' || field === 'deathDate') && String(sourceVal).length > String(targetVal).length) {
+              updates[field] = sourceVal;
+            }
+            if (field === 'birthPlace' && !targetVal) {
               updates[field] = sourceVal;
             }
           }
@@ -11175,6 +11185,7 @@ export async function registerRoutes(
         }
 
         // Re-point all relationships from source member to target member
+        // Fetch fresh snapshot for each merge to account for previous merge changes
         const allTreeRels = await storage.getRelationships(treeId);
         const affectedRels = allTreeRels.filter(
           r => r.fromMemberId === sourceMemberId || r.toMemberId === sourceMemberId
@@ -11182,13 +11193,12 @@ export async function registerRoutes(
         let repointed = 0;
         let skippedDups = 0;
         for (const rel of affectedRels) {
-          const otherMemberId = rel.fromMemberId === sourceMemberId ? rel.toMemberId : rel.fromMemberId;
           const isFrom = rel.fromMemberId === sourceMemberId;
+          const otherMemberId = isFrom ? rel.toMemberId : rel.fromMemberId;
 
-          // Resolve the other member ID (if it's also being merged, point to its target)
+          // Resolve BOTH sides through the merge map
           const resolvedOtherId = mergedSourceToTarget.get(otherMemberId) || otherMemberId;
           if (resolvedOtherId === targetMemberId) {
-            // Can't have a relationship to yourself
             try { await storage.deleteRelationship(rel.id); } catch (e) { }
             continue;
           }
@@ -11196,11 +11206,11 @@ export async function registerRoutes(
           const newFromId = isFrom ? targetMemberId : resolvedOtherId;
           const newToId = isFrom ? resolvedOtherId : targetMemberId;
 
-          // Check if this relationship already exists on the target member (directional-aware)
-          const currentRels = await storage.getRelationships(treeId);
-          const alreadyExists = currentRels.some(
-            r => r.id !== rel.id && isRelDuplicate(r, { fromMemberId: newFromId, toMemberId: newToId, relationshipType: rel.relationshipType })
-          );
+          // O(1) dedup check using the tracking set
+          const exactKey = `${rel.relationshipType}:${newFromId}:${newToId}`;
+          const reverseKey = `${rel.relationshipType}:${newToId}:${newFromId}`;
+          const alreadyExists = mergeRelTracker.has(exactKey) ||
+            (SYMMETRIC_REL_TYPES.has(rel.relationshipType) && mergeRelTracker.has(reverseKey));
 
           if (!alreadyExists) {
             try {
@@ -11211,48 +11221,53 @@ export async function registerRoutes(
                 relationshipType: rel.relationshipType,
                 qualifier: rel.qualifier,
               });
+              mergeRelTracker.add(exactKey);
+              if (SYMMETRIC_REL_TYPES.has(rel.relationshipType)) {
+                mergeRelTracker.add(reverseKey);
+              }
               repointed++;
             } catch (e) {
-              console.log(`[resolve-conflicts] Could not re-point relationship:`, e);
+              console.log(`[resolve-conflicts] Could not re-point relationship ${rel.relationshipType} ${newFromId.substring(0,8)}->${newToId.substring(0,8)}:`, e);
             }
           } else {
             skippedDups++;
           }
+          // Remove old relationship keys from tracker and delete
+          const oldExactKey = `${rel.relationshipType}:${rel.fromMemberId}:${rel.toMemberId}`;
+          mergeRelTracker.delete(oldExactKey);
+          if (SYMMETRIC_REL_TYPES.has(rel.relationshipType)) {
+            mergeRelTracker.delete(`${rel.relationshipType}:${rel.toMemberId}:${rel.fromMemberId}`);
+          }
           try { await storage.deleteRelationship(rel.id); } catch (e) { }
         }
-        console.log(`[resolve-conflicts] Re-pointed ${repointed} relationships, skipped ${skippedDups} duplicates`);
+        console.log(`[resolve-conflicts] Re-pointed ${repointed} relationships, skipped ${skippedDups} duplicates for ${sourceMember.firstName} ${sourceMember.lastName || ''}`);
 
         // Transfer all linked records from source member to target member
         try {
-          // Family events
           const srcEvents = await db.select().from(familyEvents).where(eq(familyEvents.memberId, sourceMemberId));
           if (srcEvents.length > 0) {
             await db.update(familyEvents).set({ memberId: targetMemberId }).where(eq(familyEvents.memberId, sourceMemberId));
             transferStats.events += srcEvents.length;
           }
 
-          // Name history
           const srcNames = await db.select().from(nameHistory).where(eq(nameHistory.memberId, sourceMemberId));
           if (srcNames.length > 0) {
             await db.update(nameHistory).set({ memberId: targetMemberId }).where(eq(nameHistory.memberId, sourceMemberId));
             transferStats.nameHistory += srcNames.length;
           }
 
-          // Education history
           const srcEdu = await db.select().from(educationHistory).where(eq(educationHistory.memberId, sourceMemberId));
           if (srcEdu.length > 0) {
             await db.update(educationHistory).set({ memberId: targetMemberId }).where(eq(educationHistory.memberId, sourceMemberId));
             transferStats.education += srcEdu.length;
           }
 
-          // Career history
           const srcCareer = await db.select().from(careerHistory).where(eq(careerHistory.memberId, sourceMemberId));
           if (srcCareer.length > 0) {
             await db.update(careerHistory).set({ memberId: targetMemberId }).where(eq(careerHistory.memberId, sourceMemberId));
             transferStats.career += srcCareer.length;
           }
 
-          // Member tags (skip duplicates)
           const srcTags = await db.select().from(memberTags).where(eq(memberTags.memberId, sourceMemberId));
           for (const tag of srcTags) {
             const existingTag = await db.select().from(memberTags).where(
@@ -11266,21 +11281,18 @@ export async function registerRoutes(
             }
           }
 
-          // FamilySearch sources
           const srcFsSources = await db.select().from(familySearchSources).where(eq(familySearchSources.memberId, sourceMemberId));
           if (srcFsSources.length > 0) {
             await db.update(familySearchSources).set({ memberId: targetMemberId }).where(eq(familySearchSources.memberId, sourceMemberId));
             transferStats.fsSources += srcFsSources.length;
           }
 
-          // External person identifiers
           const srcExtIds = await db.select().from(externalPersonIdentifiers).where(eq(externalPersonIdentifiers.memberId, sourceMemberId));
           if (srcExtIds.length > 0) {
             await db.update(externalPersonIdentifiers).set({ memberId: targetMemberId }).where(eq(externalPersonIdentifiers.memberId, sourceMemberId));
             transferStats.extIds += srcExtIds.length;
           }
 
-          // Special connections
           const srcSpecialFrom = await db.select().from(specialConnections).where(eq(specialConnections.fromMemberId, sourceMemberId));
           for (const conn of srcSpecialFrom) {
             await db.update(specialConnections).set({ fromMemberId: targetMemberId }).where(eq(specialConnections.id, conn.id));
@@ -11296,11 +11308,31 @@ export async function registerRoutes(
         }
 
         // Delete the source member (now fully merged)
+        // First clean up any remaining relationships referencing this member
+        const remainingRels = await storage.getRelationships(treeId);
+        for (const rel of remainingRels) {
+          if (rel.fromMemberId === sourceMemberId || rel.toMemberId === sourceMemberId) {
+            try { await storage.deleteRelationship(rel.id); } catch (e) { }
+          }
+        }
         await storage.removeMemberRecord(sourceMemberId);
         results.push({ sourceMemberId, action: "merge", status: "merged", targetMemberId, repointed, skippedDups });
       }
 
       // === PHASE 5: Process skips — bridge parent-child AND spouse chains ===
+      // Build a tracking set for skip phase dedup
+      // Normalize parent-child and parent to a single key type "parent" for consistent dedup
+      const skipRelTracker = new Set<string>();
+      const normalizeRelType = (type: string) => type === "parent-child" ? "parent" : type;
+      const skipPhaseRels = await storage.getRelationships(treeId);
+      for (const r of skipPhaseRels) {
+        const normType = normalizeRelType(r.relationshipType);
+        skipRelTracker.add(`${normType}:${r.fromMemberId}:${r.toMemberId}`);
+        if (SYMMETRIC_REL_TYPES.has(r.relationshipType)) {
+          skipRelTracker.add(`${normType}:${r.toMemberId}:${r.fromMemberId}`);
+        }
+      }
+
       for (const resolution of resolutions) {
         if (resolution.action !== "skip") continue;
         const { sourceMemberId } = resolution;
@@ -11312,7 +11344,6 @@ export async function registerRoutes(
 
         console.log(`[resolve-conflicts] Phase 5: Skipping ${sourceMember.firstName} ${sourceMember.lastName || ''}`);
 
-        // Get all current relationships for this member in the target tree
         const allRels = await storage.getRelationships(treeId);
         const affectedRels = allRels.filter(
           r => r.fromMemberId === sourceMemberId || r.toMemberId === sourceMemberId
@@ -11335,21 +11366,18 @@ export async function registerRoutes(
           neighbors.push({ memberId: resolvedOtherId, relType: rel.relationshipType, direction });
         }
 
-        // Bridge parent-child chains
         const parents = neighbors.filter(n => n.direction === "parent");
         const children = neighbors.filter(n => n.direction === "child");
         let bridged = 0;
+
+        // Bridge parent-child chains
         if (parents.length > 0 && children.length > 0) {
           for (const parent of parents) {
             for (const child of children) {
               if (parent.memberId === child.memberId) continue;
-              const currentRels = await storage.getRelationships(treeId);
-              const alreadyExists = currentRels.some(
-                r => (r.relationshipType === "parent" || r.relationshipType === "parent-child") &&
-                  ((r.fromMemberId === parent.memberId && r.toMemberId === child.memberId) ||
-                   (r.fromMemberId === child.memberId && r.toMemberId === parent.memberId))
-              );
-              if (!alreadyExists) {
+              const key = `parent:${parent.memberId}:${child.memberId}`;
+              const reverseKey = `parent:${child.memberId}:${parent.memberId}`;
+              if (!skipRelTracker.has(key) && !skipRelTracker.has(reverseKey)) {
                 try {
                   await storage.createRelationship({
                     treeId,
@@ -11357,6 +11385,7 @@ export async function registerRoutes(
                     toMemberId: child.memberId,
                     relationshipType: "parent",
                   });
+                  skipRelTracker.add(key);
                   bridged++;
                   console.log(`[resolve-conflicts] Bridged parent-child: ${parent.memberId.substring(0,8)} -> ${child.memberId.substring(0,8)}`);
                 } catch (e) {
@@ -11367,21 +11396,17 @@ export async function registerRoutes(
           }
         }
 
-        // Bridge spouse connections — connect skipped member's spouse to their parent/child context
+        // Bridge spouse connections
         const spouses = neighbors.filter(n => n.direction === "spouse");
         let spouseBridged = 0;
         if (spouses.length > 0) {
-          // Transfer spouse's co-parent relationships: if skipped member had children, make spouse a co-parent of those children
+          // If skipped member had children, make spouse a co-parent of those children
           for (const spouse of spouses) {
             for (const child of children) {
               if (spouse.memberId === child.memberId) continue;
-              const currentRels = await storage.getRelationships(treeId);
-              const alreadyExists = currentRels.some(
-                r => (r.relationshipType === "parent" || r.relationshipType === "parent-child") &&
-                  ((r.fromMemberId === spouse.memberId && r.toMemberId === child.memberId) ||
-                   (r.fromMemberId === child.memberId && r.toMemberId === spouse.memberId))
-              );
-              if (!alreadyExists) {
+              const key = `parent:${spouse.memberId}:${child.memberId}`;
+              const reverseKey = `parent:${child.memberId}:${spouse.memberId}`;
+              if (!skipRelTracker.has(key) && !skipRelTracker.has(reverseKey)) {
                 try {
                   await storage.createRelationship({
                     treeId,
@@ -11389,6 +11414,7 @@ export async function registerRoutes(
                     toMemberId: child.memberId,
                     relationshipType: "parent",
                   });
+                  skipRelTracker.add(key);
                   spouseBridged++;
                   console.log(`[resolve-conflicts] Bridged spouse-to-child: ${spouse.memberId.substring(0,8)} -> ${child.memberId.substring(0,8)}`);
                 } catch (e) {
@@ -11397,10 +11423,42 @@ export async function registerRoutes(
               }
             }
           }
+
+          // Re-route spouse connections: if this skipped member had a merge target equivalent,
+          // connect the spouse to that merge target as spouse
+          if (resolution.targetMemberId && mergedSourceToTarget.has(sourceMemberId)) {
+            const mergeTarget = mergedSourceToTarget.get(sourceMemberId)!;
+            for (const spouse of spouses) {
+              if (spouse.memberId === mergeTarget) continue;
+              const key = `spouse:${spouse.memberId}:${mergeTarget}`;
+              const reverseKey = `spouse:${mergeTarget}:${spouse.memberId}`;
+              if (!skipRelTracker.has(key) && !skipRelTracker.has(reverseKey)) {
+                try {
+                  await storage.createRelationship({
+                    treeId,
+                    fromMemberId: spouse.memberId,
+                    toMemberId: mergeTarget,
+                    relationshipType: "spouse",
+                  });
+                  skipRelTracker.add(key);
+                  skipRelTracker.add(reverseKey);
+                  spouseBridged++;
+                  console.log(`[resolve-conflicts] Re-routed spouse to merge target: ${spouse.memberId.substring(0,8)} -> ${mergeTarget.substring(0,8)}`);
+                } catch (e) {
+                  console.log(`[resolve-conflicts] Could not re-route spouse:`, e);
+                }
+              }
+            }
+          }
         }
 
-        // Delete all relationships for the skipped member
+        // Delete all relationships for the skipped member and remove from tracker
         for (const rel of affectedRels) {
+          const normType = normalizeRelType(rel.relationshipType);
+          skipRelTracker.delete(`${normType}:${rel.fromMemberId}:${rel.toMemberId}`);
+          if (SYMMETRIC_REL_TYPES.has(rel.relationshipType)) {
+            skipRelTracker.delete(`${normType}:${rel.toMemberId}:${rel.fromMemberId}`);
+          }
           try { await storage.deleteRelationship(rel.id); } catch (e) { }
         }
 
@@ -11423,14 +11481,13 @@ export async function registerRoutes(
       let deduped = 0;
       let orphansCleaned = 0;
       for (const rel of allFinalRels) {
-        // Remove relationships referencing non-existent members (e.g., deleted skipped members)
         if (!allFinalMemberIds.has(rel.fromMemberId) || !allFinalMemberIds.has(rel.toMemberId)) {
           try { await storage.deleteRelationship(rel.id); orphansCleaned++; } catch (e) { }
           continue;
         }
-        // Directional-aware dedup
-        const key1 = `${rel.relationshipType}:${rel.fromMemberId}:${rel.toMemberId}`;
-        const key2 = SYMMETRIC_REL_TYPES.has(rel.relationshipType) ? `${rel.relationshipType}:${rel.toMemberId}:${rel.fromMemberId}` : null;
+        const normType = normalizeRelType(rel.relationshipType);
+        const key1 = `${normType}:${rel.fromMemberId}:${rel.toMemberId}`;
+        const key2 = SYMMETRIC_REL_TYPES.has(rel.relationshipType) ? `${normType}:${rel.toMemberId}:${rel.fromMemberId}` : null;
         if (relKeys.has(key1) || (key2 && relKeys.has(key2))) {
           try { await storage.deleteRelationship(rel.id); deduped++; } catch (e) { }
         } else {
@@ -11441,45 +11498,72 @@ export async function registerRoutes(
         console.log(`[resolve-conflicts] Phase 6: Removed ${deduped} duplicates and ${orphansCleaned} orphaned relationships`);
       }
 
-      // === PHASE 7: Integrity check ===
+      // === PHASE 7: Integrity check — verify all relationships and trace ancestor chains ===
       const finalMembers = await storage.getMembers(treeId);
       const finalRels = await storage.getRelationships(treeId);
       const memberIds = new Set(finalMembers.map(m => m.id));
 
-      // Check for orphaned relationships (referencing non-existent members)
       let orphanedRels = 0;
       for (const rel of finalRels) {
         if (!memberIds.has(rel.fromMemberId) || !memberIds.has(rel.toMemberId)) {
           orphanedRels++;
           console.log(`[resolve-conflicts] WARNING: Orphaned relationship ${rel.id}: ${rel.fromMemberId.substring(0,8)} -> ${rel.toMemberId.substring(0,8)} (type: ${rel.relationshipType})`);
+          try { await storage.deleteRelationship(rel.id); } catch (e) { }
         }
       }
 
-      // Trace parent-child chains to verify connectivity
+      // Build child→parents map for chain tracing
       const parentChildMap = new Map<string, string[]>();
+      const childToParentsMap = new Map<string, string[]>();
       for (const rel of finalRels) {
         if (rel.relationshipType === "parent" || rel.relationshipType === "parent-child") {
-          if (!parentChildMap.has(rel.toMemberId)) parentChildMap.set(rel.toMemberId, []);
-          parentChildMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+          if (!parentChildMap.has(rel.fromMemberId)) parentChildMap.set(rel.fromMemberId, []);
+          parentChildMap.get(rel.fromMemberId)!.push(rel.toMemberId);
+          if (!childToParentsMap.has(rel.toMemberId)) childToParentsMap.set(rel.toMemberId, []);
+          childToParentsMap.get(rel.toMemberId)!.push(rel.fromMemberId);
         }
       }
 
-      // Find root members (those with no parents) and trace chains
-      const membersWithParents = new Set(parentChildMap.keys());
-      const rootMembers = finalMembers.filter(m => !membersWithParents.has(m.id));
+      // Trace ancestor chains from each member up to root ancestors
       let maxChainDepth = 0;
-      const traceChain = (memberId: string, depth: number): number => {
-        const parents = parentChildMap.get(memberId) || [];
+      const traceUp = (memberId: string, depth: number, visited: Set<string>): number => {
+        if (visited.has(memberId)) return depth;
+        visited.add(memberId);
+        const parents = childToParentsMap.get(memberId) || [];
         if (parents.length === 0) return depth;
         let maxDepth = depth;
         for (const parentId of parents) {
-          maxDepth = Math.max(maxDepth, traceChain(parentId, depth + 1));
+          maxDepth = Math.max(maxDepth, traceUp(parentId, depth + 1, visited));
         }
         return maxDepth;
       };
       for (const member of finalMembers) {
-        const depth = traceChain(member.id, 0);
+        const depth = traceUp(member.id, 0, new Set());
         maxChainDepth = Math.max(maxChainDepth, depth);
+      }
+
+      // Count relationship types
+      const relTypeCounts: Record<string, number> = {};
+      for (const rel of finalRels) {
+        relTypeCounts[rel.relationshipType] = (relTypeCounts[rel.relationshipType] || 0) + 1;
+      }
+
+      // Log each parent-child chain for debugging
+      const membersNoParents = finalMembers.filter(m => !childToParentsMap.has(m.id));
+      const membersNoChildren = finalMembers.filter(m => !parentChildMap.has(m.id));
+      console.log(`[resolve-conflicts] Chain analysis: ${membersNoParents.length} root ancestors (no parents), ${membersNoChildren.length} leaf members (no children)`);
+      console.log(`[resolve-conflicts] Relationship types: ${JSON.stringify(relTypeCounts)}`);
+
+      // Verify specific ancestor connections by logging chains
+      for (const member of finalMembers) {
+        const parents = childToParentsMap.get(member.id) || [];
+        if (parents.length > 0) {
+          const parentNames = parents.map(pid => {
+            const p = finalMembers.find(m => m.id === pid);
+            return p ? `${p.firstName} ${p.lastName || ''}` : pid.substring(0,8);
+          });
+          console.log(`[resolve-conflicts] ${member.firstName} ${member.lastName || ''} ← parents: [${parentNames.join(', ')}]`);
+        }
       }
 
       // Clean up empty source tree
@@ -11489,16 +11573,27 @@ export async function registerRoutes(
         try { await storage.deleteTree(sourceTreeId); } catch (e) { }
       }
 
+      const mergeCount = results.filter(r => r.action === "merge" && r.status === "merged").length;
+      const skipCount = results.filter(r => r.action === "skip" && r.status === "removed").length;
+      const keepCount = results.filter(r => r.action === "keep_both").length;
+
       const integrity = {
         totalMembers: finalMembers.length,
-        totalRelationships: finalRels.length,
+        totalRelationships: finalRels.length - orphanedRels,
         orphanedRelationships: orphanedRels,
         maxAncestorDepth: maxChainDepth,
         chainIntact: orphanedRels === 0,
         transferredData: transferStats,
+        relationshipTypes: relTypeCounts,
+        mergeCount,
+        skipCount,
+        keepCount,
+        rootAncestors: membersNoParents.length,
+        leafMembers: membersNoChildren.length,
       };
 
       console.log(`[resolve-conflicts] COMPLETE. Tree now has ${finalMembers.length} members, ${finalRels.length} relationships, max ancestor depth: ${maxChainDepth}, orphaned: ${orphanedRels}`);
+      console.log(`[resolve-conflicts] Summary: ${mergeCount} merged, ${skipCount} skipped, ${keepCount} kept separate`);
       console.log(`[resolve-conflicts] Transferred: ${transferStats.events} events, ${transferStats.nameHistory} name records, ${transferStats.education} education, ${transferStats.career} career, ${transferStats.tags} tags, ${transferStats.fsSources} FS sources, ${transferStats.extIds} external IDs, ${transferStats.specialConns} special connections`);
 
       res.json({

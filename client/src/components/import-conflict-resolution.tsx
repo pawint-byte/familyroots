@@ -80,6 +80,12 @@ export default function ImportConflictResolution({
       maxAncestorDepth: number;
       chainIntact: boolean;
       transferredData: { events: number; nameHistory: number; education: number; career: number; tags: number; fsSources: number; extIds: number; specialConns: number };
+      relationshipTypes?: Record<string, number>;
+      mergeCount?: number;
+      skipCount?: number;
+      keepCount?: number;
+      rootAncestors?: number;
+      leafMembers?: number;
     };
     results: Array<{ sourceMemberId: string; action: string; status: string }>;
   } | null>(null);
@@ -454,6 +460,15 @@ export default function ImportConflictResolution({
               <p className="text-muted-foreground mt-1">
                 Deepest ancestor chain: {importSummary.integrity.maxAncestorDepth} generation{importSummary.integrity.maxAncestorDepth !== 1 ? 's' : ''}
               </p>
+              {importSummary.integrity.relationshipTypes && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {Object.entries(importSummary.integrity.relationshipTypes).map(([type, count]) => (
+                    <Badge key={type} variant="outline" className="text-xs">
+                      {count} {type}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
             {Object.values(importSummary.integrity.transferredData).some(v => v > 0) && (
               <div className="pt-2 border-t">
