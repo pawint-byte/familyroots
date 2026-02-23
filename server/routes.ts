@@ -9133,6 +9133,29 @@ export async function registerRoutes(
           fsIdToMemberId.set(rootPersonId, claimedMember.id);
           skippedDuplicates.push(`${claimedMember.firstName} ${claimedMember.lastName || ''}`.trim());
           console.log(`[Import] Pre-mapped FamilySearch self (${rootPersonId}) to claimed member: ${claimedMember.firstName} ${claimedMember.lastName || ''} (${claimedMember.id})`);
+          
+          // Sync FamilySearch data into the claimed member (fill empty fields)
+          const rootPerson = persons.find((p: any) => p.id === rootPersonId);
+          if (rootPerson) {
+            const nameParts = (rootPerson.name || "").split(" ");
+            const updates: any = {};
+            if (!claimedMember.birthDate && rootPerson.birthDate) {
+              const yearMatch = rootPerson.birthDate.match(/\d{4}/);
+              if (yearMatch) updates.birthDate = `${yearMatch[0]}-01-01`;
+            }
+            if (!claimedMember.birthPlace && rootPerson.birthPlace) updates.birthPlace = rootPerson.birthPlace;
+            if (!claimedMember.gender && rootPerson.gender) {
+              updates.gender = rootPerson.gender === "male" ? "male" : rootPerson.gender === "female" ? "female" : null;
+            }
+            if (!claimedMember.deathDate && rootPerson.deathDate) {
+              const yearMatch = rootPerson.deathDate.match(/\d{4}/);
+              if (yearMatch) updates.deathDate = `${yearMatch[0]}-01-01`;
+            }
+            if (Object.keys(updates).length > 0) {
+              await storage.updateMember(claimedMember.id, updates);
+              console.log(`[Import] Synced FamilySearch data to claimed member:`, updates);
+            }
+          }
         }
       }
       
