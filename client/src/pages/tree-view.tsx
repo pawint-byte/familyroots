@@ -1149,7 +1149,6 @@ export default function TreeView() {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                console.log("[DEBUG] Invite button clicked (desktop), setting isInviteConnectOpen=true");
                 setIsInviteConnectOpen(true);
               }}
               data-testid="button-invite-connect"
@@ -1165,7 +1164,6 @@ export default function TreeView() {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                console.log("[DEBUG] Invite button clicked (mobile), setting isInviteConnectOpen=true");
                 setIsInviteConnectOpen(true);
               }}
               data-testid="button-invite-connect-mobile"
