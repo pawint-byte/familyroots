@@ -9100,6 +9100,8 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const { treeId, persons, relationships, rootPersonId } = req.body;
       
+      console.log(`[Import] Starting import: treeId=${treeId}, persons=${persons?.length}, relationships=${relationships?.length}, rootPersonId=${rootPersonId || 'NONE'}`);
+      
       if (!treeId || !persons || !Array.isArray(persons)) {
         return res.status(400).json({ message: "Missing required fields: treeId, persons" });
       }
@@ -9224,6 +9226,12 @@ export async function registerRoutes(
         fsIdToMemberId.set(person.id, newMember.id);
         createdMembers.push(newMember);
         console.log(`[Import] Created new member: "${firstName} ${lastName || ''}" (${newMember.id}) from FS person ${person.id}`);
+      }
+      
+      // Log the complete mapping state before creating relationships
+      console.log(`[Import] Member mapping complete: ${fsIdToMemberId.size} FamilySearch IDs mapped`);
+      for (const [fsId, memberId] of fsIdToMemberId.entries()) {
+        console.log(`[Import]   FS ${fsId} → Member ${memberId}`);
       }
       
       // Create relationships

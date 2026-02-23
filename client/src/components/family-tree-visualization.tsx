@@ -634,25 +634,120 @@ export default function FamilyTreeVisualization({
 
     const unconnectedMembers = deduplicatedMembers.filter(m => !placed.has(m.id));
     if (unconnectedMembers.length > 0) {
-      const maxY = positioned.length > 0
+      const sectionStartY = positioned.length > 0
         ? Math.max(...positioned.map(p => p.y)) + nodeHeight + verticalGap
         : centerY;
-      const columnsPerRow = Math.min(unconnectedMembers.length, 5);
-      const gridStartX = centerX - ((columnsPerRow - 1) * (nodeWidth + horizontalGap / 2)) / 2;
 
-      labels.push({ x: centerX, y: maxY - 40, text: 'No Relationship Defined', type: 'unconnected' });
+      const { parentChildMap, childParentMap, spouseMap } = getRelationshipMaps();
+      const unconnectedIds = new Set(unconnectedMembers.map(m => m.id));
 
-      unconnectedMembers.forEach((member, idx) => {
-        const col = idx % columnsPerRow;
-        const row = Math.floor(idx / columnsPerRow);
-        positioned.push({
-          x: gridStartX + col * (nodeWidth + horizontalGap / 2),
-          y: maxY + row * (nodeHeight + verticalGap / 2),
-          member,
-          branchType: 'unconnected'
+      const visited = new Set<string>();
+      const clusters: FamilyMember[][] = [];
+      for (const member of unconnectedMembers) {
+        if (visited.has(member.id)) continue;
+        const cluster: FamilyMember[] = [];
+        const queue = [member.id];
+        while (queue.length > 0) {
+          const current = queue.shift()!;
+          if (visited.has(current)) continue;
+          visited.add(current);
+          const m = unconnectedMembers.find(um => um.id === current);
+          if (m) cluster.push(m);
+          const neighbors = [
+            ...(parentChildMap.get(current) || []),
+            ...(childParentMap.get(current) || []),
+            ...(spouseMap.get(current) || []),
+          ];
+          for (const n of neighbors) {
+            if (unconnectedIds.has(n) && !visited.has(n)) queue.push(n);
+          }
+        }
+        if (cluster.length > 0) clusters.push(cluster);
+      }
+
+      labels.push({ x: centerX, y: sectionStartY - 40, text: 'No Relationship Defined', type: 'unconnected' });
+
+      let clusterOffsetY = sectionStartY;
+      const isolatedMembers: FamilyMember[] = [];
+
+      for (const cluster of clusters) {
+        if (cluster.length === 1) {
+          isolatedMembers.push(cluster[0]);
+          continue;
+        }
+
+        const clusterRoots = cluster.filter(m => {
+          const parents = childParentMap.get(m.id) || [];
+          return !parents.some(pid => unconnectedIds.has(pid));
         });
-        placed.add(member.id);
-      });
+        const roots = clusterRoots.length > 0 ? clusterRoots : [cluster[0]];
+
+        const layers: FamilyMember[][] = [];
+        const clusterPlaced = new Set<string>();
+
+        let currentLayer = roots;
+        while (currentLayer.length > 0) {
+          const layerWithSpouses: FamilyMember[] = [];
+          for (const m of currentLayer) {
+            if (clusterPlaced.has(m.id)) continue;
+            layerWithSpouses.push(m);
+            clusterPlaced.add(m.id);
+            const spouses = (spouseMap.get(m.id) || []).filter(sid => unconnectedIds.has(sid) && !clusterPlaced.has(sid));
+            for (const sid of spouses) {
+              const sp = cluster.find(c => c.id === sid);
+              if (sp) { layerWithSpouses.push(sp); clusterPlaced.add(sp.id); }
+            }
+          }
+          if (layerWithSpouses.length > 0) layers.push(layerWithSpouses);
+          const nextLayer: FamilyMember[] = [];
+          for (const m of currentLayer) {
+            const children = (parentChildMap.get(m.id) || []).filter(cid => unconnectedIds.has(cid) && !clusterPlaced.has(cid));
+            for (const cid of children) {
+              const child = cluster.find(c => c.id === cid);
+              if (child) nextLayer.push(child);
+            }
+          }
+          currentLayer = nextLayer;
+        }
+
+        const unplacedInCluster = cluster.filter(m => !clusterPlaced.has(m.id));
+        if (unplacedInCluster.length > 0) layers.push(unplacedInCluster);
+
+        const maxLayerWidth = Math.max(...layers.map(l => l.length));
+        const clusterWidth = maxLayerWidth * (nodeWidth + horizontalGap);
+        const clusterStartX = centerX - clusterWidth / 2;
+
+        for (let layerIdx = 0; layerIdx < layers.length; layerIdx++) {
+          const layer = layers[layerIdx];
+          const layerStartX = centerX - ((layer.length - 1) * (nodeWidth + horizontalGap)) / 2;
+          for (let i = 0; i < layer.length; i++) {
+            positioned.push({
+              x: layerStartX + i * (nodeWidth + horizontalGap),
+              y: clusterOffsetY + layerIdx * (nodeHeight + verticalGap),
+              member: layer[i],
+              branchType: 'unconnected',
+            });
+            placed.add(layer[i].id);
+          }
+        }
+        clusterOffsetY += layers.length * (nodeHeight + verticalGap) + verticalGap / 2;
+      }
+
+      if (isolatedMembers.length > 0) {
+        const columnsPerRow = Math.min(isolatedMembers.length, 5);
+        const gridStartX = centerX - ((columnsPerRow - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+        isolatedMembers.forEach((member, idx) => {
+          const col = idx % columnsPerRow;
+          const row = Math.floor(idx / columnsPerRow);
+          positioned.push({
+            x: gridStartX + col * (nodeWidth + horizontalGap / 2),
+            y: clusterOffsetY + row * (nodeHeight + verticalGap / 2),
+            member,
+            branchType: 'unconnected',
+          });
+          placed.add(member.id);
+        });
+      }
     }
 
     return { positions: positioned, labels };
@@ -1175,6 +1270,79 @@ export default function FamilyTreeVisualization({
         }
       });
     });
+
+    // === UNCONNECTED CLUSTERS: Draw relationship lines between unconnected members ===
+    const unconnectedPositions = positions.filter(p => p.branchType === 'unconnected');
+    if (unconnectedPositions.length > 1) {
+      const { parentChildMap, spouseMap } = getRelationshipMaps();
+      const unconnectedIdSet = new Set(unconnectedPositions.map(p => p.member.id));
+      const drawnPairs = new Set<string>();
+
+      for (const pos of unconnectedPositions) {
+        const children = (parentChildMap.get(pos.member.id) || []).filter(cid => unconnectedIdSet.has(cid));
+        for (const childId of children) {
+          const pairKey = `${pos.member.id}-${childId}`;
+          if (drawnPairs.has(pairKey)) continue;
+          drawnPairs.add(pairKey);
+          const childPos = unconnectedPositions.find(p => p.member.id === childId);
+          if (childPos) {
+            const fromX = pos.x + nodeWidth / 2;
+            const fromY = pos.y + nodeHeight;
+            const toX = childPos.x + nodeWidth / 2;
+            const toY = childPos.y;
+            lines.push(
+              <path
+                key={`unconnected-parent-${pos.member.id}-${childId}`}
+                d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+                stroke={BRANCH_COLORS.unconnected.line}
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+                opacity="0.5"
+              />
+            );
+          }
+        }
+
+        const spouses = (spouseMap.get(pos.member.id) || []).filter(sid => unconnectedIdSet.has(sid));
+        for (const spouseId of spouses) {
+          const pairKey = [pos.member.id, spouseId].sort().join('-spouse-');
+          if (drawnPairs.has(pairKey)) continue;
+          drawnPairs.add(pairKey);
+          const spousePos = unconnectedPositions.find(p => p.member.id === spouseId);
+          if (spousePos) {
+            const fromX = Math.min(pos.x, spousePos.x) + nodeWidth;
+            const fromY = pos.y + nodeHeight / 2;
+            const toX = Math.max(pos.x, spousePos.x);
+            const toY = spousePos.y + nodeHeight / 2;
+            lines.push(
+              <path
+                key={`unconnected-spouse-${pos.member.id}-${spouseId}`}
+                d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
+                stroke="hsl(340 80% 60%)"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+                opacity="0.5"
+              />
+            );
+            const markerX = (fromX + toX) / 2;
+            const markerY = (fromY + toY) / 2;
+            lines.push(
+              <circle
+                key={`unconnected-spouse-marker-${pos.member.id}-${spouseId}`}
+                cx={markerX}
+                cy={markerY}
+                r="4"
+                fill="hsl(340 80% 60%)"
+                stroke="hsl(var(--background))"
+                strokeWidth="2"
+              />
+            );
+          }
+        }
+      }
+    }
 
     return lines;
   };
