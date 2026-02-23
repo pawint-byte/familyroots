@@ -1,0 +1,40 @@
+do i still need to check my other apps with stripe? i have about four that uses stripe for payment. i do not see all listed here so not sure if something is wrong
+
+Good question. Since all your apps share one Stripe account, the webhook situation affects all of them. Looking at what's in your Stripe Dashboard right now, I only see 3 webhooks, but you mentioned having about 4 apps using Stripe.
+
+Here's what I'd recommend:
+
+For each of your Stripe-connected apps, you need one webhook endpoint in the Stripe Dashboard pointing to its deployed URL. The pattern is:
+
+https://[app-domain]/api/stripe/webhook (or whatever path that app uses)
+Based on what I can see:
+
+App	Webhook URL	Status
+SolveForge	solveforge.replit.app/api/stripe/webhook	Listed (100% errors - will fix after republish)
+Paygate	paygate.pawint-app.com/api/webhooks/stripe	Listed (100% errors - may need same fix)
+Dev environment	Long replit.dev URL	Listed (working but should be deleted)
+Other apps?	Not listed	Missing - need to be added
+Steps to get everything working:
+
+Delete the temporary replit.dev webhook — it's a dev URL and will break when it changes
+Check each of your other apps — if they use Stripe payments, they each need their own webhook endpoint added via "+ Add destination" in the Stripe Dashboard
+For each app, you'll want to listen for at least: checkout.session.completed and payment_intent.succeeded
+The same code fix I made to SolveForge (removing the auto-managed webhook) should probably be applied to your other apps too, to prevent them from deleting each other's webhooks
+Can you tell me the names and deployed URLs of your other Stripe apps? I can put together a plan to fix the webhook setup across all of them if they're in this same project, or at minimum make sure this app is solid and give you instructions for the others.
+
+https://kinship-chronicle--pawint.replit.app here is one
+
+Kinship Chronicle at kinship-chronicle--pawint.replit.app is not listed in your Stripe webhook dashboard, which means it won't receive payment notifications from Stripe (like when a checkout completes or a payment succeeds). That could be a problem if it relies on webhooks to update order status or confirm payments.
+
+Here's what you need to do for Kinship Chronicle and any other missing apps:
+
+In the Stripe Dashboard, click "+ Add destination" and set up:
+
+Endpoint URL: https://kinship-chronicle--pawint.replit.app/api/stripe/webhook
+Events: checkout.session.completed and payment_intent.succeeded
+After creating it, Stripe will give you a Signing Secret (starts with whsec_...). You'll need to add that as the STRIPE_WEBHOOK_SECRET environment variable in the Kinship Chronicle project.
+
+Important: If Kinship Chronicle also uses stripe-replit-sync with the auto-managed webhook system (like SolveForge did before I fixed it), you'll want to make the same code fix there too — removing the findOrCreateManagedWebhook call. Otherwise it may keep deleting webhooks from your other apps.
+
+Can you share the names or URLs of your other 2 Stripe apps? That way I can give you the complete list of webhooks you need to set up, so everything is covered in one go.
+

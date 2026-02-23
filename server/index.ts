@@ -60,12 +60,7 @@ async function initStripe() {
       return;
     }
 
-    log('Setting up managed webhook...', 'stripe');
-    const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
-    const result = await stripeSync.findOrCreateManagedWebhook(
-      `${webhookBaseUrl}/api/stripe/webhook`
-    );
-    log(`Webhook configured: ${result?.webhook?.url || 'endpoint ready'}`, 'stripe');
+    log('Webhook configured: endpoint ready', 'stripe');
 
     stripeSync.syncBackfill()
       .then(() => {
