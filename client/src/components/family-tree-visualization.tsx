@@ -557,13 +557,34 @@ export default function FamilyTreeVisualization({
                   coParentGrandparents.forEach((cpGpId, cpGpIndex) => {
                     const cpGp = deduplicatedMembers.find(m => m.id === cpGpId);
                     if (cpGp && !placed.has(cpGpId)) {
+                      const cpGpX = cpGpStartX + cpGpIndex * (nodeWidth + horizontalGap / 2);
                       positioned.push({
-                        x: cpGpStartX + cpGpIndex * (nodeWidth + horizontalGap / 2),
+                        x: cpGpX,
                         y: cpGpY,
                         member: cpGp,
                         branchType: 'grandparent'
                       });
                       placed.add(cpGpId);
+                      
+                      if (showGreatGrandparents) {
+                        const cpGreatGrandparents = (childParentMap.get(cpGpId) || []).filter(ggpId => !placed.has(ggpId));
+                        if (cpGreatGrandparents.length > 0) {
+                          const cpGgpY = cpGpY - verticalGap - nodeHeight;
+                          const cpGgpStartX = cpGpX - ((cpGreatGrandparents.length - 1) * (nodeWidth + horizontalGap / 3)) / 2;
+                          cpGreatGrandparents.forEach((ggpId, ggpIndex) => {
+                            const ggp = deduplicatedMembers.find(m => m.id === ggpId);
+                            if (ggp && !placed.has(ggpId)) {
+                              positioned.push({
+                                x: cpGgpStartX + ggpIndex * (nodeWidth + horizontalGap / 3),
+                                y: cpGgpY,
+                                member: ggp,
+                                branchType: 'greatgrandparent'
+                              });
+                              placed.add(ggpId);
+                            }
+                          });
+                        }
+                      }
                     }
                   });
                 }

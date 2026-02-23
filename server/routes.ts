@@ -11028,8 +11028,8 @@ export async function registerRoutes(
           for (const rel of affectedRels) {
             const otherId = rel.fromMemberId === sourceMemberId ? rel.toMemberId : rel.fromMemberId;
             if (skippedIds.has(otherId)) continue;
-            const isParentOfSkipped = rel.relationshipType === "parent-child" && rel.toMemberId === sourceMemberId;
-            const isChildOfSkipped = rel.relationshipType === "parent-child" && rel.fromMemberId === sourceMemberId;
+            const isParentOfSkipped = (rel.relationshipType === "parent" || rel.relationshipType === "parent-child") && rel.toMemberId === sourceMemberId;
+            const isChildOfSkipped = (rel.relationshipType === "parent" || rel.relationshipType === "parent-child") && rel.fromMemberId === sourceMemberId;
             neighbors.push({
               memberId: otherId,
               relType: rel.relationshipType,
@@ -11048,7 +11048,7 @@ export async function registerRoutes(
                 const bridgeTreeId = treeId;
                 const existingRels = await storage.getRelationships(bridgeTreeId);
                 const alreadyExists = existingRels.some(
-                  r => r.relationshipType === "parent-child" &&
+                  r => (r.relationshipType === "parent" || r.relationshipType === "parent-child") &&
                     ((r.fromMemberId === resolvedParentId && r.toMemberId === resolvedChildId) ||
                      (r.fromMemberId === resolvedChildId && r.toMemberId === resolvedParentId))
                 );
@@ -11058,7 +11058,7 @@ export async function registerRoutes(
                       treeId: bridgeTreeId,
                       fromMemberId: resolvedParentId,
                       toMemberId: resolvedChildId,
-                      relationshipType: "parent-child",
+                      relationshipType: "parent",
                     });
                     console.log(`[resolve-conflicts] Bridged connection: skipped member's parent ${resolvedParentId.substring(0,8)} -> child ${resolvedChildId.substring(0,8)}`);
                   } catch (e) {
