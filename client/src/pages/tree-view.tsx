@@ -36,7 +36,7 @@ import { toPng } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember, TreeTag, MemberTag } from "@shared/schema";
 import FamilyTreeVisualization from "@/components/family-tree-visualization";
-import GroupVisualization, { type GroupLayoutMode } from "@/components/group-visualization";
+import GroupVisualization, { type GroupLayoutMode, type MemberUpcomingEvent } from "@/components/group-visualization";
 import MemberForm from "@/components/member-form";
 import { NameHistorySection } from "@/components/name-history";
 import { MemberDiscoverability } from "@/components/member-discoverability";
@@ -251,6 +251,36 @@ export default function TreeView() {
     queryKey: ["/api/trees", treeId, "collaborators"],
     enabled: !!treeId,
   });
+
+  const { data: upcomingEventsData } = useQuery<{
+    upcomingBirthdays: { memberId: string; date: string; daysUntil: number }[];
+    activeRegistries: { memberId: string; registryId: string; title: string; eventDate: string | null; daysUntil: number | null }[];
+  }>({
+    queryKey: [`/api/trees/${treeId}/upcoming-events`],
+    enabled: !!treeId,
+  });
+
+  const upcomingEvents = useMemo<MemberUpcomingEvent[]>(() => {
+    if (!upcomingEventsData) return [];
+    const events: MemberUpcomingEvent[] = [];
+    for (const bd of upcomingEventsData.upcomingBirthdays) {
+      events.push({
+        memberId: bd.memberId,
+        type: "birthday",
+        label: bd.daysUntil === 0 ? "Birthday today!" : `Birthday in ${bd.daysUntil} days`,
+        daysUntil: bd.daysUntil,
+      });
+    }
+    for (const reg of upcomingEventsData.activeRegistries) {
+      events.push({
+        memberId: reg.memberId,
+        type: "registry",
+        label: reg.title,
+        daysUntil: reg.daysUntil,
+      });
+    }
+    return events;
+  }, [upcomingEventsData]);
 
   const { data: mutedMemberIds = [] } = useQuery<string[]>({
     queryKey: ["/api/trees", treeId, "muted-member-ids"],
@@ -1891,6 +1921,7 @@ export default function TreeView() {
                       onConnectMember={canEditTree ? handleConnectMember : undefined}
                       focusMemberId={focusMemberId}
                       viewDepth={viewDepth}
+                      upcomingEvents={upcomingEvents}
                     />
                   ) : (
                     <GroupVisualization
@@ -1903,6 +1934,7 @@ export default function TreeView() {
                       layoutOverride={groupLayoutMode}
                       onMemberPositionChange={handleMemberPositionChange}
                       customRelationshipTypes={(treeData?.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null) || null}
+                      upcomingEvents={upcomingEvents}
                     />
                   )}
                 </div>

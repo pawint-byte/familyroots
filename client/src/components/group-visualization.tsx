@@ -15,9 +15,16 @@ import {
   getReverseRelationshipType,
   getDirectionalRoles,
 } from "@shared/treeTypes";
-import { Crown, Star, Shield } from "lucide-react";
+import { Crown, Star, Shield, Cake, Gift } from "lucide-react";
 
 export type GroupLayoutMode = "auto" | "hub" | "top-grid" | "circle" | "radial" | "grid" | "arc" | "network";
+
+export interface MemberUpcomingEvent {
+  memberId: string;
+  type: "birthday" | "registry";
+  label: string;
+  daysUntil: number | null;
+}
 
 interface GroupVisualizationProps {
   members: FamilyMember[];
@@ -29,6 +36,7 @@ interface GroupVisualizationProps {
   treeType: TreeType;
   layoutOverride?: GroupLayoutMode;
   customRelationshipTypes?: CustomRelType[] | null;
+  upcomingEvents?: MemberUpcomingEvent[];
 }
 
 interface NodePosition {
@@ -501,6 +509,7 @@ export default function GroupVisualization({
   treeType,
   layoutOverride,
   customRelationshipTypes,
+  upcomingEvents,
 }: GroupVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -533,6 +542,16 @@ export default function GroupVisualization({
     }
     return deduplicatedMembers[0]?.id || "";
   }, [focusMemberId, deduplicatedMembers]);
+
+  const memberEventsMap = useMemo(() => {
+    const map = new Map<string, MemberUpcomingEvent[]>();
+    if (!upcomingEvents) return map;
+    for (const evt of upcomingEvents) {
+      if (!map.has(evt.memberId)) map.set(evt.memberId, []);
+      map.get(evt.memberId)!.push(evt);
+    }
+    return map;
+  }, [upcomingEvents]);
 
   const positions = useMemo(() => {
     return calculatePositions(
@@ -1041,6 +1060,11 @@ export default function GroupVisualization({
           const isLeader = memberRank === 1;
           const isSubLeader = memberRank === 2;
           const isMemberDragging = draggedMemberId === pos.member.id;
+          const memberEvents = memberEventsMap.get(pos.member.id) || [];
+          const hasBirthday = memberEvents.some(e => e.type === "birthday");
+          const hasRegistry = memberEvents.some(e => e.type === "registry");
+          const birthdayEvent = memberEvents.find(e => e.type === "birthday");
+          const registryEvent = memberEvents.find(e => e.type === "registry");
 
           const borderWidth = isLeader ? 3 : isSubLeader ? 2.5 : 2;
           const glowIntensity = isLeader ? "0 0 20px 4px" : isSubLeader ? "0 0 12px 2px" : "0 0 16px 2px";
@@ -1145,6 +1169,33 @@ export default function GroupVisualization({
                 }`}>
                   {pos.member.firstName}
                 </span>
+              )}
+              {(hasBirthday || hasRegistry) && (
+                <div className="absolute -bottom-2 right-0 flex gap-0.5" data-testid={`event-indicators-${pos.member.id}`}>
+                  {hasBirthday && (
+                    <div
+                      className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-white text-[9px] font-semibold shadow-md"
+                      style={{ backgroundColor: "#e8594f" }}
+                      title={birthdayEvent ? birthdayEvent.label : "Upcoming birthday"}
+                      data-testid={`birthday-badge-${pos.member.id}`}
+                    >
+                      <Cake className="h-2.5 w-2.5" />
+                      {birthdayEvent && birthdayEvent.daysUntil != null && (
+                        <span>{birthdayEvent.daysUntil === 0 ? "Today!" : `${birthdayEvent.daysUntil}d`}</span>
+                      )}
+                    </div>
+                  )}
+                  {hasRegistry && (
+                    <div
+                      className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-white text-[9px] font-semibold shadow-md"
+                      style={{ backgroundColor: "#8b5cf6" }}
+                      title={registryEvent ? registryEvent.label : "Gift registry"}
+                      data-testid={`registry-badge-${pos.member.id}`}
+                    >
+                      <Gift className="h-2.5 w-2.5" />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           );

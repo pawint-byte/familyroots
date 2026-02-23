@@ -13,7 +13,7 @@ import {
   insertCustodianshipRequestSchema,
   familyEvents, nameHistory, educationHistory, careerHistory,
   memberTags, familySearchSources, externalPersonIdentifiers,
-  specialConnections
+  specialConnections, giftRegistries
 } from "@shared/schema";
 import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
 import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType } from "@shared/treeTypes";
@@ -11696,6 +11696,72 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching relationship chains:", error);
       res.status(500).json({ message: "Failed to fetch relationship chains" });
+    }
+  });
+
+  app.get("/api/trees/:treeId/upcoming-events", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const members = await storage.getMembers(treeId);
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const upcomingDays = 30;
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() + upcomingDays);
+
+      const upcomingBirthdays: { memberId: string; date: string; daysUntil: number }[] = [];
+      for (const member of members) {
+        if (!member.birthDate || member.isLiving === false) continue;
+        try {
+          const bd = new Date(member.birthDate);
+          const month = bd.getMonth();
+          const day = bd.getDate();
+          let nextBday = new Date(currentYear, month, day);
+          if (nextBday < now) {
+            nextBday = new Date(currentYear + 1, month, day);
+          }
+          const diffMs = nextBday.getTime() - now.getTime();
+          const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+          if (daysUntil <= upcomingDays) {
+            upcomingBirthdays.push({ memberId: member.id, date: member.birthDate, daysUntil });
+          }
+        } catch (e) { }
+      }
+
+      const allRegistries = await db.select().from(giftRegistries)
+        .where(and(eq(giftRegistries.treeId, treeId), eq(giftRegistries.isActive, true)));
+
+      const activeRegistries: { memberId: string; registryId: string; title: string; eventDate: string | null; daysUntil: number | null }[] = [];
+      for (const reg of allRegistries) {
+        let daysUntil: number | null = null;
+        if (reg.eventDate) {
+          const evDate = new Date(reg.eventDate);
+          const diffMs = evDate.getTime() - now.getTime();
+          daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        }
+        activeRegistries.push({
+          memberId: reg.memberId,
+          registryId: reg.id,
+          title: reg.title,
+          eventDate: reg.eventDate ? String(reg.eventDate) : null,
+          daysUntil,
+        });
+      }
+
+      res.json({ upcomingBirthdays, activeRegistries });
+    } catch (error) {
+      console.error("Error fetching upcoming events:", error);
+      res.status(500).json({ message: "Failed to fetch upcoming events" });
     }
   });
 

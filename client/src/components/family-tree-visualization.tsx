@@ -1,8 +1,9 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Cake, Gift } from "lucide-react";
 import { parseDateString } from "@/lib/utils";
 import type { FamilyMember, Relationship } from "@shared/schema";
+import type { MemberUpcomingEvent } from "@/components/group-visualization";
 
 interface FamilyTreeVisualizationProps {
   members: FamilyMember[];
@@ -12,6 +13,7 @@ interface FamilyTreeVisualizationProps {
   onConnectMember?: (member: FamilyMember) => void;
   focusMemberId?: string | null;
   viewDepth?: 'immediate' | 'extended' | 'all';
+  upcomingEvents?: MemberUpcomingEvent[];
 }
 
 type RelationshipQualifier = 'biological' | 'step' | 'adopted' | 'foster' | 'half' | 'in-law' | null;
@@ -59,6 +61,7 @@ export default function FamilyTreeVisualization({
   onConnectMember,
   focusMemberId,
   viewDepth = 'all',
+  upcomingEvents,
 }: FamilyTreeVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -81,6 +84,16 @@ export default function FamilyTreeVisualization({
     }
     return result;
   }, [members]);
+
+  const memberEventsMap = useMemo(() => {
+    const map = new Map<string, MemberUpcomingEvent[]>();
+    if (!upcomingEvents) return map;
+    for (const evt of upcomingEvents) {
+      if (!map.has(evt.memberId)) map.set(evt.memberId, []);
+      map.get(evt.memberId)!.push(evt);
+    }
+    return map;
+  }, [upcomingEvents]);
 
   const nodeWidth = 140;
   const nodeHeight = 160;
@@ -1638,6 +1651,39 @@ export default function FamilyTreeVisualization({
                     </button>
                   )}
                 </div>
+                {(() => {
+                  const events = memberEventsMap.get(pos.member.id) || [];
+                  const bdEvt = events.find(e => e.type === "birthday");
+                  const regEvt = events.find(e => e.type === "registry");
+                  if (!bdEvt && !regEvt) return null;
+                  return (
+                    <div className="absolute -bottom-2 right-1 flex gap-0.5" data-testid={`event-indicators-${pos.member.id}`}>
+                      {bdEvt && (
+                        <div
+                          className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-white text-[9px] font-semibold shadow-md"
+                          style={{ backgroundColor: "#e8594f" }}
+                          title={bdEvt.label}
+                          data-testid={`birthday-badge-${pos.member.id}`}
+                        >
+                          <Cake className="h-2.5 w-2.5" />
+                          {bdEvt.daysUntil != null && (
+                            <span>{bdEvt.daysUntil === 0 ? "Today!" : `${bdEvt.daysUntil}d`}</span>
+                          )}
+                        </div>
+                      )}
+                      {regEvt && (
+                        <div
+                          className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-white text-[9px] font-semibold shadow-md"
+                          style={{ backgroundColor: "#8b5cf6" }}
+                          title={regEvt.label}
+                          data-testid={`registry-badge-${pos.member.id}`}
+                        >
+                          <Gift className="h-2.5 w-2.5" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           );
