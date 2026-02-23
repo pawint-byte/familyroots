@@ -168,57 +168,32 @@ function calculateTopGridLayout(
   customRelationshipTypes?: CustomRelType[] | null
 ): NodePosition[] {
   if (members.length === 0) return [];
-  const { leaders, subLeaders, rest, relMap } = resolveLeadersAndRest(members, focusId, relationships, treeType, customRelationshipTypes);
+
+  const relMap = buildRelMap(relationships, treeType, customRelationshipTypes);
 
   if (members.length === 1) {
     const rank = getMemberRank(members[0].id, relationships, treeType, customRelationshipTypes);
     return [{ x: 500, y: 300, member: members[0], relationshipType: relMap.get(members[0].id), rank }];
   }
 
-  const nonLeaderCount = subLeaders.length + rest.length;
   const nodeW = 170;
   const nodeH = 190;
   const gapX = 30;
   const gapY = 40;
   const positions: NodePosition[] = [];
 
-  const leaderRowWidth = leaders.length * nodeW + (leaders.length - 1) * gapX;
-  const cols = Math.max(2, Math.ceil(Math.sqrt(nonLeaderCount * 1.4)));
+  const cols = Math.max(2, Math.ceil(Math.sqrt(members.length * 1.4)));
   const gridWidth = cols * nodeW + (cols - 1) * gapX;
-  const totalWidth = Math.max(leaderRowWidth, gridWidth);
 
-  leaders.forEach((m, i) => {
-    const totalLeaderW = leaders.length * nodeW + (leaders.length - 1) * gapX;
-    positions.push({
-      x: (totalWidth - totalLeaderW) / 2 + i * (nodeW + gapX) + nodeW / 2 + 60,
-      y: 80 + nodeH / 2,
-      member: m, relationshipType: relMap.get(m.id), rank: 1,
-    });
-  });
-
-  let gridStartY = 80 + nodeH + gapY * 2;
-
-  if (subLeaders.length > 0) {
-    const subW = subLeaders.length * nodeW + (subLeaders.length - 1) * gapX;
-    subLeaders.forEach((m, i) => {
-      positions.push({
-        x: (totalWidth - subW) / 2 + i * (nodeW + gapX) + nodeW / 2 + 60,
-        y: gridStartY + nodeH / 2,
-        member: m, relationshipType: relMap.get(m.id), rank: 2,
-      });
-    });
-    gridStartY += nodeH + gapY * 2;
-  }
-
-  rest.forEach((m, i) => {
+  members.forEach((m, i) => {
     const row = Math.floor(i / cols);
     const col = i % cols;
-    const rowCount = Math.min(cols, rest.length - row * cols);
+    const rowCount = Math.min(cols, members.length - row * cols);
     const rowWidth = rowCount * nodeW + (rowCount - 1) * gapX;
     const memberRank = getMemberRank(m.id, relationships, treeType, customRelationshipTypes);
     positions.push({
-      x: (totalWidth - rowWidth) / 2 + col * (nodeW + gapX) + nodeW / 2 + 60,
-      y: gridStartY + row * (nodeH + gapY) + nodeH / 2,
+      x: (gridWidth - rowWidth) / 2 + col * (nodeW + gapX) + nodeW / 2 + 60,
+      y: 80 + row * (nodeH + gapY) + nodeH / 2,
       member: m, relationshipType: relMap.get(m.id), rank: memberRank,
     });
   });
@@ -634,7 +609,39 @@ export default function GroupVisualization({
     return map;
   }, [effectivePositions]);
 
+  const isGridLayout = layoutOverride === "top-grid" || layoutOverride === "grid";
+
+  const gridRowLines = useMemo(() => {
+    if (!isGridLayout) return [];
+    const rowMap = new Map<number, { minX: number; maxX: number; y: number }>();
+    for (const pos of effectivePositions) {
+      const roundedY = Math.round(pos.y);
+      const existing = rowMap.get(roundedY);
+      if (existing) {
+        existing.minX = Math.min(existing.minX, pos.x);
+        existing.maxX = Math.max(existing.maxX, pos.x);
+      } else {
+        rowMap.set(roundedY, { minX: pos.x, maxX: pos.x, y: pos.y });
+      }
+    }
+    const rows = Array.from(rowMap.values())
+      .filter(r => r.minX !== r.maxX)
+      .sort((a, b) => a.y - b.y);
+
+    const lines: { x1: number; y1: number; x2: number; y2: number; key: string }[] = [];
+    for (let i = 0; i < rows.length - 1; i++) {
+      const cur = rows[i];
+      const next = rows[i + 1];
+      const midY = (cur.y + 95 + next.y - 95) / 2;
+      const midX = (Math.min(cur.minX, next.minX) + Math.max(cur.maxX, next.maxX)) / 2;
+      lines.push({ x1: midX, y1: cur.y + 95, x2: midX, y2: next.y - 95, key: `grid-row-${i}` });
+    }
+    return lines;
+  }, [isGridLayout, effectivePositions]);
+
   const connectionLines = useMemo(() => {
+    if (isGridLayout) return [];
+
     const lines: {
       x1: number;
       y1: number;
@@ -664,7 +671,7 @@ export default function GroupVisualization({
       }
     }
     return lines;
-  }, [relationships, positionMap, treeType, customRelationshipTypes]);
+  }, [isGridLayout, relationships, positionMap, treeType, customRelationshipTypes]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -916,6 +923,21 @@ export default function GroupVisualization({
           style={{ zIndex: 0 }}
         >
           {renderBackgroundShape()}
+
+          {gridRowLines.map((line) => (
+            <line
+              key={line.key}
+              x1={line.x1}
+              y1={line.y1}
+              x2={line.x2}
+              y2={line.y2}
+              stroke={visual.lineColor}
+              strokeWidth={1.5}
+              strokeDasharray={dashArray}
+              strokeLinecap="round"
+              opacity={0.4}
+            />
+          ))}
 
           {connectionLines.map((line) => {
             const mx = (line.x1 + line.x2) / 2;
