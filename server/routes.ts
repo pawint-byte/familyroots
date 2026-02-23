@@ -9325,6 +9325,308 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/familysearch/import-as-tree", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { targetTreeId, persons, relationships } = req.body;
+      let { rootPersonId } = req.body;
+
+      if (!targetTreeId || !persons || !Array.isArray(persons) || persons.length === 0) {
+        return res.status(400).json({ message: "Missing required fields: targetTreeId, persons" });
+      }
+
+      const parentTree = await storage.getTree(targetTreeId);
+      if (!parentTree) {
+        return res.status(404).json({ message: "Target tree not found" });
+      }
+
+      const collaborator = await storage.getCollaboratorByUserAndTree(userId, targetTreeId);
+      const canEdit = parentTree.ownerId === userId || collaborator?.canEdit;
+      if (!canEdit) {
+        return res.status(403).json({ message: "Permission denied" });
+      }
+
+      if (!rootPersonId) {
+        try {
+          const fsConnection = await storage.getFamilySearchConnection(userId);
+          if (fsConnection?.accessToken && familySearchService.isConfigured()) {
+            const fsPersonId = await familySearchService.getCurrentUserPersonId(fsConnection.accessToken);
+            if (fsPersonId) {
+              rootPersonId = fsPersonId;
+            }
+          }
+        } catch (e) {
+          console.log(`[ImportAsTree] Could not resolve rootPersonId:`, e);
+        }
+      }
+
+      const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+      const subTree = await storage.createTree({
+        name: `FamilySearch Import - ${dateStr}`,
+        ownerId: userId,
+        parentTreeId: targetTreeId,
+        treeType: parentTree.treeType || "family",
+        privacy: parentTree.privacy || "private",
+      } as any);
+
+      const fsIdToMemberId = new Map<string, string>();
+      const createdMembers: any[] = [];
+
+      for (const person of persons) {
+        const nameParts = (person.name || "Unknown").split(" ");
+        const firstName = nameParts[0] || "Unknown";
+        const lastName = nameParts.slice(1).join(" ") || null;
+
+        let birthDate = null;
+        let deathDate = null;
+
+        if (person.birthDate) {
+          const yearMatch = person.birthDate.match(/\d{4}/);
+          if (yearMatch) {
+            birthDate = `${yearMatch[0]}-01-01`;
+          }
+        }
+
+        if (person.deathDate) {
+          const yearMatch = person.deathDate.match(/\d{4}/);
+          if (yearMatch) {
+            deathDate = `${yearMatch[0]}-01-01`;
+          }
+        }
+
+        const newMember = await storage.createMember({
+          treeId: subTree.id,
+          firstName,
+          lastName,
+          gender: person.gender === "male" ? "male" : person.gender === "female" ? "female" : null,
+          birthDate,
+          birthPlace: person.birthPlace || null,
+          deathDate,
+          isLiving: person.living ?? !person.deathDate,
+        });
+
+        fsIdToMemberId.set(person.id, newMember.id);
+        createdMembers.push(newMember);
+
+        if (person.id === rootPersonId) {
+          await storage.updateTree(subTree.id, { rootMemberId: newMember.id });
+        }
+      }
+
+      if (!rootPersonId && createdMembers.length > 0) {
+        await storage.updateTree(subTree.id, { rootMemberId: createdMembers[0].id });
+      }
+
+      const createdRelationships: any[] = [];
+
+      if (relationships && Array.isArray(relationships)) {
+        for (const rel of relationships) {
+          const member1Id = fsIdToMemberId.get(rel.person1Id);
+          const member2Id = fsIdToMemberId.get(rel.person2Id);
+
+          if (!member1Id || !member2Id) {
+            continue;
+          }
+
+          const relType = rel.type?.toLowerCase() || "";
+          const isParentChild = relType === "parent-child" || relType.includes("parentchild");
+          const isCouple = relType === "couple" || relType.includes("couple");
+
+          if (isParentChild) {
+            const relationship = await storage.createRelationship({
+              treeId: subTree.id,
+              fromMemberId: member1Id,
+              toMemberId: member2Id,
+              relationshipType: "parent",
+            });
+            createdRelationships.push(relationship);
+          } else if (isCouple) {
+            const relationship = await storage.createRelationship({
+              treeId: subTree.id,
+              fromMemberId: member1Id,
+              toMemberId: member2Id,
+              relationshipType: "spouse",
+            });
+            createdRelationships.push(relationship);
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        subTreeId: subTree.id,
+        subTreeName: subTree.name,
+        parentTreeId: targetTreeId,
+        imported: {
+          members: createdMembers.length,
+          relationships: createdRelationships.length,
+        },
+      });
+    } catch (error) {
+      console.error("Error importing FamilySearch as sub-tree:", error);
+      res.status(500).json({ message: "Failed to import tree data as sub-tree" });
+    }
+  });
+
+  // Detect conflicts between two trees (for import conflict resolution)
+  app.post("/api/trees/:treeId/detect-conflicts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { treeId } = req.params;
+      const { sourceTreeId } = req.body;
+
+      if (!sourceTreeId) {
+        return res.status(400).json({ message: "sourceTreeId is required" });
+      }
+
+      const targetTree = await storage.getTree(treeId);
+      if (!targetTree) {
+        return res.status(404).json({ message: "Target tree not found" });
+      }
+
+      if (targetTree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || !["co_owner", "editor"].includes(collab.role)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const sourceTree = await storage.getTree(sourceTreeId);
+      if (!sourceTree) {
+        return res.status(404).json({ message: "Source tree not found" });
+      }
+
+      if (sourceTree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, sourceTreeId);
+        if (!collab) {
+          return res.status(403).json({ message: "Access denied to source tree" });
+        }
+      }
+
+      const sourceMembers = await storage.getMembers(sourceTreeId);
+      const targetMembers = await storage.getMembers(treeId);
+
+      const conflicts: Array<{
+        sourceMember: any;
+        targetMember: any;
+        matchScore: number;
+        differences: Array<{ field: string; sourceValue: any; targetValue: any }>;
+      }> = [];
+      const matchedSourceIds = new Set<string>();
+
+      for (const sm of sourceMembers) {
+        let bestMatch: typeof conflicts[0] | null = null;
+        let bestScore = 0;
+
+        for (const tm of targetMembers) {
+          let score = 0;
+          const diffs: Array<{ field: string; sourceValue: any; targetValue: any }> = [];
+
+          const sFirst = (sm.firstName || "").trim().toLowerCase();
+          const tFirst = (tm.firstName || "").trim().toLowerCase();
+          const sLast = (sm.lastName || "").trim().toLowerCase();
+          const tLast = (tm.lastName || "").trim().toLowerCase();
+
+          if (sFirst && tFirst && sFirst === tFirst) {
+            score += 30;
+          } else if (sFirst && tFirst) {
+            diffs.push({ field: "firstName", sourceValue: sm.firstName, targetValue: tm.firstName });
+          }
+
+          if (sLast && tLast && sLast === tLast) {
+            score += 30;
+          } else if (sLast && tLast) {
+            diffs.push({ field: "lastName", sourceValue: sm.lastName, targetValue: tm.lastName });
+          }
+
+          const sBirthYear = sm.birthDate ? sm.birthDate.match(/\d{4}/)?.[0] : null;
+          const tBirthYear = tm.birthDate ? tm.birthDate.match(/\d{4}/)?.[0] : null;
+
+          if (sBirthYear && tBirthYear) {
+            const yearDiff = Math.abs(parseInt(sBirthYear) - parseInt(tBirthYear));
+            if (yearDiff === 0) {
+              score += 20;
+            } else if (yearDiff <= 5) {
+              score += 10;
+              diffs.push({ field: "birthDate", sourceValue: sm.birthDate, targetValue: tm.birthDate });
+            } else {
+              diffs.push({ field: "birthDate", sourceValue: sm.birthDate, targetValue: tm.birthDate });
+            }
+          }
+
+          const sBirthPlace = (sm.birthPlace || "").trim().toLowerCase();
+          const tBirthPlace = (tm.birthPlace || "").trim().toLowerCase();
+
+          if (sBirthPlace && tBirthPlace) {
+            if (sBirthPlace === tBirthPlace) {
+              score += 15;
+            } else if (sBirthPlace.includes(tBirthPlace) || tBirthPlace.includes(sBirthPlace)) {
+              score += 8;
+              diffs.push({ field: "birthPlace", sourceValue: sm.birthPlace, targetValue: tm.birthPlace });
+            } else {
+              diffs.push({ field: "birthPlace", sourceValue: sm.birthPlace, targetValue: tm.birthPlace });
+            }
+          }
+
+          if (sm.gender && tm.gender) {
+            if (sm.gender === tm.gender) {
+              score += 5;
+            } else {
+              diffs.push({ field: "gender", sourceValue: sm.gender, targetValue: tm.gender });
+            }
+          }
+
+          if (score >= 50 && score > bestScore) {
+            if (sm.birthDate !== tm.birthDate) {
+              if (!diffs.find(d => d.field === "birthDate")) {
+                diffs.push({ field: "birthDate", sourceValue: sm.birthDate, targetValue: tm.birthDate });
+              }
+            }
+            if (sm.birthPlace !== tm.birthPlace) {
+              if (!diffs.find(d => d.field === "birthPlace")) {
+                diffs.push({ field: "birthPlace", sourceValue: sm.birthPlace, targetValue: tm.birthPlace });
+              }
+            }
+            if (sm.gender !== tm.gender) {
+              if (!diffs.find(d => d.field === "gender")) {
+                diffs.push({ field: "gender", sourceValue: sm.gender, targetValue: tm.gender });
+              }
+            }
+
+            bestScore = score;
+            bestMatch = {
+              sourceMember: sm,
+              targetMember: tm,
+              matchScore: score,
+              differences: diffs,
+            };
+          }
+        }
+
+        if (bestMatch) {
+          conflicts.push(bestMatch);
+          matchedSourceIds.add(sm.id);
+        }
+      }
+
+      const cleanMembers = sourceMembers.filter(m => !matchedSourceIds.has(m.id));
+
+      res.json({
+        conflicts,
+        cleanMembers,
+        summary: {
+          totalSourceMembers: sourceMembers.length,
+          totalTargetMembers: targetMembers.length,
+          conflictsFound: conflicts.length,
+          cleanImports: cleanMembers.length,
+        },
+      });
+    } catch (error) {
+      console.error("Error detecting conflicts:", error);
+      res.status(500).json({ message: "Failed to detect conflicts between trees" });
+    }
+  });
+
   // Attach a source to a family member
   app.post("/api/members/:memberId/sources", isAuthenticated, async (req: any, res) => {
     try {
@@ -10506,6 +10808,151 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching member registries:", error);
       res.status(500).json({ message: "Failed to fetch registries" });
+    }
+  });
+
+  app.post("/api/trees/:treeId/resolve-conflicts", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const resolveConflictsSchema = z.object({
+        sourceTreeId: z.string().min(1),
+        resolutions: z.array(z.object({
+          sourceMemberId: z.string().min(1),
+          action: z.enum(["merge", "keep_both", "skip"]),
+          targetMemberId: z.string().optional(),
+        })),
+      });
+
+      const parsed = resolveConflictsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid request" });
+      }
+
+      const { sourceTreeId, resolutions } = parsed.data;
+
+      const targetTree = await storage.getTree(treeId);
+      if (!targetTree) {
+        return res.status(404).json({ message: "Target tree not found" });
+      }
+
+      if (targetTree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || !["co_owner", "editor"].includes(collab.role)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const sourceTree = await storage.getTree(sourceTreeId);
+      if (!sourceTree) {
+        return res.status(404).json({ message: "Source tree not found" });
+      }
+
+      if (sourceTree.ownerId !== userId) {
+        return res.status(403).json({ message: "You must own the source tree" });
+      }
+
+      const sourceMembers = await storage.getMembers(sourceTreeId);
+      const sourceMemberMap = new Map(sourceMembers.map(m => [m.id, m]));
+      const sourceRelationships = await storage.getRelationships(sourceTreeId);
+
+      const results: { sourceMemberId: string; action: string; status: string; targetMemberId?: string }[] = [];
+
+      for (const resolution of resolutions) {
+        const { sourceMemberId, action, targetMemberId } = resolution;
+        const sourceMember = sourceMemberMap.get(sourceMemberId);
+
+        if (!sourceMember) {
+          results.push({ sourceMemberId, action, status: "skipped_not_found" });
+          continue;
+        }
+
+        if (action === "merge") {
+          if (!targetMemberId) {
+            results.push({ sourceMemberId, action, status: "error_no_target" });
+            continue;
+          }
+
+          const targetMember = await storage.getMember(targetMemberId);
+          if (!targetMember || targetMember.treeId !== treeId) {
+            results.push({ sourceMemberId, action, status: "error_target_not_found" });
+            continue;
+          }
+
+          const updates: Record<string, any> = {};
+          if (!targetMember.nickname && sourceMember.nickname) updates.nickname = sourceMember.nickname;
+          if (!targetMember.birthDate && sourceMember.birthDate) updates.birthDate = sourceMember.birthDate;
+          if (!targetMember.birthPlace && sourceMember.birthPlace) updates.birthPlace = sourceMember.birthPlace;
+          if (!targetMember.deathDate && sourceMember.deathDate) updates.deathDate = sourceMember.deathDate;
+          if (!targetMember.photoUrl && sourceMember.photoUrl) updates.photoUrl = sourceMember.photoUrl;
+          if (!targetMember.notes && sourceMember.notes) updates.notes = sourceMember.notes;
+          if (!targetMember.gender && sourceMember.gender) updates.gender = sourceMember.gender;
+          if (!targetMember.email && sourceMember.email) updates.email = sourceMember.email;
+          if (!targetMember.currentCity && sourceMember.currentCity) updates.currentCity = sourceMember.currentCity;
+          if (!targetMember.currentRegion && sourceMember.currentRegion) updates.currentRegion = sourceMember.currentRegion;
+          if (!targetMember.currentCountry && sourceMember.currentCountry) updates.currentCountry = sourceMember.currentCountry;
+
+          if (Object.keys(updates).length > 0) {
+            await storage.updateMember(targetMemberId, updates);
+          }
+
+          const affectedRels = sourceRelationships.filter(
+            r => r.fromMemberId === sourceMemberId || r.toMemberId === sourceMemberId
+          );
+          for (const rel of affectedRels) {
+            await storage.deleteRelationship(rel.id);
+          }
+
+          await storage.deleteMember(sourceMemberId);
+
+          results.push({ sourceMemberId, action, status: "merged", targetMemberId });
+        } else if (action === "keep_both") {
+          results.push({ sourceMemberId, action, status: "kept" });
+        } else if (action === "skip") {
+          const affectedRels = sourceRelationships.filter(
+            r => r.fromMemberId === sourceMemberId || r.toMemberId === sourceMemberId
+          );
+          for (const rel of affectedRels) {
+            await storage.deleteRelationship(rel.id);
+          }
+
+          await storage.deleteMember(sourceMemberId);
+
+          results.push({ sourceMemberId, action, status: "removed" });
+        }
+      }
+
+      const remainingSourceMembers = await storage.getMembers(sourceTreeId);
+      let connectionId: string | undefined;
+
+      const existingConnection = await storage.getTreeConnectionBetween(treeId, sourceTreeId);
+      if (!existingConnection) {
+        const mergedResolution = resolutions.find(r => r.action === "merge" && r.targetMemberId);
+        if (remainingSourceMembers.length > 0 || mergedResolution) {
+          const connection = await storage.createTreeConnection({
+            tree1Id: treeId,
+            tree2Id: sourceTreeId,
+            connector1MemberId: mergedResolution?.targetMemberId || null,
+            connector2MemberId: remainingSourceMembers[0]?.id || null,
+            connectionType: "other",
+            createdBy: userId,
+          } as any);
+          connectionId = connection.id;
+        }
+      } else {
+        connectionId = existingConnection.id;
+      }
+
+      res.json({
+        message: "Conflicts resolved successfully",
+        results,
+        connectionId,
+        remainingSourceMembers: remainingSourceMembers.length,
+      });
+    } catch (error) {
+      console.error("Error resolving conflicts:", error);
+      res.status(500).json({ message: "Failed to resolve conflicts" });
     }
   });
 

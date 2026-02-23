@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SEO } from "@/components/seo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import ImportConflictResolution from "@/components/import-conflict-resolution";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -119,6 +120,12 @@ export default function RecordsPage() {
 
   const [selectedPersons, setSelectedPersons] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["ancestors", "descendants", "self"]));
+  const [conflictResolutionState, setConflictResolutionState] = useState<{
+    subTreeId: string;
+    subTreeName: string;
+    parentTreeId: string;
+    importedCount: number;
+  } | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -259,20 +266,22 @@ export default function RecordsPage() {
   });
 
   const treeImportMutation = useMutation({
-    mutationFn: async (data: { treeId: string; persons: FamilySearchPerson[]; relationships: FamilySearchRelationship[]; rootPersonId?: string }) => {
-      const response = await apiRequest("POST", "/api/familysearch/import", data);
+    mutationFn: async (data: { targetTreeId: string; persons: FamilySearchPerson[]; relationships: FamilySearchRelationship[]; rootPersonId?: string }) => {
+      const response = await apiRequest("POST", "/api/familysearch/import-as-tree", data);
       return response.json();
     },
     onSuccess: (result) => {
       toast({
-        title: "Import Successful",
-        description: `Imported ${result.imported.members} people and ${result.imported.relationships} relationships.${result.skipped.duplicates > 0 ? ` Skipped ${result.skipped.duplicates} duplicates.` : ""}`,
+        title: "Import Created",
+        description: `Imported ${result.imported.members} people into a review sub-tree. Review potential duplicates before connecting.`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
-      const targetTreeId = preselectedTreeId || trees[0]?.id;
-      if (targetTreeId) {
-        navigate(`/tree/${targetTreeId}`);
-      }
+      setConflictResolutionState({
+        subTreeId: result.subTreeId,
+        subTreeName: result.subTreeName,
+        parentTreeId: result.parentTreeId,
+        importedCount: result.imported.members,
+      });
     },
     onError: () => {
       toast({
@@ -486,7 +495,7 @@ export default function RecordsPage() {
     );
     
     treeImportMutation.mutate({
-      treeId: targetTreeId,
+      targetTreeId,
       persons: personsToImport,
       relationships: relationshipsToImport,
       rootPersonId: treeData!.rootPersonId,
@@ -871,7 +880,25 @@ export default function RecordsPage() {
             </TabsContent>
 
             <TabsContent value="import" className="space-y-6">
-              {treeData?.isMock && (
+              {conflictResolutionState && (
+                <Card>
+                  <CardContent className="p-6">
+                    <ImportConflictResolution
+                      subTreeId={conflictResolutionState.subTreeId}
+                      subTreeName={conflictResolutionState.subTreeName}
+                      parentTreeId={conflictResolutionState.parentTreeId}
+                      importedCount={conflictResolutionState.importedCount}
+                      onComplete={() => {
+                        setConflictResolutionState(null);
+                        navigate(`/tree/${conflictResolutionState.parentTreeId}`);
+                      }}
+                      onCancel={() => setConflictResolutionState(null)}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              {!conflictResolutionState && treeData?.isMock && (
                 <Alert>
                   <Info className="h-4 w-4" />
                   <AlertDescription>
@@ -881,7 +908,7 @@ export default function RecordsPage() {
                 </Alert>
               )}
 
-              {!preselectedTreeId && trees.length > 0 && (
+              {!conflictResolutionState && !preselectedTreeId && trees.length > 0 && (
                 <Card>
                   <CardContent className="py-4">
                     <div className="space-y-2">
@@ -903,7 +930,7 @@ export default function RecordsPage() {
                 </Card>
               )}
 
-              {preselectedTreeId && (
+              {!conflictResolutionState && preselectedTreeId && (
                 <Card>
                   <CardContent className="py-4">
                     <p className="text-sm text-muted-foreground">
@@ -913,7 +940,7 @@ export default function RecordsPage() {
                 </Card>
               )}
 
-              {treeLoading ? (
+              {conflictResolutionState ? null : treeLoading ? (
                 <Card>
                   <CardContent className="py-12">
                     <div className="flex flex-col items-center gap-4">
