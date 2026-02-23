@@ -88,8 +88,8 @@ export default function ImportConflictResolution({
     },
     onSuccess: () => {
       toast({
-        title: "Import Connected",
-        description: "Conflicts resolved and trees connected successfully.",
+        title: "Import Complete",
+        description: "All imported members and their relationships have been integrated into your tree.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
       onComplete();

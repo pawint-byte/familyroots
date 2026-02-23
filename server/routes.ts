@@ -10859,6 +10859,17 @@ export async function registerRoutes(
 
       const results: { sourceMemberId: string; action: string; status: string; targetMemberId?: string }[] = [];
 
+      const mergedSourceToTarget = new Map<string, string>();
+      const skippedIds = new Set<string>();
+
+      for (const resolution of resolutions) {
+        if (resolution.action === "merge" && resolution.targetMemberId) {
+          mergedSourceToTarget.set(resolution.sourceMemberId, resolution.targetMemberId);
+        } else if (resolution.action === "skip") {
+          skippedIds.add(resolution.sourceMemberId);
+        }
+      }
+
       for (const resolution of resolutions) {
         const { sourceMemberId, action, targetMemberId } = resolution;
         const sourceMember = sourceMemberMap.get(sourceMemberId);
@@ -10901,6 +10912,43 @@ export async function registerRoutes(
             r => r.fromMemberId === sourceMemberId || r.toMemberId === sourceMemberId
           );
           for (const rel of affectedRels) {
+            const otherMemberId = rel.fromMemberId === sourceMemberId ? rel.toMemberId : rel.fromMemberId;
+            const isFrom = rel.fromMemberId === sourceMemberId;
+
+            if (skippedIds.has(otherMemberId)) {
+              await storage.deleteRelationship(rel.id);
+              continue;
+            }
+
+            const otherTargetId = mergedSourceToTarget.get(otherMemberId);
+            const resolvedOtherId = otherTargetId || otherMemberId;
+            const resolvedOtherTreeId = otherTargetId ? treeId : sourceTreeId;
+
+            const newFromId = isFrom ? targetMemberId : resolvedOtherId;
+            const newToId = isFrom ? resolvedOtherId : targetMemberId;
+            const newTreeId = treeId;
+
+            const existingTargetRels = await storage.getRelationships(newTreeId);
+            const alreadyExists = existingTargetRels.some(
+              r => r.relationshipType === rel.relationshipType &&
+                ((r.fromMemberId === newFromId && r.toMemberId === newToId) ||
+                 (r.fromMemberId === newToId && r.toMemberId === newFromId))
+            );
+
+            if (!alreadyExists) {
+              try {
+                await storage.createRelationship({
+                  treeId: newTreeId,
+                  fromMemberId: newFromId,
+                  toMemberId: newToId,
+                  relationshipType: rel.relationshipType,
+                  qualifier: rel.qualifier,
+                });
+              } catch (e) {
+                console.log(`[resolve-conflicts] Could not re-point relationship ${rel.id}:`, e);
+              }
+            }
+
             await storage.deleteRelationship(rel.id);
           }
 
@@ -10924,31 +10972,42 @@ export async function registerRoutes(
       }
 
       const remainingSourceMembers = await storage.getMembers(sourceTreeId);
-      let connectionId: string | undefined;
-
-      const existingConnection = await storage.getTreeConnectionBetween(treeId, sourceTreeId);
-      if (!existingConnection) {
-        const mergedResolution = resolutions.find(r => r.action === "merge" && r.targetMemberId);
-        if (remainingSourceMembers.length > 0 || mergedResolution) {
-          const connection = await storage.createTreeConnection({
-            tree1Id: treeId,
-            tree2Id: sourceTreeId,
-            connector1MemberId: mergedResolution?.targetMemberId || null,
-            connector2MemberId: remainingSourceMembers[0]?.id || null,
-            connectionType: "other",
-            createdBy: userId,
-          } as any);
-          connectionId = connection.id;
+      if (remainingSourceMembers.length > 0) {
+        for (const member of remainingSourceMembers) {
+          await storage.updateMember(member.id, { treeId });
         }
-      } else {
-        connectionId = existingConnection.id;
+        const remainingRels = await storage.getRelationships(sourceTreeId);
+        for (const rel of remainingRels) {
+          const existingTargetRels = await storage.getRelationships(treeId);
+          const alreadyExists = existingTargetRels.some(
+            r => r.relationshipType === rel.relationshipType &&
+              ((r.fromMemberId === rel.fromMemberId && r.toMemberId === rel.toMemberId) ||
+               (r.fromMemberId === rel.toMemberId && r.toMemberId === rel.fromMemberId))
+          );
+          if (!alreadyExists) {
+            try {
+              await storage.createRelationship({
+                treeId,
+                fromMemberId: rel.fromMemberId,
+                toMemberId: rel.toMemberId,
+                relationshipType: rel.relationshipType,
+                qualifier: rel.qualifier,
+              });
+            } catch (e) {
+              console.log(`[resolve-conflicts] Could not migrate relationship ${rel.id}:`, e);
+            }
+          }
+          await storage.deleteRelationship(rel.id);
+        }
       }
 
+      const finalRemainingMembers = await storage.getMembers(sourceTreeId);
+
       res.json({
-        message: "Conflicts resolved successfully",
+        message: "Conflicts resolved and members integrated into tree",
         results,
-        connectionId,
-        remainingSourceMembers: remainingSourceMembers.length,
+        integratedMembers: finalRemainingMembers.length === 0,
+        parentTreeId: treeId,
       });
     } catch (error) {
       console.error("Error resolving conflicts:", error);

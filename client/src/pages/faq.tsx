@@ -755,11 +755,19 @@ export default function FAQ() {
         },
         {
           question: "How do I import a whole family branch with relationships?",
-          answer: <>Go to the <Link href="/familysearch?tab=import" className="text-primary hover:underline font-medium">FamilySearch page</Link> and click the "Import Tree" tab. This connects to your FamilySearch family tree and shows your ancestors, descendants, and spouses organized in groups. Check the boxes next to the people you want to import, pick a tree, and click Import. All the parent-child and spouse relationships between selected people are created automatically. You don't have to set up connections manually.</>
+          answer: <>Go to the <Link href="/familysearch?tab=import" className="text-primary hover:underline font-medium">FamilySearch page</Link> and click the "Import Tree" tab. This connects to your FamilySearch family tree and shows your ancestors, descendants, and spouses organized in groups. Check the boxes next to the people you want to import, pick a tree, and click Import. The import creates a temporary review tree first, then you review any potential duplicates, and once you confirm, all the people and their relationships (parent-child, spouse) are integrated directly into your tree with connections intact.</>
+        },
+        {
+          question: "What happens during the import review step?",
+          answer: "When you import from FamilySearch, the system first places everyone into a temporary review tree. It then compares the imported people against your existing tree members using name, birth year, birth place, and gender to find potential duplicates. You'll see a side-by-side comparison for each possible match, with differences highlighted. For each match, you choose: 'Same Person' to merge them (combining any missing data and preserving all relationships), 'Different People' to keep both, or 'Skip' to remove the imported copy. Once you confirm, all imported members and their relationships are moved into your main tree."
         },
         {
           question: "Does FamilyRoots automatically detect duplicate people during import?",
-          answer: "Yes. When you import someone, the system checks if a person with the same name and birth year already exists in your tree. If a match is found, that person is skipped rather than creating a duplicate. The import summary tells you how many people were added and how many duplicates were skipped."
+          answer: "Yes. During the tree import flow, the system automatically compares imported people against your existing tree members using fuzzy matching: same name, birth year within 5 years, similar birth place, and matching gender. Each potential duplicate is shown to you with a match score and a side-by-side comparison so you can decide whether to merge them, keep both, or skip the import. This prevents duplicates while giving you full control over the decision."
+        },
+        {
+          question: "Are relationships preserved when I merge a duplicate during import?",
+          answer: "Yes. When you choose 'Same Person (Merge)' for a duplicate, all the relationships that the imported person had with other imported people are re-pointed to your existing member. For example, if you already have yourself in your tree and the import includes you along with your parents, merging your duplicate means the parent-child connections from the import now link directly to your existing profile. No relationships are lost."
         },
         {
           question: "Will FamilyRoots notify me when new ancestors are found?",
