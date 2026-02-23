@@ -72,6 +72,18 @@ export default function ImportConflictResolution({
     },
   });
 
+  const [importSummary, setImportSummary] = useState<{
+    integrity: {
+      totalMembers: number;
+      totalRelationships: number;
+      orphanedRelationships: number;
+      maxAncestorDepth: number;
+      chainIntact: boolean;
+      transferredData: { events: number; nameHistory: number; education: number; career: number; tags: number; fsSources: number; extIds: number; specialConns: number };
+    };
+    results: Array<{ sourceMemberId: string; action: string; status: string }>;
+  } | null>(null);
+
   const resolveMutation = useMutation({
     mutationFn: async () => {
       const resolutionArray = Array.from(resolutions.entries()).map(([sourceMemberId, { action, targetMemberId }]) => ({
@@ -86,13 +98,24 @@ export default function ImportConflictResolution({
       });
       return res.json();
     },
-    onSuccess: () => {
-      toast({
-        title: "Import Complete",
-        description: "All imported members and their relationships have been integrated into your tree.",
-      });
+    onSuccess: (data) => {
+      if (data.integrity) {
+        setImportSummary({ integrity: data.integrity, results: data.results || [] });
+        const desc = data.integrity.chainIntact
+          ? `All ${data.integrity.totalMembers} members and ${data.integrity.totalRelationships} relationships verified intact. Max ancestor depth: ${data.integrity.maxAncestorDepth} generations.`
+          : `Import complete with ${data.integrity.orphanedRelationships} connection warning(s). Please review your tree.`;
+        toast({
+          title: data.integrity.chainIntact ? "Import Complete — All Connections Verified" : "Import Complete — Review Needed",
+          description: desc,
+          variant: data.integrity.chainIntact ? "default" : "destructive",
+        });
+      } else {
+        toast({
+          title: "Import Complete",
+          description: "All imported members and their relationships have been integrated into your tree.",
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
-      onComplete();
     },
     onError: () => {
       toast({
@@ -377,34 +400,117 @@ export default function ImportConflictResolution({
         </Alert>
       )}
 
-      <div className="flex items-center justify-between pt-4 border-t">
-        <Button variant="ghost" onClick={onCancel} data-testid="button-cancel-resolution">
-          Cancel
-        </Button>
-        <div className="flex items-center gap-3">
-          {conflicts.length > 0 && !allConflictsResolved && (
-            <span className="text-sm text-muted-foreground">
-              {resolutions.size}/{conflicts.length} resolved
-            </span>
-          )}
-          <Button
-            onClick={handleConfirm}
-            disabled={resolveMutation.isPending || (conflicts.length > 0 && !allConflictsResolved)}
-            data-testid="button-confirm-connect"
-          >
-            {resolveMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Connecting...
-              </>
-            ) : (
-              <>
-                <ArrowRight className="h-4 w-4 mr-2" />
-                {conflicts.length === 0 ? "Connect Import" : "Resolve & Connect"}
-              </>
+      {importSummary && (
+        <Card className="border-green-500/30 bg-green-50/5" data-testid="card-import-summary">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              {importSummary.integrity.chainIntact ? (
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              )}
+              Import Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span><strong>{importSummary.integrity.totalMembers}</strong> total members</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+                <span><strong>{importSummary.integrity.totalRelationships}</strong> total connections</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {importSummary.results.filter(r => r.status === "merged").length > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  <GitMerge className="h-3 w-3 mr-1" />
+                  {importSummary.results.filter(r => r.status === "merged").length} merged
+                </Badge>
+              )}
+              {importSummary.results.filter(r => r.status === "kept").length > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  <Users className="h-3 w-3 mr-1" />
+                  {importSummary.results.filter(r => r.status === "kept").length} kept separate
+                </Badge>
+              )}
+              {importSummary.results.filter(r => r.status === "removed").length > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  {importSummary.results.filter(r => r.status === "removed").length} skipped
+                </Badge>
+              )}
+            </div>
+            <div className="pt-2 border-t">
+              <p className="font-medium flex items-center gap-1.5">
+                {importSummary.integrity.chainIntact ? (
+                  <><CheckCircle className="h-4 w-4 text-green-500" /> All ancestor connections verified intact</>
+                ) : (
+                  <><AlertTriangle className="h-4 w-4 text-yellow-500" /> {importSummary.integrity.orphanedRelationships} connection(s) may need review</>
+                )}
+              </p>
+              <p className="text-muted-foreground mt-1">
+                Deepest ancestor chain: {importSummary.integrity.maxAncestorDepth} generation{importSummary.integrity.maxAncestorDepth !== 1 ? 's' : ''}
+              </p>
+            </div>
+            {Object.values(importSummary.integrity.transferredData).some(v => v > 0) && (
+              <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground mb-1">Data preserved during merge:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {importSummary.integrity.transferredData.events > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.events} events</Badge>}
+                  {importSummary.integrity.transferredData.nameHistory > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.nameHistory} name records</Badge>}
+                  {importSummary.integrity.transferredData.education > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.education} education</Badge>}
+                  {importSummary.integrity.transferredData.career > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.career} career</Badge>}
+                  {importSummary.integrity.transferredData.tags > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.tags} tags</Badge>}
+                  {importSummary.integrity.transferredData.fsSources > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.fsSources} sources</Badge>}
+                </div>
+              </div>
             )}
-          </Button>
-        </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex items-center justify-between pt-4 border-t">
+        {importSummary ? (
+          <div className="w-full flex justify-end">
+            <Button onClick={onComplete} data-testid="button-done-import">
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Done — View Tree
+            </Button>
+          </div>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={onCancel} data-testid="button-cancel-resolution">
+              Cancel
+            </Button>
+            <div className="flex items-center gap-3">
+              {conflicts.length > 0 && !allConflictsResolved && (
+                <span className="text-sm text-muted-foreground">
+                  {resolutions.size}/{conflicts.length} resolved
+                </span>
+              )}
+              <Button
+                onClick={handleConfirm}
+                disabled={resolveMutation.isPending || (conflicts.length > 0 && !allConflictsResolved)}
+                data-testid="button-confirm-connect"
+              >
+                {resolveMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <ArrowRight className="h-4 w-4 mr-2" />
+                    {conflicts.length === 0 ? "Connect Import" : "Resolve & Connect"}
+                  </>
+                )}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
