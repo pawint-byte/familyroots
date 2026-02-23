@@ -9191,16 +9191,20 @@ export async function registerRoutes(
         const lastName = nameParts.slice(1).join(" ") || null;
         
         // Check for potential duplicates by name and birth year
-        const birthYear = person.birthDate?.slice(0, 4);
+        const birthYearMatch = person.birthDate?.match(/\d{4}/);
+        const birthYear = birthYearMatch ? birthYearMatch[0] : null;
         const duplicate = existingMembers.find((m: any) => {
           // Skip members already mapped to a FamilySearch ID (prevents double-matching)
           const alreadyMapped = Array.from(fsIdToMemberId.values()).includes(m.id);
           if (alreadyMapped) return false;
           
-          const existingBirthYear = m.birthDate?.slice(0, 4);
-          return m.firstName.toLowerCase() === firstName.toLowerCase() &&
-            m.lastName?.toLowerCase() === lastName?.toLowerCase() &&
-            existingBirthYear === birthYear;
+          const existingBirthYearMatch = m.birthDate?.match(/\d{4}/);
+          const existingBirthYear = existingBirthYearMatch ? existingBirthYearMatch[0] : null;
+          const nameMatch = m.firstName.toLowerCase() === firstName.toLowerCase() &&
+            m.lastName?.toLowerCase() === lastName?.toLowerCase();
+          if (!nameMatch) return false;
+          if (birthYear && existingBirthYear) return existingBirthYear === birthYear;
+          return !birthYear && !existingBirthYear;
         });
         
         if (duplicate) {

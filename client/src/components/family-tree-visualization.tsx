@@ -19,7 +19,7 @@ interface NodePosition {
   x: number;
   y: number;
   member: FamilyMember;
-  branchType: 'focus' | 'parent' | 'stepparent' | 'grandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'auntuncle' | 'cousin' | 'unconnected';
+  branchType: 'focus' | 'parent' | 'stepparent' | 'grandparent' | 'greatgrandparent' | 'sibling' | 'child' | 'grandchild' | 'spouse' | 'coparent' | 'inlaw' | 'inlaw-grandparent' | 'auntuncle' | 'cousin' | 'unconnected';
   qualifier?: RelationshipQualifier;
   // For cousins: deterministically store which aunt/uncle they connect to
   parentAuntUncleId?: string;
@@ -45,6 +45,7 @@ const BRANCH_COLORS = {
   inlaw: { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/10 dark:bg-accent/5', border: 'border-accent/30', ring: 'ring-accent/30', label: 'bg-accent' },
   auntuncle: { line: 'hsl(45 80% 50%)', bg: 'bg-amber-100/50 dark:bg-amber-900/20', border: 'border-amber-300 dark:border-amber-700', ring: 'ring-amber-400/50', label: 'bg-amber-500' },
   cousin: { line: 'hsl(160 60% 45%)', bg: 'bg-teal-100/50 dark:bg-teal-900/20', border: 'border-teal-300 dark:border-teal-700', ring: 'ring-teal-400/50', label: 'bg-teal-500' },
+  greatgrandparent: { line: 'hsl(var(--muted-foreground))', bg: 'bg-card/70 dark:bg-card/50', border: 'border-muted-foreground/20', ring: 'ring-muted-foreground/40', label: 'bg-muted-foreground' },
   'inlaw-grandparent': { line: 'hsl(var(--muted-foreground))', bg: 'bg-accent/5 dark:bg-accent/5', border: 'border-accent/20', ring: 'ring-accent/20', label: 'bg-accent' },
   unconnected: { line: 'hsl(var(--muted-foreground))', bg: 'bg-muted/30 dark:bg-muted/20', border: 'border-muted-foreground/20', ring: 'ring-muted-foreground/30', label: 'bg-muted-foreground' },
 };
@@ -404,13 +405,34 @@ export default function FamilyTreeVisualization({
             grandparents.forEach((gpId, gpIndex) => {
               const gp = deduplicatedMembers.find(m => m.id === gpId);
               if (gp && !placed.has(gpId)) {
+                const gpX = gpStartX + gpIndex * (nodeWidth + horizontalGap / 2);
                 positioned.push({
-                  x: gpStartX + gpIndex * (nodeWidth + horizontalGap / 2),
+                  x: gpX,
                   y: gpY,
                   member: gp,
                   branchType: 'grandparent'
                 });
                 placed.add(gpId);
+                
+                if (viewDepth === 'all') {
+                  const greatGrandparents = (childParentMap.get(gpId) || []).filter(ggpId => !placed.has(ggpId));
+                  if (greatGrandparents.length > 0) {
+                    const ggpY = gpY - verticalGap - nodeHeight;
+                    const ggpStartX = gpX - ((greatGrandparents.length - 1) * (nodeWidth + horizontalGap / 3)) / 2;
+                    greatGrandparents.forEach((ggpId, ggpIndex) => {
+                      const ggp = deduplicatedMembers.find(m => m.id === ggpId);
+                      if (ggp && !placed.has(ggpId)) {
+                        positioned.push({
+                          x: ggpStartX + ggpIndex * (nodeWidth + horizontalGap / 3),
+                          y: ggpY,
+                          member: ggp,
+                          branchType: 'greatgrandparent'
+                        });
+                        placed.add(ggpId);
+                      }
+                    });
+                  }
+                }
               }
             });
           }
@@ -867,7 +889,6 @@ export default function FamilyTreeVisualization({
     // === GRANDPARENTS: Lines from grandparent's BOTTOM to parent's TOP ===
     const grandparentPositions = positions.filter(p => p.branchType === 'grandparent');
     grandparentPositions.forEach(gpPos => {
-      // Find which parent this grandparent connects to
       parentPositions.forEach(parentPos => {
         const { parentChildMap } = getRelationshipMaps();
         const gpChildren = parentChildMap.get(gpPos.member.id) || [];
@@ -886,6 +907,33 @@ export default function FamilyTreeVisualization({
               fill="none"
               strokeLinecap="round"
               opacity="0.6"
+            />
+          );
+        }
+      });
+    });
+
+    // === GREAT-GRANDPARENTS: Lines from great-grandparent's BOTTOM to grandparent's TOP ===
+    const greatGrandparentPositions = positions.filter(p => p.branchType === 'greatgrandparent');
+    greatGrandparentPositions.forEach(ggpPos => {
+      grandparentPositions.forEach(gpPos => {
+        const { parentChildMap } = getRelationshipMaps();
+        const ggpChildren = parentChildMap.get(ggpPos.member.id) || [];
+        if (ggpChildren.includes(gpPos.member.id)) {
+          const fromX = ggpPos.x + nodeWidth / 2;
+          const fromY = ggpPos.y + nodeHeight;
+          const toX = gpPos.x + nodeWidth / 2;
+          const toY = gpPos.y;
+          
+          lines.push(
+            <path
+              key={`greatgp-to-gp-${ggpPos.member.id}-${gpPos.member.id}`}
+              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+              stroke={BRANCH_COLORS.greatgrandparent.line}
+              strokeWidth="1.5"
+              fill="none"
+              strokeLinecap="round"
+              opacity="0.5"
             />
           );
         }
