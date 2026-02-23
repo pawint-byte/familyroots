@@ -8328,14 +8328,35 @@ export async function registerRoutes(
           const myRelationship = conn.userId1 === userId ? conn.relationshipFromUser1 : conn.relationshipFromUser2;
           const theirRelationship = conn.userId1 === userId ? conn.relationshipFromUser2 : conn.relationshipFromUser1;
           
+          const claimedProfiles = await storage.getAllClaimedProfilesForUser(otherUserId);
+          const memberProfiles = await Promise.all(
+            claimedProfiles.map(async (member) => {
+              const tree = await storage.getTree(member.treeId);
+              return {
+                memberId: member.id,
+                firstName: member.firstName,
+                lastName: member.lastName,
+                photoUrl: member.photoUrl,
+                treeName: tree?.name || null,
+                treeId: member.treeId,
+              };
+            })
+          );
+
+          const primaryProfile = memberProfiles[0];
+          const displayFirstName = otherUser?.firstName || primaryProfile?.firstName || null;
+          const displayLastName = otherUser?.lastName || primaryProfile?.lastName || null;
+          const displayPhoto = otherUser?.profileImageUrl || primaryProfile?.photoUrl || null;
+
           return {
             ...conn,
-            otherUser: otherUser ? {
-              id: otherUser.id,
-              firstName: otherUser.firstName,
-              lastName: otherUser.lastName,
-              profileImageUrl: otherUser.profileImageUrl,
-            } : null,
+            otherUser: {
+              id: otherUserId,
+              firstName: displayFirstName,
+              lastName: displayLastName,
+              profileImageUrl: displayPhoto,
+            },
+            memberProfiles,
             myRelationshipToThem: myRelationship,
             theirRelationshipToMe: theirRelationship,
           };

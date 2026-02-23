@@ -20,6 +20,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+interface MemberProfile {
+  memberId: string;
+  firstName: string | null;
+  lastName: string | null;
+  photoUrl: string | null;
+  treeName: string | null;
+  treeId: string;
+}
+
 interface UserConnection {
   id: string;
   userId1: string;
@@ -33,6 +42,7 @@ interface UserConnection {
     lastName: string | null;
     profileImageUrl: string | null;
   } | null;
+  memberProfiles?: MemberProfile[];
   myRelationshipToThem: string | null;
   theirRelationshipToMe: string | null;
 }
@@ -134,6 +144,8 @@ export function MyConnectionsSection() {
               ? RELATIONSHIP_LABELS[connection.theirRelationshipToMe] || connection.theirRelationshipToMe
               : null;
 
+            const profiles = connection.memberProfiles || [];
+
             return (
               <div
                 key={connection.id}
@@ -170,6 +182,21 @@ export function MyConnectionsSection() {
                         </Badge>
                       )}
                     </div>
+                    {profiles.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        {profiles.map((profile) => (
+                          <Link
+                            key={profile.treeId}
+                            href={`/tree/${profile.treeId}`}
+                            className="text-xs text-primary/70 hover:text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                            data-testid={`connection-tree-link-${profile.treeId}`}
+                          >
+                            {profile.treeName || "Tree"}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
