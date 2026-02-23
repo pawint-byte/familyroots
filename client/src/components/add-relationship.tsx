@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -21,6 +21,8 @@ interface AddRelationshipProps {
   allMembers: FamilyMember[];
   existingRelationships: Relationship[];
   canEdit: boolean;
+  autoOpen?: boolean;
+  onAutoOpenHandled?: () => void;
 }
 
 type RelationshipQualifier = string;
@@ -33,6 +35,7 @@ const familyReverseRelationship: Record<string, string> = {
   spouse: "spouse",
   sibling: "sibling",
   coparent: "coparent",
+  unknown: "unknown",
 };
 
 export function AddRelationship({ 
@@ -42,7 +45,9 @@ export function AddRelationship({
   currentMember, 
   allMembers, 
   existingRelationships,
-  canEdit 
+  canEdit,
+  autoOpen,
+  onAutoOpenHandled,
 }: AddRelationshipProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string>("");
@@ -52,6 +57,13 @@ export function AddRelationship({
   const [customTypeName, setCustomTypeName] = useState("");
   const [customReverseLabel, setCustomReverseLabel] = useState("");
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (autoOpen && !isOpen) {
+      setIsOpen(true);
+      onAutoOpenHandled?.();
+    }
+  }, [autoOpen]);
   
   const treeConfig = getTreeTypeConfig(treeType);
   const availableRelTypes = getRelationshipTypesForTree(treeType, customRelationshipTypes);

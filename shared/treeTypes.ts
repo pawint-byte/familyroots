@@ -64,6 +64,7 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       { value: "spouse", label: "Spouse/Partner", description: "Marriage or partnership" },
       { value: "sibling", label: "Sibling", description: "Brother/sister relationship" },
       { value: "coparent", label: "Co-Parent", description: "Shares a child, not married" },
+      { value: "unknown", label: "Unknown/Undetermined", description: "Relationship exists but type is not yet known" },
     ],
     visual: {
       layoutShape: "tree",

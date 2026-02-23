@@ -9,6 +9,7 @@ interface FamilyTreeVisualizationProps {
   relationships: Relationship[];
   zoom: number;
   onMemberClick: (member: FamilyMember) => void;
+  onConnectMember?: (member: FamilyMember) => void;
   focusMemberId?: string | null;
   viewDepth?: 'immediate' | 'extended' | 'all';
 }
@@ -55,6 +56,7 @@ export default function FamilyTreeVisualization({
   relationships,
   zoom,
   onMemberClick,
+  onConnectMember,
   focusMemberId,
   viewDepth = 'all',
 }: FamilyTreeVisualizationProps) {
@@ -155,7 +157,6 @@ export default function FamilyTreeVisualization({
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-sibling`, qualifier);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-sibling`, qualifier);
       } else if (rel.relationshipType === "coparent") {
-        // Co-parent is a separate relationship (shares child, not married)
         if (!coparentMap.has(rel.fromMemberId)) {
           coparentMap.set(rel.fromMemberId, []);
         }
@@ -165,9 +166,20 @@ export default function FamilyTreeVisualization({
         }
         coparentMap.get(rel.toMemberId)!.push(rel.fromMemberId);
         
-        // Mark as co-parent specifically
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-coparent`, qualifier);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-coparent`, qualifier);
+      } else if (rel.relationshipType === "unknown") {
+        if (!siblingMap.has(rel.fromMemberId)) {
+          siblingMap.set(rel.fromMemberId, []);
+        }
+        siblingMap.get(rel.fromMemberId)!.push(rel.toMemberId);
+        if (!siblingMap.has(rel.toMemberId)) {
+          siblingMap.set(rel.toMemberId, []);
+        }
+        siblingMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+        
+        qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-unknown`, qualifier);
+        qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-unknown`, qualifier);
       }
     });
 
@@ -1566,12 +1578,24 @@ export default function FamilyTreeVisualization({
                      pos.branchType === 'stepparent' ? 'Step-Parent' :
                      pos.branchType === 'auntuncle' ? (pos.member.gender === 'female' ? 'Aunt' : pos.member.gender === 'male' ? 'Uncle' : 'Aunt/Uncle') :
                      pos.branchType === 'cousin' ? 'Cousin' :
-                     pos.branchType === 'unconnected' ? 'Add Relationship' : 
+                     pos.branchType === 'unconnected' ? 'Not Connected' : 
                      // Show qualifier prefix if set (e.g., "Adopted Parent", "Step-Child", "Half-Sibling")
                      pos.qualifier && pos.qualifier !== 'biological' ? 
                        `${pos.qualifier === 'half' ? 'Half-' : pos.qualifier === 'in-law' ? 'In-Law ' : pos.qualifier.charAt(0).toUpperCase() + pos.qualifier.slice(1) + ' '}${pos.branchType}` :
                      pos.branchType}
                   </div>
+                  {pos.branchType === 'unconnected' && onConnectMember && (
+                    <button
+                      className="mt-1 px-3 py-1 rounded-full text-[10px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onConnectMember(pos.member);
+                      }}
+                      data-testid={`button-connect-member-${pos.member.id}`}
+                    >
+                      Connect to Tree
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

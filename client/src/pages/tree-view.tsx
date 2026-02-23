@@ -75,6 +75,7 @@ export default function TreeView() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("tree");
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
+  const [autoOpenAddRelationship, setAutoOpenAddRelationship] = useState(false);
   const [focusMemberId, setFocusMemberId] = useState<string | null>(null);
   const [groupLayoutMode, setGroupLayoutMode] = useState<GroupLayoutMode>("auto");
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
@@ -955,6 +956,13 @@ export default function TreeView() {
   const handleMemberClick = (member: FamilyMember) => {
     setSelectedMember(member);
     setIsMemberDetailOpen(true);
+    setAutoOpenAddRelationship(false);
+  };
+
+  const handleConnectMember = (member: FamilyMember) => {
+    setSelectedMember(member);
+    setIsMemberDetailOpen(true);
+    setAutoOpenAddRelationship(true);
   };
 
   const filteredMembers = treeData?.members?.filter(member =>
@@ -1829,6 +1837,7 @@ export default function TreeView() {
                       relationships={displayRelationships}
                       zoom={zoom}
                       onMemberClick={handleMemberClick}
+                      onConnectMember={canEditTree ? handleConnectMember : undefined}
                       focusMemberId={focusMemberId}
                       viewDepth={viewDepth}
                     />
@@ -2716,6 +2725,8 @@ export default function TreeView() {
                       allMembers={treeData.members}
                       existingRelationships={treeData.relationships}
                       canEdit={canEditTree}
+                      autoOpen={autoOpenAddRelationship}
+                      onAutoOpenHandled={() => setAutoOpenAddRelationship(false)}
                     />
                   </div>
                 )}
