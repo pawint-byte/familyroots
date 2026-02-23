@@ -41,6 +41,15 @@ interface SearchResult {
     id: string;
     title: string;
   };
+  relatedPersons?: Array<{
+    id: string;
+    display: { name?: string; gender?: string };
+  }>;
+  relationships?: Array<{
+    type: string;
+    person1Id: string;
+    person2Id: string;
+  }>;
 }
 
 interface FamilySearchStatus {
@@ -780,6 +789,22 @@ export default function RecordsPage() {
                                       </span>
                                     )}
                                   </div>
+                                  
+                                  {result.relatedPersons && result.relatedPersons.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                      {result.relatedPersons.slice(0, 4).map((rp) => (
+                                        <Badge key={rp.id} variant="secondary" className="text-xs">
+                                          <Users className="h-3 w-3 mr-1" />
+                                          {rp.display?.name || "Unknown"}
+                                        </Badge>
+                                      ))}
+                                      {result.relatedPersons.length > 4 && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          +{result.relatedPersons.length - 4} more
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                                 
                                 <div className="flex flex-col gap-2 shrink-0">

@@ -60,6 +60,15 @@ interface SearchResult {
     id: string;
     title: string;
   };
+  relatedPersons?: Array<{
+    id: string;
+    display: { name?: string; gender?: string };
+  }>;
+  relationships?: Array<{
+    type: string;
+    person1Id: string;
+    person2Id: string;
+  }>;
 }
 
 function getConfig(): FamilySearchConfig {
@@ -166,6 +175,43 @@ export async function getCurrentUser(accessToken: string): Promise<FamilySearchP
   }
 }
 
+function extractPersonName(person: any): string {
+  const fullText = person?.names?.[0]?.nameForms?.[0]?.fullText;
+  if (fullText) return fullText;
+  const displayName = person?.display?.name;
+  if (displayName) {
+    const match = displayName.match(/nameForms\[0\]=([^,]+)/);
+    if (match) return match[1];
+    if (!displayName.includes('type=') && !displayName.includes('pref=')) {
+      return displayName;
+    }
+  }
+  return 'Unknown';
+}
+
+function extractDisplayGender(person: any): string | undefined {
+  const genderType = person?.gender?.type;
+  if (genderType) {
+    if (genderType.includes('Male')) return 'Male';
+    if (genderType.includes('Female')) return 'Female';
+  }
+  const displayGender = person?.display?.gender;
+  if (displayGender) {
+    if (displayGender.includes('Male')) return 'Male';
+    if (displayGender.includes('Female')) return 'Female';
+  }
+  return undefined;
+}
+
+function extractFact(person: any, factType: string): { date?: string; place?: string } {
+  const facts = person?.facts || [];
+  const fact = facts.find((f: any) => f.type?.includes(factType));
+  return {
+    date: fact?.date?.original || person?.display?.[`${factType.toLowerCase()}Date`],
+    place: fact?.place?.original || person?.display?.[`${factType.toLowerCase()}Place`],
+  };
+}
+
 export async function searchRecords(
   accessToken: string,
   params: {
@@ -195,11 +241,11 @@ export async function searchRecords(
   if (params.fatherName) searchParams.set("q.fatherGivenName", params.fatherName);
   if (params.motherName) searchParams.set("q.motherGivenName", params.motherName);
   searchParams.set("count", String(params.count || 20));
-  searchParams.set("start", "0");
+  searchParams.set("offset", "0");
   
   try {
-    const searchUrl = `${urls.api}/platform/records/search?${searchParams.toString()}`;
-    console.log("[FamilySearch] Search URL:", searchUrl);
+    const searchUrl = `${urls.api}/platform/tree/search?${searchParams.toString()}`;
+    console.log("[FamilySearch] Tree Search URL:", searchUrl);
     
     const response = await fetch(searchUrl, {
       headers: {
@@ -210,7 +256,7 @@ export async function searchRecords(
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("[FamilySearch] Search failed:", response.status, errorText.substring(0, 500));
+      console.error("[FamilySearch] Tree Search failed:", response.status, errorText.substring(0, 500));
       if (response.status === 401) {
         console.error("[FamilySearch] Access token may be expired — user should reconnect");
       }
@@ -219,47 +265,53 @@ export async function searchRecords(
     
     const data = await response.json();
     const rawEntries = data.entries || [];
-    console.log("[FamilySearch] Search returned", rawEntries.length, "entries, totalResults:", data.totalResults || 'unknown');
+    const totalHits = data.searchInfo?.[0]?.totalHits || data.results || rawEntries.length;
+    console.log("[FamilySearch] Tree Search returned", rawEntries.length, "entries, totalHits:", totalHits);
     
-    if (rawEntries.length > 0) {
-      console.log("[FamilySearch] First entry keys:", Object.keys(rawEntries[0]));
-      const firstContent = rawEntries[0].content;
-      if (firstContent) {
-        console.log("[FamilySearch] First entry content keys:", Object.keys(firstContent));
-        if (firstContent.gedcomx) {
-          console.log("[FamilySearch] First entry gedcomx keys:", Object.keys(firstContent.gedcomx));
-          console.log("[FamilySearch] First entry persons count:", firstContent.gedcomx.persons?.length);
-          if (firstContent.gedcomx.persons?.[0]) {
-            const fp = firstContent.gedcomx.persons[0];
-            console.log("[FamilySearch] First person:", JSON.stringify({ id: fp.id, display: fp.display, living: fp.living }, null, 2));
-          }
-          if (firstContent.gedcomx.relationships?.length) {
-            console.log("[FamilySearch] First entry relationships count:", firstContent.gedcomx.relationships.length);
-          }
-        }
-      }
+    if (rawEntries.length > 0 && rawEntries[0].content?.gedcomx?.persons?.[0]) {
+      const fp = rawEntries[0].content.gedcomx.persons[0];
+      console.log("[FamilySearch] First person:", JSON.stringify({ id: fp.id, name: extractPersonName(fp) }, null, 2));
     }
     
     const results: SearchResult[] = rawEntries.map((entry: any) => {
-      const person = entry.content?.gedcomx?.persons?.[0] || entry.person;
+      const person = entry.content?.gedcomx?.persons?.[0];
       const relationships = entry.content?.gedcomx?.relationships || [];
       const relatedPersons = entry.content?.gedcomx?.persons?.slice(1) || [];
       
+      if (!person) {
+        return {
+          id: entry.id || '',
+          score: entry.score ?? 0,
+          person: { id: '', display: { name: 'Unknown' } },
+        };
+      }
+
+      const birth = extractFact(person, 'Birth');
+      const death = extractFact(person, 'Death');
+      
       return {
-        id: entry.id || person?.id || '',
+        id: entry.id || person.id || '',
         score: entry.score ?? 0,
-        person: person ? {
+        person: {
           id: person.id || '',
-          display: person.display || {
-            name: person.names?.[0]?.nameForms?.[0]?.fullText || 'Unknown',
+          display: {
+            name: extractPersonName(person),
+            gender: extractDisplayGender(person),
+            birthDate: birth.date || person.display?.birthDate,
+            birthPlace: birth.place || person.display?.birthPlace,
+            deathDate: death.date || person.display?.deathDate,
+            deathPlace: death.place || person.display?.deathPlace,
           },
-        } : { id: '', display: { name: 'Unknown' } },
+        },
         recordDescriptor: entry.content?.gedcomx?.description 
           ? { id: entry.content.gedcomx.description, title: entry.title || '' }
           : undefined,
         relatedPersons: relatedPersons.map((rp: any) => ({
           id: rp.id || '',
-          display: rp.display || { name: rp.names?.[0]?.nameForms?.[0]?.fullText || 'Unknown' },
+          display: {
+            name: extractPersonName(rp),
+            gender: extractDisplayGender(rp),
+          },
         })),
         relationships: relationships.map((rel: any) => ({
           type: rel.type,
@@ -271,7 +323,7 @@ export async function searchRecords(
     
     return results;
   } catch (error) {
-    console.error("[FamilySearch] Search error:", error);
+    console.error("[FamilySearch] Tree Search error:", error);
     return [];
   }
 }
@@ -480,18 +532,18 @@ function parseTreeResponse(data: any, rootPersonId: string): FamilySearchTreeDat
   const persons: FamilySearchTreePerson[] = [];
   const relationships: FamilySearchRelationship[] = [];
   
-  // Parse persons
   if (data.persons) {
     for (const person of data.persons) {
-      const display = person.display || {};
+      const birth = extractFact(person, 'Birth');
+      const death = extractFact(person, 'Death');
       persons.push({
         id: person.id,
-        name: display.name || "Unknown",
-        gender: display.gender?.toLowerCase(),
-        birthDate: display.birthDate,
-        birthPlace: display.birthPlace,
-        deathDate: display.deathDate,
-        deathPlace: display.deathPlace,
+        name: extractPersonName(person),
+        gender: extractDisplayGender(person)?.toLowerCase(),
+        birthDate: birth.date || person.display?.birthDate,
+        birthPlace: birth.place || person.display?.birthPlace,
+        deathDate: death.date || person.display?.deathDate,
+        deathPlace: death.place || person.display?.deathPlace,
         living: person.living,
       });
     }
