@@ -1045,6 +1045,8 @@ export const userConnectionRequests = pgTable("user_connection_requests", {
   approverRelationshipType: userRelationshipTypeEnum("approver_relationship_type"), // How the approver says they're related
   approverCustomLabel: text("approver_custom_label"), // If approver chose "other"
   sourceType: text("source_type").default("qr_scan"), // How they connected: qr_scan, manual, invite
+  targetTreeId: varchar("target_tree_id"), // Which tree the requester wants to connect to
+  targetTreeName: text("target_tree_name"), // Cached tree name for display
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

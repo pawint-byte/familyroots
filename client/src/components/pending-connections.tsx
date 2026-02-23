@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Check, X, Loader2, Heart } from "lucide-react";
+import { Check, X, Loader2, Heart, TreePine } from "lucide-react";
+import { Link } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,8 @@ interface PendingConnectionRequest {
   message: string | null;
   status: string;
   sourceType: string | null;
+  targetTreeId: string | null;
+  targetTreeName: string | null;
   createdAt: string;
   fromUser: {
     id: string;
@@ -230,8 +233,26 @@ export function PendingConnectionsSection() {
                     <div className="font-medium">
                       {request.fromUser?.firstName} {request.fromUser?.lastName}
                     </div>
+                    {request.targetTreeName ? (
+                      <p className="text-sm text-muted-foreground mt-1" data-testid={`text-tree-context-${request.id}`}>
+                        Wants to connect to{" "}
+                        {request.targetTreeId ? (
+                          <Link
+                            href={`/tree/${request.targetTreeId}`}
+                            className="font-semibold text-foreground hover:underline inline-flex items-center gap-1"
+                            data-testid={`link-tree-${request.id}`}
+                          >
+                            <TreePine className="h-3 w-3 inline" />
+                            {request.targetTreeName}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold text-foreground">{request.targetTreeName}</span>
+                        )}
+                        {" "}as {relationshipLabel}
+                      </p>
+                    ) : null}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-xs" data-testid={`badge-relationship-${request.id}`}>
                         Says they're {relationshipLabel}
                       </Badge>
                       {request.sourceType === "qr_scan" && (
@@ -292,6 +313,12 @@ export function PendingConnectionsSection() {
               <span className="font-medium text-foreground">
                 {selectedRequest?.customLabel || RELATIONSHIP_LABELS[selectedRequest?.relationshipType || ""] || selectedRequest?.relationshipType}
               </span>
+              {selectedRequest?.targetTreeName && (
+                <>
+                  {" "}and wants to connect to{" "}
+                  <span className="font-medium text-foreground">{selectedRequest.targetTreeName}</span>
+                </>
+              )}
               . How would you describe your relationship to them?
             </DialogDescription>
           </DialogHeader>

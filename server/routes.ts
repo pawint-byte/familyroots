@@ -7787,6 +7787,24 @@ export async function registerRoutes(
 
   // ==================== PUBLIC PROFILE ROUTES ====================
 
+  app.get("/api/users/:userId/trees/public", async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      const trees = await storage.getTrees(userId);
+      const publicTrees = trees
+        .filter(t => !t.deletedAt)
+        .map(t => ({ id: t.id, name: t.name, treeType: t.treeType }));
+      res.json(publicTrees);
+    } catch (error) {
+      console.error("Error fetching user public trees:", error);
+      res.status(500).json({ message: "Failed to fetch trees" });
+    }
+  });
+
   // Get public profile data for a user (for QR code scanning)
   // Note: This endpoint intentionally exposes limited public info for discovery purposes
   // Only basic profile info is shared - no sensitive data like email, subscription details, etc.
@@ -7835,7 +7853,7 @@ export async function registerRoutes(
   app.post("/api/user-connection-requests", isAuthenticated, async (req: any, res) => {
     try {
       const fromUserId = req.user.claims.sub;
-      const { targetUserId, relationshipType, customLabel, message } = req.body;
+      const { targetUserId, relationshipType, customLabel, message, targetTreeId } = req.body;
 
       if (!targetUserId) {
         return res.status(400).json({ message: "Target user ID is required" });
@@ -7886,6 +7904,17 @@ export async function registerRoutes(
         return res.status(400).json({ message: "This user has already sent you a connection request. Check your pending requests." });
       }
 
+      // Resolve target tree info if provided
+      let resolvedTreeId: string | null = null;
+      let resolvedTreeName: string | null = null;
+      if (targetTreeId) {
+        const targetTree = await storage.getTree(targetTreeId);
+        if (targetTree) {
+          resolvedTreeId = targetTree.id;
+          resolvedTreeName = targetTree.name;
+        }
+      }
+
       // Create the connection request
       const request = await storage.createUserConnectionRequest({
         fromUserId,
@@ -7894,11 +7923,13 @@ export async function registerRoutes(
         customLabel: relationshipType === "other" ? customLabel : null,
         message,
         sourceType: "qr_scan",
+        targetTreeId: resolvedTreeId,
+        targetTreeName: resolvedTreeName,
       });
 
       const fromUser = await storage.getUser(fromUserId);
 
-      console.log(`[User Connection Request] From: ${fromUser?.firstName} ${fromUser?.lastName} (${fromUserId}) -> To: ${targetUser.firstName} ${targetUser.lastName} (${targetUserId}) as "${relationshipType}"`);
+      console.log(`[User Connection Request] From: ${fromUser?.firstName} ${fromUser?.lastName} (${fromUserId}) -> To: ${targetUser.firstName} ${targetUser.lastName} (${targetUserId}) as "${relationshipType}" for tree: ${resolvedTreeName || 'none specified'}`);
 
       res.json({ 
         success: true, 
@@ -7917,18 +7948,24 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const requests = await storage.getPendingUserConnectionRequestsForUser(userId);
 
-      // Enrich with user info
+      // Enrich with user info and claimed member profiles
       const enrichedRequests = await Promise.all(
         requests.map(async (request) => {
           const fromUser = await storage.getUser(request.fromUserId);
+          const claimedProfiles = await storage.getAllClaimedProfilesForUser(request.fromUserId);
+          const primaryProfile = claimedProfiles[0];
+          const displayFirstName = fromUser?.firstName || primaryProfile?.firstName || null;
+          const displayLastName = fromUser?.lastName || primaryProfile?.lastName || null;
+          const displayPhoto = fromUser?.profileImageUrl || primaryProfile?.photoUrl || null;
+
           return {
             ...request,
-            fromUser: fromUser ? {
-              id: fromUser.id,
-              firstName: fromUser.firstName,
-              lastName: fromUser.lastName,
-              profileImageUrl: fromUser.profileImageUrl,
-            } : null,
+            fromUser: {
+              id: request.fromUserId,
+              firstName: displayFirstName,
+              lastName: displayLastName,
+              profileImageUrl: displayPhoto,
+            },
           };
         })
       );
@@ -7946,18 +7983,24 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const requests = await storage.getSentUserConnectionRequests(userId);
 
-      // Enrich with user info
+      // Enrich with user info and claimed member profiles
       const enrichedRequests = await Promise.all(
         requests.map(async (request) => {
           const toUser = await storage.getUser(request.toUserId);
+          const claimedProfiles = await storage.getAllClaimedProfilesForUser(request.toUserId);
+          const primaryProfile = claimedProfiles[0];
+          const displayFirstName = toUser?.firstName || primaryProfile?.firstName || null;
+          const displayLastName = toUser?.lastName || primaryProfile?.lastName || null;
+          const displayPhoto = toUser?.profileImageUrl || primaryProfile?.photoUrl || null;
+
           return {
             ...request,
-            toUser: toUser ? {
-              id: toUser.id,
-              firstName: toUser.firstName,
-              lastName: toUser.lastName,
-              profileImageUrl: toUser.profileImageUrl,
-            } : null,
+            toUser: {
+              id: request.toUserId,
+              firstName: displayFirstName,
+              lastName: displayLastName,
+              profileImageUrl: displayPhoto,
+            },
           };
         })
       );
@@ -7966,6 +8009,33 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching sent connection requests:", error);
       res.status(500).json({ message: "Failed to fetch sent requests" });
+    }
+  });
+
+  // Cancel an outgoing user connection request
+  app.post("/api/user-connection-requests/:id/cancel", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const request = await storage.getUserConnectionRequest(id);
+      if (!request) {
+        return res.status(404).json({ message: "Connection request not found" });
+      }
+
+      if (request.fromUserId !== userId) {
+        return res.status(403).json({ message: "You can only cancel requests you sent" });
+      }
+
+      if (request.status !== "pending") {
+        return res.status(400).json({ message: "This request has already been responded to" });
+      }
+
+      const updated = await storage.cancelUserConnectionRequest(id);
+      res.json({ message: "Connection request cancelled", request: updated });
+    } catch (error) {
+      console.error("Error cancelling connection request:", error);
+      res.status(500).json({ message: "Failed to cancel connection request" });
     }
   });
 
@@ -8026,13 +8096,15 @@ export async function registerRoutes(
       const toUser = await storage.getUser(request.toUserId);
 
       // === AUTO-CONNECT TREES AND ADD FAMILY MEMBERS ===
-      // Get both users' trees (primary tree - first one they own)
+      // Use the target tree from the request if specified, otherwise fall back to first tree
       const fromUserTrees = await storage.getTrees(request.fromUserId);
       const toUserTrees = await storage.getTrees(request.toUserId);
       
       if (fromUserTrees.length > 0 && toUserTrees.length > 0) {
         const fromTree = fromUserTrees[0];
-        const toTree = toUserTrees[0];
+        const toTree = request.targetTreeId 
+          ? (toUserTrees.find(t => t.id === request.targetTreeId) || toUserTrees[0])
+          : toUserTrees[0];
         
         // Check if trees are already connected
         const existingConnections = await storage.getTreeConnections(fromTree.id);

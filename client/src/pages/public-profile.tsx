@@ -51,10 +51,14 @@ export default function PublicProfilePage() {
   const { user: currentUser, isLoading: authLoading } = useAuth();
   const userId = params?.userId;
 
+  const urlParams = new URLSearchParams(window.location.search);
+  const preselectedTreeId = urlParams.get("treeId") || "";
+
   const [showConnectionDialog, setShowConnectionDialog] = useState(false);
   const [relationshipType, setRelationshipType] = useState("");
   const [customLabel, setCustomLabel] = useState("");
   const [message, setMessage] = useState("");
+  const [selectedTreeId, setSelectedTreeId] = useState(preselectedTreeId);
 
   // Store pending connection data for redirect after login (includes target user info)
   useEffect(() => {
@@ -101,6 +105,22 @@ export default function PublicProfilePage() {
     requestId?: string;
   }
   
+  interface PublicTree {
+    id: string;
+    name: string;
+    treeType: string;
+  }
+
+  const { data: targetUserTrees } = useQuery<PublicTree[]>({
+    queryKey: ['/api/users', userId, 'trees', 'public'],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${userId}/trees/public`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!userId && !!currentUser && currentUser.id !== userId,
+  });
+
   const { data: connectionStatus } = useQuery<ConnectionStatus>({
     queryKey: ['/api/user-connections/check', userId],
     queryFn: async () => {
@@ -112,7 +132,7 @@ export default function PublicProfilePage() {
   });
 
   const sendConnectionRequest = useMutation({
-    mutationFn: async (data: { relationshipType: string; customLabel?: string; message?: string }) => {
+    mutationFn: async (data: { relationshipType: string; customLabel?: string; message?: string; targetTreeId?: string }) => {
       const res = await fetch('/api/user-connection-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -121,6 +141,7 @@ export default function PublicProfilePage() {
           relationshipType: data.relationshipType,
           customLabel: data.customLabel,
           message: data.message,
+          targetTreeId: data.targetTreeId,
         }),
       });
       if (!res.ok) {
@@ -138,6 +159,7 @@ export default function PublicProfilePage() {
       setRelationshipType("");
       setCustomLabel("");
       setMessage("");
+      setSelectedTreeId("");
       queryClient.invalidateQueries({ queryKey: ['/api/user-connection-requests'] });
       queryClient.invalidateQueries({ queryKey: ['/api/user-connections/check', userId] });
     },
@@ -164,6 +186,7 @@ export default function PublicProfilePage() {
       relationshipType,
       customLabel: relationshipType === "other" ? customLabel : undefined,
       message: message || undefined,
+      targetTreeId: selectedTreeId || undefined,
     });
   };
 
@@ -404,6 +427,24 @@ export default function PublicProfilePage() {
               </Select>
             </div>
 
+            {targetUserTrees && targetUserTrees.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="targetTree">Connect to which tree? (optional)</Label>
+                <Select value={selectedTreeId} onValueChange={setSelectedTreeId}>
+                  <SelectTrigger id="targetTree" data-testid="select-target-tree">
+                    <SelectValue placeholder="Select a tree" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {targetUserTrees.map((tree) => (
+                      <SelectItem key={tree.id} value={tree.id}>
+                        {tree.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {relationshipType === "other" && (
               <div className="space-y-2">
                 <Label htmlFor="customLabel">Describe your relationship</Label>
@@ -429,6 +470,19 @@ export default function PublicProfilePage() {
                 data-testid="input-message"
               />
             </div>
+
+            {relationshipType && (
+              <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground" data-testid="text-connection-summary">
+                You are requesting to connect
+                {selectedTreeId && targetUserTrees ? (
+                  <> to <span className="font-medium text-foreground">{targetUserTrees.find(t => t.id === selectedTreeId)?.name}</span></>
+                ) : null}
+                {" "}as {profile.firstName}'s{" "}
+                <span className="font-medium text-foreground">
+                  {RELATIONSHIP_OPTIONS.find(o => o.value === relationshipType)?.label.replace("Their ", "") || relationshipType}
+                </span>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">

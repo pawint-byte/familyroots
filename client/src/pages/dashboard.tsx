@@ -29,6 +29,7 @@ import { PendingConnectionsSection } from "@/components/pending-connections";
 import { MyConnectionsSection } from "@/components/my-connections";
 import { ConnectTreesSection } from "@/components/connect-trees-section";
 import { NetworkRequestsSection } from "@/components/network-requests-section";
+import { OutgoingRequestsSection } from "@/components/outgoing-requests";
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 import { ReferralSection } from "@/components/referral-section";
 import { EmailInviteForm } from "@/components/email-invite-form";
@@ -1181,6 +1182,11 @@ export default function Dashboard() {
         {/* Pending Family Connection Requests Section */}
         <div className="mb-8">
           <PendingConnectionsSection />
+        </div>
+
+        {/* Outgoing Connection Requests Section */}
+        <div className="mb-8">
+          <OutgoingRequestsSection />
         </div>
 
         {/* My Family Connections Section */}

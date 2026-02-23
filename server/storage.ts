@@ -314,6 +314,7 @@ export interface IStorage {
   getExistingUserConnectionRequest(fromUserId: string, toUserId: string): Promise<UserConnectionRequest | undefined>;
   approveUserConnectionRequest(id: string, approverRelationshipType?: string, approverCustomLabel?: string): Promise<UserConnectionRequest | undefined>;
   denyUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined>;
+  cancelUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined>;
 
   // User Connections (approved connections)
   getUserConnections(userId: string): Promise<UserConnection[]>;
@@ -2080,6 +2081,14 @@ export class DatabaseStorage implements IStorage {
   async denyUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined> {
     const [updated] = await db.update(userConnectionRequests)
       .set({ status: "denied", respondedAt: new Date() })
+      .where(eq(userConnectionRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async cancelUserConnectionRequest(id: string): Promise<UserConnectionRequest | undefined> {
+    const [updated] = await db.update(userConnectionRequests)
+      .set({ status: "expired", respondedAt: new Date() })
       .where(eq(userConnectionRequests.id, id))
       .returning();
     return updated;
