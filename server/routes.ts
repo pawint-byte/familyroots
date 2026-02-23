@@ -9617,7 +9617,8 @@ export async function registerRoutes(
             }
           }
 
-          if (score >= 50 && score > bestScore) {
+          const meetsThreshold = isRootToRoot || score >= 50;
+          if (meetsThreshold && score > bestScore) {
             if (sm.birthDate !== tm.birthDate) {
               if (!diffs.find(d => d.field === "birthDate")) {
                 diffs.push({ field: "birthDate", sourceValue: sm.birthDate, targetValue: tm.birthDate });
