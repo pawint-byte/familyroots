@@ -923,86 +923,47 @@ export default function FamilyTreeVisualization({
       );
     });
 
-    // === GRANDPARENTS: Lines from grandparent's BOTTOM to parent's TOP ===
+    // === UNIVERSAL ANCESTOR LINES: Connect every positioned parent to their positioned children ===
     const grandparentPositions = positions.filter(p => p.branchType === 'grandparent');
-    grandparentPositions.forEach(gpPos => {
-      parentPositions.forEach(parentPos => {
-        const { parentChildMap } = getRelationshipMaps();
-        const gpChildren = parentChildMap.get(gpPos.member.id) || [];
-        if (gpChildren.includes(parentPos.member.id)) {
-          const fromX = gpPos.x + nodeWidth / 2;
-          const fromY = gpPos.y + nodeHeight;
-          const toX = parentPos.x + nodeWidth / 2;
-          const toY = parentPos.y;
-          
-          lines.push(
-            <path
-              key={`grandparent-to-parent-${gpPos.member.id}-${parentPos.member.id}`}
-              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-              stroke={BRANCH_COLORS.grandparent.line}
-              strokeWidth="2"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.6"
-            />
-          );
-        }
-      });
-    });
-
-    // === ANCESTORS BEYOND PARENTS: Lines from any ancestor to their child (grandparent, great-grandparent, etc.) ===
     const greatGrandparentPositions = positions.filter(p => p.branchType === 'greatgrandparent');
-    const { parentChildMap: pcMap, childParentMap: cpMap } = getRelationshipMaps();
-    const allAncestorPositions = [...parentPositions, ...grandparentPositions, ...greatGrandparentPositions];
-    greatGrandparentPositions.forEach(ggpPos => {
-      const ggpChildren = pcMap.get(ggpPos.member.id) || [];
-      const drawnConnections = new Set<string>();
-      allAncestorPositions.forEach(childPos => {
-        if (ggpChildren.includes(childPos.member.id)) {
-          const connKey = `${ggpPos.member.id}-${childPos.member.id}`;
-          if (drawnConnections.has(connKey)) return;
-          drawnConnections.add(connKey);
-          const fromX = ggpPos.x + nodeWidth / 2;
-          const fromY = ggpPos.y + nodeHeight;
-          const toX = childPos.x + nodeWidth / 2;
-          const toY = childPos.y;
-          
-          lines.push(
-            <path
-              key={`ancestor-line-${ggpPos.member.id}-${childPos.member.id}`}
-              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-              stroke={BRANCH_COLORS.greatgrandparent.line}
-              strokeWidth="1.5"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.5"
-            />
-          );
-        }
-      });
-      const ggpParents = cpMap.get(ggpPos.member.id) || [];
-      allAncestorPositions.forEach(parentPos => {
-        if (parentPos.branchType === 'greatgrandparent' && ggpParents.includes(parentPos.member.id)) {
-          const connKey = `${parentPos.member.id}-${ggpPos.member.id}`;
-          if (drawnConnections.has(connKey)) return;
-          drawnConnections.add(connKey);
-          const fromX = parentPos.x + nodeWidth / 2;
-          const fromY = parentPos.y + nodeHeight;
-          const toX = ggpPos.x + nodeWidth / 2;
-          const toY = ggpPos.y;
-          
-          lines.push(
-            <path
-              key={`ancestor-line-${parentPos.member.id}-${ggpPos.member.id}`}
-              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-              stroke={BRANCH_COLORS.greatgrandparent.line}
-              strokeWidth="1.5"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.5"
-            />
-          );
-        }
+    const { parentChildMap: pcMap } = getRelationshipMaps();
+    const ancestorTypes = new Set(['parent', 'grandparent', 'greatgrandparent', 'inlaw-grandparent']);
+    const allAncestorPositions = positions.filter(p => ancestorTypes.has(p.branchType));
+    const positionMap = new Map(allAncestorPositions.map(p => [p.member.id, p]));
+    const drawnAncestorLines = new Set<string>();
+
+    allAncestorPositions.forEach(ancestorPos => {
+      const children = pcMap.get(ancestorPos.member.id) || [];
+      children.forEach(childId => {
+        const childPos = positionMap.get(childId) || positions.find(p => p.member.id === childId);
+        if (!childPos) return;
+        const connKey = `${ancestorPos.member.id}-${childId}`;
+        if (drawnAncestorLines.has(connKey)) return;
+        drawnAncestorLines.add(connKey);
+
+        const isGrandparentToParent = ancestorPos.branchType === 'grandparent' && childPos.branchType === 'parent';
+        const strokeWidth = isGrandparentToParent ? "2" : "1.5";
+        const opacity = isGrandparentToParent ? "0.6" : "0.5";
+        const strokeColor = ancestorPos.branchType === 'grandparent'
+          ? BRANCH_COLORS.grandparent.line
+          : BRANCH_COLORS.greatgrandparent.line;
+
+        const fromX = ancestorPos.x + nodeWidth / 2;
+        const fromY = ancestorPos.y + nodeHeight;
+        const toX = childPos.x + nodeWidth / 2;
+        const toY = childPos.y;
+
+        lines.push(
+          <path
+            key={`ancestor-line-${ancestorPos.member.id}-${childId}`}
+            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeLinecap="round"
+            opacity={opacity}
+          />
+        );
       });
     });
 
