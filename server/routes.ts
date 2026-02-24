@@ -1890,6 +1890,28 @@ export async function registerRoutes(
         }
       }
 
+      const existingRels = await storage.getRelationships(treeId);
+      const SYMMETRIC_TYPES = new Set(["spouse", "sibling", "coparent"]);
+      const PARENT_TYPES = new Set(["parent", "parent-child", "child"]);
+      const isDuplicate = existingRels.some(existing => {
+        if (existing.fromMemberId === data.fromMemberId && existing.toMemberId === data.toMemberId && existing.relationshipType === data.relationshipType) return true;
+        if (SYMMETRIC_TYPES.has(data.relationshipType) && existing.relationshipType === data.relationshipType &&
+            existing.fromMemberId === data.toMemberId && existing.toMemberId === data.fromMemberId) return true;
+        if (PARENT_TYPES.has(data.relationshipType) && PARENT_TYPES.has(existing.relationshipType)) {
+          let newParent: string, newChild: string;
+          if (data.relationshipType === "child") { newParent = data.toMemberId; newChild = data.fromMemberId; }
+          else { newParent = data.fromMemberId; newChild = data.toMemberId; }
+          let exParent: string, exChild: string;
+          if (existing.relationshipType === "child") { exParent = existing.toMemberId; exChild = existing.fromMemberId; }
+          else { exParent = existing.fromMemberId; exChild = existing.toMemberId; }
+          if (newParent === exParent && newChild === exChild) return true;
+        }
+        return false;
+      });
+      if (isDuplicate) {
+        return res.status(409).json({ message: "This relationship already exists" });
+      }
+
       const relationship = await storage.createRelationship(data);
       res.status(201).json(relationship);
     } catch (error) {

@@ -110,91 +110,45 @@ export default function FamilyTreeVisualization({
     const spouseMap = new Map<string, string[]>();
     const coparentMap = new Map<string, string[]>();
     const siblingMap = new Map<string, string[]>();
-    // Map to store qualifier for each relationship: key = "fromId-toId-type", value = qualifier
     const qualifierMap = new Map<string, RelationshipQualifier>();
+
+    const addToMap = (map: Map<string, string[]>, key: string, value: string) => {
+      if (!map.has(key)) map.set(key, []);
+      const arr = map.get(key)!;
+      if (!arr.includes(value)) arr.push(value);
+    };
 
     relationships.forEach((rel) => {
       const qualifier = (rel.qualifier as RelationshipQualifier) || null;
       
       if (rel.relationshipType === "parent" || rel.relationshipType === "parent-child") {
-        // fromMember is the PARENT of toMember
-        if (!parentChildMap.has(rel.fromMemberId)) {
-          parentChildMap.set(rel.fromMemberId, []);
-        }
-        parentChildMap.get(rel.fromMemberId)!.push(rel.toMemberId);
-        
-        if (!childParentMap.has(rel.toMemberId)) {
-          childParentMap.set(rel.toMemberId, []);
-        }
-        childParentMap.get(rel.toMemberId)!.push(rel.fromMemberId);
-        
-        // Store qualifier for parent->child relationship
+        addToMap(parentChildMap, rel.fromMemberId, rel.toMemberId);
+        addToMap(childParentMap, rel.toMemberId, rel.fromMemberId);
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-parent`, qualifier);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-child`, qualifier);
       } else if (rel.relationshipType === "child") {
-        // fromMember is the CHILD of toMember (reverse of parent)
-        // So toMember is the parent, fromMember is the child
-        if (!parentChildMap.has(rel.toMemberId)) {
-          parentChildMap.set(rel.toMemberId, []);
-        }
-        parentChildMap.get(rel.toMemberId)!.push(rel.fromMemberId);
-        
-        if (!childParentMap.has(rel.fromMemberId)) {
-          childParentMap.set(rel.fromMemberId, []);
-        }
-        childParentMap.get(rel.fromMemberId)!.push(rel.toMemberId);
-        
-        // Store qualifier
+        addToMap(parentChildMap, rel.toMemberId, rel.fromMemberId);
+        addToMap(childParentMap, rel.fromMemberId, rel.toMemberId);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-parent`, qualifier);
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-child`, qualifier);
       } else if (rel.relationshipType === "spouse") {
-        if (!spouseMap.has(rel.fromMemberId)) {
-          spouseMap.set(rel.fromMemberId, []);
-        }
-        spouseMap.get(rel.fromMemberId)!.push(rel.toMemberId);
-        if (!spouseMap.has(rel.toMemberId)) {
-          spouseMap.set(rel.toMemberId, []);
-        }
-        spouseMap.get(rel.toMemberId)!.push(rel.fromMemberId);
-        
-        // Store qualifier for spouse
+        addToMap(spouseMap, rel.fromMemberId, rel.toMemberId);
+        addToMap(spouseMap, rel.toMemberId, rel.fromMemberId);
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-spouse`, qualifier);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-spouse`, qualifier);
       } else if (rel.relationshipType === "sibling") {
-        if (!siblingMap.has(rel.fromMemberId)) {
-          siblingMap.set(rel.fromMemberId, []);
-        }
-        siblingMap.get(rel.fromMemberId)!.push(rel.toMemberId);
-        if (!siblingMap.has(rel.toMemberId)) {
-          siblingMap.set(rel.toMemberId, []);
-        }
-        siblingMap.get(rel.toMemberId)!.push(rel.fromMemberId);
-        
-        // Store qualifier for sibling
+        addToMap(siblingMap, rel.fromMemberId, rel.toMemberId);
+        addToMap(siblingMap, rel.toMemberId, rel.fromMemberId);
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-sibling`, qualifier);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-sibling`, qualifier);
       } else if (rel.relationshipType === "coparent") {
-        if (!coparentMap.has(rel.fromMemberId)) {
-          coparentMap.set(rel.fromMemberId, []);
-        }
-        coparentMap.get(rel.fromMemberId)!.push(rel.toMemberId);
-        if (!coparentMap.has(rel.toMemberId)) {
-          coparentMap.set(rel.toMemberId, []);
-        }
-        coparentMap.get(rel.toMemberId)!.push(rel.fromMemberId);
-        
+        addToMap(coparentMap, rel.fromMemberId, rel.toMemberId);
+        addToMap(coparentMap, rel.toMemberId, rel.fromMemberId);
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-coparent`, qualifier);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-coparent`, qualifier);
       } else if (rel.relationshipType === "unknown") {
-        if (!siblingMap.has(rel.fromMemberId)) {
-          siblingMap.set(rel.fromMemberId, []);
-        }
-        siblingMap.get(rel.fromMemberId)!.push(rel.toMemberId);
-        if (!siblingMap.has(rel.toMemberId)) {
-          siblingMap.set(rel.toMemberId, []);
-        }
-        siblingMap.get(rel.toMemberId)!.push(rel.fromMemberId);
-        
+        addToMap(siblingMap, rel.fromMemberId, rel.toMemberId);
+        addToMap(siblingMap, rel.toMemberId, rel.fromMemberId);
         qualifierMap.set(`${rel.fromMemberId}-${rel.toMemberId}-unknown`, qualifier);
         qualifierMap.set(`${rel.toMemberId}-${rel.fromMemberId}-unknown`, qualifier);
       }
