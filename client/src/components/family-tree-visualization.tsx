@@ -69,6 +69,10 @@ export default function FamilyTreeVisualization({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [positions, setPositions] = useState<NodePosition[]>([]);
   const [branchLabels, setBranchLabels] = useState<BranchLabel[]>([]);
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [nodeDragStart, setNodeDragStart] = useState({ x: 0, y: 0 });
+  const [nodeDragOffsets, setNodeDragOffsets] = useState<Map<string, { x: number; y: number }>>(new Map());
+  const [wasDragged, setWasDragged] = useState(false);
   
   // Dedupe members at the input level to handle any edge cases
   const deduplicatedMembers = useMemo(() => {
@@ -876,6 +880,7 @@ export default function FamilyTreeVisualization({
     }
     setPositions(rawPositions);
     setBranchLabels(result.labels);
+    setNodeDragOffsets(new Map());
   }, [calculateHierarchicalPositions]);
 
   useEffect(() => {
@@ -906,6 +911,42 @@ export default function FamilyTreeVisualization({
     setOffset({ x: targetX, y: targetY });
   }, [focusMemberId, positions, zoom, nodeWidth, nodeHeight, viewDepth]);
 
+  const handleNodeDragStart = useCallback((e: React.MouseEvent, memberId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setDraggingNodeId(memberId);
+    setWasDragged(false);
+    const pos = positions.find(p => p.member.id === memberId);
+    if (pos) {
+      const dragOff = nodeDragOffsets.get(memberId) || { x: 0, y: 0 };
+      setNodeDragStart({
+        x: (e.clientX - offset.x) / zoom - (pos.x + dragOff.x),
+        y: (e.clientY - offset.y) / zoom - (pos.y + dragOff.y),
+      });
+    }
+  }, [positions, zoom, nodeDragOffsets, offset]);
+
+  const handleNodeDragMove = useCallback((e: React.MouseEvent) => {
+    if (!draggingNodeId) return;
+    e.preventDefault();
+    setWasDragged(true);
+    const pos = positions.find(p => p.member.id === draggingNodeId);
+    if (pos) {
+      const newX = (e.clientX - offset.x) / zoom - nodeDragStart.x - pos.x;
+      const newY = (e.clientY - offset.y) / zoom - nodeDragStart.y - pos.y;
+      setNodeDragOffsets(prev => {
+        const next = new Map(prev);
+        next.set(draggingNodeId, { x: newX, y: newY });
+        return next;
+      });
+    }
+  }, [draggingNodeId, positions, zoom, nodeDragStart, offset]);
+
+  const handleNodeDragEnd = useCallback(() => {
+    setDraggingNodeId(null);
+    setTimeout(() => setWasDragged(false), 50);
+  }, []);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-member-node]")) return;
     setIsDragging(true);
@@ -913,6 +954,10 @@ export default function FamilyTreeVisualization({
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (draggingNodeId) {
+      handleNodeDragMove(e);
+      return;
+    }
     if (!isDragging) return;
     setOffset({
       x: e.clientX - dragStart.x,
@@ -921,10 +966,28 @@ export default function FamilyTreeVisualization({
   };
 
   const handleMouseUp = () => {
+    if (draggingNodeId) {
+      handleNodeDragEnd();
+      return;
+    }
     setIsDragging(false);
   };
 
-  // Touch handlers for mobile panning
+  const handleNodeTouchStart = useCallback((e: React.TouchEvent, memberId: string) => {
+    e.stopPropagation();
+    if (e.touches.length !== 1) return;
+    setDraggingNodeId(memberId);
+    setWasDragged(false);
+    const pos = positions.find(p => p.member.id === memberId);
+    if (pos) {
+      const dragOff = nodeDragOffsets.get(memberId) || { x: 0, y: 0 };
+      setNodeDragStart({
+        x: (e.touches[0].clientX - offset.x) / zoom - (pos.x + dragOff.x),
+        y: (e.touches[0].clientY - offset.y) / zoom - (pos.y + dragOff.y),
+      });
+    }
+  }, [positions, zoom, nodeDragOffsets, offset]);
+
   const handleTouchStart = (e: React.TouchEvent) => {
     if ((e.target as HTMLElement).closest("[data-member-node]")) return;
     if (e.touches.length === 1) {
@@ -934,8 +997,23 @@ export default function FamilyTreeVisualization({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (draggingNodeId && e.touches.length === 1) {
+      e.preventDefault();
+      setWasDragged(true);
+      const pos = positions.find(p => p.member.id === draggingNodeId);
+      if (pos) {
+        const newX = (e.touches[0].clientX - offset.x) / zoom - nodeDragStart.x - pos.x;
+        const newY = (e.touches[0].clientY - offset.y) / zoom - nodeDragStart.y - pos.y;
+        setNodeDragOffsets(prev => {
+          const next = new Map(prev);
+          next.set(draggingNodeId, { x: newX, y: newY });
+          return next;
+        });
+      }
+      return;
+    }
     if (!isDragging || e.touches.length !== 1) return;
-    e.preventDefault(); // Prevent page scrolling while panning
+    e.preventDefault();
     setOffset({
       x: e.touches[0].clientX - dragStart.x,
       y: e.touches[0].clientY - dragStart.y,
@@ -943,6 +1021,10 @@ export default function FamilyTreeVisualization({
   };
 
   const handleTouchEnd = () => {
+    if (draggingNodeId) {
+      handleNodeDragEnd();
+      return;
+    }
     setIsDragging(false);
   };
 
@@ -957,11 +1039,17 @@ export default function FamilyTreeVisualization({
     }
   };
 
+  const getEffectivePos = useCallback((pos: NodePosition) => {
+    const dragOff = nodeDragOffsets.get(pos.member.id);
+    if (!dragOff) return pos;
+    return { ...pos, x: pos.x + dragOff.x, y: pos.y + dragOff.y };
+  }, [nodeDragOffsets]);
+
   const getConnectionLines = () => {
     const lines: JSX.Element[] = [];
     if (positions.length === 0) return lines;
 
-    const posMap = new Map(positions.map(p => [p.member.id, p]));
+    const posMap = new Map(positions.map(p => [p.member.id, getEffectivePos(p)]));
     const drawnPairs = new Set<string>();
     const SYMMETRIC_TYPES = new Set(["spouse", "sibling", "coparent"]);
 
@@ -1135,29 +1223,30 @@ export default function FamilyTreeVisualization({
       }
     }
 
-    positions.forEach(pos => {
-      if (!pos.member.isUnknown || !pos.member.id.startsWith('placeholder-')) return;
-      const parts = pos.member.id.split('-');
+    positions.forEach(origPos => {
+      if (!origPos.member.isUnknown || !origPos.member.id.startsWith('placeholder-')) return;
+      const parts = origPos.member.id.split('-');
       const childId = parts.slice(2).join('-');
       const childPos = posMap.get(childId);
       if (!childPos) return;
 
-      const pairKey = `${pos.member.id}->${childId}`;
+      const pairKey = `${origPos.member.id}->${childId}`;
       if (drawnPairs.has(pairKey)) return;
       drawnPairs.add(pairKey);
 
-      const fromX = pos.x + nodeWidth / 2;
-      const fromY = pos.y + nodeHeight;
+      const effPos = posMap.get(origPos.member.id) || getEffectivePos(origPos);
+      const fromX = effPos.x + nodeWidth / 2;
+      const fromY = effPos.y + nodeHeight;
       const toX = childPos.x + nodeWidth / 2;
       const toY = childPos.y;
 
       let strokeColor = BRANCH_COLORS.parent.line;
-      if (pos.branchType === 'grandparent') strokeColor = BRANCH_COLORS.grandparent.line;
-      if (pos.branchType === 'greatgrandparent') strokeColor = BRANCH_COLORS.greatgrandparent.line;
+      if (origPos.branchType === 'grandparent') strokeColor = BRANCH_COLORS.grandparent.line;
+      if (origPos.branchType === 'greatgrandparent') strokeColor = BRANCH_COLORS.greatgrandparent.line;
 
       lines.push(
         <path
-          key={`placeholder-line-${pos.member.id}`}
+          key={`placeholder-line-${origPos.member.id}`}
           d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
           stroke={strokeColor}
           strokeWidth="2"
@@ -1214,6 +1303,7 @@ export default function FamilyTreeVisualization({
       >
         <svg
           className="absolute inset-0 pointer-events-none"
+          style={{ zIndex: 0 }}
           width={svgWidth}
           height={svgHeight}
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
@@ -1264,19 +1354,30 @@ export default function FamilyTreeVisualization({
         {positions.map((pos) => {
           const isFocusPerson = pos.branchType === 'focus';
           const styles = getBranchStyles(pos.branchType);
+          const dragOff = nodeDragOffsets.get(pos.member.id) || { x: 0, y: 0 };
+          const isBeingDragged = draggingNodeId === pos.member.id;
           
           return (
             <div
               key={pos.member.id}
               data-member-node
-              className="absolute cursor-pointer transition-all duration-300 hover:z-10"
+              className={`absolute cursor-pointer hover:z-20 ${isBeingDragged ? 'z-30 cursor-grabbing' : ''}`}
               style={{
-                left: pos.x,
-                top: pos.y,
+                left: pos.x + dragOff.x,
+                top: pos.y + dragOff.y,
                 width: nodeWidth,
+                zIndex: isBeingDragged ? 30 : 1,
+                transition: isBeingDragged ? 'none' : 'box-shadow 0.3s',
               }}
+              onMouseDown={(e) => {
+                if (e.button === 0) {
+                  handleNodeDragStart(e, pos.member.id);
+                }
+              }}
+              onTouchStart={(e) => handleNodeTouchStart(e, pos.member.id)}
               onClick={(e) => {
                 e.stopPropagation();
+                if (wasDragged) return;
                 if (!pos.member.isUnknown) {
                   onMemberClick(pos.member);
                 }
