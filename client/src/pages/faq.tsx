@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase, BookOpen, Lock, EyeOff, Globe, UserCheck, Tag } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase, BookOpen, Lock, EyeOff, Globe, UserCheck, Tag, Star, QrCode, Search, ShoppingBag, GitMerge, ArrowRight } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -894,6 +894,56 @@ export default function FAQ() {
                 <span className="text-muted-foreground">Public is optional, never forced</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="mb-8" data-testid="faq-best-of-section">
+          <div className="flex items-center gap-2 mb-4">
+            <Star className="h-5 w-5 text-yellow-500" />
+            <h2 className="text-xl font-bold">What Makes FamilyRoots Different</h2>
+          </div>
+          <p className="text-muted-foreground text-sm mb-5">
+            These are the features you won't find on any other platform. Click any card to jump to the full answer below.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[
+              { icon: <UserCheck className="h-5 w-5 text-green-600" />, title: "Profile Claiming", teaser: "Family members own and update their own profiles — the tree stays accurate without one person doing all the work.", categoryIdx: 2, itemIdx: 0 },
+              { icon: <GitMerge className="h-5 w-5 text-blue-600" />, title: "Cross-Tree Connections", teaser: "Link separate family trees when they share members. See the full extended family across both sides.", categoryIdx: 2, itemIdx: 4 },
+              { icon: <Shield className="h-5 w-5 text-red-600" />, title: "Deadman Switch", teaser: "Designate an heir so your trees are never lost if something happens to you. No other platform does this.", categoryIdx: 2, itemIdx: 3 },
+              { icon: <QrCode className="h-5 w-5 text-gray-700" />, title: "QR Code Profiles", teaser: "Scan QR codes at reunions to instantly connect. Print them on name tags and invitations.", categoryIdx: 2, itemIdx: 5 },
+              { icon: <Search className="h-5 w-5 text-green-700" />, title: "FamilySearch Integration", teaser: "Search 66B+ historical records and import ancestors with smart duplicate detection and true sync merge.", categoryIdx: 8, itemIdx: 0 },
+              { icon: <ShoppingBag className="h-5 w-5 text-orange-600" />, title: "Custom Merchandise", teaser: "Print your actual tree on mugs, shirts, posters, and blankets. Add QR codes, custom text, and photos.", categoryIdx: 2, itemIdx: 8 },
+            ].map((item, i) => (
+              <button
+                key={i}
+                className="text-left p-4 rounded-lg border border-border bg-card hover:border-primary/40 hover:shadow-sm transition-all group cursor-pointer"
+                onClick={() => {
+                  const el = document.querySelector(`[data-testid="faq-item-${item.categoryIdx}-${item.itemIdx}"]`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    const trigger = el.querySelector('button');
+                    if (trigger && el.getAttribute('data-state') !== 'open') {
+                      trigger.click();
+                    }
+                  }
+                }}
+                data-testid={`faq-best-of-card-${i}`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  {item.icon}
+                  <span className="font-semibold text-sm group-hover:text-primary transition-colors">{item.title}</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{item.teaser}</p>
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 text-center">
+            <Link href="/features">
+              <Button variant="outline" size="sm" className="gap-2" data-testid="faq-link-features-guide">
+                See All Features
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </Link>
           </div>
         </div>
 

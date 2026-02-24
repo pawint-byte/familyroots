@@ -8,8 +8,10 @@ import {
   TreeDeciduous, ArrowLeft, Users, Shield, Sparkles, Tag, Gift, User, Heart, Zap,
   Church, Trophy, GraduationCap, Briefcase, BookOpen, QrCode, Share2, Globe, MapPin,
   Search, Bell, Camera, Palette, ShoppingBag, Video, Bot, Link2, Layers, Split,
-  Settings, Eye, Lock, Mail, Award, UserCheck, ScrollText, Network, GitMerge, CheckCircle2, FileCheck
+  Settings, Eye, Lock, Mail, Award, UserCheck, ScrollText, Network, GitMerge, CheckCircle2, FileCheck,
+  Star, ArrowRight, Crown
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface FeatureEntry {
   name: string;
