@@ -51,6 +51,7 @@ export default function Landing() {
             <a href="/gifts" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-gifts">{t.nav.gifts}</a>
             <a href="/faq" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-faq">FAQ</a>
             <a href="/features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features-guide">Features Guide</a>
+            <a href="/whats-new" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-whats-new">What's New</a>
             <a href="/comparison" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-comparison">Compare</a>
           </nav>
           <div className="flex items-center gap-2">

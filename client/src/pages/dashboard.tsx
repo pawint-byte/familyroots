@@ -484,6 +484,14 @@ export default function Dashboard() {
                   <BookOpen className="h-4 w-4" />
                   <span>Features Guide</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/whats-new")}
+                  data-testid="mobile-menu-whats-new"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>What's New</span>
+                </DropdownMenuItem>
                 {isAdmin && (
                   <>
                     <DropdownMenuSeparator />
