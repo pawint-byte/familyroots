@@ -857,7 +857,24 @@ export default function FamilyTreeVisualization({
 
   useEffect(() => {
     const result = calculateHierarchicalPositions();
-    setPositions(result.positions);
+    const rawPositions = result.positions;
+    if (rawPositions.length > 0) {
+      const rawMinX = Math.min(...rawPositions.map(p => p.x));
+      const rawMinY = Math.min(...rawPositions.map(p => p.y));
+      const offsetX = rawMinX < 50 ? 50 - rawMinX : 0;
+      const offsetY = rawMinY < 50 ? 50 - rawMinY : 0;
+      if (offsetX > 0 || offsetY > 0) {
+        for (const pos of rawPositions) {
+          pos.x += offsetX;
+          pos.y += offsetY;
+        }
+        for (const label of result.labels) {
+          label.x += offsetX;
+          label.y += offsetY;
+        }
+      }
+    }
+    setPositions(rawPositions);
     setBranchLabels(result.labels);
   }, [calculateHierarchicalPositions]);
 
