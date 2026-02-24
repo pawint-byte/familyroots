@@ -245,9 +245,11 @@ export default function FamilyTreeVisualization({
         count += (spouseMap.get(m.id) || []).length;
         memberConnectionCount.set(m.id, count);
       }
-      let bestId = deduplicatedMembers[0]?.id;
+      const mainTreeMembers = deduplicatedMembers.filter(m => !(m as any).isFromConnectedTree);
+      const candidatePool = mainTreeMembers.length > 0 ? mainTreeMembers : deduplicatedMembers;
+      let bestId = candidatePool[0]?.id;
       let bestCount = memberConnectionCount.get(bestId || '') || 0;
-      for (const m of deduplicatedMembers) {
+      for (const m of candidatePool) {
         const count = memberConnectionCount.get(m.id) || 0;
         if (count > bestCount) {
           bestCount = count;
