@@ -1,4 +1,4 @@
-export type TreeType = "family" | "church" | "sports" | "fraternity" | "friends" | "professional" | "custom";
+export type TreeType = "family" | "church" | "sports" | "fraternity" | "friends" | "professional" | "school" | "custom";
 
 export type LayoutShape = "tree" | "circle" | "radial" | "grid" | "top-grid" | "arc" | "network";
 
@@ -297,6 +297,52 @@ export const TREE_TYPE_CONFIGS: Record<TreeType, TreeTypeConfig> = {
       shapeName: "Professional Network",
     },
   },
+  school: {
+    type: "school",
+    label: "School",
+    description: "Organize your school community — staff, faculty, coaches, and students",
+    icon: "School",
+    memberLabel: "Person",
+    membersLabel: "People",
+    addMemberLabel: "Add Person",
+    qualifiersEnabled: true,
+    qualifierLabel: "Department / Grade",
+    qualifierPlaceholder: "Select department or grade",
+    qualifiers: [
+      { value: "administration", label: "Administration" },
+      { value: "faculty", label: "Faculty" },
+      { value: "staff", label: "Staff" },
+      { value: "athletics", label: "Athletics" },
+      { value: "freshman", label: "Freshman" },
+      { value: "sophomore", label: "Sophomore" },
+      { value: "junior", label: "Junior" },
+      { value: "senior", label: "Senior" },
+      { value: "alumni", label: "Alumni" },
+    ],
+    defaultRelationshipTypes: [
+      { value: "principal", label: "Principal", reverseLabel: "Staff", description: "School principal", rank: 1 },
+      { value: "vice_principal", label: "Vice Principal", reverseLabel: "Staff", description: "Vice principal / assistant principal", rank: 1 },
+      { value: "teacher", label: "Teacher", reverseLabel: "Student", description: "Classroom teacher or instructor", rank: 2 },
+      { value: "substitute", label: "Substitute", reverseLabel: "Student", description: "Substitute teacher", rank: 2 },
+      { value: "coach", label: "Coach", reverseLabel: "Student", description: "Athletic coach or activity sponsor", rank: 2 },
+      { value: "trainer", label: "Trainer", reverseLabel: "Student", description: "Athletic trainer or skills trainer", rank: 2 },
+      { value: "student", label: "Student", reverseLabel: "Teacher", description: "Enrolled student", rank: 3 },
+      { value: "classmate", label: "Classmate", description: "Fellow student in the same class or grade" },
+      { value: "mentor", label: "Mentor", reverseLabel: "Mentee", description: "Academic or personal mentor" },
+      { value: "mentee", label: "Mentee", reverseLabel: "Mentor", description: "Being mentored" },
+      { value: "friend", label: "Friend", description: "Personal friendship" },
+      { value: "study_partner", label: "Study Partner", description: "Regular study buddy" },
+    ],
+    visual: {
+      layoutShape: "top-grid",
+      accentColor: "hsl(45 85% 50%)",
+      accentColorLight: "hsl(45 85% 92%)",
+      lineStyle: "solid",
+      lineColor: "hsl(45 85% 50%)",
+      nodeShape: "rounded",
+      shapeName: "School Network",
+    },
+  },
   custom: {
     type: "custom",
     label: "Custom Group",
@@ -474,6 +520,7 @@ export function getDefaultPeerRelationship(treeType: TreeType): string {
     fraternity: "active",
     friends: "friend",
     professional: "colleague",
+    school: "classmate",
     custom: "member",
   };
   return peerMap[treeType] || "member";
@@ -487,6 +534,7 @@ export function getDefaultLeaderRelationship(treeType: TreeType): { leaderType: 
     fraternity: { leaderType: "chapter_president", memberType: "active" },
     friends: null,
     professional: { leaderType: "manager", memberType: "direct_report" },
+    school: { leaderType: "principal", memberType: "student" },
     custom: { leaderType: "leader", memberType: "member" },
   };
   return leaderMap[treeType] || null;

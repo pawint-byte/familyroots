@@ -48,7 +48,7 @@ export const userRelationshipTypeEnum = pgEnum("user_relationship_type", [
 
 // Tree type enum for multi-tree-type support
 export const treeTypeEnum = pgEnum("tree_type", [
-  "family", "church", "sports", "fraternity", "friends", "professional", "custom"
+  "family", "church", "sports", "fraternity", "friends", "professional", "school", "custom"
 ]);
 
 // Family Trees table
