@@ -13,7 +13,7 @@ import {
   insertCustodianshipRequestSchema,
   familyEvents, nameHistory, educationHistory, careerHistory,
   memberTags, familySearchSources, externalPersonIdentifiers,
-  specialConnections, giftRegistries
+  specialConnections, giftRegistries, giftRegistryItems
 } from "@shared/schema";
 import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
 import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType } from "@shared/treeTypes";
@@ -11051,7 +11051,7 @@ export async function registerRoutes(
       const results: any[] = [];
       const mergedSourceToTarget = new Map<string, string>();
       const skippedIds = new Set<string>();
-      const transferStats = { events: 0, nameHistory: 0, education: 0, career: 0, tags: 0, fsSources: 0, extIds: 0, specialConns: 0 };
+      const transferStats = { events: 0, nameHistory: 0, education: 0, career: 0, tags: 0, fsSources: 0, extIds: 0, specialConns: 0, giftRegistries: 0 };
 
       // === PHASE 1: Build resolution maps ===
       for (const resolution of resolutions) {
@@ -11348,6 +11348,12 @@ export async function registerRoutes(
           for (const conn of srcSpecialTo) {
             await db.update(specialConnections).set({ toMemberId: targetMemberId }).where(eq(specialConnections.id, conn.id));
             transferStats.specialConns++;
+          }
+
+          const srcRegistries = await db.select().from(giftRegistries).where(eq(giftRegistries.memberId, sourceMemberId));
+          if (srcRegistries.length > 0) {
+            await db.update(giftRegistries).set({ memberId: targetMemberId, treeId }).where(eq(giftRegistries.memberId, sourceMemberId));
+            transferStats.giftRegistries += srcRegistries.length;
           }
         } catch (e) {
           console.log(`[resolve-conflicts] Error transferring linked records for ${sourceMemberId}:`, e);
@@ -11647,7 +11653,7 @@ export async function registerRoutes(
 
       console.log(`[resolve-conflicts] COMPLETE. Tree now has ${finalMembers.length} members, ${finalRels.length} relationships, max ancestor depth: ${maxChainDepth}, orphaned: ${orphanedRels}`);
       console.log(`[resolve-conflicts] Summary: ${mergeCount} merged, ${skipCount} skipped, ${keepCount} kept separate`);
-      console.log(`[resolve-conflicts] Transferred: ${transferStats.events} events, ${transferStats.nameHistory} name records, ${transferStats.education} education, ${transferStats.career} career, ${transferStats.tags} tags, ${transferStats.fsSources} FS sources, ${transferStats.extIds} external IDs, ${transferStats.specialConns} special connections`);
+      console.log(`[resolve-conflicts] Transferred: ${transferStats.events} events, ${transferStats.nameHistory} name records, ${transferStats.education} education, ${transferStats.career} career, ${transferStats.tags} tags, ${transferStats.fsSources} FS sources, ${transferStats.extIds} external IDs, ${transferStats.specialConns} special connections, ${transferStats.giftRegistries} gift registries`);
 
       res.json({
         message: "Conflicts resolved and members integrated into tree",

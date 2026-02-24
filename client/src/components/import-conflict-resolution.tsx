@@ -79,7 +79,7 @@ export default function ImportConflictResolution({
       orphanedRelationships: number;
       maxAncestorDepth: number;
       chainIntact: boolean;
-      transferredData: { events: number; nameHistory: number; education: number; career: number; tags: number; fsSources: number; extIds: number; specialConns: number };
+      transferredData: { events: number; nameHistory: number; education: number; career: number; tags: number; fsSources: number; extIds: number; specialConns: number; giftRegistries: number };
       relationshipTypes?: Record<string, number>;
       mergeCount?: number;
       skipCount?: number;
