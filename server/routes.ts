@@ -13,7 +13,10 @@ import {
   insertCustodianshipRequestSchema,
   familyEvents, nameHistory, educationHistory, careerHistory,
   memberTags, familySearchSources, externalPersonIdentifiers,
-  specialConnections, giftRegistries, giftRegistryItems
+  specialConnections, giftRegistries, giftRegistryItems,
+  voiceNotes, insertVoiceNoteSchema,
+  memberMutes, memberInvitations, profileClaimRequests, custodianshipRequests,
+  discoverableMembers
 } from "@shared/schema";
 import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
 import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType } from "@shared/treeTypes";
@@ -6489,7 +6492,14 @@ export async function registerRoutes(
   app.get("/api/admin/videos", isAuthenticated, async (req: any, res) => {
     try {
       const videos = await getAllVideos();
-      res.json(videos);
+      const userId = req.user.claims.sub;
+      const contentAccess = await subscriptionService.checkPremiumContentAccess(userId);
+      const videosWithLockStatus = videos.map((v: any) => ({
+        ...v,
+        locked: v.createdBy === userId && !contentAccess.accessible,
+        videoUrl: v.createdBy === userId && !contentAccess.accessible ? undefined : v.videoUrl,
+      }));
+      res.json(videosWithLockStatus);
     } catch (error: any) {
       console.error("Error fetching videos:", error);
       res.status(500).json({ message: error.message || "Failed to fetch videos" });
@@ -6567,6 +6577,20 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Video not available" });
       }
 
+      const contentAccess = await subscriptionService.checkPremiumContentAccess(video.createdBy);
+      if (!contentAccess.accessible) {
+        return res.json({
+          id: video.id,
+          title: video.title,
+          thumbnailUrl: video.thumbnailUrl,
+          destinationUrl: video.destinationUrl,
+          duration: video.duration,
+          locked: true,
+          lockReason: contentAccess.reason === 'subscription_cancelled' ? 'premium_content_locked' : 'premium_required',
+          lockMessage: "This video was created with a premium subscription that is no longer active. The creator needs to resubscribe to unlock this content.",
+        });
+      }
+
       res.json({
         id: video.id,
         title: video.title,
@@ -6574,6 +6598,7 @@ export async function registerRoutes(
         thumbnailUrl: video.thumbnailUrl,
         destinationUrl: video.destinationUrl,
         duration: video.duration,
+        locked: false,
       });
     } catch (error: any) {
       console.error("Error fetching video:", error);
@@ -9113,6 +9138,120 @@ export async function registerRoutes(
     ]);
   });
 
+  // ==================== VOICE NOTES ROUTES ====================
+
+  app.get("/api/trees/:treeId/members/:memberId/voice-notes", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, memberId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const notes = await db.select().from(voiceNotes)
+        .where(and(eq(voiceNotes.memberId, memberId), eq(voiceNotes.treeId, treeId)));
+
+      const notesWithAccess = await Promise.all(notes.map(async (note) => {
+        const access = await subscriptionService.checkPremiumContentAccess(note.recordedByUserId);
+        return {
+          ...note,
+          audioUrl: access.accessible ? note.audioUrl : undefined,
+          locked: !access.accessible,
+          lockReason: !access.accessible ? 'premium_content_locked' : undefined,
+        };
+      }));
+
+      res.json(notesWithAccess);
+    } catch (error: any) {
+      console.error("Error fetching voice notes:", error);
+      res.status(500).json({ message: "Failed to fetch voice notes" });
+    }
+  });
+
+  app.post("/api/trees/:treeId/members/:memberId/voice-notes", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, memberId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") return res.status(403).json({ message: "Access denied" });
+      }
+
+      const access = await subscriptionService.checkFeatureAccess(userId, 'media_upload');
+      if (!access.allowed) {
+        return res.status(403).json({
+          error: 'tier_limit_reached',
+          message: `You've reached your media upload limit (${access.used}/${access.limit}) for this month.`,
+          tier: access.tier,
+          nextTier: access.nextTier,
+        });
+      }
+
+      const parsed = insertVoiceNoteSchema.safeParse({
+        ...req.body,
+        memberId,
+        treeId,
+        recordedByUserId: userId,
+      });
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid voice note data" });
+      }
+
+      const [note] = await db.insert(voiceNotes).values(parsed.data).returning();
+      await subscriptionService.incrementFeatureUsage(userId, 'media_upload');
+      res.status(201).json(note);
+    } catch (error: any) {
+      console.error("Error creating voice note:", error);
+      res.status(500).json({ message: "Failed to create voice note" });
+    }
+  });
+
+  app.delete("/api/voice-notes/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [note] = await db.select().from(voiceNotes).where(eq(voiceNotes.id, id));
+      if (!note) return res.status(404).json({ message: "Voice note not found" });
+      if (note.recordedByUserId !== userId) {
+        const tree = await storage.getTree(note.treeId);
+        if (!tree || tree.ownerId !== userId) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      await db.delete(voiceNotes).where(eq(voiceNotes.id, id));
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting voice note:", error);
+      res.status(500).json({ message: "Failed to delete voice note" });
+    }
+  });
+
+  // ==================== PREMIUM CONTENT STATUS CHECK ====================
+
+  app.get("/api/premium-content/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const access = await subscriptionService.checkPremiumContentAccess(userId);
+      res.json({
+        contentAccessible: access.accessible,
+        reason: access.reason,
+        cancelledAt: access.cancelledAt,
+      });
+    } catch (error: any) {
+      console.error("Error checking premium content status:", error);
+      res.status(500).json({ message: "Failed to check content status" });
+    }
+  });
+
   // ==================== FAMILYSEARCH INTEGRATION ROUTES ====================
 
   // Get FamilySearch connection status
@@ -11379,7 +11518,7 @@ export async function registerRoutes(
       const results: any[] = [];
       const mergedSourceToTarget = new Map<string, string>();
       const skippedIds = new Set<string>();
-      const transferStats = { events: 0, nameHistory: 0, education: 0, career: 0, tags: 0, fsSources: 0, extIds: 0, specialConns: 0, giftRegistries: 0 };
+      const transferStats = { events: 0, nameHistory: 0, education: 0, career: 0, tags: 0, fsSources: 0, extIds: 0, specialConns: 0, giftRegistries: 0, voiceNotes: 0, invitations: 0, claimRequests: 0, custodianshipReqs: 0, mutes: 0 };
 
       // === PHASE 1: Build resolution maps ===
       for (const resolution of resolutions) {
@@ -11732,6 +11871,52 @@ export async function registerRoutes(
             mergeLog.push(`${srcRegistries.length} gift registries`);
           }
 
+          const srcVoiceNotes = await db.select().from(voiceNotes).where(eq(voiceNotes.memberId, sourceMemberId));
+          if (srcVoiceNotes.length > 0) {
+            await db.update(voiceNotes).set({ memberId: targetMemberId, treeId }).where(eq(voiceNotes.memberId, sourceMemberId));
+            transferStats.voiceNotes += srcVoiceNotes.length;
+            mergeLog.push(`${srcVoiceNotes.length} voice notes`);
+          }
+
+          const srcInvitations = await db.select().from(memberInvitations).where(eq(memberInvitations.memberId, sourceMemberId));
+          if (srcInvitations.length > 0) {
+            await db.update(memberInvitations).set({ memberId: targetMemberId, treeId }).where(eq(memberInvitations.memberId, sourceMemberId));
+            transferStats.invitations += srcInvitations.length;
+            mergeLog.push(`${srcInvitations.length} invitations`);
+          }
+
+          const srcClaims = await db.select().from(profileClaimRequests).where(eq(profileClaimRequests.memberId, sourceMemberId));
+          if (srcClaims.length > 0) {
+            await db.update(profileClaimRequests).set({ memberId: targetMemberId, treeId }).where(eq(profileClaimRequests.memberId, sourceMemberId));
+            transferStats.claimRequests += srcClaims.length;
+            mergeLog.push(`${srcClaims.length} claim requests`);
+          }
+
+          const srcCustodianship = await db.select().from(custodianshipRequests).where(eq(custodianshipRequests.memberId, sourceMemberId));
+          if (srcCustodianship.length > 0) {
+            await db.update(custodianshipRequests).set({ memberId: targetMemberId, treeId }).where(eq(custodianshipRequests.memberId, sourceMemberId));
+            transferStats.custodianshipReqs += srcCustodianship.length;
+            mergeLog.push(`${srcCustodianship.length} custodianship requests`);
+          }
+
+          const srcMutes = await db.select().from(memberMutes).where(eq(memberMutes.memberId, sourceMemberId));
+          if (srcMutes.length > 0) {
+            await db.update(memberMutes).set({ memberId: targetMemberId, treeId }).where(eq(memberMutes.memberId, sourceMemberId));
+            transferStats.mutes += srcMutes.length;
+            mergeLog.push(`${srcMutes.length} mutes`);
+          }
+
+          const srcDiscoverable = await db.select().from(discoverableMembers).where(eq(discoverableMembers.memberId, sourceMemberId));
+          if (srcDiscoverable.length > 0) {
+            const existingDiscoverable = await db.select().from(discoverableMembers).where(eq(discoverableMembers.memberId, targetMemberId));
+            if (existingDiscoverable.length === 0) {
+              await db.update(discoverableMembers).set({ memberId: targetMemberId, treeId }).where(eq(discoverableMembers.memberId, sourceMemberId));
+              mergeLog.push(`1 discoverable entry`);
+            } else {
+              await db.delete(discoverableMembers).where(eq(discoverableMembers.memberId, sourceMemberId));
+            }
+          }
+
           if (mergeLog.length > 0) {
             console.log(`[resolve-conflicts] Transferred linked data for ${sourceMember.firstName} ${sourceMember.lastName || ''}: ${mergeLog.join(', ')}`);
           }
@@ -11773,7 +11958,14 @@ export async function registerRoutes(
         }
 
         // Safety: if no skip target, treat as keep_both to prevent data loss
-        const resolvedSkipTarget = resolution.targetMemberId || mergedSourceToTarget.get(sourceMemberId);
+        // Resolve skip target through merge map — the target may have been merged in Phase 4
+        let resolvedSkipTarget = resolution.targetMemberId || null;
+        if (resolvedSkipTarget && mergedSourceToTarget.has(resolvedSkipTarget)) {
+          resolvedSkipTarget = mergedSourceToTarget.get(resolvedSkipTarget)!;
+        }
+        if (!resolvedSkipTarget) {
+          resolvedSkipTarget = mergedSourceToTarget.get(sourceMemberId) || null;
+        }
         if (!resolvedSkipTarget) {
           console.log(`[resolve-conflicts] Phase 5: No skip target for ${sourceMember.firstName} ${sourceMember.lastName || ''} — keeping as separate member to prevent data loss`);
           results.push({ sourceMemberId, action: "skip", status: "kept_no_target" });
@@ -12124,7 +12316,7 @@ export async function registerRoutes(
 
       console.log(`[resolve-conflicts] COMPLETE. Tree now has ${finalMembers.length} members, ${finalRels.length} relationships, max ancestor depth: ${maxChainDepth}, orphaned: ${orphanedRels}`);
       console.log(`[resolve-conflicts] Summary: ${mergeCount} merged, ${skipCount} skipped, ${keepCount} kept separate`);
-      console.log(`[resolve-conflicts] Transferred: ${transferStats.events} events, ${transferStats.nameHistory} name records, ${transferStats.education} education, ${transferStats.career} career, ${transferStats.tags} tags, ${transferStats.fsSources} FS sources, ${transferStats.extIds} external IDs, ${transferStats.specialConns} special connections, ${transferStats.giftRegistries} gift registries`);
+      console.log(`[resolve-conflicts] Transferred: ${transferStats.events} events, ${transferStats.nameHistory} name records, ${transferStats.education} education, ${transferStats.career} career, ${transferStats.tags} tags, ${transferStats.fsSources} FS sources, ${transferStats.extIds} external IDs, ${transferStats.specialConns} special connections, ${transferStats.giftRegistries} gift registries, ${transferStats.voiceNotes} voice notes, ${transferStats.invitations} invitations, ${transferStats.claimRequests} claims, ${transferStats.custodianshipReqs} custodianship, ${transferStats.mutes} mutes`);
 
       res.json({
         message: "Conflicts resolved and members integrated into tree",

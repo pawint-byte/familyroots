@@ -72,6 +72,9 @@ export const users = pgTable("users", {
   monthlyAddsResetAt: timestamp("monthly_adds_reset_at"),
   hasEarnedFreePackAt100: boolean("has_earned_free_pack_at_100").default(false),
 
+  subscriptionCancelledAt: timestamp("subscription_cancelled_at"),
+  contentRetentionWarningsSent: integer("content_retention_warnings_sent").default(0),
+
   lastActivityAt: timestamp("last_activity_at").defaultNow(),
   inactivityReminderSentAt: timestamp("inactivity_reminder_sent_at"),
   notificationPreferences: jsonb("notification_preferences").$type<NotificationPreferences>(),

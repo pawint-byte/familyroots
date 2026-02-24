@@ -538,6 +538,8 @@ export class SubscriptionService {
         premiumStartedAt: new Date(),
         stripeSubscriptionId: subscriptionId,
         isSubscriptionActive: true,
+        subscriptionCancelledAt: null,
+        contentRetentionWarningsSent: 0,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
@@ -553,6 +555,8 @@ export class SubscriptionService {
         isPremium: false,
         premiumTier: 'explorer',
         isSubscriptionActive: false,
+        subscriptionCancelledAt: new Date(),
+        contentRetentionWarningsSent: 0,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
@@ -891,6 +895,54 @@ export class SubscriptionService {
     }
 
     return result;
+  }
+  async checkPremiumContentAccess(creatorUserId: string): Promise<{ accessible: boolean; reason?: string; cancelledAt?: Date | null }> {
+    const [user] = await db.select({
+      isPremium: users.isPremium,
+      premiumTier: users.premiumTier,
+      isSubscriptionActive: users.isSubscriptionActive,
+      subscriptionCancelledAt: users.subscriptionCancelledAt,
+    }).from(users).where(eq(users.id, creatorUserId));
+
+    if (!user) {
+      return { accessible: false, reason: 'creator_not_found' };
+    }
+
+    const tier = this.getUserTier(user);
+    if (tier !== 'explorer') {
+      return { accessible: true };
+    }
+
+    if (user.subscriptionCancelledAt) {
+      return { accessible: false, reason: 'subscription_cancelled', cancelledAt: user.subscriptionCancelledAt };
+    }
+
+    return { accessible: false, reason: 'never_subscribed' };
+  }
+
+  async getCancelledUsersForRetentionWarnings(): Promise<Array<{ id: string; email: string | null; firstName: string | null; subscriptionCancelledAt: Date; contentRetentionWarningsSent: number }>> {
+    const results = await db.select({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      subscriptionCancelledAt: users.subscriptionCancelledAt,
+      contentRetentionWarningsSent: users.contentRetentionWarningsSent,
+    }).from(users).where(
+      and(
+        sql`${users.subscriptionCancelledAt} IS NOT NULL`,
+        eq(users.premiumTier, 'explorer'),
+        sql`${users.contentRetentionWarningsSent} < 3`
+      )
+    );
+    return results.filter(u => u.subscriptionCancelledAt !== null) as any;
+  }
+
+  async incrementRetentionWarning(userId: string): Promise<void> {
+    await db.update(users)
+      .set({
+        contentRetentionWarningsSent: sql`COALESCE(${users.contentRetentionWarningsSent}, 0) + 1`,
+      })
+      .where(eq(users.id, userId));
   }
 }
 
