@@ -485,6 +485,7 @@ export default function ImportConflictResolution({
                   {importSummary.integrity.transferredData.career > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.career} career</Badge>}
                   {importSummary.integrity.transferredData.tags > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.tags} tags</Badge>}
                   {importSummary.integrity.transferredData.fsSources > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.fsSources} sources</Badge>}
+                  {importSummary.integrity.transferredData.giftRegistries > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.giftRegistries} gift registries</Badge>}
                 </div>
               </div>
             )}
