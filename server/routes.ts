@@ -3250,10 +3250,22 @@ export async function registerRoutes(
         transferResults.giftRegistries = mergeRegistries.length;
       } catch (e) { transferResults.giftRegistries = 0; }
       
-      // Also claim the merge member so merged view dedup works
-      await storage.updateMember(mergeMemberId, { claimedByUserId: userId });
+      // Delete the merged member now that all data has been transferred
+      await storage.deleteMember(mergeMemberId);
       
-      console.log(`[PROFILE MERGE] Merged member ${mergeMemberId} into ${keepMemberId}. Transfers:`, transferResults);
+      // Mark any cross-tree match records involving the merged member as resolved
+      try {
+        const matchByMembers = await storage.getCrossTreeMatchByMembers(keepMemberId, mergeMemberId);
+        if (matchByMembers) {
+          await storage.updateCrossTreeMatch(matchByMembers.id, { status: 'resolved' });
+        }
+        const matchReverse = await storage.getCrossTreeMatchByMembers(mergeMemberId, keepMemberId);
+        if (matchReverse) {
+          await storage.updateCrossTreeMatch(matchReverse.id, { status: 'resolved' });
+        }
+      } catch (e) { /* non-critical */ }
+      
+      console.log(`[PROFILE MERGE] Merged member ${mergeMemberId} into ${keepMemberId} (merged member deleted). Transfers:`, transferResults);
       
       res.json({ 
         status: "merged",
@@ -3329,6 +3341,25 @@ export async function registerRoutes(
       }
       
       const approvedClaim = await storage.approveProfileClaim(claimId, userId);
+      
+      // Check if the requester already has a claimed profile in another tree
+      const existingClaimed = await storage.getAllClaimedProfilesForUser(claim.requesterId);
+      const claimedMember = await storage.getMember(claim.memberId);
+      const otherClaimed = existingClaimed.filter(m => m.id !== claim.memberId && m.treeId !== claim.treeId);
+      
+      if (otherClaimed.length > 0 && claimedMember) {
+        const otherTree = await storage.getTree(otherClaimed[0].treeId);
+        return res.json({
+          ...approvedClaim,
+          status: "merge_available",
+          claimApproved: true,
+          existingMember: otherClaimed[0],
+          existingMemberTreeName: otherTree?.name || "Unknown Tree",
+          targetMember: claimedMember,
+          targetMemberTreeName: tree.name,
+        });
+      }
+      
       res.json(approvedClaim);
     } catch (error: any) {
       console.error("Error approving claim:", error);
@@ -11089,9 +11120,13 @@ export async function registerRoutes(
       const tree1 = await storage.getTree(match.tree1Id);
       const tree2 = await storage.getTree(match.tree2Id);
       
+      const ownsTree1 = tree1 && tree1.ownerId === userId;
+      const ownsTree2 = tree2 && tree2.ownerId === userId;
+      const ownsBoth = ownsTree1 && ownsTree2;
+      
       let userTreeId: string | null = null;
-      if (tree1 && tree1.ownerId === userId) userTreeId = tree1.id;
-      else if (tree2 && tree2.ownerId === userId) userTreeId = tree2.id;
+      if (ownsTree1) userTreeId = tree1.id;
+      else if (ownsTree2) userTreeId = tree2!.id;
       
       if (!userTreeId) {
         const collab1 = await storage.getCollaboratorByUserAndTree(userId, match.tree1Id);
@@ -11104,7 +11139,33 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
       
-      const updated = await storage.confirmCrossTreeMatch(matchId, userId, userTreeId);
+      let updated;
+      if (ownsBoth) {
+        // Auto-confirm both sides when same user owns both trees
+        updated = await storage.updateCrossTreeMatch(matchId, {
+          confirmedByUser1: true,
+          confirmedByUser2: true,
+          status: 'confirmed',
+        });
+      } else {
+        updated = await storage.confirmCrossTreeMatch(matchId, userId, userTreeId);
+      }
+      
+      // If fully confirmed, return full member data for merge dialog
+      const isFullyConfirmed = updated?.status === 'confirmed';
+      if (isFullyConfirmed) {
+        const member1 = await storage.getMember(match.member1Id);
+        const member2 = await storage.getMember(match.member2Id);
+        return res.json({
+          ...updated,
+          member1Full: member1,
+          member2Full: member2,
+          tree1Name: tree1?.name || "Unknown Tree",
+          tree2Name: tree2?.name || "Unknown Tree",
+          fullyConfirmed: true,
+        });
+      }
+      
       res.json(updated);
     } catch (error) {
       console.error("Error confirming cross-tree match:", error);
