@@ -5821,102 +5821,21 @@ export async function registerRoutes(
         }
       }
 
-      // Fetch data from all accessible trees
-      const allMembers: any[] = [];
-      const allRelationships: any[] = [];
+      // === Canonical "single truth" merge approach ===
+      // Step 1: Main tree members become the canonical set
+      // Step 2: For each connected tree, match members against canonical set
+      //         - Match found → map connected ID to canonical ID
+      //         - No match → add as new canonical member
+      // Step 3: Relationships get remapped to canonical IDs as we go
+      // Result: one clean set of unique members with all relationships resolved
+
       const treeInfoMap = new Map<string, { name: string; ownerId: string }>();
-      
-      // Track claimed users to deduplicate members across trees
-      // Key: claimedByUserId, Value: { preferredMember, allMemberIds (for relationship remapping) }
-      const claimedUserMap = new Map<string, { preferredMember: any; allMemberIds: string[] }>();
-      const memberIdRemapping = new Map<string, string>(); // Maps duplicate member IDs to the preferred one
-      
-      for (const id of accessibleTreeIds) {
-        const treeInfo = await storage.getTree(id);
-        if (treeInfo) {
-          treeInfoMap.set(id, { name: treeInfo.name, ownerId: treeInfo.ownerId });
-          const members = await storage.getMembers(id);
-          const relationships = await storage.getRelationships(id);
-          
-          // Add source tree info to each member and handle deduplication
-          members.forEach((m: any) => {
-            const memberWithSource = {
-              ...m,
-              sourceTreeId: id,
-              sourceTreeName: treeInfo.name,
-              isFromConnectedTree: id !== treeId
-            };
-            
-            // Check if this member is claimed by a user
-            if (m.claimedByUserId) {
-              const existing = claimedUserMap.get(m.claimedByUserId);
-              if (existing) {
-                // Prefer member from main tree, otherwise prefer the one with more data
-                const shouldReplace = id === treeId && existing.preferredMember.sourceTreeId !== treeId;
-                if (shouldReplace) {
-                  // Remap the old preferred member ID to this one
-                  memberIdRemapping.set(existing.preferredMember.id, m.id);
-                  existing.allMemberIds.push(existing.preferredMember.id);
-                  existing.preferredMember = memberWithSource;
-                  existing.allMemberIds.push(m.id);
-                } else {
-                  // This is a duplicate, remap it to the preferred one
-                  memberIdRemapping.set(m.id, existing.preferredMember.id);
-                  existing.allMemberIds.push(m.id);
-                }
-              } else {
-                claimedUserMap.set(m.claimedByUserId, {
-                  preferredMember: memberWithSource,
-                  allMemberIds: [m.id]
-                });
-                allMembers.push(memberWithSource);
-              }
-            } else {
-              // Unclaimed members are always added
-              allMembers.push(memberWithSource);
-            }
-          });
-          
-          allRelationships.push(...relationships);
-        }
-      }
-      
-      // Also add preferred members from claimed users (in case they weren't added from main tree first)
-      claimedUserMap.forEach(({ preferredMember }) => {
-        if (!allMembers.find(m => m.id === preferredMember.id)) {
-          allMembers.push(preferredMember);
-        }
-      });
-      
-      // Second pass: deduplicate unclaimed members that match claimed members by name
-      // This handles cases where an unclaimed member exists alongside a claimed version
-      // Use multiple name keys for fuzzy matching (exact, first-word-only, last-name-only)
-      const claimedMembersByExactName = new Map<string, any>();
-      const claimedMembersByLastName = new Map<string, any[]>(); // Multiple members can share last name
-      
-      allMembers.forEach(m => {
-        if (m.claimedByUserId) {
-          const firstName = (m.firstName || '').toLowerCase().trim();
-          const lastName = (m.lastName || '').toLowerCase().trim();
-          const exactKey = `${firstName}-${lastName}`;
-          
-          if (!claimedMembersByExactName.has(exactKey)) {
-            claimedMembersByExactName.set(exactKey, m);
-          }
-          
-          // Also index by last name for fuzzy matching
-          if (lastName) {
-            const existing = claimedMembersByLastName.get(lastName) || [];
-            existing.push(m);
-            claimedMembersByLastName.set(lastName, existing);
-          }
-        }
-      });
-      
-      // Generational suffixes that indicate different people with same name
+      const memberIdRemapping = new Map<string, string>();
+      const canonicalMembers = new Map<string, any>();
+      const allRelationships: any[] = [];
+
       const generationalSuffixes = ['jr', 'jr.', 'junior', 'sr', 'sr.', 'senior', 'ii', 'iii', 'iv', 'v', '2nd', '3rd', '4th', '5th'];
-      
-      // Extract generational suffix from a name
+
       const extractSuffix = (name: string): { baseName: string, suffix: string | null } => {
         if (!name) return { baseName: '', suffix: null };
         const parts = name.toLowerCase().trim().split(/\s+/);
@@ -5926,138 +5845,151 @@ export async function registerRoutes(
         }
         return { baseName: name.toLowerCase().trim(), suffix: null };
       };
-      
-      // Check if birth years are close enough to be the same generation (within 15 years)
+
       const sameGeneration = (date1: string | null | undefined, date2: string | null | undefined): boolean => {
-        if (!date1 || !date2) return true; // If we don't know, assume possible match
+        if (!date1 || !date2) return true;
         try {
           const year1 = new Date(date1).getFullYear();
           const year2 = new Date(date2).getFullYear();
           return Math.abs(year1 - year2) <= 15;
         } catch {
-          return true; // If dates are invalid, assume possible match
+          return true;
         }
       };
-      
-      // Helper to check if first names are similar enough AND are the same generation
-      const firstNameMatches = (name1: string, name2: string): boolean => {
-        if (!name1 || !name2) return false;
-        const n1 = name1.toLowerCase().trim();
-        const n2 = name2.toLowerCase().trim();
-        if (n1 === n2) return true;
-        // Check if one starts with the other (e.g., "Peter" vs "Peter A")
-        const firstWord1 = n1.split(/\s+/)[0];
-        const firstWord2 = n2.split(/\s+/)[0];
-        return firstWord1 === firstWord2;
-      };
-      
-      // Check if two members are likely the same person (same name, same generation, no suffix differences)
+
       const areLikelySamePerson = (m1: any, m2: any): boolean => {
-        const firstName1 = (m1.firstName || '').toLowerCase().trim();
-        const firstName2 = (m2.firstName || '').toLowerCase().trim();
-        const lastName1 = (m1.lastName || '').toLowerCase().trim();
-        const lastName2 = (m2.lastName || '').toLowerCase().trim();
-        
-        // Check for generational suffixes in first name OR last name
-        const suffix1First = extractSuffix(firstName1);
-        const suffix2First = extractSuffix(firstName2);
-        const suffix1Last = extractSuffix(lastName1);
-        const suffix2Last = extractSuffix(lastName2);
-        
-        // If one has a generational suffix and the other doesn't, they're different people
-        const hasGenerationalDifference = 
+        const suffix1First = extractSuffix((m1.firstName || '').toLowerCase().trim());
+        const suffix2First = extractSuffix((m2.firstName || '').toLowerCase().trim());
+        const suffix1Last = extractSuffix((m1.lastName || '').toLowerCase().trim());
+        const suffix2Last = extractSuffix((m2.lastName || '').toLowerCase().trim());
+
+        const hasGenerationalDifference =
           (suffix1First.suffix && !suffix2First.suffix) ||
           (!suffix1First.suffix && suffix2First.suffix) ||
           (suffix1Last.suffix && !suffix2Last.suffix) ||
           (!suffix1Last.suffix && suffix2Last.suffix) ||
           (suffix1First.suffix !== suffix2First.suffix && suffix1First.suffix && suffix2First.suffix) ||
           (suffix1Last.suffix !== suffix2Last.suffix && suffix1Last.suffix && suffix2Last.suffix);
-        
-        if (hasGenerationalDifference) {
-          return false;
-        }
-        
-        // Check if birth years suggest different generations
-        if (!sameGeneration(m1.birthDate, m2.birthDate)) {
-          return false;
-        }
-        
-        // If we get here, names match and no generational indicators suggest they're different
+
+        if (hasGenerationalDifference) return false;
+        if (!sameGeneration(m1.birthDate, m2.birthDate)) return false;
         return true;
       };
-      
-      // Filter out unclaimed duplicates that match claimed members by name AND same generation
-      const afterClaimedDedup = allMembers.filter(m => {
-        if (m.claimedByUserId) return true; // Keep all claimed members
-        
-        const firstName = (m.firstName || '').toLowerCase().trim();
-        const lastName = (m.lastName || '').toLowerCase().trim();
-        const exactKey = `${firstName}-${lastName}`;
-        
-        // Check exact match first - but still verify they're the same generation
-        const exactMatch = claimedMembersByExactName.get(exactKey);
-        if (exactMatch && areLikelySamePerson(m, exactMatch)) {
-          memberIdRemapping.set(m.id, exactMatch.id);
-          return false;
+
+      // Name index for fast matching against canonical set
+      const nameIndex = new Map<string, any[]>();
+
+      const getNameKey = (m: any): string | null => {
+        const first = ((m.firstName || '').toLowerCase().trim().split(/\s+/)[0]) || '';
+        const last = (m.lastName || '').toLowerCase().trim();
+        return first && last ? `${first}-${last}` : null;
+      };
+
+      const addToNameIndex = (member: any) => {
+        const key = getNameKey(member);
+        if (key) {
+          const list = nameIndex.get(key) || [];
+          list.push(member);
+          nameIndex.set(key, list);
         }
-        
-        // Check fuzzy match by last name + similar first name + same generation
-        const sameSurname = claimedMembersByLastName.get(lastName) || [];
-        for (const claimed of sameSurname) {
-          if (firstNameMatches(m.firstName, claimed.firstName) && areLikelySamePerson(m, claimed)) {
-            memberIdRemapping.set(m.id, claimed.id);
-            return false;
+      };
+
+      // Claimed user index: claimedByUserId → canonical member
+      const claimedUserIndex = new Map<string, any>();
+
+      const findCanonicalMatch = (member: any): any | null => {
+        // Priority 1: Same claimed user (strongest identity signal)
+        if (member.claimedByUserId) {
+          const match = claimedUserIndex.get(member.claimedByUserId);
+          if (match) return match;
+        }
+
+        // Priority 2: Name match (first word of first name + last name + same generation)
+        const key = getNameKey(member);
+        if (!key) return null;
+        const candidates = nameIndex.get(key) || [];
+        for (const candidate of candidates) {
+          if (areLikelySamePerson(member, candidate)) {
+            return candidate;
           }
         }
-        
-        return true;
-      });
-      
-      // Third pass: deduplicate unclaimed members against each other (for cases where 
-      // both duplicates are unclaimed but have similar names across different trees)
-      // Use a list to check against all potential matches (not just first seen)
-      const seenUnclaimedByKey = new Map<string, any[]>();
-      const deduplicatedMembers = afterClaimedDedup.filter(m => {
-        if (m.claimedByUserId) return true; // Keep all claimed members
-        
-        const firstName = (m.firstName || '').toLowerCase().trim();
-        const lastName = (m.lastName || '').toLowerCase().trim();
-        const firstWord = firstName.split(/\s+/)[0] || '';
-        const fuzzyKey = `${firstWord}-${lastName}`;
-        
-        const existing = seenUnclaimedByKey.get(fuzzyKey) || [];
-        
-        // Check each potential match - but only merge if they're actually the same person
-        for (const candidate of existing) {
-          if (areLikelySamePerson(m, candidate)) {
-            // Prefer member from main tree
-            if (m.sourceTreeId === treeId && candidate.sourceTreeId !== treeId) {
-              // This one is from main tree, remap the existing one
-              memberIdRemapping.set(candidate.id, m.id);
-              // Replace candidate with m in the list
-              const idx = existing.indexOf(candidate);
-              if (idx >= 0) existing[idx] = m;
-              return true;
-            } else {
-              // Keep existing, remap this one
-              memberIdRemapping.set(m.id, candidate.id);
-              return false;
+
+        return null;
+      };
+
+      // Step 1: Main tree members are the canonical truth
+      treeInfoMap.set(treeId, { name: tree.name, ownerId: tree.ownerId });
+      const mainMembers = await storage.getMembers(treeId);
+      const mainRelationships = await storage.getRelationships(treeId);
+
+      for (const m of mainMembers) {
+        const memberWithSource = {
+          ...m,
+          sourceTreeId: treeId,
+          sourceTreeName: tree.name,
+          isFromConnectedTree: false,
+        };
+        canonicalMembers.set(m.id, memberWithSource);
+        addToNameIndex(memberWithSource);
+        if (m.claimedByUserId) {
+          claimedUserIndex.set(m.claimedByUserId, memberWithSource);
+        }
+      }
+      allRelationships.push(...mainRelationships);
+
+      // Step 2: Process each connected tree — match members, add unique ones
+      for (const connTreeId of accessibleTreeIds.filter(id => id !== treeId)) {
+        const connTree = await storage.getTree(connTreeId);
+        if (!connTree) continue;
+        treeInfoMap.set(connTreeId, { name: connTree.name, ownerId: connTree.ownerId });
+
+        const connMembers = await storage.getMembers(connTreeId);
+        const connRelationships = await storage.getRelationships(connTreeId);
+
+        for (const m of connMembers) {
+          const match = findCanonicalMatch(m);
+
+          if (match) {
+            memberIdRemapping.set(m.id, match.id);
+          } else {
+            const memberWithSource = {
+              ...m,
+              sourceTreeId: connTreeId,
+              sourceTreeName: connTree.name,
+              isFromConnectedTree: true,
+            };
+            canonicalMembers.set(m.id, memberWithSource);
+            addToNameIndex(memberWithSource);
+            if (m.claimedByUserId) {
+              claimedUserIndex.set(m.claimedByUserId, memberWithSource);
             }
           }
         }
-        
-        // No match found - add to the seen list
-        existing.push(m);
-        seenUnclaimedByKey.set(fuzzyKey, existing);
+
+        // Add relationships remapped to canonical IDs
+        for (const rel of connRelationships) {
+          allRelationships.push({
+            ...rel,
+            fromMemberId: memberIdRemapping.get(rel.fromMemberId) || rel.fromMemberId,
+            toMemberId: memberIdRemapping.get(rel.toMemberId) || rel.toMemberId,
+          });
+        }
+      }
+
+      // Step 3: Deduplicate relationships (same pair + type should appear only once)
+      const relKeySet = new Set<string>();
+      const deduplicatedMembers = Array.from(canonicalMembers.values());
+      const remappedRelationships = allRelationships.filter(rel => {
+        const from = rel.fromMemberId;
+        const to = rel.toMemberId;
+        if (from === to) return false;
+        const isSymmetric = ['spouse', 'sibling', 'coparent'].includes(rel.relationshipType);
+        const ids = isSymmetric ? [from, to].sort() : [from, to];
+        const key = `${ids[0]}-${ids[1]}-${rel.relationshipType}`;
+        if (relKeySet.has(key)) return false;
+        relKeySet.add(key);
         return true;
       });
-      
-      // Remap relationship IDs to use preferred member IDs (deduplicated)
-      const remappedRelationships = allRelationships.map((rel: any) => ({
-        ...rel,
-        fromMemberId: memberIdRemapping.get(rel.fromMemberId) || rel.fromMemberId,
-        toMemberId: memberIdRemapping.get(rel.toMemberId) || rel.toMemberId
-      }));
 
       // Create bridge relationships between connector members from different trees
       // Only for connections where both trees are accessible

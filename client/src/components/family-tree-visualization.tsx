@@ -874,27 +874,77 @@ export default function FamilyTreeVisualization({
       }
     }
 
-    // Post-layout collision resolution: ensure no two nodes overlap
     const minHGap = nodeWidth + 20;
-    const yBuckets = new Map<number, NodePosition[]>();
-    for (const pos of positioned) {
-      const yKey = Math.round(pos.y / 10) * 10;
-      if (!yBuckets.has(yKey)) yBuckets.set(yKey, []);
-      yBuckets.get(yKey)!.push(pos);
-    }
-    for (const [, levelNodes] of yBuckets) {
-      levelNodes.sort((a, b) => a.x - b.x);
-      for (let i = 1; i < levelNodes.length; i++) {
-        const prev = levelNodes[i - 1];
-        const curr = levelNodes[i];
-        if (curr.x - prev.x < minHGap) {
-          const shift = minHGap - (curr.x - prev.x);
-          // Push current and all subsequent nodes right
-          for (let j = i; j < levelNodes.length; j++) {
-            levelNodes[j].x += shift;
+
+    const resolveCollisions = () => {
+      const yBuckets = new Map<number, NodePosition[]>();
+      for (const pos of positioned) {
+        const yKey = Math.round(pos.y / 10) * 10;
+        if (!yBuckets.has(yKey)) yBuckets.set(yKey, []);
+        yBuckets.get(yKey)!.push(pos);
+      }
+      for (const [, levelNodes] of yBuckets) {
+        levelNodes.sort((a, b) => a.x - b.x);
+        for (let i = 1; i < levelNodes.length; i++) {
+          const prev = levelNodes[i - 1];
+          const curr = levelNodes[i];
+          if (curr.x - prev.x < minHGap) {
+            const shift = minHGap - (curr.x - prev.x);
+            for (let j = i; j < levelNodes.length; j++) {
+              levelNodes[j].x += shift;
+            }
           }
         }
       }
+    };
+
+    const recenterAncestors = () => {
+      const ancestorTypes = new Set(['grandparent', 'greatgrandparent', 'inlaw-grandparent']);
+      const ancestors = positioned.filter(p => ancestorTypes.has(p.branchType));
+      ancestors.sort((a, b) => b.y - a.y);
+
+      const processed = new Set<string>();
+
+      for (const pos of ancestors) {
+        if (processed.has(pos.member.id)) continue;
+
+        const spouseIds = spouseMap.get(pos.member.id) || [];
+        const spousePos = spouseIds
+          .map(sid => positioned.find(p => p.member.id === sid))
+          .find(sp => sp && Math.abs(sp.y - pos.y) < 20 && ancestorTypes.has(sp.branchType));
+
+        const allChildIds = new Set<string>();
+        (parentChildMap.get(pos.member.id) || []).forEach(id => allChildIds.add(id));
+        if (spousePos) {
+          (parentChildMap.get(spousePos.member.id) || []).forEach(id => allChildIds.add(id));
+        }
+
+        const childPositions = Array.from(allChildIds)
+          .map(cid => positioned.find(p => p.member.id === cid))
+          .filter(Boolean) as NodePosition[];
+
+        if (childPositions.length > 0) {
+          const childMinX = Math.min(...childPositions.map(c => c.x));
+          const childMaxX = Math.max(...childPositions.map(c => c.x));
+          const childCenterX = (childMinX + childMaxX) / 2;
+
+          if (spousePos) {
+            const pairSpacing = nodeWidth + horizontalGap / 2;
+            pos.x = childCenterX - pairSpacing / 2;
+            spousePos.x = childCenterX + pairSpacing / 2;
+            processed.add(spousePos.member.id);
+          } else {
+            pos.x = childCenterX;
+          }
+        }
+
+        processed.add(pos.member.id);
+      }
+    };
+
+    for (let iter = 0; iter < 3; iter++) {
+      recenterAncestors();
+      resolveCollisions();
     }
 
     return { positions: positioned, labels };
