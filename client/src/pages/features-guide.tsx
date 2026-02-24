@@ -105,9 +105,9 @@ export default function FeaturesGuide() {
           icon: <Heart className="h-5 w-5 text-rose-600" />,
         },
         {
-          name: "Life Events",
-          description: "Record important milestones like graduations, weddings, military service, promotions, and more. Events are displayed on member profiles as a timeline.",
-          whereToFind: "Tree View > click a member > scroll to 'Life Events' section > 'Add Event' button.",
+          name: "Life Events & Timeline",
+          description: "Record important milestones like graduations, weddings, military service, baptisms, and more on individual member profiles. All life events across the tree — plus every member's birth and death dates — are gathered into the Timeline tab, displayed chronologically with color-coded icons, member photos, locations, and year groupings.",
+          whereToFind: "Add events: Tree View > click a member > 'Life Events' section > 'Add Event'. View all: Tree View > 'Timeline' tab.",
           icon: <ScrollText className="h-5 w-5 text-amber-600" />,
         },
         {
@@ -130,8 +130,8 @@ export default function FeaturesGuide() {
         },
         {
           name: "Upcoming Event Indicators",
-          description: "Member cards in the tree show small badge indicators for upcoming birthdays (within 30 days, with countdown) and active gift registries. Quickly see who has a birthday coming up at a glance.",
-          whereToFind: "Visible directly on member cards in the tree visualization. Birthday cake and gift icons appear automatically.",
+          description: "Member cards in the tree show small badge indicators for upcoming birthdays (within 30 days, with countdown) and active gift registries. Quickly see who has a birthday coming up or who has a registry at a glance.",
+          whereToFind: "Visible directly on member cards in the tree visualization (automatic), plus the Registries tab shows all active registries across the tree.",
           icon: <Bell className="h-5 w-5 text-red-500" />,
         },
         {
@@ -292,8 +292,8 @@ export default function FeaturesGuide() {
         },
         {
           name: "Gift Registry",
-          description: "Create and manage gift registries linked to your trees. Perfect for family reunions, weddings, baby showers, or group fundraising. Uses Amazon Associates for product recommendations.",
-          whereToFind: "Tree View > 'Gift Registry' button, or Dashboard > 'Gifts' in the navigation.",
+          description: "Create and manage gift registries for birthdays, weddings, baby showers, graduations, holidays, and more. Add items from any online store with links and prices. Family members can mark items as purchased to prevent duplicates. Each registry shows fulfillment progress with a progress bar.",
+          whereToFind: "Create from any member's profile panel > 'Gift Registries' section. Browse all tree registries from the 'Registries' tab in tree view. Also accessible via Dashboard > 'Gifts'.",
           icon: <Gift className="h-5 w-5 text-pink-600" />,
         },
       ],

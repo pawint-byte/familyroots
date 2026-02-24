@@ -599,11 +599,11 @@ export default function FAQ() {
         },
         {
           question: "How do I know when a family member's birthday is coming up?",
-          answer: "FamilyRoots shows small badge indicators directly on member cards in the tree visualization. If someone has a birthday within the next 30 days, you'll see a birthday cake icon with a countdown showing how many days away it is. Members with active gift registries also show a purple gift icon. These indicators appear automatically — no setup needed beyond adding birth dates to your family members."
+          answer: "FamilyRoots shows small badge indicators directly on member cards in the tree visualization. If someone has a birthday within the next 30 days, you'll see a birthday cake icon with a countdown. Members with active gift registries show a purple gift icon. These indicators appear automatically — no setup needed beyond adding birth dates. You can also check the Registries tab in your tree view to see all active gift registries at a glance, and the Timeline tab shows all upcoming and past events in chronological order."
         },
         {
           question: "Can I see my family timeline?",
-          answer: "Yes! Each tree has a Timeline view that shows all family events in chronological order - births, deaths, marriages, and other milestones. It's a beautiful way to see your family's history unfold over time."
+          answer: "Yes! Each tree has a Timeline tab that automatically gathers every dated event into one chronological view. This includes birth dates and death dates from member profiles, plus all life events you've recorded — marriages, graduations, baptisms, career milestones, and more. Each event shows the member's photo, date, location, and event type with a color-coded icon. Events are grouped by year so you can see your family's history unfold decade by decade."
         },
         {
           question: "Is there an AI assistant to help me?",
@@ -709,11 +709,15 @@ export default function FAQ() {
         },
         {
           question: "What are Gift Registries?",
-          answer: "Gift Registries let you create wishlists for family events like birthdays, baby showers, weddings, graduations, and more. You can add items from any online store (like Amazon), and family members can see what's needed and mark items as purchased to avoid duplicates."
+          answer: "Gift Registries let you create wishlists for family events like birthdays, baby showers, weddings, graduations, and more. You can add items from any online store (like Amazon), and family members can see what's needed and mark items as purchased to avoid duplicates. Everyone in the tree can browse all active registries from the Registries tab."
         },
         {
           question: "How do I create a Gift Registry?",
-          answer: "Open any family tree, click the menu button, and select 'Gift Registries'. From there, you can create a registry for any family member and any occasion. Add items with links, prices, and quantities - then share with family so they know exactly what to get."
+          answer: "Click on any member in your tree to open their profile panel, then scroll to the 'Gift Registries' section. Create a registry for any occasion — birthdays, weddings, baby showers, holidays. Add items with links, prices, and quantities. Once created, the registry appears on the member's profile, on their tree card badge (purple gift icon), and in the tree-wide Registries tab so the whole family can find it."
+        },
+        {
+          question: "Where can I see all gift registries in my tree?",
+          answer: "Open your tree and click the 'Registries' tab at the top (next to Tree View, Members, Timeline, Memories, and Report). This shows all active registries across the entire tree — each one displays the member's name and photo, event type, event date with countdown, item fulfillment progress, and a link to view the full registry. Past/closed registries are shown separately below."
         },
         {
           question: "Can multiple people mark items as purchased?",

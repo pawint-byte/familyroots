@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
 import { useI18n } from "@/lib/i18n";
-import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase, Lock, Eye, EyeOff, Globe, UserCheck, Search, BookHeart, Mic, BarChart3 } from "lucide-react";
+import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase, Lock, Eye, EyeOff, Globe, UserCheck, Search, BookHeart, Mic, BarChart3, Gift, Clock } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 import { QRCodeSVG } from "qrcode.react";
@@ -626,6 +626,28 @@ export default function Landing() {
                   <Button variant="outline" size="sm" className="mt-2" data-testid="button-explore-familysearch">
                     Explore Records
                   </Button>
+                </CardContent>
+              </Card>
+              <Card className="hover-elevate group" data-testid="card-feature-gift-registry">
+                <CardContent className="p-6 space-y-4">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Gift className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg">Gift Registries</h3>
+                  <p className="text-muted-foreground">
+                    Create wishlists for birthdays, weddings, baby showers, and holidays. Family members see what's needed and mark gifts as purchased. Browse all registries from one place.
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="hover-elevate group" data-testid="card-feature-timeline">
+                <CardContent className="p-6 space-y-4">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg">Family Timeline</h3>
+                  <p className="text-muted-foreground">
+                    See every birth, death, marriage, graduation, and milestone across your tree in one chronological view. Color-coded events grouped by year tell your family's story.
+                  </p>
                 </CardContent>
               </Card>
               <Card className="hover-elevate group" data-testid="card-feature-memory-lane">
