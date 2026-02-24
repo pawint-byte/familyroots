@@ -531,6 +531,7 @@ export default function ImportConflictResolution({
                   {importSummary.integrity.transferredData.invitations > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.invitations} invitations</Badge>}
                   {importSummary.integrity.transferredData.claimRequests > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.claimRequests} claim requests</Badge>}
                   {importSummary.integrity.transferredData.custodianshipReqs > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.custodianshipReqs} custodianship</Badge>}
+                  {importSummary.integrity.transferredData.mutes > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.mutes} mutes</Badge>}
                 </div>
               </div>
             )}
