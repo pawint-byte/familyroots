@@ -11080,6 +11080,15 @@ export async function registerRoutes(
       // Symmetric types (spouse, sibling, coparent) treat reversed pairs as duplicates
       // Directional types (parent, child, etc.) require exact from/to match
       const SYMMETRIC_REL_TYPES = new Set(["spouse", "sibling", "coparent"]);
+      // Normalize parent-type relationships to canonical form for dedup:
+      // "parent" A→B means A is parent of B
+      // "child" A→B means A is child of B → normalize to "parent" B→A
+      // "parent-child" same as "parent"
+      const normalizeParentRel = (type: string, fromId: string, toId: string): [string, string, string] => {
+        if (type === "child") return ["parent", toId, fromId];
+        if (type === "parent-child") return ["parent", fromId, toId];
+        return [type, fromId, toId];
+      };
       const isRelDuplicate = (existing: { fromMemberId: string; toMemberId: string; relationshipType: string }, newRel: { fromMemberId: string; toMemberId: string; relationshipType: string }) => {
         if (existing.relationshipType !== newRel.relationshipType) return false;
         if (existing.fromMemberId === newRel.fromMemberId && existing.toMemberId === newRel.toMemberId) return true;
@@ -11091,12 +11100,20 @@ export async function registerRoutes(
       console.log(`[resolve-conflicts] Phase 3: Moving ${sourceRelsNow.length} relationships to target tree`);
       // Take a single snapshot of existing target relationships for efficient dedup
       const existingTargetRelsSnapshot = await storage.getRelationships(treeId);
-      const targetRelSet = new Set(existingTargetRelsSnapshot.map(r => `${r.relationshipType}:${r.fromMemberId}:${r.toMemberId}`));
+      const targetRelSet = new Set<string>();
+      for (const r of existingTargetRelsSnapshot) {
+        const [nType, nFrom, nTo] = normalizeParentRel(r.relationshipType, r.fromMemberId, r.toMemberId);
+        targetRelSet.add(`${nType}:${nFrom}:${nTo}`);
+        if (SYMMETRIC_REL_TYPES.has(nType)) {
+          targetRelSet.add(`${nType}:${nTo}:${nFrom}`);
+        }
+      }
 
       for (const rel of sourceRelsNow) {
-        const exactKey = `${rel.relationshipType}:${rel.fromMemberId}:${rel.toMemberId}`;
-        const reverseKey = `${rel.relationshipType}:${rel.toMemberId}:${rel.fromMemberId}`;
-        const alreadyExists = targetRelSet.has(exactKey) || (SYMMETRIC_REL_TYPES.has(rel.relationshipType) && targetRelSet.has(reverseKey));
+        const [nType, nFrom, nTo] = normalizeParentRel(rel.relationshipType, rel.fromMemberId, rel.toMemberId);
+        const exactKey = `${nType}:${nFrom}:${nTo}`;
+        const reverseKey = `${nType}:${nTo}:${nFrom}`;
+        const alreadyExists = targetRelSet.has(exactKey) || (SYMMETRIC_REL_TYPES.has(nType) && targetRelSet.has(reverseKey));
 
         if (!alreadyExists) {
           try {
@@ -11123,9 +11140,10 @@ export async function registerRoutes(
       const mergeRelTracker = new Set<string>();
       const snapshotRelsForMerge = await storage.getRelationships(treeId);
       for (const r of snapshotRelsForMerge) {
-        mergeRelTracker.add(`${r.relationshipType}:${r.fromMemberId}:${r.toMemberId}`);
-        if (SYMMETRIC_REL_TYPES.has(r.relationshipType)) {
-          mergeRelTracker.add(`${r.relationshipType}:${r.toMemberId}:${r.fromMemberId}`);
+        const [normType, normFrom, normTo] = normalizeParentRel(r.relationshipType, r.fromMemberId, r.toMemberId);
+        mergeRelTracker.add(`${normType}:${normFrom}:${normTo}`);
+        if (SYMMETRIC_REL_TYPES.has(normType)) {
+          mergeRelTracker.add(`${normType}:${normTo}:${normFrom}`);
         }
       }
 
@@ -11233,11 +11251,12 @@ export async function registerRoutes(
           const newFromId = isFrom ? targetMemberId : resolvedOtherId;
           const newToId = isFrom ? resolvedOtherId : targetMemberId;
 
-          // O(1) dedup check using the tracking set
-          const exactKey = `${rel.relationshipType}:${newFromId}:${newToId}`;
-          const reverseKey = `${rel.relationshipType}:${newToId}:${newFromId}`;
+          // O(1) dedup check using the tracking set with normalization
+          const [normType, normFrom, normTo] = normalizeParentRel(rel.relationshipType, newFromId, newToId);
+          const exactKey = `${normType}:${normFrom}:${normTo}`;
+          const reverseKey = `${normType}:${normTo}:${normFrom}`;
           const alreadyExists = mergeRelTracker.has(exactKey) ||
-            (SYMMETRIC_REL_TYPES.has(rel.relationshipType) && mergeRelTracker.has(reverseKey));
+            (SYMMETRIC_REL_TYPES.has(normType) && mergeRelTracker.has(reverseKey));
 
           if (!alreadyExists) {
             try {
@@ -11249,7 +11268,7 @@ export async function registerRoutes(
                 qualifier: rel.qualifier,
               });
               mergeRelTracker.add(exactKey);
-              if (SYMMETRIC_REL_TYPES.has(rel.relationshipType)) {
+              if (SYMMETRIC_REL_TYPES.has(normType)) {
                 mergeRelTracker.add(reverseKey);
               }
               repointed++;
@@ -11260,10 +11279,10 @@ export async function registerRoutes(
             skippedDups++;
           }
           // Remove old relationship keys from tracker and delete
-          const oldExactKey = `${rel.relationshipType}:${rel.fromMemberId}:${rel.toMemberId}`;
-          mergeRelTracker.delete(oldExactKey);
-          if (SYMMETRIC_REL_TYPES.has(rel.relationshipType)) {
-            mergeRelTracker.delete(`${rel.relationshipType}:${rel.toMemberId}:${rel.fromMemberId}`);
+          const [oldNormType, oldNormFrom, oldNormTo] = normalizeParentRel(rel.relationshipType, rel.fromMemberId, rel.toMemberId);
+          mergeRelTracker.delete(`${oldNormType}:${oldNormFrom}:${oldNormTo}`);
+          if (SYMMETRIC_REL_TYPES.has(oldNormType)) {
+            mergeRelTracker.delete(`${oldNormType}:${oldNormTo}:${oldNormFrom}`);
           }
           try { await storage.deleteRelationship(rel.id); } catch (e) { }
         }
@@ -11347,16 +11366,14 @@ export async function registerRoutes(
       }
 
       // === PHASE 5: Process skips — bridge parent-child AND spouse chains ===
-      // Build a tracking set for skip phase dedup
-      // Normalize parent-child and parent to a single key type "parent" for consistent dedup
+      // Build a tracking set for skip phase dedup using directional normalization
       const skipRelTracker = new Set<string>();
-      const normalizeRelType = (type: string) => type === "parent-child" ? "parent" : type;
       const skipPhaseRels = await storage.getRelationships(treeId);
       for (const r of skipPhaseRels) {
-        const normType = normalizeRelType(r.relationshipType);
-        skipRelTracker.add(`${normType}:${r.fromMemberId}:${r.toMemberId}`);
-        if (SYMMETRIC_REL_TYPES.has(r.relationshipType)) {
-          skipRelTracker.add(`${normType}:${r.toMemberId}:${r.fromMemberId}`);
+        const [nType, nFrom, nTo] = normalizeParentRel(r.relationshipType, r.fromMemberId, r.toMemberId);
+        skipRelTracker.add(`${nType}:${nFrom}:${nTo}`);
+        if (SYMMETRIC_REL_TYPES.has(nType)) {
+          skipRelTracker.add(`${nType}:${nTo}:${nFrom}`);
         }
       }
 
@@ -11383,11 +11400,14 @@ export async function registerRoutes(
           const resolvedOtherId = mergedSourceToTarget.get(otherId) || otherId;
 
           const isParentRel = rel.relationshipType === "parent" || rel.relationshipType === "parent-child";
+          const isChildRel = rel.relationshipType === "child";
           const isSpouseRel = rel.relationshipType === "spouse";
           let direction: "parent" | "child" | "spouse" | "other" = "other";
 
           if (isParentRel && rel.toMemberId === sourceMemberId) direction = "parent";
           else if (isParentRel && rel.fromMemberId === sourceMemberId) direction = "child";
+          else if (isChildRel && rel.fromMemberId === sourceMemberId) direction = "parent";
+          else if (isChildRel && rel.toMemberId === sourceMemberId) direction = "child";
           else if (isSpouseRel) direction = "spouse";
 
           neighbors.push({ memberId: resolvedOtherId, relType: rel.relationshipType, direction });
@@ -11482,10 +11502,10 @@ export async function registerRoutes(
 
         // Delete all relationships for the skipped member and remove from tracker
         for (const rel of affectedRels) {
-          const normType = normalizeRelType(rel.relationshipType);
-          skipRelTracker.delete(`${normType}:${rel.fromMemberId}:${rel.toMemberId}`);
-          if (SYMMETRIC_REL_TYPES.has(rel.relationshipType)) {
-            skipRelTracker.delete(`${normType}:${rel.toMemberId}:${rel.fromMemberId}`);
+          const [delNType, delNFrom, delNTo] = normalizeParentRel(rel.relationshipType, rel.fromMemberId, rel.toMemberId);
+          skipRelTracker.delete(`${delNType}:${delNFrom}:${delNTo}`);
+          if (SYMMETRIC_REL_TYPES.has(delNType)) {
+            skipRelTracker.delete(`${delNType}:${delNTo}:${delNFrom}`);
           }
           try { await storage.deleteRelationship(rel.id); } catch (e) { }
         }
@@ -11513,9 +11533,9 @@ export async function registerRoutes(
           try { await storage.deleteRelationship(rel.id); orphansCleaned++; } catch (e) { }
           continue;
         }
-        const normType = normalizeRelType(rel.relationshipType);
-        const key1 = `${normType}:${rel.fromMemberId}:${rel.toMemberId}`;
-        const key2 = SYMMETRIC_REL_TYPES.has(rel.relationshipType) ? `${normType}:${rel.toMemberId}:${rel.fromMemberId}` : null;
+        const [nType, nFrom, nTo] = normalizeParentRel(rel.relationshipType, rel.fromMemberId, rel.toMemberId);
+        const key1 = `${nType}:${nFrom}:${nTo}`;
+        const key2 = SYMMETRIC_REL_TYPES.has(nType) ? `${nType}:${nTo}:${nFrom}` : null;
         if (relKeys.has(key1) || (key2 && relKeys.has(key2))) {
           try { await storage.deleteRelationship(rel.id); deduped++; } catch (e) { }
         } else {
@@ -11549,6 +11569,11 @@ export async function registerRoutes(
           parentChildMap.get(rel.fromMemberId)!.push(rel.toMemberId);
           if (!childToParentsMap.has(rel.toMemberId)) childToParentsMap.set(rel.toMemberId, []);
           childToParentsMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+        } else if (rel.relationshipType === "child") {
+          if (!parentChildMap.has(rel.toMemberId)) parentChildMap.set(rel.toMemberId, []);
+          parentChildMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+          if (!childToParentsMap.has(rel.fromMemberId)) childToParentsMap.set(rel.fromMemberId, []);
+          childToParentsMap.get(rel.fromMemberId)!.push(rel.toMemberId);
         }
       }
 
