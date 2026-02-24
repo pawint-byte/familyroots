@@ -1624,8 +1624,8 @@ export default function TreeView() {
         </div>
       </header>
 
-      <div className="flex-1 flex">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+      <div className="flex-1 flex min-h-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <div className="border-b border-border bg-card/50">
             <div className="container mx-auto px-4">
               <TabsList className="bg-transparent h-12 p-0 gap-4">
