@@ -76,6 +76,11 @@ export interface IStorage {
     rootMemberId?: string;
     createConnection?: boolean;
   }): Promise<FamilyTree>;
+  cloneTree(sourceTreeId: string, params: {
+    name: string;
+    privacy?: string;
+    ownerId: string;
+  }): Promise<{ tree: FamilyTree; members: FamilyMember[] }>;
 
   // Family Members
   getMembers(treeId: string): Promise<FamilyMember[]>;
@@ -587,6 +592,115 @@ export class DatabaseStorage implements IStorage {
       }
 
       return newTree;
+    });
+  }
+
+  async cloneTree(sourceTreeId: string, params: {
+    name: string;
+    privacy?: string;
+    ownerId: string;
+  }): Promise<{ tree: FamilyTree; members: FamilyMember[] }> {
+    const sourceTree = await this.getTree(sourceTreeId);
+    if (!sourceTree) throw new Error("Source tree not found");
+
+    const sourceMembers = await this.getMembers(sourceTreeId);
+    const sourceRelationships = await this.getRelationships(sourceTreeId);
+    const sourceTags = await this.getTreeTags(sourceTreeId);
+    const sourceMemberTags = await this.getMemberTagsByTree(sourceTreeId);
+
+    return await db.transaction(async (tx) => {
+      const [newTree] = await tx.insert(familyTrees).values({
+        name: params.name,
+        ownerId: params.ownerId,
+        treeType: sourceTree.treeType,
+        treeTypeLabel: sourceTree.treeTypeLabel,
+        privacy: (params.privacy || sourceTree.privacy) as any,
+        customRelationshipTypes: sourceTree.customRelationshipTypes,
+        preferredLayout: sourceTree.preferredLayout,
+        visibilityDefault: sourceTree.visibilityDefault,
+        description: sourceTree.description,
+        isDiscoverable: false,
+        parentTreeId: null,
+      }).returning();
+
+      const oldToNewMemberMap = new Map<string, string>();
+      const newMembers: FamilyMember[] = [];
+
+      for (const member of sourceMembers) {
+        const [cloned] = await tx.insert(familyMembers).values({
+          treeId: newTree.id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          suffix: member.suffix,
+          nickname: member.nickname,
+          email: member.email,
+          gender: member.gender,
+          birthDate: member.birthDate,
+          birthPlace: member.birthPlace,
+          deathDate: member.deathDate,
+          isLiving: member.isLiving,
+          photoUrl: member.photoUrl,
+          notes: member.notes,
+          isUnknown: member.isUnknown,
+          unknownLabel: member.unknownLabel,
+          currentCity: member.currentCity,
+          currentRegion: member.currentRegion,
+          currentCountry: member.currentCountry,
+          locationVisible: member.locationVisible,
+          customPosition: member.customPosition,
+        } as any).returning();
+        oldToNewMemberMap.set(member.id, cloned.id);
+        newMembers.push(cloned);
+      }
+
+      for (const rel of sourceRelationships) {
+        const newFromId = oldToNewMemberMap.get(rel.fromMemberId);
+        const newToId = oldToNewMemberMap.get(rel.toMemberId);
+        if (newFromId && newToId) {
+          await tx.insert(relationships).values({
+            treeId: newTree.id,
+            fromMemberId: newFromId,
+            toMemberId: newToId,
+            relationshipType: rel.relationshipType,
+            qualifier: rel.qualifier,
+            customLabel: rel.customLabel,
+          });
+        }
+      }
+
+      const oldToNewTagMap = new Map<string, string>();
+      for (const tag of sourceTags) {
+        const [clonedTag] = await tx.insert(treeTags).values({
+          treeId: newTree.id,
+          label: tag.label,
+          color: tag.color,
+        }).returning();
+        oldToNewTagMap.set(tag.id, clonedTag.id);
+      }
+
+      for (const mt of sourceMemberTags) {
+        const newTagId = oldToNewTagMap.get(mt.tagId);
+        const newMemberId = oldToNewMemberMap.get(mt.memberId);
+        if (newTagId && newMemberId) {
+          await tx.insert(memberTags).values({
+            tagId: newTagId,
+            memberId: newMemberId,
+            treeId: newTree.id,
+          });
+        }
+      }
+
+      if (sourceTree.rootMemberId) {
+        const newRootId = oldToNewMemberMap.get(sourceTree.rootMemberId);
+        if (newRootId) {
+          await tx.update(familyTrees)
+            .set({ rootMemberId: newRootId })
+            .where(eq(familyTrees.id, newTree.id));
+          newTree.rootMemberId = newRootId;
+        }
+      }
+
+      return { tree: newTree, members: newMembers };
     });
   }
 

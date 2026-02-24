@@ -760,6 +760,98 @@ export default function FamilyTreeVisualization({
       });
     }
 
+    let rescueChanged = true;
+    let rescueIterations = 0;
+    while (rescueChanged && rescueIterations < 10) {
+      rescueChanged = false;
+      rescueIterations++;
+      const unplacedIds = deduplicatedMembers.filter(m => !placed.has(m.id)).map(m => m.id);
+      for (const uid of unplacedIds) {
+        if (placed.has(uid)) continue;
+        const member = deduplicatedMembers.find(m => m.id === uid);
+        if (!member) continue;
+
+        const parents = childParentMap.get(uid) || [];
+        const children = parentChildMap.get(uid) || [];
+        const spouseIds = spouseMap.get(uid) || [];
+        const coparents = coparentMap.get(uid) || [];
+        const siblings = siblingMap.get(uid) || [];
+
+        let anchorPos: NodePosition | undefined;
+        let placementType: 'parent' | 'child' | 'spouse' | 'sibling' = 'sibling';
+
+        for (const pid of parents) {
+          if (placed.has(pid)) {
+            anchorPos = positioned.find(p => p.member.id === pid);
+            placementType = 'child';
+            break;
+          }
+        }
+        if (!anchorPos) {
+          for (const cid of children) {
+            if (placed.has(cid)) {
+              anchorPos = positioned.find(p => p.member.id === cid);
+              placementType = 'parent';
+              break;
+            }
+          }
+        }
+        if (!anchorPos) {
+          for (const sid of [...spouseIds, ...coparents]) {
+            if (placed.has(sid)) {
+              anchorPos = positioned.find(p => p.member.id === sid);
+              placementType = 'spouse';
+              break;
+            }
+          }
+        }
+        if (!anchorPos) {
+          for (const sid of siblings) {
+            if (placed.has(sid)) {
+              anchorPos = positioned.find(p => p.member.id === sid);
+              placementType = 'sibling';
+              break;
+            }
+          }
+        }
+
+        if (anchorPos) {
+          let newX = anchorPos.x;
+          let newY = anchorPos.y;
+          let branchType: NodePosition['branchType'] = 'extended';
+
+          const nodesAtLevel = positioned.filter(p => Math.abs(p.y - newY) < 10);
+          const maxXAtLevel = nodesAtLevel.length > 0 ? Math.max(...nodesAtLevel.map(p => p.x)) : newX;
+
+          if (placementType === 'child') {
+            newY = anchorPos.y + verticalGap + nodeHeight;
+            const childLevelNodes = positioned.filter(p => Math.abs(p.y - newY) < 10);
+            newX = childLevelNodes.length > 0
+              ? Math.max(...childLevelNodes.map(p => p.x)) + nodeWidth + horizontalGap
+              : anchorPos.x;
+            branchType = 'child';
+          } else if (placementType === 'parent') {
+            newY = anchorPos.y - verticalGap - nodeHeight;
+            const parentLevelNodes = positioned.filter(p => Math.abs(p.y - newY) < 10);
+            newX = parentLevelNodes.length > 0
+              ? Math.max(...parentLevelNodes.map(p => p.x)) + nodeWidth + horizontalGap
+              : anchorPos.x;
+            branchType = 'parent';
+          } else if (placementType === 'spouse') {
+            newX = maxXAtLevel + nodeWidth + horizontalGap / 3;
+            branchType = 'spouse';
+          } else {
+            newX = maxXAtLevel + nodeWidth + horizontalGap / 3;
+            branchType = 'sibling';
+          }
+
+          positioned.push({ x: newX, y: newY, member, branchType });
+          placed.add(uid);
+          rescueChanged = true;
+        }
+      }
+    }
+
     const unconnectedMembers = deduplicatedMembers.filter(m => !placed.has(m.id));
     if (unconnectedMembers.length > 0) {
       const sectionStartY = positioned.length > 0

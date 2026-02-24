@@ -28,7 +28,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
   LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors,
-  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight, UserPlus, BookHeart, BarChart3
+  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight, UserPlus, BookHeart, BarChart3, Copy
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -121,6 +121,7 @@ export default function TreeView() {
   const [editCustomTypeName, setEditCustomTypeName] = useState("");
   const [editCustomReverseLabel, setEditCustomReverseLabel] = useState("");
   const [showMergedView, setShowMergedView] = useState(false);
+  const [selectedConnectedTrees, setSelectedConnectedTrees] = useState<Set<string> | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const [crossTreeMergeData, setCrossTreeMergeData] = useState<{
@@ -162,6 +163,8 @@ export default function TreeView() {
   const [createTreeTagId, setCreateTreeTagId] = useState<string>("");
   const [createTreeName, setCreateTreeName] = useState("");
   const [createTreeAsSubGroup, setCreateTreeAsSubGroup] = useState(true);
+  const [isCloneTreeOpen, setIsCloneTreeOpen] = useState(false);
+  const [cloneTreeName, setCloneTreeName] = useState("");
   const [isBulkRelChangeOpen, setIsBulkRelChangeOpen] = useState(false);
   const [isDeletedMembersOpen, setIsDeletedMembersOpen] = useState(false);
   const [bulkRelFromType, setBulkRelFromType] = useState<string>("");
@@ -190,12 +193,30 @@ export default function TreeView() {
     members: Array<FamilyMember & { sourceTreeId: string; sourceTreeName: string; isFromConnectedTree: boolean }>;
     relationships: Relationship[];
     connectedTrees: Array<{ id: string; name: string; isMainTree: boolean }>;
+    allAvailableConnectedTrees?: Array<{ id: string; name: string }>;
   }
 
+  const selectedTreeIdsParam = selectedConnectedTrees ? Array.from(selectedConnectedTrees).sort().join(',') : '';
+
   const { data: mergedData, isLoading: isMergedLoading } = useQuery<MergedTreeData>({
-    queryKey: ["/api/trees", treeId, "merged"],
+    queryKey: ["/api/trees", treeId, "merged", selectedTreeIdsParam],
+    queryFn: async () => {
+      const url = selectedConnectedTrees !== null
+        ? `/api/trees/${treeId}/merged?treeIds=${Array.from(selectedConnectedTrees).join(',')}`
+        : `/api/trees/${treeId}/merged`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch merged data");
+      return res.json();
+    },
     enabled: !!treeId && showMergedView,
   });
+
+  // Initialize selectedConnectedTrees when merged data first loads
+  useEffect(() => {
+    if (mergedData?.allAvailableConnectedTrees && selectedConnectedTrees === null) {
+      setSelectedConnectedTrees(new Set(mergedData.allAvailableConnectedTrees.map(t => t.id)));
+    }
+  }, [mergedData?.allAvailableConnectedTrees, selectedConnectedTrees]);
 
   // Determine which data to use based on merged view toggle
   const allDisplayMembers = showMergedView && mergedData ? mergedData.members : (treeData?.members || []);
@@ -635,6 +656,30 @@ export default function TreeView() {
       toast({
         title: "Error",
         description: error?.message || "Failed to split tree",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const cloneTreeMutation = useMutation({
+    mutationFn: async (data: { name: string }) => {
+      const res = await apiRequest("POST", `/api/trees/${treeId}/clone`, data);
+      return res.json();
+    },
+    onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+      setIsCloneTreeOpen(false);
+      setCloneTreeName("");
+      toast({
+        title: "Tree cloned successfully!",
+        description: `"${result.tree.name}" has been created with all members and relationships.`,
+      });
+      navigate(`/tree/${result.tree.id}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to clone tree",
         variant: "destructive",
       });
     },
@@ -1344,6 +1389,18 @@ export default function TreeView() {
                       className="gap-2"
                       onSelect={(e) => {
                         e.preventDefault();
+                        setCloneTreeName(`Copy of ${treeData?.tree?.name || "Tree"}`);
+                        setTimeout(() => setIsCloneTreeOpen(true), 10);
+                      }}
+                      data-testid="button-clone-tree"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Clone Tree
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="gap-2"
+                      onSelect={(e) => {
+                        e.preventDefault();
                         setTimeout(() => setIsMoveUnderParentOpen(true), 10);
                       }}
                       data-testid="button-move-under-parent"
@@ -1902,28 +1959,61 @@ export default function TreeView() {
                           </div>
                         </div>
                       )}
-                      {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
+                      {showMergedView && mergedData?.allAvailableConnectedTrees && mergedData.allAvailableConnectedTrees.length > 0 && (
                         <div className="mt-2 text-xs text-muted-foreground">
-                          <span className="font-medium">{mergedData.connectedTrees.length} trees:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {mergedData.connectedTrees.map(t => {
-                              const connection = !t.isMainTree ? mergedData.connections.find(
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium">Connected trees:</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 px-1 text-xs"
+                              onClick={() => {
+                                if (selectedConnectedTrees && selectedConnectedTrees.size === mergedData.allAvailableConnectedTrees!.length) {
+                                  setSelectedConnectedTrees(new Set());
+                                } else {
+                                  setSelectedConnectedTrees(new Set(mergedData.allAvailableConnectedTrees!.map(t => t.id)));
+                                }
+                              }}
+                              data-testid="button-select-all-trees"
+                            >
+                              {selectedConnectedTrees && selectedConnectedTrees.size === mergedData.allAvailableConnectedTrees.length ? "None" : "All"}
+                            </Button>
+                          </div>
+                          <div className="flex flex-col gap-1 mt-1">
+                            {mergedData.allAvailableConnectedTrees.map(t => {
+                              const isSelected = selectedConnectedTrees?.has(t.id) ?? true;
+                              const connection = mergedData.connections.find(
                                 c => c.tree1Id === t.id || c.tree2Id === t.id
-                              ) : null;
+                              );
                               const connectorMemberId = connection ? (
                                 connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId
                               ) : null;
                               
                               return (
-                                <div key={t.id} className="flex items-center gap-1">
-                                  <Badge variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
+                                <div key={t.id} className="flex items-center gap-1.5">
+                                  <Checkbox
+                                    id={`tree-select-${t.id}`}
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      const next = new Set(selectedConnectedTrees || []);
+                                      if (checked) {
+                                        next.add(t.id);
+                                      } else {
+                                        next.delete(t.id);
+                                      }
+                                      setSelectedConnectedTrees(next);
+                                    }}
+                                    data-testid={`checkbox-tree-${t.id}`}
+                                    className="h-3.5 w-3.5"
+                                  />
+                                  <label htmlFor={`tree-select-${t.id}`} className="cursor-pointer text-xs truncate flex-1">
                                     {t.name}
-                                  </Badge>
-                                  {!t.isMainTree && connection && connectorMemberId && canEditTree && (
+                                  </label>
+                                  {isSelected && connection && connectorMemberId && canEditTree && (
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="h-5 px-1 text-xs"
+                                      className="h-5 px-1 text-xs shrink-0"
                                       onClick={() => {
                                         setImportConnectionData({
                                           connectionId: connection.id,
@@ -1943,7 +2033,7 @@ export default function TreeView() {
                           </div>
                         </div>
                       )}
-                      {showMergedView && (!mergedData?.connections || mergedData.connections.length === 0) && (
+                      {showMergedView && (!mergedData?.allAvailableConnectedTrees || mergedData.allAvailableConnectedTrees.length === 0) && (
                         <p className="mt-2 text-xs text-muted-foreground">
                           No connected trees yet.
                         </p>
@@ -2029,66 +2119,99 @@ export default function TreeView() {
                           <span className="sm:hidden">Show</span>
                         </Label>
                       </div>
-                      {showMergedView && mergedData?.connectedTrees && mergedData.connectedTrees.length > 1 && (
+                      {showMergedView && mergedData?.allAvailableConnectedTrees && mergedData.allAvailableConnectedTrees.length > 0 && (
                         <div className="mt-2 text-xs text-muted-foreground">
-                          <span className="font-medium">{mergedData.connectedTrees.length} trees:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {mergedData.connectedTrees.map(t => {
-                              const connection = !t.isMainTree ? mergedData.connections.find(
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium">Connected trees:</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 px-1 text-xs"
+                              onClick={() => {
+                                if (selectedConnectedTrees && selectedConnectedTrees.size === mergedData.allAvailableConnectedTrees!.length) {
+                                  setSelectedConnectedTrees(new Set());
+                                } else {
+                                  setSelectedConnectedTrees(new Set(mergedData.allAvailableConnectedTrees!.map(t => t.id)));
+                                }
+                              }}
+                              data-testid="button-select-all-trees-empty"
+                            >
+                              {selectedConnectedTrees && selectedConnectedTrees.size === mergedData.allAvailableConnectedTrees.length ? "None" : "All"}
+                            </Button>
+                          </div>
+                          <div className="flex flex-col gap-1 mt-1">
+                            {mergedData.allAvailableConnectedTrees.map(t => {
+                              const isSelected = selectedConnectedTrees?.has(t.id) ?? true;
+                              const connection = mergedData.connections.find(
                                 c => c.tree1Id === t.id || c.tree2Id === t.id
-                              ) : null;
+                              );
                               const connectorMemberId = connection ? (
                                 connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId
                               ) : null;
                               
                               return (
-                                <div key={t.id} className="flex items-center gap-1">
-                                  <Badge variant={t.isMainTree ? "default" : "secondary"} className="text-xs">
+                                <div key={t.id} className="flex items-center gap-1.5">
+                                  <Checkbox
+                                    id={`tree-select-empty-${t.id}`}
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      const next = new Set(selectedConnectedTrees || []);
+                                      if (checked) {
+                                        next.add(t.id);
+                                      } else {
+                                        next.delete(t.id);
+                                      }
+                                      setSelectedConnectedTrees(next);
+                                    }}
+                                    data-testid={`checkbox-tree-empty-${t.id}`}
+                                    className="h-3.5 w-3.5"
+                                  />
+                                  <label htmlFor={`tree-select-empty-${t.id}`} className="cursor-pointer text-xs truncate flex-1">
                                     {t.name}
-                                  </Badge>
-                                  {!t.isMainTree && connection && connectorMemberId && canEditTree && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-5 px-1 text-xs"
-                                          onClick={() => {
-                                            setImportConnectionData({
-                                              connectionId: connection.id,
-                                              connectorMemberId,
-                                              sourceTreeName: t.name
-                                            });
-                                            setImportDialogOpen(true);
-                                          }}
-                                          data-testid={`button-import-${t.id}`}
-                                        >
-                                          Import
-                                        </Button>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          {showMergedView && (!mergedData?.connections || mergedData.connections.length === 0) && (
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              No connected trees yet.
-                            </p>
-                          )}
-                          
-                          {/* FamilySearch Import Button */}
-                          <div className="mt-3 pt-3 border-t">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full gap-2"
-                              onClick={() => navigate(`/familysearch?tab=import&treeId=${treeId}`)}
-                              data-testid="button-import-familysearch-empty"
-                            >
-                              <Download className="h-4 w-4" />
-                              <span className="text-xs">Import from FamilySearch</span>
-                            </Button>
+                                  </label>
+                                  {isSelected && connection && connectorMemberId && canEditTree && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 px-1 text-xs shrink-0"
+                                      onClick={() => {
+                                        setImportConnectionData({
+                                          connectionId: connection.id,
+                                          connectorMemberId,
+                                          sourceTreeName: t.name
+                                        });
+                                        setImportDialogOpen(true);
+                                      }}
+                                      data-testid={`button-import-empty-${t.id}`}
+                                    >
+                                      Import
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
+                        </div>
+                      )}
+                      {showMergedView && (!mergedData?.allAvailableConnectedTrees || mergedData.allAvailableConnectedTrees.length === 0) && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          No connected trees yet.
+                        </p>
+                      )}
+                          
+                      {/* FamilySearch Import Button */}
+                      <div className="mt-3 pt-3 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-2"
+                          onClick={() => navigate(`/familysearch?tab=import&treeId=${treeId}`)}
+                          data-testid="button-import-familysearch-empty"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span className="text-xs">Import from FamilySearch</span>
+                        </Button>
+                      </div>
                         </div>
                       )}
                     </div>
@@ -3964,6 +4087,47 @@ export default function TreeView() {
                 data-testid="button-submit-split"
               >
                 {splitTreeMutation.isPending ? "Splitting..." : "Split Tree"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCloneTreeOpen} onOpenChange={(open) => {
+        setIsCloneTreeOpen(open);
+        if (!open) setCloneTreeName("");
+      }}>
+        <DialogContent className="max-w-md" data-testid="dialog-clone-tree">
+          <DialogHeader>
+            <DialogTitle>Clone Tree</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Create a copy of this tree with all members and relationships. You can then remove or add members as needed.
+            </p>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="clone-tree-name">New Tree Name</Label>
+              <Input
+                id="clone-tree-name"
+                value={cloneTreeName}
+                onChange={(e) => setCloneTreeName(e.target.value)}
+                placeholder="Enter name for the cloned tree"
+                data-testid="input-clone-tree-name"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {treeData?.members?.length || 0} members and all relationships will be copied to the new tree.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsCloneTreeOpen(false)} data-testid="button-cancel-clone">
+                Cancel
+              </Button>
+              <Button
+                onClick={() => cloneTreeMutation.mutate({ name: cloneTreeName })}
+                disabled={!cloneTreeName.trim() || cloneTreeMutation.isPending}
+                data-testid="button-submit-clone"
+              >
+                {cloneTreeMutation.isPending ? "Cloning..." : "Clone Tree"}
               </Button>
             </div>
           </div>

@@ -15,7 +15,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { trackTreeCreation } from "@/lib/tracking";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe, BookOpen, GitBranch, Undo2, Clock, AlertTriangle } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe, BookOpen, GitBranch, Undo2, Clock, AlertTriangle, School } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -214,6 +214,7 @@ export default function Dashboard() {
     fraternity: GraduationCap,
     friends: Heart,
     professional: Briefcase,
+    school: School,
     custom: Sparkles,
   };
 

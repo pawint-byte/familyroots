@@ -594,6 +594,46 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/trees/:id/clone", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id: sourceTreeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const cloneSchema = z.object({
+        name: z.string().min(1).max(200),
+        privacy: z.enum(["private", "public"]).optional(),
+      });
+
+      const parsed = cloneSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid request" });
+      }
+
+      const sourceTree = await storage.getTree(sourceTreeId);
+      if (!sourceTree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      if (sourceTree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, sourceTreeId);
+        if (!collab || collab.role !== "co_owner") {
+          return res.status(403).json({ message: "Only the owner or co-owners can clone this tree" });
+        }
+      }
+
+      const result = await storage.cloneTree(sourceTreeId, {
+        name: parsed.data.name,
+        privacy: parsed.data.privacy,
+        ownerId: userId,
+      });
+
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("Error cloning tree:", error);
+      res.status(500).json({ message: "Failed to clone tree" });
+    }
+  });
+
   // Update a tree
   app.patch("/api/trees/:id", isAuthenticated, async (req: any, res) => {
     try {
@@ -5800,12 +5840,21 @@ export async function registerRoutes(
       // Get all connections for this tree
       const connections = await storage.getTreeConnections(treeId);
       
+      // Optional: filter to specific connected tree IDs
+      const requestedTreeIds = req.query.treeIds
+        ? (req.query.treeIds as string).split(',').filter(Boolean)
+        : null;
+      
       // Collect all tree IDs (main tree + connected trees) and verify access to each
       const accessibleTreeIds: string[] = [treeId];
       
       for (const conn of connections) {
         const otherTreeId = conn.tree1Id === treeId ? conn.tree2Id : conn.tree1Id;
         if (!accessibleTreeIds.includes(otherTreeId)) {
+          // If specific tree IDs requested, skip ones not in the list
+          if (requestedTreeIds && !requestedTreeIds.includes(otherTreeId)) {
+            continue;
+          }
           // Check if user has access to connected tree
           const otherTree = await storage.getTree(otherTreeId);
           if (otherTree) {
@@ -6250,6 +6299,23 @@ export async function registerRoutes(
       const confidenceOrder = { high: 0, medium: 1, low: 2 };
       potentialDuplicates.sort((a, b) => confidenceOrder[a.confidence] - confidenceOrder[b.confidence]);
 
+      // Build list of ALL available connected trees (for the selector UI)
+      const allAvailableConnectedTrees: Array<{ id: string; name: string }> = [];
+      for (const conn of connections) {
+        const otherTreeId = conn.tree1Id === treeId ? conn.tree2Id : conn.tree1Id;
+        if (!allAvailableConnectedTrees.some(t => t.id === otherTreeId)) {
+          const otherTree = await storage.getTree(otherTreeId);
+          if (otherTree) {
+            const isOtherOwner = otherTree.ownerId === userId;
+            const otherCollab = await storage.getCollaboratorByUserAndTree(userId, otherTreeId);
+            const isOtherPublic = otherTree.privacy === 'public';
+            if (isOtherOwner || otherCollab || isOtherPublic) {
+              allAvailableConnectedTrees.push({ id: otherTreeId, name: otherTree.name });
+            }
+          }
+        }
+      }
+
       res.json({
         mainTree: tree,
         connections: connections.filter(c => 
@@ -6262,6 +6328,7 @@ export async function registerRoutes(
           name: info.name,
           isMainTree: id === treeId
         })),
+        allAvailableConnectedTrees,
         potentialDuplicates,
       });
     } catch (error) {
