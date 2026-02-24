@@ -229,6 +229,7 @@ export function PendingConnectionsSection() {
         <CardContent>
           <div className="space-y-3">
             {pendingRequests.map((request) => {
+              const displayName = [request.fromUser?.firstName, request.fromUser?.lastName].filter(Boolean).join(' ') || 'Unknown User';
               const initials = `${request.fromUser?.firstName?.[0] || ''}${request.fromUser?.lastName?.[0] || ''}`.toUpperCase() || '?';
               const relationshipLabel = request.customLabel || RELATIONSHIP_LABELS[request.relationshipType] || request.relationshipType;
               const isPending = approveMutation.isPending || denyMutation.isPending;
@@ -245,8 +246,8 @@ export function PendingConnectionsSection() {
                   </Avatar>
 
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium">
-                      {request.fromUser?.firstName} {request.fromUser?.lastName}
+                    <div className="font-medium" data-testid={`text-requester-name-${request.id}`}>
+                      {displayName}
                     </div>
                     {request.targetTreeName ? (
                       <p className="text-sm text-muted-foreground mt-1" data-testid={`text-tree-context-${request.id}`}>
@@ -324,7 +325,10 @@ export function PendingConnectionsSection() {
           <DialogHeader>
             <DialogTitle>Accept Connection</DialogTitle>
             <DialogDescription>
-              {selectedRequest?.fromUser?.firstName} says they're{" "}
+              <span className="font-semibold text-foreground">
+                {[selectedRequest?.fromUser?.firstName, selectedRequest?.fromUser?.lastName].filter(Boolean).join(' ') || 'Someone'}
+              </span>
+              {" "}says they're{" "}
               <span className="font-medium text-foreground">
                 {selectedRequest?.customLabel || RELATIONSHIP_LABELS[selectedRequest?.relationshipType || ""] || selectedRequest?.relationshipType}
               </span>

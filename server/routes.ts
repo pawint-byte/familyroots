@@ -8177,7 +8177,7 @@ export async function registerRoutes(
           const fromUser = await storage.getUser(request.fromUserId);
           const claimedProfiles = await storage.getAllClaimedProfilesForUser(request.fromUserId);
           const primaryProfile = claimedProfiles[0];
-          const displayFirstName = fromUser?.firstName || primaryProfile?.firstName || null;
+          const displayFirstName = fromUser?.firstName || primaryProfile?.firstName || fromUser?.email?.split('@')[0] || null;
           const displayLastName = fromUser?.lastName || primaryProfile?.lastName || null;
           const displayPhoto = fromUser?.profileImageUrl || primaryProfile?.photoUrl || null;
 
