@@ -268,7 +268,7 @@ export default function FeaturesGuide() {
         },
         {
           name: "Smart Merge Sync",
-          description: "When merging two people during import, FamilyRoots does a true sync — keeping the most complete data from both sides. All linked records transfer automatically: life events, education, career history, name changes, tags, FamilySearch sources, and external identifiers. Nothing is ever lost.",
+          description: "When merging two people during import, FamilyRoots does a true sync — keeping the most complete data from both sides. All linked records transfer automatically: life events, education, career history, name changes, tags, FamilySearch sources, external identifiers, voice notes, gift registries, special connections, invitations, profile claims, custodianship records, mute preferences, and discoverable entries. Nothing is ever lost.",
           whereToFind: "During FamilySearch import conflict resolution > choose 'Same Person (Merge)' for any duplicate.",
           icon: <GitMerge className="h-5 w-5 text-blue-600" />,
         },

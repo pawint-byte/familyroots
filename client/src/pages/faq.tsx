@@ -787,7 +787,7 @@ export default function FAQ() {
         },
         {
           question: "What data is kept when I merge two people?",
-          answer: "Everything. FamilyRoots does a true sync: if only one side has a piece of data (like a birth place or photo), it's always kept. If both sides have different values, the more complete version is used. Beyond profile fields, all linked records transfer to the merged profile — life events, education history, career history, name changes, tags, FamilySearch sources, and external identifiers. Nothing is ever lost during a merge."
+          answer: "Everything. FamilyRoots does a true sync: if only one side has a piece of data (like a birth place or photo), it's always kept. If both sides have different values, the more complete version is used. Beyond profile fields, all linked records transfer to the merged profile — life events, education history, career history, name changes, tags, FamilySearch sources, external identifiers, voice notes, gift registries, special connections, invitations, profile claim requests, custodianship records, mute preferences, and discoverable member entries. Nothing is ever lost during a merge."
         },
         {
           question: "What happens to spouse relationships when I skip a duplicate?",
@@ -795,7 +795,7 @@ export default function FAQ() {
         },
         {
           question: "How do I know the import worked correctly?",
-          answer: "After resolving all conflicts, FamilyRoots runs an automatic integrity check and shows you a detailed summary. You'll see exactly how many members were merged, kept, or skipped; how many relationships were preserved; how much linked data (events, education, career records, etc.) was transferred; and whether all ancestor chains from root to most distant generation are intact. If anything looks off, the summary will flag it."
+          answer: "After resolving all conflicts, FamilyRoots runs an automatic integrity check and shows you a detailed summary. You'll see exactly how many members were merged, kept, or skipped; how many relationships were preserved; counts for every type of linked data transferred (events, education, career, tags, voice notes, gift registries, invitations, claims, custodianship records, and more); and whether all ancestor chains from root to most distant generation are intact. The summary also shows ancestor chain verification with generation depth and spouse connections preserved. If anything looks off, it will be flagged."
         },
         {
           question: "Will FamilyRoots notify me when new ancestors are found?",
