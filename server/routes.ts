@@ -5976,7 +5976,135 @@ export async function registerRoutes(
         }
       }
 
-      // Step 3: Deduplicate relationships (same pair + type should appear only once)
+      // Step 3: Structural matching — find unmatched connected members that share
+      // the same parents as an existing canonical member (same person, different name)
+      {
+        const parentMap = new Map<string, Set<string>>();
+        for (const rel of allRelationships) {
+          if (rel.relationshipType === 'parent' || rel.relationshipType === 'parent-child') {
+            const parentId = memberIdRemapping.get(rel.fromMemberId) || rel.fromMemberId;
+            const childId = memberIdRemapping.get(rel.toMemberId) || rel.toMemberId;
+            if (!parentMap.has(childId)) parentMap.set(childId, new Set());
+            parentMap.get(childId)!.add(parentId);
+          } else if (rel.relationshipType === 'child') {
+            const parentId = memberIdRemapping.get(rel.toMemberId) || rel.toMemberId;
+            const childId = memberIdRemapping.get(rel.fromMemberId) || rel.fromMemberId;
+            if (!parentMap.has(childId)) parentMap.set(childId, new Set());
+            parentMap.get(childId)!.add(parentId);
+          }
+        }
+
+        const connectedMemberIds = Array.from(canonicalMembers.keys()).filter(id => {
+          const m = canonicalMembers.get(id);
+          return m && m.isFromConnectedTree;
+        });
+
+        const mainMemberIds = Array.from(canonicalMembers.keys()).filter(id => {
+          const m = canonicalMembers.get(id);
+          return m && !m.isFromConnectedTree;
+        });
+
+        const childMap = new Map<string, Set<string>>();
+        for (const rel of allRelationships) {
+          if (rel.relationshipType === 'parent' || rel.relationshipType === 'parent-child') {
+            const pId = memberIdRemapping.get(rel.fromMemberId) || rel.fromMemberId;
+            const cId = memberIdRemapping.get(rel.toMemberId) || rel.toMemberId;
+            if (!childMap.has(pId)) childMap.set(pId, new Set());
+            childMap.get(pId)!.add(cId);
+          } else if (rel.relationshipType === 'child') {
+            const pId = memberIdRemapping.get(rel.toMemberId) || rel.toMemberId;
+            const cId = memberIdRemapping.get(rel.fromMemberId) || rel.fromMemberId;
+            if (!childMap.has(pId)) childMap.set(pId, new Set());
+            childMap.get(pId)!.add(cId);
+          }
+        }
+
+        const spouseMapMerge = new Map<string, Set<string>>();
+        for (const rel of allRelationships) {
+          if (rel.relationshipType === 'spouse') {
+            const a = memberIdRemapping.get(rel.fromMemberId) || rel.fromMemberId;
+            const b = memberIdRemapping.get(rel.toMemberId) || rel.toMemberId;
+            if (!spouseMapMerge.has(a)) spouseMapMerge.set(a, new Set());
+            if (!spouseMapMerge.has(b)) spouseMapMerge.set(b, new Set());
+            spouseMapMerge.get(a)!.add(b);
+            spouseMapMerge.get(b)!.add(a);
+          }
+        }
+
+        const mergeConnToMain = (connId: string, mainId: string) => {
+          memberIdRemapping.set(connId, mainId);
+          canonicalMembers.delete(connId);
+          for (const rel of allRelationships) {
+            if (rel.fromMemberId === connId) rel.fromMemberId = mainId;
+            if (rel.toMemberId === connId) rel.toMemberId = mainId;
+          }
+        };
+
+        const isValidMerge = (connId: string, mainId: string): boolean => {
+          const connMember = canonicalMembers.get(connId);
+          const mainMember = canonicalMembers.get(mainId);
+          if (!connMember || !mainMember) return false;
+          const connSuffix = extractSuffix((connMember.firstName || '').toLowerCase());
+          const mainSuffix = extractSuffix((mainMember.firstName || '').toLowerCase());
+          const hasSuffixConflict =
+            (connSuffix.suffix && mainSuffix.suffix && connSuffix.suffix !== mainSuffix.suffix) ||
+            (connSuffix.suffix && !mainSuffix.suffix) ||
+            (!connSuffix.suffix && mainSuffix.suffix);
+          if (hasSuffixConflict) return false;
+          if (!sameGeneration(connMember.birthDate, mainMember.birthDate)) return false;
+          return true;
+        };
+
+        for (const connId of connectedMemberIds) {
+          if (memberIdRemapping.has(connId)) continue;
+
+          const connParents = parentMap.get(connId);
+          if (connParents && connParents.size > 0) {
+            for (const mainId of mainMemberIds) {
+              if (memberIdRemapping.has(connId)) break;
+              const mainParents = parentMap.get(mainId);
+              if (!mainParents || mainParents.size === 0) continue;
+              const sharedParents = [...connParents].filter(p => mainParents.has(p));
+              if (sharedParents.length >= 1 && isValidMerge(connId, mainId)) {
+                mergeConnToMain(connId, mainId);
+                break;
+              }
+            }
+          }
+
+          if (memberIdRemapping.has(connId)) continue;
+          const connChildren = childMap.get(connId);
+          if (connChildren && connChildren.size > 0) {
+            for (const mainId of mainMemberIds) {
+              if (memberIdRemapping.has(connId)) break;
+              const mainChildren = childMap.get(mainId);
+              if (!mainChildren || mainChildren.size === 0) continue;
+              const sharedChildren = [...connChildren].filter(c => mainChildren.has(c));
+              if (sharedChildren.length >= 1 && isValidMerge(connId, mainId)) {
+                mergeConnToMain(connId, mainId);
+                break;
+              }
+            }
+          }
+
+          if (memberIdRemapping.has(connId)) continue;
+          const connSpouses = spouseMapMerge.get(connId);
+          if (connSpouses && connSpouses.size > 0) {
+            for (const mainId of mainMemberIds) {
+              if (memberIdRemapping.has(connId)) break;
+              const mainSpouses = spouseMapMerge.get(mainId);
+              if (!mainSpouses || mainSpouses.size === 0) continue;
+              const sharedSpouses = [...connSpouses].filter(s => mainSpouses.has(s));
+              if (sharedSpouses.length >= 1 && isValidMerge(connId, mainId)) {
+                mergeConnToMain(connId, mainId);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Step 4: Deduplicate relationships (same pair + type should appear only once)
       const relKeySet = new Set<string>();
       const deduplicatedMembers = Array.from(canonicalMembers.values());
       const remappedRelationships = allRelationships.filter(rel => {
