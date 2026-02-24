@@ -2098,7 +2098,7 @@ export default function TreeView() {
             )}
           </TabsContent>
 
-          <TabsContent value="members" className="flex-1 m-0">
+          <TabsContent value="members" className="flex-1 m-0 overflow-y-auto">
             <div className="container mx-auto px-4 py-6">
               {isLoading ? (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2180,7 +2180,7 @@ export default function TreeView() {
             </div>
           </TabsContent>
 
-          <TabsContent value="timeline" className="flex-1 m-0">
+          <TabsContent value="timeline" className="flex-1 m-0 overflow-y-auto">
             <TimelineView 
               members={treeData?.members || []} 
               treeId={treeId!}
