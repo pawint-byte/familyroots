@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link2, Check, X, Users, TreePine, ArrowRight, Sparkles } from "lucide-react";
+import { Check, X, ArrowRight, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { MemberMergeDialog } from "@/components/member-merge-dialog";
+import type { FamilyMember } from "@shared/schema";
 
 interface PendingMatch {
   id: string;
@@ -40,6 +43,13 @@ interface PendingMatch {
 
 export function PendingMatchesSection() {
   const { toast } = useToast();
+  const [mergeData, setMergeData] = useState<{
+    memberA: FamilyMember;
+    memberB: FamilyMember;
+    tree1Name: string;
+    tree2Name: string;
+  } | null>(null);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
   
   const { data: pendingMatches, isLoading } = useQuery<PendingMatch[]>({
     queryKey: ["/api/user/pending-matches"],
@@ -47,14 +57,32 @@ export function PendingMatchesSection() {
 
   const confirmMutation = useMutation({
     mutationFn: async (matchId: string) => {
-      return apiRequest("POST", `/api/cross-matches/${matchId}/confirm`);
+      const response = await apiRequest("POST", `/api/cross-matches/${matchId}/confirm`);
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/pending-matches"] });
-      toast({
-        title: "Match confirmed",
-        description: "The family trees are now connected.",
-      });
+      
+      if (data?.fullyConfirmed && data.member1Full && data.member2Full) {
+        setMergeData({
+          memberA: data.member1Full,
+          memberB: data.member2Full,
+          tree1Name: data.tree1Name || "Tree 1",
+          tree2Name: data.tree2Name || "Tree 2",
+        });
+        setShowMergeDialog(true);
+        toast({
+          title: "Match confirmed",
+          description: "Review and merge the member profiles to sync their data.",
+        });
+      } else {
+        toast({
+          title: "Match confirmed",
+          description: data?.status === 'confirmed' 
+            ? "The family trees are now connected."
+            : "Waiting for the other tree owner to confirm.",
+        });
+      }
     },
     onError: () => {
       toast({
@@ -103,22 +131,9 @@ export function PendingMatchesSection() {
     );
   }
 
-  if (!pendingMatches || pendingMatches.length === 0) {
+  if ((!pendingMatches || pendingMatches.length === 0) && !showMergeDialog) {
     return null;
   }
-
-  const getMatchTypeLabel = (type: string) => {
-    switch (type) {
-      case "external_id":
-        return "Record Match";
-      case "name_date":
-        return "Similar Profile";
-      case "user_confirmed":
-        return "User Linked";
-      default:
-        return "Potential Match";
-    }
-  };
 
   const getConfidenceColor = (score: number) => {
     if (score >= 0.8) return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
@@ -133,103 +148,126 @@ export function PendingMatchesSection() {
   };
 
   return (
-    <Card className="border-primary/20">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <CardTitle className="text-lg">Potential Family Connections</CardTitle>
-          <Badge variant="secondary" className="ml-auto">
-            {pendingMatches.length} found
-          </Badge>
-        </div>
-        <CardDescription>
-          We found people in other family trees who might be the same as members in yours
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {pendingMatches.slice(0, 5).map((match) => {
-          const yourMember = match.isTree1Yours ? match.member1 : match.member2;
-          const otherMember = match.isTree1Yours ? match.member2 : match.member1;
-          const yourTree = match.isTree1Yours ? match.tree1 : match.tree2;
-          const otherTree = match.isTree1Yours ? match.tree2 : match.tree1;
-
-          return (
-            <div
-              key={match.id}
-              className="flex items-center gap-4 p-4 rounded-lg border bg-card"
-              data-testid={`match-card-${match.id}`}
-            >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <Avatar className="h-10 w-10 shrink-0">
-                  <AvatarImage src={yourMember?.photoUrl || undefined} />
-                  <AvatarFallback>
-                    {yourMember?.firstName?.[0]}{yourMember?.lastName?.[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="font-medium truncate">
-                    {yourMember?.firstName} {yourMember?.lastName}
-                  </p>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {yourTree?.name} {formatBirthYear(yourMember?.birthDate || null)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center gap-1 px-2">
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                <Badge variant="outline" className={getConfidenceColor(match.matchScore)}>
-                  {Math.round(match.matchScore * 100)}%
-                </Badge>
-              </div>
-
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <Avatar className="h-10 w-10 shrink-0">
-                  <AvatarImage src={otherMember?.photoUrl || undefined} />
-                  <AvatarFallback>
-                    {otherMember?.firstName?.[0]}{otherMember?.lastName?.[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="font-medium truncate">
-                    {otherMember?.firstName} {otherMember?.lastName}
-                  </p>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {otherTree?.name} {formatBirthYear(otherMember?.birthDate || null)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => rejectMutation.mutate(match.id)}
-                  disabled={rejectMutation.isPending || confirmMutation.isPending}
-                  data-testid={`button-reject-match-${match.id}`}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => confirmMutation.mutate(match.id)}
-                  disabled={confirmMutation.isPending || rejectMutation.isPending}
-                  data-testid={`button-confirm-match-${match.id}`}
-                >
-                  <Check className="h-4 w-4 mr-1" />
-                  Connect
-                </Button>
-              </div>
+    <>
+      {pendingMatches && pendingMatches.length > 0 && (
+        <Card className="border-primary/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Potential Family Connections</CardTitle>
+              <Badge variant="secondary" className="ml-auto">
+                {pendingMatches.length} found
+              </Badge>
             </div>
-          );
-        })}
+            <CardDescription>
+              We found people in other family trees who might be the same as members in yours
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pendingMatches.slice(0, 5).map((match) => {
+              const yourMember = match.isTree1Yours ? match.member1 : match.member2;
+              const otherMember = match.isTree1Yours ? match.member2 : match.member1;
+              const yourTree = match.isTree1Yours ? match.tree1 : match.tree2;
+              const otherTree = match.isTree1Yours ? match.tree2 : match.tree1;
 
-        {pendingMatches.length > 5 && (
-          <p className="text-sm text-muted-foreground text-center pt-2">
-            + {pendingMatches.length - 5} more potential matches
-          </p>
-        )}
-      </CardContent>
-    </Card>
+              return (
+                <div
+                  key={match.id}
+                  className="flex items-center gap-4 p-4 rounded-lg border bg-card"
+                  data-testid={`match-card-${match.id}`}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarImage src={yourMember?.photoUrl || undefined} />
+                      <AvatarFallback>
+                        {yourMember?.firstName?.[0]}{yourMember?.lastName?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">
+                        {yourMember?.firstName} {yourMember?.lastName}
+                      </p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {yourTree?.name} {formatBirthYear(yourMember?.birthDate || null)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-1 px-2">
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    <Badge variant="outline" className={getConfidenceColor(match.matchScore)}>
+                      {Math.round(match.matchScore * 100)}%
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarImage src={otherMember?.photoUrl || undefined} />
+                      <AvatarFallback>
+                        {otherMember?.firstName?.[0]}{otherMember?.lastName?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">
+                        {otherMember?.firstName} {otherMember?.lastName}
+                      </p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {otherTree?.name} {formatBirthYear(otherMember?.birthDate || null)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => rejectMutation.mutate(match.id)}
+                      disabled={rejectMutation.isPending || confirmMutation.isPending}
+                      data-testid={`button-reject-match-${match.id}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => confirmMutation.mutate(match.id)}
+                      disabled={confirmMutation.isPending || rejectMutation.isPending}
+                      data-testid={`button-confirm-match-${match.id}`}
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      Connect
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {pendingMatches.length > 5 && (
+              <p className="text-sm text-muted-foreground text-center pt-2">
+                + {pendingMatches.length - 5} more potential matches
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {mergeData && (
+        <MemberMergeDialog
+          open={showMergeDialog}
+          onOpenChange={(open) => {
+            setShowMergeDialog(open);
+            if (!open) setMergeData(null);
+          }}
+          memberA={mergeData.memberA}
+          memberB={mergeData.memberB}
+          memberATreeName={mergeData.tree1Name}
+          memberBTreeName={mergeData.tree2Name}
+          onMergeComplete={() => {
+            setShowMergeDialog(false);
+            setMergeData(null);
+            queryClient.invalidateQueries({ queryKey: ["/api/user/pending-matches"] });
+          }}
+        />
+      )}
+    </>
   );
 }

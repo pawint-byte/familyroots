@@ -3090,7 +3090,6 @@ export async function registerRoutes(
         return res.status(404).json({ message: "One or both members not found" });
       }
       
-      // Verify the user owns both trees
       const keepTree = await storage.getTree(keepMember.treeId);
       const mergeTree = await storage.getTree(mergeMember.treeId);
       
@@ -3102,8 +3101,10 @@ export async function registerRoutes(
         return res.status(403).json({ message: "You must own at least one of the trees" });
       }
       
-      // Apply resolved field values to the kept member
-      const updateData: any = {};
+      const isCrossTree = keepMember.treeId !== mergeMember.treeId;
+      
+      // Build resolved field values
+      const resolvedUpdate: any = {};
       if (resolvedFields) {
         const mergeableFields = [
           'firstName', 'lastName', 'suffix', 'nickname', 'email', 'gender',
@@ -3112,166 +3113,265 @@ export async function registerRoutes(
         ];
         for (const field of mergeableFields) {
           if (resolvedFields[field] !== undefined) {
-            updateData[field] = resolvedFields[field];
+            resolvedUpdate[field] = resolvedFields[field];
           }
         }
       }
       
-      // Claim the kept member
-      updateData.claimedByUserId = userId;
-      await storage.updateMember(keepMemberId, updateData);
-      
-      // Transfer all linked data from merge member to keep member
       const transferResults: Record<string, number> = {};
       
-      // 1. Transfer relationships - update references
-      const mergeRelationships = await storage.getRelationships(mergeMember.treeId);
-      let relCount = 0;
-      for (const rel of mergeRelationships) {
-        if (rel.fromMemberId === mergeMemberId || rel.toMemberId === mergeMemberId) {
-          const newFrom = rel.fromMemberId === mergeMemberId ? keepMemberId : rel.fromMemberId;
-          const newTo = rel.toMemberId === mergeMemberId ? keepMemberId : rel.toMemberId;
-          // Skip self-referencing relationships
-          if (newFrom === newTo) continue;
-          relCount++;
-        }
-      }
-      transferResults.relationships = relCount;
-      
-      // 2. Transfer life events
-      try {
-        const mergeEvents = await storage.getLifeEvents(mergeMemberId);
-        for (const event of mergeEvents) {
-          await storage.createLifeEvent({
-            memberId: keepMemberId,
-            treeId: keepMember.treeId,
-            eventType: event.eventType,
-            title: event.title,
-            description: event.description || undefined,
-            eventDate: event.eventDate,
-            location: event.location || undefined,
-          });
-        }
-        transferResults.lifeEvents = mergeEvents.length;
-      } catch (e) { transferResults.lifeEvents = 0; }
-      
-      // 3. Transfer education records
-      try {
-        const mergeEducation = await storage.getEducationRecords(mergeMemberId);
-        for (const edu of mergeEducation) {
-          await storage.createEducationRecord({
-            memberId: keepMemberId,
-            institution: edu.institution,
-            degree: edu.degree || undefined,
-            fieldOfStudy: edu.fieldOfStudy || undefined,
-            startYear: edu.startYear || undefined,
-            endYear: edu.endYear || undefined,
-            description: edu.description || undefined,
-          });
-        }
-        transferResults.education = mergeEducation.length;
-      } catch (e) { transferResults.education = 0; }
-      
-      // 4. Transfer career records
-      try {
-        const mergeCareer = await storage.getCareerRecords(mergeMemberId);
-        for (const career of mergeCareer) {
-          await storage.createCareerRecord({
-            memberId: keepMemberId,
-            company: career.company,
-            position: career.position || undefined,
-            startYear: career.startYear || undefined,
-            endYear: career.endYear || undefined,
-            description: career.description || undefined,
-            isCurrent: career.isCurrent || undefined,
-          });
-        }
-        transferResults.career = mergeCareer.length;
-      } catch (e) { transferResults.career = 0; }
-      
-      // 5. Transfer name history
-      try {
-        const mergeNames = await storage.getNameHistory(mergeMemberId);
-        for (const nh of mergeNames) {
-          await storage.createNameHistoryEntry({
-            memberId: keepMemberId,
-            previousFirstName: nh.previousFirstName || undefined,
-            previousLastName: nh.previousLastName || undefined,
-            reason: nh.reason || undefined,
-            effectiveDate: nh.effectiveDate || undefined,
-          });
-        }
-        transferResults.nameHistory = mergeNames.length;
-      } catch (e) { transferResults.nameHistory = 0; }
-      
-      // 6. Transfer voice notes
-      try {
-        const mergeVoiceNotes = await storage.getVoiceNotes(mergeMember.treeId, mergeMemberId);
-        for (const vn of mergeVoiceNotes) {
-          await storage.createVoiceNote({
-            memberId: keepMemberId,
-            treeId: keepMember.treeId,
-            audioData: vn.audioData,
-            duration: vn.duration || undefined,
-            title: vn.title || undefined,
-            recordedByUserId: vn.recordedByUserId,
-          });
-        }
-        transferResults.voiceNotes = mergeVoiceNotes.length;
-      } catch (e) { transferResults.voiceNotes = 0; }
-      
-      // 7. Transfer gift registries
-      try {
-        const mergeRegistries = await storage.getGiftRegistries(mergeMember.treeId, mergeMemberId);
-        for (const reg of mergeRegistries) {
-          const newReg = await storage.createGiftRegistry({
-            memberId: keepMemberId,
-            treeId: keepMember.treeId,
-            title: reg.title,
-            description: reg.description || undefined,
-            eventType: reg.eventType || undefined,
-            eventDate: reg.eventDate || undefined,
-            isActive: reg.isActive ?? true,
-          });
-          // Transfer registry items
-          const items = await storage.getGiftRegistryItems(reg.id);
-          for (const item of items) {
-            await storage.createGiftRegistryItem({
-              registryId: newReg.id,
-              name: item.name,
-              description: item.description || undefined,
-              url: item.url || undefined,
-              price: item.price || undefined,
-              isPurchased: item.isPurchased || false,
-              purchasedByUserId: item.purchasedByUserId || undefined,
+      if (isCrossTree) {
+        // Cross-tree merge: sync resolved fields to BOTH members, claim both, keep both
+        // This preserves each member's relationships in their own tree
+        // The merged view dedup will consolidate them visually via same claimedByUserId
+        const syncData = { ...resolvedUpdate, claimedByUserId: userId };
+        await storage.updateMember(keepMemberId, syncData);
+        await storage.updateMember(mergeMemberId, syncData);
+        
+        // Copy linked data from the secondary member to the primary (additive, no deletion)
+        // 1. Copy life events
+        try {
+          const keepEvents = await storage.getLifeEvents(keepMemberId);
+          const mergeEvents = await storage.getLifeEvents(mergeMemberId);
+          const keepEventKeys = new Set(keepEvents.map(e => `${e.eventType}-${e.title}-${e.eventDate}`));
+          let copied = 0;
+          for (const event of mergeEvents) {
+            const key = `${event.eventType}-${event.title}-${event.eventDate}`;
+            if (!keepEventKeys.has(key)) {
+              await storage.createLifeEvent({
+                memberId: keepMemberId,
+                treeId: keepMember.treeId,
+                eventType: event.eventType,
+                title: event.title,
+                description: event.description || undefined,
+                eventDate: event.eventDate,
+                location: event.location || undefined,
+              });
+              copied++;
+            }
+          }
+          transferResults.lifeEvents = copied;
+        } catch (e) { transferResults.lifeEvents = 0; }
+        
+        // 2. Copy education records
+        try {
+          const keepEdu = await storage.getEducationRecords(keepMemberId);
+          const mergeEdu = await storage.getEducationRecords(mergeMemberId);
+          const keepEduKeys = new Set(keepEdu.map(e => `${e.institution}-${e.degree}-${e.startYear}`));
+          let copied = 0;
+          for (const edu of mergeEdu) {
+            const key = `${edu.institution}-${edu.degree}-${edu.startYear}`;
+            if (!keepEduKeys.has(key)) {
+              await storage.createEducationRecord({
+                memberId: keepMemberId,
+                institution: edu.institution,
+                degree: edu.degree || undefined,
+                fieldOfStudy: edu.fieldOfStudy || undefined,
+                startYear: edu.startYear || undefined,
+                endYear: edu.endYear || undefined,
+                description: edu.description || undefined,
+              });
+              copied++;
+            }
+          }
+          transferResults.education = copied;
+        } catch (e) { transferResults.education = 0; }
+        
+        // 3. Copy career records
+        try {
+          const keepCareer = await storage.getCareerRecords(keepMemberId);
+          const mergeCareer = await storage.getCareerRecords(mergeMemberId);
+          const keepCareerKeys = new Set(keepCareer.map(c => `${c.company}-${c.position}-${c.startYear}`));
+          let copied = 0;
+          for (const career of mergeCareer) {
+            const key = `${career.company}-${career.position}-${career.startYear}`;
+            if (!keepCareerKeys.has(key)) {
+              await storage.createCareerRecord({
+                memberId: keepMemberId,
+                company: career.company,
+                position: career.position || undefined,
+                startYear: career.startYear || undefined,
+                endYear: career.endYear || undefined,
+                description: career.description || undefined,
+                isCurrent: career.isCurrent || undefined,
+              });
+              copied++;
+            }
+          }
+          transferResults.career = copied;
+        } catch (e) { transferResults.career = 0; }
+        
+        // 4. Copy name history
+        try {
+          const mergeNames = await storage.getNameHistory(mergeMemberId);
+          for (const nh of mergeNames) {
+            await storage.createNameHistoryEntry({
+              memberId: keepMemberId,
+              previousFirstName: nh.previousFirstName || undefined,
+              previousLastName: nh.previousLastName || undefined,
+              reason: nh.reason || undefined,
+              effectiveDate: nh.effectiveDate || undefined,
             });
           }
+          transferResults.nameHistory = mergeNames.length;
+        } catch (e) { transferResults.nameHistory = 0; }
+        
+        // Mark cross-tree match records as resolved
+        try {
+          const matchByMembers = await storage.getCrossTreeMatchByMembers(keepMemberId, mergeMemberId);
+          if (matchByMembers) {
+            await storage.updateCrossTreeMatch(matchByMembers.id, { status: 'resolved' });
+          }
+          const matchReverse = await storage.getCrossTreeMatchByMembers(mergeMemberId, keepMemberId);
+          if (matchReverse) {
+            await storage.updateCrossTreeMatch(matchReverse.id, { status: 'resolved' });
+          }
+        } catch (e) { /* non-critical */ }
+        
+        console.log(`[PROFILE MERGE] Cross-tree sync: ${keepMemberId} <-> ${mergeMemberId}. Both members kept, data synced. Transfers:`, transferResults);
+      } else {
+        // Same-tree merge: use the standard approach — transfer data, delete merged member
+        resolvedUpdate.claimedByUserId = userId;
+        await storage.updateMember(keepMemberId, resolvedUpdate);
+        
+        // Transfer relationships
+        const mergeRelationships = await storage.getRelationships(mergeMember.treeId);
+        let relCount = 0;
+        for (const rel of mergeRelationships) {
+          if (rel.fromMemberId === mergeMemberId || rel.toMemberId === mergeMemberId) {
+            const newFrom = rel.fromMemberId === mergeMemberId ? keepMemberId : rel.fromMemberId;
+            const newTo = rel.toMemberId === mergeMemberId ? keepMemberId : rel.toMemberId;
+            if (newFrom === newTo) continue;
+            relCount++;
+          }
         }
-        transferResults.giftRegistries = mergeRegistries.length;
-      } catch (e) { transferResults.giftRegistries = 0; }
-      
-      // Delete the merged member now that all data has been transferred
-      await storage.deleteMember(mergeMemberId);
-      
-      // Mark any cross-tree match records involving the merged member as resolved
-      try {
-        const matchByMembers = await storage.getCrossTreeMatchByMembers(keepMemberId, mergeMemberId);
-        if (matchByMembers) {
-          await storage.updateCrossTreeMatch(matchByMembers.id, { status: 'resolved' });
-        }
-        const matchReverse = await storage.getCrossTreeMatchByMembers(mergeMemberId, keepMemberId);
-        if (matchReverse) {
-          await storage.updateCrossTreeMatch(matchReverse.id, { status: 'resolved' });
-        }
-      } catch (e) { /* non-critical */ }
-      
-      console.log(`[PROFILE MERGE] Merged member ${mergeMemberId} into ${keepMemberId} (merged member deleted). Transfers:`, transferResults);
+        transferResults.relationships = relCount;
+        
+        // Transfer life events
+        try {
+          const mergeEvents = await storage.getLifeEvents(mergeMemberId);
+          for (const event of mergeEvents) {
+            await storage.createLifeEvent({
+              memberId: keepMemberId,
+              treeId: keepMember.treeId,
+              eventType: event.eventType,
+              title: event.title,
+              description: event.description || undefined,
+              eventDate: event.eventDate,
+              location: event.location || undefined,
+            });
+          }
+          transferResults.lifeEvents = mergeEvents.length;
+        } catch (e) { transferResults.lifeEvents = 0; }
+        
+        // Transfer education
+        try {
+          const mergeEducation = await storage.getEducationRecords(mergeMemberId);
+          for (const edu of mergeEducation) {
+            await storage.createEducationRecord({
+              memberId: keepMemberId,
+              institution: edu.institution,
+              degree: edu.degree || undefined,
+              fieldOfStudy: edu.fieldOfStudy || undefined,
+              startYear: edu.startYear || undefined,
+              endYear: edu.endYear || undefined,
+              description: edu.description || undefined,
+            });
+          }
+          transferResults.education = mergeEducation.length;
+        } catch (e) { transferResults.education = 0; }
+        
+        // Transfer career
+        try {
+          const mergeCareer = await storage.getCareerRecords(mergeMemberId);
+          for (const career of mergeCareer) {
+            await storage.createCareerRecord({
+              memberId: keepMemberId,
+              company: career.company,
+              position: career.position || undefined,
+              startYear: career.startYear || undefined,
+              endYear: career.endYear || undefined,
+              description: career.description || undefined,
+              isCurrent: career.isCurrent || undefined,
+            });
+          }
+          transferResults.career = mergeCareer.length;
+        } catch (e) { transferResults.career = 0; }
+        
+        // Transfer name history
+        try {
+          const mergeNames = await storage.getNameHistory(mergeMemberId);
+          for (const nh of mergeNames) {
+            await storage.createNameHistoryEntry({
+              memberId: keepMemberId,
+              previousFirstName: nh.previousFirstName || undefined,
+              previousLastName: nh.previousLastName || undefined,
+              reason: nh.reason || undefined,
+              effectiveDate: nh.effectiveDate || undefined,
+            });
+          }
+          transferResults.nameHistory = mergeNames.length;
+        } catch (e) { transferResults.nameHistory = 0; }
+        
+        // Transfer voice notes
+        try {
+          const mergeVoiceNotes = await storage.getVoiceNotes(mergeMember.treeId, mergeMemberId);
+          for (const vn of mergeVoiceNotes) {
+            await storage.createVoiceNote({
+              memberId: keepMemberId,
+              treeId: keepMember.treeId,
+              audioData: vn.audioData,
+              duration: vn.duration || undefined,
+              title: vn.title || undefined,
+              recordedByUserId: vn.recordedByUserId,
+            });
+          }
+          transferResults.voiceNotes = mergeVoiceNotes.length;
+        } catch (e) { transferResults.voiceNotes = 0; }
+        
+        // Transfer gift registries
+        try {
+          const mergeRegistries = await storage.getGiftRegistries(mergeMember.treeId, mergeMemberId);
+          for (const reg of mergeRegistries) {
+            const newReg = await storage.createGiftRegistry({
+              memberId: keepMemberId,
+              treeId: keepMember.treeId,
+              title: reg.title,
+              description: reg.description || undefined,
+              eventType: reg.eventType || undefined,
+              eventDate: reg.eventDate || undefined,
+              isActive: reg.isActive ?? true,
+            });
+            const items = await storage.getGiftRegistryItems(reg.id);
+            for (const item of items) {
+              await storage.createGiftRegistryItem({
+                registryId: newReg.id,
+                name: item.name,
+                description: item.description || undefined,
+                url: item.url || undefined,
+                price: item.price || undefined,
+                isPurchased: item.isPurchased || false,
+                purchasedByUserId: item.purchasedByUserId || undefined,
+              });
+            }
+          }
+          transferResults.giftRegistries = mergeRegistries.length;
+        } catch (e) { transferResults.giftRegistries = 0; }
+        
+        // Delete the merged member (safe in same-tree context)
+        await storage.deleteMember(mergeMemberId);
+        
+        console.log(`[PROFILE MERGE] Same-tree merge: ${mergeMemberId} into ${keepMemberId} (merged member deleted). Transfers:`, transferResults);
+      }
       
       res.json({ 
         status: "merged",
-        message: "Profiles merged successfully",
+        message: isCrossTree 
+          ? "Profiles synced successfully across trees" 
+          : "Profiles merged successfully",
         keepMemberId,
         mergeMemberId,
+        crossTree: isCrossTree,
         transferResults,
       });
     } catch (error: any) {

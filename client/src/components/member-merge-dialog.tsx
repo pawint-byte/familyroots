@@ -137,14 +137,15 @@ export function MemberMergeDialog({
       return response.json();
     },
     onSuccess: (data: any) => {
+      const transferSummary = Object.entries(data.transferResults || {})
+        .filter(([, v]) => (v as number) > 0)
+        .map(([k, v]) => `${v} ${k}`)
+        .join(", ");
       toast({
-        title: "Profiles merged!",
-        description: `Successfully merged profiles. ${
-          Object.entries(data.transferResults || {})
-            .filter(([, v]) => (v as number) > 0)
-            .map(([k, v]) => `${v} ${k}`)
-            .join(", ") || "All data preserved."
-        }`,
+        title: data.crossTree ? "Profiles synced!" : "Profiles merged!",
+        description: data.crossTree
+          ? `Both profiles updated with resolved data. ${transferSummary ? `Copied: ${transferSummary}.` : "All data preserved."} The merged view will show them as one person.`
+          : `Successfully merged profiles. ${transferSummary || "All data preserved."}`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
       queryClient.invalidateQueries({ queryKey: ["/api/members"] });
