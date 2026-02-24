@@ -1,8 +1,18 @@
 import { db } from './db';
-import { users, memberMilestonePayments, bulkPackPurchases, activityRewards } from '@shared/models/auth';
+import { users, memberMilestonePayments, bulkPackPurchases, activityRewards, featureUsage } from '@shared/models/auth';
 import { familyTrees, familyMembers } from '@shared/schema';
-import { eq, sql, and, gte, desc } from 'drizzle-orm';
+import { eq, sql, and, gte, desc, lte } from 'drizzle-orm';
 import { getUncachableStripeClient } from './stripeClient';
+
+export type PremiumFeature = 'ai_chat' | 'familysearch_import' | 'email_tagged_group' | 'ai_avatar_video' | 'media_upload';
+
+export const PREMIUM_LIMITS: Record<PremiumFeature, { freeLimit: number; period: 'monthly' | 'lifetime'; label: string; description: string }> = {
+  ai_chat: { freeLimit: 5, period: 'monthly', label: 'AI Chat', description: 'AI-powered family tree assistant' },
+  familysearch_import: { freeLimit: 1, period: 'monthly', label: 'FamilySearch Import', description: 'Import ancestors from FamilySearch' },
+  email_tagged_group: { freeLimit: 2, period: 'monthly', label: 'Email Tagged Group', description: 'Send emails to tagged members' },
+  ai_avatar_video: { freeLimit: 1, period: 'monthly', label: 'AI Avatar Video', description: 'Generate AI avatar videos' },
+  media_upload: { freeLimit: 10, period: 'monthly', label: 'Media Upload', description: 'Upload photos and media to events' },
+};
 
 // New pricing model: Bulk add packs + optional premium
 export const PRICING_CONFIG = {
@@ -14,7 +24,14 @@ export const PRICING_CONFIG = {
   premium: {
     monthlyPriceCents: 499,
     label: 'Premium',
-    features: ['Unlimited media uploads', 'Gift registries', 'Priority support', 'Advanced analytics'],
+    features: [
+      'Unlimited AI chat messages',
+      'Unlimited FamilySearch imports',
+      'Unlimited email to tagged groups',
+      'Unlimited AI avatar videos',
+      'Unlimited media uploads',
+      'Priority support',
+    ],
   },
   rewards: {
     monthlyAddsThreshold: 5,
@@ -682,6 +699,140 @@ export class SubscriptionService {
       .from(memberMilestonePayments)
       .where(eq(memberMilestonePayments.userId, userId))
       .orderBy(memberMilestonePayments.milestone);
+  }
+
+  // ==================== PREMIUM FEATURE USAGE TRACKING ====================
+
+  private getCurrentPeriod(): { start: Date; end: Date } {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  async getFeatureUsage(userId: string, feature: PremiumFeature): Promise<{ used: number; limit: number; remaining: number; isPremium: boolean }> {
+    const [user] = await db.select({ isPremium: users.isPremium }).from(users).where(eq(users.id, userId));
+    const isPremium = user?.isPremium || false;
+    const config = PREMIUM_LIMITS[feature];
+
+    if (isPremium) {
+      return { used: 0, limit: -1, remaining: -1, isPremium: true };
+    }
+
+    const { start, end } = this.getCurrentPeriod();
+    const [record] = await db.select()
+      .from(featureUsage)
+      .where(
+        and(
+          eq(featureUsage.userId, userId),
+          eq(featureUsage.feature, feature),
+          gte(featureUsage.periodStart, start),
+          lte(featureUsage.periodEnd, end)
+        )
+      );
+
+    const used = record?.usageCount || 0;
+    return {
+      used,
+      limit: config.freeLimit,
+      remaining: Math.max(0, config.freeLimit - used),
+      isPremium: false,
+    };
+  }
+
+  async checkFeatureAccess(userId: string, feature: PremiumFeature): Promise<{ allowed: boolean; used: number; limit: number; isPremium: boolean }> {
+    const usage = await this.getFeatureUsage(userId, feature);
+    if (usage.isPremium) {
+      return { allowed: true, used: 0, limit: -1, isPremium: true };
+    }
+    return {
+      allowed: usage.remaining > 0,
+      used: usage.used,
+      limit: usage.limit,
+      isPremium: false,
+    };
+  }
+
+  async incrementFeatureUsage(userId: string, feature: PremiumFeature): Promise<{ used: number; limit: number; remaining: number }> {
+    const [user] = await db.select({ isPremium: users.isPremium }).from(users).where(eq(users.id, userId));
+    if (user?.isPremium) {
+      return { used: 0, limit: -1, remaining: -1 };
+    }
+
+    const { start, end } = this.getCurrentPeriod();
+    const [existing] = await db.select()
+      .from(featureUsage)
+      .where(
+        and(
+          eq(featureUsage.userId, userId),
+          eq(featureUsage.feature, feature),
+          gte(featureUsage.periodStart, start),
+          lte(featureUsage.periodEnd, end)
+        )
+      );
+
+    let newCount: number;
+    if (existing) {
+      newCount = (existing.usageCount || 0) + 1;
+      await db.update(featureUsage)
+        .set({ usageCount: newCount, updatedAt: new Date() })
+        .where(eq(featureUsage.id, existing.id));
+    } else {
+      newCount = 1;
+      await db.insert(featureUsage).values({
+        userId,
+        feature,
+        usageCount: 1,
+        periodStart: start,
+        periodEnd: end,
+      });
+    }
+
+    const config = PREMIUM_LIMITS[feature];
+    return {
+      used: newCount,
+      limit: config.freeLimit,
+      remaining: Math.max(0, config.freeLimit - newCount),
+    };
+  }
+
+  async getAllFeatureUsage(userId: string): Promise<Record<PremiumFeature, { used: number; limit: number; remaining: number; isPremium: boolean }>> {
+    const [user] = await db.select({ isPremium: users.isPremium }).from(users).where(eq(users.id, userId));
+    const isPremium = user?.isPremium || false;
+
+    const result = {} as Record<PremiumFeature, { used: number; limit: number; remaining: number; isPremium: boolean }>;
+
+    if (isPremium) {
+      for (const [key, config] of Object.entries(PREMIUM_LIMITS)) {
+        result[key as PremiumFeature] = { used: 0, limit: -1, remaining: -1, isPremium: true };
+      }
+      return result;
+    }
+
+    const { start, end } = this.getCurrentPeriod();
+    const records = await db.select()
+      .from(featureUsage)
+      .where(
+        and(
+          eq(featureUsage.userId, userId),
+          gte(featureUsage.periodStart, start),
+          lte(featureUsage.periodEnd, end)
+        )
+      );
+
+    const usageMap = new Map(records.map(r => [r.feature, r.usageCount || 0]));
+
+    for (const [key, config] of Object.entries(PREMIUM_LIMITS)) {
+      const used = usageMap.get(key) || 0;
+      result[key as PremiumFeature] = {
+        used,
+        limit: config.freeLimit,
+        remaining: Math.max(0, config.freeLimit - used),
+        isPremium: false,
+      };
+    }
+
+    return result;
   }
 }
 

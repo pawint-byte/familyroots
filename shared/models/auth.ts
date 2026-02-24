@@ -120,6 +120,17 @@ export const activityRewards = pgTable("activity_rewards", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const featureUsage = pgTable("feature_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  feature: varchar("feature", { length: 50 }).notNull(),
+  usageCount: integer("usage_count").default(0),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertBulkPackPurchaseSchema = createInsertSchema(bulkPackPurchases).omit({ id: true, createdAt: true });
 export const insertActivityRewardSchema = createInsertSchema(activityRewards).omit({ id: true, createdAt: true });
@@ -132,3 +143,4 @@ export type BulkPackPurchase = typeof bulkPackPurchases.$inferSelect;
 export type InsertBulkPackPurchase = typeof bulkPackPurchases.$inferInsert;
 export type ActivityReward = typeof activityRewards.$inferSelect;
 export type InsertActivityReward = typeof activityRewards.$inferInsert;
+export type FeatureUsage = typeof featureUsage.$inferSelect;

@@ -90,7 +90,7 @@ import { testDiscordConnection, sendDiscordNotification, notifyNewSignup, notify
 import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification, sendRegistryAnnouncementEmail, sendRegistryItemPurchasedEmail, sendTreeUpdateNotification } from "./lib/email";
 import { insertAccountHeirSchema, insertAnnouncementSchema } from "@shared/schema";
 import { printfulService } from "./printful";
-import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG } from "./subscriptionService";
+import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG, PREMIUM_LIMITS, type PremiumFeature } from "./subscriptionService";
 import * as familySearchService from "./familySearch";
 
 // Admin users who bypass all limits and costs
@@ -1041,11 +1041,24 @@ export async function registerRoutes(
     }
   });
 
-  // Email all tagged members
+  // Email all tagged members — premium gated
   app.post("/api/trees/:treeId/tags/:tagId/email", isAuthenticated, async (req: any, res) => {
     try {
       const { treeId, tagId } = req.params;
       const userId = req.user.claims.sub;
+
+      if (!isAdminAccount(userId, req.user?.claims?.email)) {
+        const access = await subscriptionService.checkFeatureAccess(userId, 'email_tagged_group');
+        if (!access.allowed) {
+          return res.status(403).json({
+            error: "premium_limit_reached",
+            feature: 'email_tagged_group',
+            used: access.used,
+            limit: access.limit,
+            message: `You've used your ${access.limit} free group emails this month. Upgrade to Premium for unlimited emails.`,
+          });
+        }
+      }
 
       const tree = await storage.getTree(treeId);
       if (!tree) return res.status(404).json({ message: "Tree not found" });
@@ -1106,6 +1119,10 @@ export async function registerRoutes(
           console.error(`Failed to email ${member.email}:`, e);
           failed++;
         }
+      }
+
+      if (sent > 0 && !isAdminAccount(userId, req.user?.claims?.email)) {
+        await subscriptionService.incrementFeatureUsage(userId, 'email_tagged_group');
       }
 
       res.json({ sent, failed, total: taggedMembers.length });
@@ -6238,13 +6255,71 @@ export async function registerRoutes(
     }
   });
 
-  // AI Chatbot endpoint (streaming)
-  app.post("/api/chat", async (req, res) => {
+  // ==================== PREMIUM FEATURE USAGE API ====================
+
+  app.get("/api/premium/usage", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const allUsage = await subscriptionService.getAllFeatureUsage(userId);
+      const limits = Object.entries(PREMIUM_LIMITS).map(([key, config]) => ({
+        feature: key,
+        ...config,
+        ...allUsage[key as keyof typeof allUsage],
+      }));
+      res.json({ usage: allUsage, limits, isPremium: allUsage.ai_chat?.isPremium || false });
+    } catch (error) {
+      console.error("Error getting premium usage:", error);
+      res.status(500).json({ message: "Failed to get usage info" });
+    }
+  });
+
+  app.get("/api/premium/usage/:feature", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const feature = req.params.feature as PremiumFeature;
+      if (!PREMIUM_LIMITS[feature]) {
+        return res.status(400).json({ message: "Invalid feature" });
+      }
+      const access = await subscriptionService.checkFeatureAccess(userId, feature);
+      const config = PREMIUM_LIMITS[feature];
+      res.json({ ...access, feature, label: config.label, description: config.description, freeLimit: config.freeLimit });
+    } catch (error) {
+      console.error("Error checking feature access:", error);
+      res.status(500).json({ message: "Failed to check access" });
+    }
+  });
+
+  app.get("/api/premium/limits", async (req, res) => {
+    res.json({
+      limits: PREMIUM_LIMITS,
+      premiumPrice: PRICING_CONFIG.premium.monthlyPriceCents,
+      premiumFeatures: PRICING_CONFIG.premium.features,
+    });
+  });
+
+  // AI Chatbot endpoint (streaming) — premium gated
+  app.post("/api/chat", async (req: any, res) => {
     try {
       const { message, history = [] } = req.body;
 
       if (!message || typeof message !== "string") {
         return res.status(400).json({ error: "Message is required" });
+      }
+
+      const userId = req.user?.claims?.sub;
+      if (userId) {
+        if (!isAdminAccount(userId, req.user?.claims?.email)) {
+          const access = await subscriptionService.checkFeatureAccess(userId, 'ai_chat');
+          if (!access.allowed) {
+            return res.status(403).json({
+              error: "premium_limit_reached",
+              feature: 'ai_chat',
+              used: access.used,
+              limit: access.limit,
+              message: `You've used all ${access.limit} free AI chat messages this month. Upgrade to Premium for unlimited access.`,
+            });
+          }
+        }
       }
 
       // Set up SSE for streaming
@@ -6265,6 +6340,11 @@ export async function registerRoutes(
         if (aborted) break;
         fullResponse += chunk;
         res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+      }
+
+      // Increment usage after successful response
+      if (userId && !isAdminAccount(userId, req.user?.claims?.email)) {
+        await subscriptionService.incrementFeatureUsage(userId, 'ai_chat');
       }
 
       res.write(`data: ${JSON.stringify({ done: true, fullContent: fullResponse })}\n\n`);
@@ -9510,6 +9590,19 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Missing required fields: targetTreeId, persons" });
       }
 
+      if (!isAdminAccount(userId, req.user?.claims?.email)) {
+        const access = await subscriptionService.checkFeatureAccess(userId, 'familysearch_import');
+        if (!access.allowed) {
+          return res.status(403).json({
+            error: "premium_limit_reached",
+            feature: 'familysearch_import',
+            used: access.used,
+            limit: access.limit,
+            message: `You've used your ${access.limit} free FamilySearch import this month. Upgrade to Premium for unlimited imports.`,
+          });
+        }
+      }
+
       const parentTree = await storage.getTree(targetTreeId);
       if (!parentTree) {
         return res.status(404).json({ message: "Target tree not found" });
@@ -9645,6 +9738,10 @@ export async function registerRoutes(
       }
 
       console.log(`[ImportAsTree] Created ${createdRelationships.length} relationships for ${createdMembers.length} members in sub-tree ${subTree.id}`);
+
+      if (!isAdminAccount(userId, req.user?.claims?.email)) {
+        await subscriptionService.incrementFeatureUsage(userId, 'familysearch_import');
+      }
 
       res.json({
         success: true,
