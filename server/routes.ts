@@ -6060,6 +6060,7 @@ export async function registerRoutes(
       });
       
       console.log(`[MERGE DEDUP] Summary: ${allMembers.length} members -> ${deduplicatedMembers.length} after deduplication`);
+      console.log(`[MERGE DEDUP] Remapping table:`, Object.fromEntries(memberIdRemapping));
       
       // Remap relationship IDs to use preferred member IDs (deduplicated)
       const remappedRelationships = allRelationships.map((rel: any) => ({

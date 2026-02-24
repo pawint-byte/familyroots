@@ -715,24 +715,30 @@ export default function FamilyTreeVisualization({
           });
           placed.add(childId);
 
-          // Only show grandchildren if viewDepth allows
+          // Recursively place descendants below each child
           if (showGrandchildren) {
-            const grandchildren = parentChildMap.get(childId) || [];
-            const gcY = childY + verticalGap + nodeHeight;
-            const gcStartX = childStartX + index * (nodeWidth + horizontalGap) - ((grandchildren.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
-            
-            grandchildren.forEach((gcId, gcIndex) => {
-              const gc = deduplicatedMembers.find(m => m.id === gcId);
-              if (gc && !placed.has(gcId)) {
-                positioned.push({
-                  x: gcStartX + gcIndex * (nodeWidth + horizontalGap / 2),
-                  y: gcY,
-                  member: gc,
-                  branchType: 'grandchild'
-                });
-                placed.add(gcId);
-              }
-            });
+            const placeDescendantsRecursively = (parentId: string, parentX: number, parentY: number, depth: number) => {
+              if (depth > 10) return;
+              const descendants = (parentChildMap.get(parentId) || []).filter(id => !placed.has(id));
+              if (descendants.length === 0) return;
+              const descY = parentY + verticalGap + nodeHeight;
+              const descStartX = parentX - ((descendants.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+              descendants.forEach((descId, descIdx) => {
+                const desc = deduplicatedMembers.find(m => m.id === descId);
+                if (desc && !placed.has(descId)) {
+                  const descX = descStartX + descIdx * (nodeWidth + horizontalGap / 2);
+                  positioned.push({
+                    x: descX,
+                    y: descY,
+                    member: desc,
+                    branchType: depth === 0 ? 'grandchild' : 'grandchild'
+                  });
+                  placed.add(descId);
+                  placeDescendantsRecursively(descId, descX, descY, depth + 1);
+                }
+              });
+            };
+            placeDescendantsRecursively(childId, childStartX + index * (nodeWidth + horizontalGap), childY, 0);
           }
         }
       });
