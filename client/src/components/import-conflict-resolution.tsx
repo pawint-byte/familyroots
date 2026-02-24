@@ -79,7 +79,7 @@ export default function ImportConflictResolution({
       orphanedRelationships: number;
       maxAncestorDepth: number;
       chainIntact: boolean;
-      transferredData: { events: number; nameHistory: number; education: number; career: number; tags: number; fsSources: number; extIds: number; specialConns: number; giftRegistries: number; voiceNotes: number; invitations: number; claimRequests: number; custodianshipReqs: number; mutes: number };
+      transferredData: { events: number; nameHistory: number; education: number; career: number; tags: number; fsSources: number; extIds: number; specialConns: number; giftRegistries: number; voiceNotes: number; memories: number; invitations: number; claimRequests: number; custodianshipReqs: number; mutes: number };
       relationshipTypes?: Record<string, number>;
       mergeCount?: number;
       skipCount?: number;
@@ -527,6 +527,7 @@ export default function ImportConflictResolution({
                   {importSummary.integrity.transferredData.specialConns > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.specialConns} special connections</Badge>}
                   {importSummary.integrity.transferredData.giftRegistries > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.giftRegistries} gift registries</Badge>}
                   {importSummary.integrity.transferredData.voiceNotes > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.voiceNotes} voice notes</Badge>}
+                  {importSummary.integrity.transferredData.memories > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.memories} memories</Badge>}
                   {importSummary.integrity.transferredData.invitations > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.invitations} invitations</Badge>}
                   {importSummary.integrity.transferredData.claimRequests > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.claimRequests} claim requests</Badge>}
                   {importSummary.integrity.transferredData.custodianshipReqs > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.custodianshipReqs} custodianship</Badge>}

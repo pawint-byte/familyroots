@@ -59,6 +59,9 @@ import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 import { BranchImportDialog } from "@/components/branch-import-dialog";
 import { MergeMembersDialog } from "@/components/merge-members-dialog";
 import { InviteConnectDialog } from "@/components/invite-connect-dialog";
+import { MemoryLane } from "@/components/memory-lane";
+import { VoiceNotesSection } from "@/components/voice-notes-section";
+import { AnnualTreeReport } from "@/components/annual-tree-report";
 
 interface TreeData {
   tree: FamilyTree;

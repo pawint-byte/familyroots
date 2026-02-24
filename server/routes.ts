@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { eq, and, or, inArray } from "drizzle-orm";
+import { eq, and, or, inArray, desc, gte, lt } from "drizzle-orm";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { 
@@ -16,7 +16,8 @@ import {
   specialConnections, giftRegistries, giftRegistryItems,
   voiceNotes, insertVoiceNoteSchema,
   memberMutes, memberInvitations, profileClaimRequests, custodianshipRequests,
-  discoverableMembers
+  discoverableMembers,
+  memories, insertMemorySchema
 } from "@shared/schema";
 import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
 import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType } from "@shared/treeTypes";
@@ -9235,6 +9236,235 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== MEMORY LANE ROUTES ====================
+
+  app.get("/api/trees/:treeId/memories", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const allMemories = await db.select().from(memories)
+        .where(eq(memories.treeId, treeId))
+        .orderBy(desc(memories.createdAt));
+
+      const membersMap = new Map<string, any>();
+      const treeMembers = await storage.getMembersByTreeId(treeId);
+      treeMembers.forEach(m => membersMap.set(m.id, m));
+
+      const enriched = allMemories.map(mem => ({
+        ...mem,
+        member: mem.memberId ? membersMap.get(mem.memberId) || null : null,
+      }));
+
+      res.json(enriched);
+    } catch (error: any) {
+      console.error("Error fetching memories:", error);
+      res.status(500).json({ message: "Failed to fetch memories" });
+    }
+  });
+
+  app.post("/api/trees/:treeId/memories", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") return res.status(403).json({ message: "Access denied" });
+      }
+
+      const access = await subscriptionService.checkFeatureAccess(userId, 'media_upload');
+      if (!access.allowed) {
+        return res.status(403).json({
+          error: 'tier_limit_reached',
+          message: `You've reached your media upload limit (${access.used}/${access.limit}) for this month.`,
+          tier: access.tier,
+          nextTier: access.nextTier,
+        });
+      }
+
+      const parsed = insertMemorySchema.safeParse({
+        ...req.body,
+        treeId,
+        createdByUserId: userId,
+      });
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid memory data" });
+      }
+
+      const [mem] = await db.insert(memories).values(parsed.data).returning();
+      await subscriptionService.incrementFeatureUsage(userId, 'media_upload');
+      res.status(201).json(mem);
+    } catch (error: any) {
+      console.error("Error creating memory:", error);
+      res.status(500).json({ message: "Failed to create memory" });
+    }
+  });
+
+  app.patch("/api/memories/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [existing] = await db.select().from(memories).where(eq(memories.id, id));
+      if (!existing) return res.status(404).json({ message: "Memory not found" });
+      if (existing.createdByUserId !== userId) {
+        const tree = await storage.getTree(existing.treeId);
+        if (!tree || tree.ownerId !== userId) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const { title, story, eventDate, photoUrl, mediaAttachments, category, memberId } = req.body;
+      const [updated] = await db.update(memories)
+        .set({ title, story, eventDate, photoUrl, mediaAttachments, category, memberId, updatedAt: new Date() })
+        .where(eq(memories.id, id))
+        .returning();
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating memory:", error);
+      res.status(500).json({ message: "Failed to update memory" });
+    }
+  });
+
+  app.delete("/api/memories/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [existing] = await db.select().from(memories).where(eq(memories.id, id));
+      if (!existing) return res.status(404).json({ message: "Memory not found" });
+      if (existing.createdByUserId !== userId) {
+        const tree = await storage.getTree(existing.treeId);
+        if (!tree || tree.ownerId !== userId) return res.status(403).json({ message: "Access denied" });
+      }
+
+      await db.delete(memories).where(eq(memories.id, id));
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting memory:", error);
+      res.status(500).json({ message: "Failed to delete memory" });
+    }
+  });
+
+  // ==================== ANNUAL TREE REPORT ====================
+
+  app.get("/api/trees/:treeId/annual-report", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const year = parseInt(req.query.year as string) || new Date().getFullYear();
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const yearStart = new Date(`${year}-01-01T00:00:00Z`);
+      const yearEnd = new Date(`${year + 1}-01-01T00:00:00Z`);
+
+      const allMembers = await storage.getMembersByTreeId(treeId);
+      const allRelationships = await storage.getRelationshipsByTreeId(treeId);
+
+      const membersAddedThisYear = allMembers.filter(m => {
+        const created = m.createdAt ? new Date(m.createdAt) : null;
+        return created && created >= yearStart && created < yearEnd;
+      });
+
+      const eventsThisYear = await db.select().from(familyEvents)
+        .where(and(eq(familyEvents.treeId, treeId), gte(familyEvents.createdAt, yearStart), lt(familyEvents.createdAt, yearEnd)));
+
+      const memoriesThisYear = await db.select().from(memories)
+        .where(and(eq(memories.treeId, treeId), gte(memories.createdAt, yearStart), lt(memories.createdAt, yearEnd)));
+
+      const voiceNotesThisYear = await db.select().from(voiceNotes)
+        .where(and(eq(voiceNotes.treeId, treeId), gte(voiceNotes.createdAt, yearStart), lt(voiceNotes.createdAt, yearEnd)));
+
+      const parseDate = (s: string | null | undefined) => {
+        if (!s) return null;
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const birthdays: { member: any; date: string }[] = [];
+      const milestones: { member: any; event: any }[] = [];
+
+      allMembers.forEach(m => {
+        if (m.birthDate) {
+          const bd = parseDate(m.birthDate);
+          if (bd) {
+            const age = year - bd.getFullYear();
+            if (age > 0 && age % 10 === 0) {
+              birthdays.push({ member: m, date: m.birthDate });
+            }
+          }
+        }
+      });
+
+      eventsThisYear.forEach(ev => {
+        if (ev.eventType === 'marriage' || ev.eventType === 'milestone' || ev.eventType === 'graduation') {
+          const member = allMembers.find(m => m.id === ev.memberId);
+          milestones.push({ member: member || null, event: ev });
+        }
+      });
+
+      const relationshipTypes: Record<string, number> = {};
+      allRelationships.forEach(r => {
+        const t = r.relationshipType || 'unknown';
+        relationshipTypes[t] = (relationshipTypes[t] || 0) + 1;
+      });
+
+      const eventTypes: Record<string, number> = {};
+      eventsThisYear.forEach(ev => {
+        const t = ev.eventType || 'other';
+        eventTypes[t] = (eventTypes[t] || 0) + 1;
+      });
+
+      res.json({
+        year,
+        treeName: tree.name,
+        treeType: tree.treeType || 'family',
+        totalMembers: allMembers.length,
+        totalRelationships: allRelationships.length,
+        membersAdded: membersAddedThisYear.length,
+        newMemberNames: membersAddedThisYear.slice(0, 20).map(m => `${m.firstName} ${m.lastName || ''}`),
+        eventsRecorded: eventsThisYear.length,
+        eventTypes,
+        memoriesShared: memoriesThisYear.length,
+        voiceNotesRecorded: voiceNotesThisYear.length,
+        milestoneBirthdays: birthdays.slice(0, 10),
+        milestoneEvents: milestones.slice(0, 10),
+        relationshipBreakdown: relationshipTypes,
+        oldestMember: allMembers.reduce((oldest, m) => {
+          if (!m.birthDate) return oldest;
+          const bd = parseDate(m.birthDate);
+          if (!bd) return oldest;
+          if (!oldest || bd < oldest.date) return { name: `${m.firstName} ${m.lastName || ''}`, date: bd };
+          return oldest;
+        }, null as { name: string; date: Date } | null),
+        youngestMember: allMembers.reduce((youngest, m) => {
+          if (!m.birthDate) return youngest;
+          const bd = parseDate(m.birthDate);
+          if (!bd) return youngest;
+          if (!youngest || bd > youngest.date) return { name: `${m.firstName} ${m.lastName || ''}`, date: bd };
+          return youngest;
+        }, null as { name: string; date: Date } | null),
+      });
+    } catch (error: any) {
+      console.error("Error generating annual report:", error);
+      res.status(500).json({ message: "Failed to generate annual report" });
+    }
+  });
+
   // ==================== PREMIUM CONTENT STATUS CHECK ====================
 
   app.get("/api/premium-content/status", isAuthenticated, async (req: any, res) => {
@@ -11518,7 +11748,17 @@ export async function registerRoutes(
       const results: any[] = [];
       const mergedSourceToTarget = new Map<string, string>();
       const skippedIds = new Set<string>();
-      const transferStats = { events: 0, nameHistory: 0, education: 0, career: 0, tags: 0, fsSources: 0, extIds: 0, specialConns: 0, giftRegistries: 0, voiceNotes: 0, invitations: 0, claimRequests: 0, custodianshipReqs: 0, mutes: 0 };
+      const transferStats = { events: 0, nameHistory: 0, education: 0, career: 0, tags: 0, fsSources: 0, extIds: 0, specialConns: 0, giftRegistries: 0, voiceNotes: 0, memories: 0, invitations: 0, claimRequests: 0, custodianshipReqs: 0, mutes: 0 };
+
+      const resolveMergeChain = (id: string): string => {
+        let current = id;
+        const visited = new Set<string>();
+        while (mergedSourceToTarget.has(current) && !visited.has(current)) {
+          visited.add(current);
+          current = mergedSourceToTarget.get(current)!;
+        }
+        return current;
+      };
 
       // === PHASE 1: Build resolution maps ===
       for (const resolution of resolutions) {
@@ -11728,8 +11968,8 @@ export async function registerRoutes(
           const isFrom = rel.fromMemberId === sourceMemberId;
           const otherMemberId = isFrom ? rel.toMemberId : rel.fromMemberId;
 
-          // Resolve BOTH sides through the merge map
-          const resolvedOtherId = mergedSourceToTarget.get(otherMemberId) || otherMemberId;
+          // Resolve BOTH sides through the full merge chain (handles transitive merges)
+          const resolvedOtherId = resolveMergeChain(otherMemberId);
           if (resolvedOtherId === targetMemberId) {
             try { await storage.deleteRelationship(rel.id); } catch (e) { }
             continue;
@@ -11841,7 +12081,7 @@ export async function registerRoutes(
           let specialConnsTransferred = 0;
           const srcSpecialFrom = await db.select().from(specialConnections).where(eq(specialConnections.fromMemberId, sourceMemberId));
           for (const conn of srcSpecialFrom) {
-            const resolvedTo = mergedSourceToTarget.get(conn.toMemberId) || conn.toMemberId;
+            const resolvedTo = resolveMergeChain(conn.toMemberId);
             if (resolvedTo === targetMemberId) {
               await db.delete(specialConnections).where(eq(specialConnections.id, conn.id));
             } else {
@@ -11851,7 +12091,7 @@ export async function registerRoutes(
           }
           const srcSpecialTo = await db.select().from(specialConnections).where(eq(specialConnections.toMemberId, sourceMemberId));
           for (const conn of srcSpecialTo) {
-            const resolvedFrom = mergedSourceToTarget.get(conn.fromMemberId) || conn.fromMemberId;
+            const resolvedFrom = resolveMergeChain(conn.fromMemberId);
             if (resolvedFrom === targetMemberId) {
               await db.delete(specialConnections).where(eq(specialConnections.id, conn.id));
             } else {
@@ -11876,6 +12116,13 @@ export async function registerRoutes(
             await db.update(voiceNotes).set({ memberId: targetMemberId, treeId }).where(eq(voiceNotes.memberId, sourceMemberId));
             transferStats.voiceNotes += srcVoiceNotes.length;
             mergeLog.push(`${srcVoiceNotes.length} voice notes`);
+          }
+
+          const srcMemories = await db.select().from(memories).where(eq(memories.memberId, sourceMemberId));
+          if (srcMemories.length > 0) {
+            await db.update(memories).set({ memberId: targetMemberId, treeId }).where(eq(memories.memberId, sourceMemberId));
+            transferStats.memories += srcMemories.length;
+            mergeLog.push(`${srcMemories.length} memories`);
           }
 
           const srcInvitations = await db.select().from(memberInvitations).where(eq(memberInvitations.memberId, sourceMemberId));
@@ -11958,13 +12205,14 @@ export async function registerRoutes(
         }
 
         // Safety: if no skip target, treat as keep_both to prevent data loss
-        // Resolve skip target through merge map — the target may have been merged in Phase 4
+        // Resolve skip target through full merge chain — the target may have been merged in Phase 4
         let resolvedSkipTarget = resolution.targetMemberId || null;
-        if (resolvedSkipTarget && mergedSourceToTarget.has(resolvedSkipTarget)) {
-          resolvedSkipTarget = mergedSourceToTarget.get(resolvedSkipTarget)!;
+        if (resolvedSkipTarget) {
+          resolvedSkipTarget = resolveMergeChain(resolvedSkipTarget);
         }
         if (!resolvedSkipTarget) {
-          resolvedSkipTarget = mergedSourceToTarget.get(sourceMemberId) || null;
+          resolvedSkipTarget = resolveMergeChain(sourceMemberId);
+          if (resolvedSkipTarget === sourceMemberId) resolvedSkipTarget = null;
         }
         if (!resolvedSkipTarget) {
           console.log(`[resolve-conflicts] Phase 5: No skip target for ${sourceMember.firstName} ${sourceMember.lastName || ''} — keeping as separate member to prevent data loss`);
@@ -11985,7 +12233,7 @@ export async function registerRoutes(
         for (const rel of affectedRels) {
           const otherId = rel.fromMemberId === sourceMemberId ? rel.toMemberId : rel.fromMemberId;
           if (skippedIds.has(otherId) && otherId !== sourceMemberId) continue;
-          const resolvedOtherId = mergedSourceToTarget.get(otherId) || otherId;
+          const resolvedOtherId = resolveMergeChain(otherId);
 
           const isParentRel = rel.relationshipType === "parent" || rel.relationshipType === "parent-child";
           const isChildRel = rel.relationshipType === "child";
@@ -12005,7 +12253,7 @@ export async function registerRoutes(
         const srcAdj = sourceAdjacency.get(sourceMemberId) || [];
         for (const adj of srcAdj) {
           if (skippedIds.has(adj.otherId) && adj.otherId !== sourceMemberId) continue;
-          const resolvedId = mergedSourceToTarget.get(adj.otherId) || adj.otherId;
+          const resolvedId = resolveMergeChain(adj.otherId);
           const key = `${resolvedId}:${adj.direction}`;
           if (!neighborMap.has(key)) {
             neighborMap.set(key, { memberId: resolvedId, relType: adj.relType, direction: adj.direction });
@@ -12316,7 +12564,7 @@ export async function registerRoutes(
 
       console.log(`[resolve-conflicts] COMPLETE. Tree now has ${finalMembers.length} members, ${finalRels.length} relationships, max ancestor depth: ${maxChainDepth}, orphaned: ${orphanedRels}`);
       console.log(`[resolve-conflicts] Summary: ${mergeCount} merged, ${skipCount} skipped, ${keepCount} kept separate`);
-      console.log(`[resolve-conflicts] Transferred: ${transferStats.events} events, ${transferStats.nameHistory} name records, ${transferStats.education} education, ${transferStats.career} career, ${transferStats.tags} tags, ${transferStats.fsSources} FS sources, ${transferStats.extIds} external IDs, ${transferStats.specialConns} special connections, ${transferStats.giftRegistries} gift registries, ${transferStats.voiceNotes} voice notes, ${transferStats.invitations} invitations, ${transferStats.claimRequests} claims, ${transferStats.custodianshipReqs} custodianship, ${transferStats.mutes} mutes`);
+      console.log(`[resolve-conflicts] Transferred: ${transferStats.events} events, ${transferStats.nameHistory} name records, ${transferStats.education} education, ${transferStats.career} career, ${transferStats.tags} tags, ${transferStats.fsSources} FS sources, ${transferStats.extIds} external IDs, ${transferStats.specialConns} special connections, ${transferStats.giftRegistries} gift registries, ${transferStats.voiceNotes} voice notes, ${transferStats.memories} memories, ${transferStats.invitations} invitations, ${transferStats.claimRequests} claims, ${transferStats.custodianshipReqs} custodianship, ${transferStats.mutes} mutes`);
 
       res.json({
         message: "Conflicts resolved and members integrated into tree",
