@@ -206,6 +206,18 @@ export default function FeaturesGuide() {
           whereToFind: "Tree View > Settings > toggle 'Make Discoverable'. Browse others at Dashboard > 'Discover' in the menu.",
           icon: <Globe className="h-5 w-5 text-green-600" />,
         },
+        {
+          name: "Potential Family Connections",
+          description: "When two trees are connected, the system automatically detects members who might be the same person across both trees using name, birth year, birth place, and gender matching. Matches appear on your Dashboard with confidence scores. If you own both trees, clicking Connect opens a merge dialog to resolve field conflicts and sync both profiles.",
+          whereToFind: "Dashboard > 'Potential Family Connections' card (appears automatically when matches are found between your connected trees).",
+          icon: <Sparkles className="h-5 w-5 text-primary" />,
+        },
+        {
+          name: "Cross-Tree Profile Sync",
+          description: "When the same person exists in two different trees, merging syncs the resolved data to both profiles without deleting either one. Both members stay in their trees to preserve relationships, and the merged view consolidates them into one person. Linked data like life events, education, and career records are copied to the primary profile.",
+          whereToFind: "Triggered automatically when approving a claim for someone who already has a profile in another tree, or after connecting a Potential Family Connection match.",
+          icon: <GitMerge className="h-5 w-5 text-blue-600" />,
+        },
       ],
     },
     {

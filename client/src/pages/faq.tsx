@@ -475,7 +475,15 @@ export default function FAQ() {
         },
         {
           question: "If I claim my profile in one tree, does it apply to other trees?",
-          answer: "Currently, profile claims are per-tree. If you appear in multiple family trees, you'll need to claim your profile in each one separately. The tree owners of each tree manage their own approval process."
+          answer: "Profile claims are per-tree, so you do need to claim your profile in each tree separately. However, FamilyRoots has a smart sync built in: when you claim a profile and you already have a claimed profile in another tree, the system automatically detects this and opens a merge dialog. You can review both profiles side-by-side, resolve any differences (like different names, birth dates, or emails), and sync the resolved data to both profiles. After syncing, the merged view will show you as one person across both trees, while your relationships in each tree stay intact."
+        },
+        {
+          question: "What are Potential Family Connections?",
+          answer: "When you connect two trees, FamilyRoots automatically scans for members who appear in both trees — the same person listed under different entries. These appear as 'Potential Family Connections' on your Dashboard with a match confidence score. If you own both trees, clicking 'Connect' instantly opens a merge dialog where you can resolve any field differences (name, birth year, etc.) and sync both profiles. The system matches by name, birth year, birth place, and gender to catch duplicates even when the details differ slightly."
+        },
+        {
+          question: "What happens when I merge two profiles across different trees?",
+          answer: "Cross-tree merging is a sync, not a deletion. Both members stay in their respective trees so all their relationships are preserved. The resolved field values (the ones you pick in the merge dialog) are applied to both profiles, and both get linked to your account. The merged view then automatically shows them as one person. Any linked data like life events, education, and career records are also copied to the primary profile so nothing is lost."
         },
         {
           question: "What is profile custodianship for deceased family members?",
