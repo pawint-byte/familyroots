@@ -288,6 +288,25 @@ export default function FamilyTreeVisualization({
     const centerX = 400;
     const centerY = 400;
 
+    const placeSiblingsOf = (memberId: string, memberX: number, memberY: number, branchType: NodePosition['branchType']) => {
+      const memberSiblings = getSiblings(memberId, parentChildMap, childParentMap, siblingMap)
+        .filter(sid => !placed.has(sid) && sid !== memberId);
+      if (memberSiblings.length === 0) return;
+      const sibSpacing = nodeWidth + horizontalGap / 2;
+      memberSiblings.forEach((sibId, idx) => {
+        const sib = deduplicatedMembers.find(m => m.id === sibId);
+        if (sib && !placed.has(sibId)) {
+          positioned.push({
+            x: memberX + sibSpacing * (idx + 1),
+            y: memberY,
+            member: sib,
+            branchType
+          });
+          placed.add(sibId);
+        }
+      });
+    };
+
     const placeAncestorsRecursively = (memberId: string, memberX: number, memberY: number, generation: number) => {
       const ancestorIds = (childParentMap.get(memberId) || []).filter(id => !placed.has(id));
       if (ancestorIds.length === 0) return;
@@ -307,6 +326,7 @@ export default function FamilyTreeVisualization({
           });
           placed.add(anc.id);
           if (!anc.isUnknown) {
+            placeSiblingsOf(anc.id, ancX, ancY, 'greatgrandparent');
             placeAncestorsRecursively(anc.id, ancX, ancY, generation + 1);
           }
         }
@@ -491,8 +511,11 @@ export default function FamilyTreeVisualization({
                 });
                 placed.add(gp.id);
                 
-                if (!gp.isUnknown && showGreatGrandparents) {
-                  placeAncestorsRecursively(gp.id, gpX, gpY, 3);
+                if (!gp.isUnknown) {
+                  placeSiblingsOf(gp.id, gpX, gpY, 'grandparent');
+                  if (showGreatGrandparents) {
+                    placeAncestorsRecursively(gp.id, gpX, gpY, 3);
+                  }
                 }
               }
             });
@@ -605,8 +628,11 @@ export default function FamilyTreeVisualization({
                         });
                         placed.add(cpGpId);
                         
-                        if (showGreatGrandparents) {
-                          placeAncestorsRecursively(cpGpId, cpGpX, cpGpY, 3);
+                        if (!cpGp.isUnknown) {
+                          placeSiblingsOf(cpGpId, cpGpX, cpGpY, 'grandparent');
+                          if (showGreatGrandparents) {
+                            placeAncestorsRecursively(cpGpId, cpGpX, cpGpY, 3);
+                          }
                         }
                       }
                     });
