@@ -218,6 +218,56 @@ export default function FamilyTreeVisualization({
     return Array.from(siblings);
   }, []);
 
+  const createPlaceholderParent = useCallback((childId: string, gender: 'male' | 'female', existingParents: FamilyMember[]): FamilyMember => {
+    const label = gender === 'female' ? 'Unknown Mother' : 'Unknown Father';
+    return {
+      id: `placeholder-${gender}-${childId}`,
+      treeId: '',
+      firstName: label,
+      lastName: null,
+      gender,
+      birthDate: null,
+      deathDate: null,
+      birthPlace: null,
+      photoUrl: null,
+      bio: null,
+      suffix: null,
+      isLiving: true,
+      isUnknown: true,
+      unknownLabel: label,
+      claimedByUserId: null,
+      createdAt: null,
+      updatedAt: null,
+    } as FamilyMember;
+  }, []);
+
+  const ensureTwoParents = useCallback((childId: string, knownParentIds: string[], allMembers: FamilyMember[]): FamilyMember[] => {
+    const knownParents = knownParentIds
+      .map(id => allMembers.find(m => m.id === id))
+      .filter((m): m is FamilyMember => !!m);
+
+    if (knownParents.length >= 2) return knownParents.slice(0, 2);
+
+    const result: FamilyMember[] = [...knownParents];
+
+    if (knownParents.length === 1) {
+      const existingGender = knownParents[0].gender;
+      const missingGender = existingGender === 'female' ? 'male' : 'female';
+      result.push(createPlaceholderParent(childId, missingGender as 'male' | 'female', knownParents));
+    } else {
+      result.push(createPlaceholderParent(childId, 'male', []));
+      result.push(createPlaceholderParent(childId, 'female', []));
+    }
+
+    const fatherIdx = result.findIndex(p => p.gender === 'male');
+    const motherIdx = result.findIndex(p => p.gender === 'female');
+    if (fatherIdx >= 0 && motherIdx >= 0 && fatherIdx > motherIdx) {
+      [result[fatherIdx], result[motherIdx]] = [result[motherIdx], result[fatherIdx]];
+    }
+
+    return result;
+  }, [createPlaceholderParent]);
+
   const calculateHierarchicalPositions = useCallback(() => {
     if (deduplicatedMembers.length === 0) return { positions: [], labels: [] };
 
@@ -261,14 +311,15 @@ export default function FamilyTreeVisualization({
     const centerY = 400;
 
     const placeAncestorsRecursively = (memberId: string, memberX: number, memberY: number, generation: number) => {
-      const ancestors = (childParentMap.get(memberId) || []).filter(id => !placed.has(id));
+      const ancestorIds = (childParentMap.get(memberId) || []).filter(id => !placed.has(id));
+      if (ancestorIds.length === 0) return;
+      const ancestors = ensureTwoParents(memberId, ancestorIds, deduplicatedMembers).filter(a => !placed.has(a.id));
       if (ancestors.length === 0) return;
       const ancY = memberY - verticalGap - nodeHeight;
       const spacing = Math.max(nodeWidth + horizontalGap / 3, (nodeWidth + horizontalGap / 2) / Math.max(1, generation - 2));
       const ancStartX = memberX - ((ancestors.length - 1) * spacing) / 2;
-      ancestors.forEach((ancId, ancIndex) => {
-        const anc = deduplicatedMembers.find(m => m.id === ancId);
-        if (anc && !placed.has(ancId)) {
+      ancestors.forEach((anc, ancIndex) => {
+        if (!placed.has(anc.id)) {
           const ancX = ancStartX + ancIndex * spacing;
           positioned.push({
             x: ancX,
@@ -276,8 +327,10 @@ export default function FamilyTreeVisualization({
             member: anc,
             branchType: 'greatgrandparent'
           });
-          placed.add(ancId);
-          placeAncestorsRecursively(ancId, ancX, ancY, generation + 1);
+          placed.add(anc.id);
+          if (!anc.isUnknown) {
+            placeAncestorsRecursively(anc.id, ancX, ancY, generation + 1);
+          }
         }
       });
     };
@@ -417,42 +470,40 @@ export default function FamilyTreeVisualization({
       });
     }
 
-    const parents = childParentMap.get(focusId) || [];
+    const parentIds = childParentMap.get(focusId) || [];
+    const parents = ensureTwoParents(focusId, parentIds, deduplicatedMembers);
     
     // Collect all grandparent IDs upfront (for cousin filtering later)
     const allGrandparentIds = new Set<string>();
-    parents.forEach(parentId => {
+    parentIds.forEach(parentId => {
       const gps = childParentMap.get(parentId) || [];
       gps.forEach(gpId => allGrandparentIds.add(gpId));
     });
     
-    if (parents.length > 0) {
+    {
       const parentY = centerY - verticalGap - nodeHeight;
       const parentStartX = centerX - ((parents.length - 1) * (nodeWidth + horizontalGap)) / 2;
       
       labels.push({ x: centerX, y: parentY + nodeHeight + 40, text: 'Parents', type: 'parent' });
       
-      parents.forEach((parentId, index) => {
-        const parent = deduplicatedMembers.find(m => m.id === parentId);
-        if (parent && !placed.has(parentId)) {
+      parents.forEach((parent, index) => {
+        if (!placed.has(parent.id)) {
           positioned.push({
             x: parentStartX + index * (nodeWidth + horizontalGap),
             y: parentY,
             member: parent,
             branchType: 'parent'
           });
-          placed.add(parentId);
+          placed.add(parent.id);
 
-          // Only show grandparents if viewDepth allows
-          // IMPORTANT: Exclude siblings from being placed as grandparents
-          if (showGrandparents) {
-            const grandparents = (childParentMap.get(parentId) || []).filter(gpId => !focusSiblings.has(gpId));
+          if (!parent.isUnknown && showGrandparents) {
+            const grandparentIds = (childParentMap.get(parent.id) || []).filter(gpId => !focusSiblings.has(gpId));
+            const grandparentsForParent = ensureTwoParents(parent.id, grandparentIds, deduplicatedMembers);
             const gpY = parentY - verticalGap - nodeHeight;
-            const gpStartX = parentStartX + index * (nodeWidth + horizontalGap) - ((grandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+            const gpStartX = parentStartX + index * (nodeWidth + horizontalGap) - ((grandparentsForParent.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
             
-            grandparents.forEach((gpId, gpIndex) => {
-              const gp = deduplicatedMembers.find(m => m.id === gpId);
-              if (gp && !placed.has(gpId)) {
+            grandparentsForParent.forEach((gp, gpIndex) => {
+              if (!placed.has(gp.id)) {
                 const gpX = gpStartX + gpIndex * (nodeWidth + horizontalGap / 2);
                 positioned.push({
                   x: gpX,
@@ -460,19 +511,17 @@ export default function FamilyTreeVisualization({
                   member: gp,
                   branchType: 'grandparent'
                 });
-                placed.add(gpId);
+                placed.add(gp.id);
                 
-                if (showGreatGrandparents) {
-                  placeAncestorsRecursively(gpId, gpX, gpY, 3);
+                if (!gp.isUnknown && showGreatGrandparents) {
+                  placeAncestorsRecursively(gp.id, gpX, gpY, 3);
                 }
               }
             });
           }
           
-          // Show aunts and uncles (parent's siblings) - only if extended or all view
-          if (showGrandparents) {
-            // Get parent's siblings using the getSiblings function
-            const parentSiblings = getSiblings(parentId, parentChildMap, childParentMap, siblingMap);
+          if (!parent.isUnknown && showGrandparents) {
+            const parentSiblings = getSiblings(parent.id, parentChildMap, childParentMap, siblingMap);
             // Position them to the side of this parent at parent level
             if (parentSiblings.length > 0) {
               // Position aunts/uncles to the LEFT of the parent area
@@ -503,8 +552,7 @@ export default function FamilyTreeVisualization({
                       if (placed.has(cousinId)) return false;
                       if (cousinId === focusMemberId) return false;
                       if (focusSiblings.has(cousinId)) return false;
-                      // Exclude anyone who is a parent of the focus person
-                      if (parents.includes(cousinId)) return false;
+                      if (parentIds.includes(cousinId)) return false;
                       // Exclude anyone who is a grandparent of the focus person
                       if (allGrandparentIds.has(cousinId)) return false;
                       // Exclude spouses/co-parents of focus person
@@ -545,55 +593,50 @@ export default function FamilyTreeVisualization({
             }
           }
           
-          // Also show the parent's spouse at parent level
-          // But check if they're actually the focus person's parent or just a step-parent
-          const parentSpouses = spouseMap.get(parentId) || [];
-          parentSpouses.forEach((psId) => {
-            const ps = deduplicatedMembers.find(m => m.id === psId);
-            if (ps && !placed.has(psId)) {
-              // Check if this spouse is actually a parent of the focus person
-              const isActualParent = parents.includes(psId);
-              
-              // Find position next to this parent
-              const lastParentX = parentStartX + (parents.length - 1) * (nodeWidth + horizontalGap);
-              positioned.push({
-                x: lastParentX + (nodeWidth + horizontalGap),
-                y: parentY,
-                member: ps,
-                // If they're in focus person's parent list, they're a parent. Otherwise, step-parent.
-                branchType: isActualParent ? 'parent' : 'stepparent'
-              });
-              placed.add(psId);
-              
-              // Show co-parent's parents as grandparents too - only if showGrandparents
-              // IMPORTANT: Exclude siblings from being placed as grandparents
-              if (showGrandparents) {
-                const coParentGrandparents = (childParentMap.get(psId) || []).filter(gpId => !focusSiblings.has(gpId));
-                if (coParentGrandparents.length > 0) {
-                  const cpGpY = parentY - verticalGap - nodeHeight;
-                  const cpGpStartX = lastParentX + (nodeWidth + horizontalGap) - ((coParentGrandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
-                  
-                  coParentGrandparents.forEach((cpGpId, cpGpIndex) => {
-                    const cpGp = deduplicatedMembers.find(m => m.id === cpGpId);
-                    if (cpGp && !placed.has(cpGpId)) {
-                      const cpGpX = cpGpStartX + cpGpIndex * (nodeWidth + horizontalGap / 2);
-                      positioned.push({
-                        x: cpGpX,
-                        y: cpGpY,
-                        member: cpGp,
-                        branchType: 'grandparent'
-                      });
-                      placed.add(cpGpId);
-                      
-                      if (showGreatGrandparents) {
-                        placeAncestorsRecursively(cpGpId, cpGpX, cpGpY, 3);
+          if (!parent.isUnknown) {
+            const parentSpouses = spouseMap.get(parent.id) || [];
+            parentSpouses.forEach((psId) => {
+              const ps = deduplicatedMembers.find(m => m.id === psId);
+              if (ps && !placed.has(psId)) {
+                const isActualParent = parentIds.includes(psId);
+                
+                const lastParentX = parentStartX + (parents.length - 1) * (nodeWidth + horizontalGap);
+                positioned.push({
+                  x: lastParentX + (nodeWidth + horizontalGap),
+                  y: parentY,
+                  member: ps,
+                  branchType: isActualParent ? 'parent' : 'stepparent'
+                });
+                placed.add(psId);
+                
+                if (showGrandparents) {
+                  const coParentGrandparents = (childParentMap.get(psId) || []).filter(gpId => !focusSiblings.has(gpId));
+                  if (coParentGrandparents.length > 0) {
+                    const cpGpY = parentY - verticalGap - nodeHeight;
+                    const cpGpStartX = lastParentX + (nodeWidth + horizontalGap) - ((coParentGrandparents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+                    
+                    coParentGrandparents.forEach((cpGpId, cpGpIndex) => {
+                      const cpGp = deduplicatedMembers.find(m => m.id === cpGpId);
+                      if (cpGp && !placed.has(cpGpId)) {
+                        const cpGpX = cpGpStartX + cpGpIndex * (nodeWidth + horizontalGap / 2);
+                        positioned.push({
+                          x: cpGpX,
+                          y: cpGpY,
+                          member: cpGp,
+                          branchType: 'grandparent'
+                        });
+                        placed.add(cpGpId);
+                        
+                        if (showGreatGrandparents) {
+                          placeAncestorsRecursively(cpGpId, cpGpX, cpGpY, 3);
+                        }
                       }
-                    }
-                  });
+                    });
+                  }
                 }
               }
-            }
-          });
+            });
+          }
         }
       });
     }
@@ -810,7 +853,7 @@ export default function FamilyTreeVisualization({
     }
 
     return { positions: positioned, labels };
-  }, [deduplicatedMembers, relationships, focusMemberId, getRelationshipMaps, getSiblings, nodeWidth, nodeHeight, horizontalGap, verticalGap, viewDepth]);
+  }, [deduplicatedMembers, relationships, focusMemberId, getRelationshipMaps, getSiblings, ensureTwoParents, nodeWidth, nodeHeight, horizontalGap, verticalGap, viewDepth]);
 
   useEffect(() => {
     const result = calculateHierarchicalPositions();
@@ -899,225 +942,147 @@ export default function FamilyTreeVisualization({
 
   const getConnectionLines = () => {
     const lines: JSX.Element[] = [];
-    const focusPos = positions.find(p => p.branchType === 'focus');
-    if (!focusPos) return lines;
+    if (positions.length === 0) return lines;
 
-    // === PARENTS: Lines from each parent's BOTTOM to focus's TOP ===
-    const parentPositions = positions.filter(p => p.branchType === 'parent');
-    parentPositions.forEach(parentPos => {
-      const fromX = parentPos.x + nodeWidth / 2;
-      const fromY = parentPos.y + nodeHeight; // Bottom of parent
-      const toX = focusPos.x + nodeWidth / 2;
-      const toY = focusPos.y; // Top of focus
-      
-      lines.push(
-        <path
-          key={`parent-to-focus-${parentPos.member.id}`}
-          d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-          stroke={BRANCH_COLORS.parent.line}
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-          opacity="0.8"
-        />
-      );
-    });
+    const posMap = new Map(positions.map(p => [p.member.id, p]));
+    const drawnPairs = new Set<string>();
+    const SYMMETRIC_TYPES = new Set(["spouse", "sibling", "coparent"]);
 
-    // === UNIVERSAL ANCESTOR LINES: Connect every positioned parent to their positioned children ===
-    const grandparentPositions = positions.filter(p => p.branchType === 'grandparent');
-    const greatGrandparentPositions = positions.filter(p => p.branchType === 'greatgrandparent');
-    const { parentChildMap: pcMap } = getRelationshipMaps();
-    const ancestorTypes = new Set(['parent', 'grandparent', 'greatgrandparent', 'inlaw-grandparent']);
-    const allAncestorPositions = positions.filter(p => ancestorTypes.has(p.branchType));
-    const positionMap = new Map(allAncestorPositions.map(p => [p.member.id, p]));
-    const drawnAncestorLines = new Set<string>();
+    for (const rel of relationships) {
+      const fromPos = posMap.get(rel.fromMemberId);
+      const toPos = posMap.get(rel.toMemberId);
+      if (!fromPos || !toPos) continue;
 
-    allAncestorPositions.forEach(ancestorPos => {
-      const children = pcMap.get(ancestorPos.member.id) || [];
-      children.forEach(childId => {
-        const childPos = positionMap.get(childId) || positions.find(p => p.member.id === childId);
-        if (!childPos) return;
-        const connKey = `${ancestorPos.member.id}-${childId}`;
-        if (drawnAncestorLines.has(connKey)) return;
-        drawnAncestorLines.add(connKey);
+      const pairKey = SYMMETRIC_TYPES.has(rel.relationshipType)
+        ? [rel.fromMemberId, rel.toMemberId].sort().join(':')
+        : `${rel.fromMemberId}->${rel.toMemberId}`;
+      if (drawnPairs.has(pairKey)) continue;
+      drawnPairs.add(pairKey);
 
-        const isGrandparentToParent = ancestorPos.branchType === 'grandparent' && childPos.branchType === 'parent';
-        const strokeWidth = isGrandparentToParent ? "2" : "1.5";
-        const opacity = isGrandparentToParent ? "0.6" : "0.5";
-        const strokeColor = ancestorPos.branchType === 'grandparent'
-          ? BRANCH_COLORS.grandparent.line
-          : BRANCH_COLORS.greatgrandparent.line;
+      const isParentType = rel.relationshipType === "parent" || rel.relationshipType === "parent-child";
+      const isSpouseType = rel.relationshipType === "spouse";
+      const isCoparentType = rel.relationshipType === "coparent";
+      const isSiblingType = rel.relationshipType === "sibling";
 
-        const fromX = ancestorPos.x + nodeWidth / 2;
-        const fromY = ancestorPos.y + nodeHeight;
-        const toX = childPos.x + nodeWidth / 2;
-        const toY = childPos.y;
+      if (isSpouseType || isCoparentType) {
+        const leftPos = fromPos.x <= toPos.x ? fromPos : toPos;
+        const rightPos = fromPos.x <= toPos.x ? toPos : fromPos;
+        const fromX = leftPos.x + nodeWidth;
+        const fromY = leftPos.y + nodeHeight / 2;
+        const toX = rightPos.x;
+        const toY = rightPos.y + nodeHeight / 2;
+        const color = isSpouseType ? BRANCH_COLORS.spouse.line : BRANCH_COLORS.coparent.line;
 
         lines.push(
           <path
-            key={`ancestor-line-${ancestorPos.member.id}-${childId}`}
-            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-            stroke={strokeColor}
-            strokeWidth={strokeWidth}
+            key={`rel-${rel.id}`}
+            d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
+            stroke={color}
+            strokeWidth="3"
             fill="none"
             strokeLinecap="round"
-            opacity={opacity}
+            opacity="0.8"
+            strokeDasharray={isCoparentType ? "6 4" : undefined}
           />
         );
-      });
-    });
-
-    // === STEP-PARENTS: Dashed line from parent to step-parent (horizontal connection at parent level) ===
-    const stepparentPositions = positions.filter(p => p.branchType === 'stepparent');
-    stepparentPositions.forEach(spPos => {
-      // Find the parent this step-parent is married to
-      const { spouseMap } = getRelationshipMaps();
-      parentPositions.forEach(parentPos => {
-        const parentSpouses = spouseMap.get(parentPos.member.id) || [];
-        if (parentSpouses.includes(spPos.member.id)) {
-          const fromX = parentPos.x + nodeWidth;
-          const fromY = parentPos.y + nodeHeight / 2;
-          const toX = spPos.x;
-          const toY = spPos.y + nodeHeight / 2;
-          
-          lines.push(
-            <path
-              key={`parent-to-stepparent-${parentPos.member.id}-${spPos.member.id}`}
-              d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
-              stroke={BRANCH_COLORS.stepparent.line}
-              strokeWidth="2"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.7"
-              strokeDasharray="6 4"
-            />
-          );
-          
-          // Marriage marker
-          const markerX = (fromX + toX) / 2;
-          const markerY = fromY;
-          lines.push(
-            <circle
-              key={`stepparent-marker-${spPos.member.id}`}
-              cx={markerX}
-              cy={markerY}
-              r="5"
-              fill={BRANCH_COLORS.stepparent.line}
-              stroke="hsl(var(--background))"
-              strokeWidth="2"
-            />
-          );
-        }
-      });
-    });
-
-    // === CHILDREN: Lines from focus's BOTTOM to each child's TOP ===
-    const childPositions = positions.filter(p => p.branchType === 'child');
-    childPositions.forEach(childPos => {
-      const fromX = focusPos.x + nodeWidth / 2;
-      const fromY = focusPos.y + nodeHeight; // Bottom of focus
-      const toX = childPos.x + nodeWidth / 2;
-      const toY = childPos.y; // Top of child
-      
-      lines.push(
-        <path
-          key={`focus-to-child-${childPos.member.id}`}
-          d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-          stroke={BRANCH_COLORS.child.line}
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-          opacity="0.8"
-        />
-      );
-    });
-
-    // === GRANDCHILDREN: Lines from child's BOTTOM to grandchild's TOP ===
-    const grandchildPositions = positions.filter(p => p.branchType === 'grandchild');
-    grandchildPositions.forEach(gcPos => {
-      // Find which child this grandchild connects to
-      const { parentChildMap } = getRelationshipMaps();
-      childPositions.forEach(childPos => {
-        const childChildren = parentChildMap.get(childPos.member.id) || [];
-        if (childChildren.includes(gcPos.member.id)) {
-          const fromX = childPos.x + nodeWidth / 2;
-          const fromY = childPos.y + nodeHeight;
-          const toX = gcPos.x + nodeWidth / 2;
-          const toY = gcPos.y;
-          
-          lines.push(
-            <path
-              key={`child-to-grandchild-${childPos.member.id}-${gcPos.member.id}`}
-              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-              stroke={BRANCH_COLORS.grandchild.line}
-              strokeWidth="2"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.7"
-            />
-          );
-        }
-      });
-    });
-
-    // === SIBLINGS: Connect siblings through shared parent OR to focus person ===
-    // This shows proper family structure for siblings
-    const siblingPositions = positions.filter(p => p.branchType === 'sibling');
-    const { childParentMap } = getRelationshipMaps();
-    
-    siblingPositions.forEach(sibPos => {
-      // Find shared parent(s) with focus
-      const sibParents = childParentMap.get(sibPos.member.id) || [];
-      const focusParents = childParentMap.get(focusPos.member.id) || [];
-      const sharedParents = sibParents.filter(p => focusParents.includes(p));
-      
-      // Check if we can find a parent in the tree for this sibling
-      let parentPos = null;
-      
-      if (sharedParents.length > 0) {
-        // First priority: shared parent that's visible in tree
-        parentPos = parentPositions.find(p => sharedParents.includes(p.member.id));
-      }
-      
-      if (!parentPos && focusParents.length > 0) {
-        // Second priority: use focus person's parent (siblings should share a parent)
-        parentPos = parentPositions.find(p => focusParents.includes(p.member.id));
-      }
-      
-      if (!parentPos && parentPositions.length > 0) {
-        // Third priority: just use any visible parent (direct sibling relationships)
-        parentPos = parentPositions[0];
-      }
-      
-      if (parentPos) {
-        // Connect sibling to parent with a curved line
-        const fromX = parentPos.x + nodeWidth / 2;
-        const fromY = parentPos.y + nodeHeight; // Bottom of parent
-        const toX = sibPos.x + nodeWidth / 2;
-        const toY = sibPos.y; // Top of sibling
-        
+        const markerX = (fromX + toX) / 2;
+        const markerY = (fromY + toY) / 2;
         lines.push(
-          <path
-            key={`parent-to-sibling-${sibPos.member.id}`}
-            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-            stroke={BRANCH_COLORS.sibling.line}
+          <circle
+            key={`rel-marker-${rel.id}`}
+            cx={markerX}
+            cy={markerY}
+            r="5"
+            fill={color}
+            stroke="hsl(var(--background))"
             strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            opacity="0.6"
           />
         );
-      } else {
-        // No parents visible - connect horizontally to focus as fallback
-        const isLeftSibling = sibPos.x < focusPos.x;
-        const fromX = isLeftSibling ? sibPos.x + nodeWidth : sibPos.x;
-        const fromY = sibPos.y + nodeHeight / 2;
-        const toX = isLeftSibling ? focusPos.x : focusPos.x + nodeWidth;
-        const toY = focusPos.y + nodeHeight / 2;
-        
+      } else if (isParentType) {
+        const parentPos = fromPos;
+        const childPos = toPos;
+        const fromX = parentPos.x + nodeWidth / 2;
+        const fromY = parentPos.y + nodeHeight;
+        const toX2 = childPos.x + nodeWidth / 2;
+        const toY2 = childPos.y;
+
+        const parentBranch = parentPos.branchType;
+        const childBranch = childPos.branchType;
+        const isPlaceholder = parentPos.member.isUnknown;
+
+        let strokeColor = BRANCH_COLORS.parent.line;
+        let strokeWidth = "2.5";
+        let opacity = "0.7";
+
+        if (parentBranch === 'grandparent' || childBranch === 'parent') {
+          strokeColor = BRANCH_COLORS.grandparent.line;
+          strokeWidth = "2";
+          opacity = "0.6";
+        }
+        if (parentBranch === 'greatgrandparent') {
+          strokeColor = BRANCH_COLORS.greatgrandparent.line;
+          strokeWidth = "1.5";
+          opacity = "0.5";
+        }
+        if (parentBranch === 'parent' && childBranch === 'focus') {
+          strokeColor = BRANCH_COLORS.parent.line;
+          strokeWidth = "3";
+          opacity = "0.8";
+        }
+        if (parentBranch === 'focus' || parentBranch === 'spouse' || parentBranch === 'coparent') {
+          strokeColor = BRANCH_COLORS.child.line;
+          strokeWidth = "3";
+          opacity = "0.8";
+        }
+        if (childBranch === 'grandchild') {
+          strokeColor = BRANCH_COLORS.grandchild.line;
+          strokeWidth = "2";
+          opacity = "0.7";
+        }
+        if (parentBranch === 'inlaw-grandparent' || childBranch === 'inlaw') {
+          strokeColor = BRANCH_COLORS['inlaw-grandparent'].line;
+          strokeWidth = "2";
+          opacity = "0.5";
+        }
+        if (childBranch === 'auntuncle') {
+          strokeColor = BRANCH_COLORS.auntuncle.line;
+          strokeWidth = "2";
+          opacity = "0.6";
+        }
+        if (childBranch === 'cousin') {
+          strokeColor = BRANCH_COLORS.cousin.line;
+          strokeWidth = "2";
+          opacity = "0.6";
+        }
+        if (childBranch === 'sibling') {
+          strokeColor = BRANCH_COLORS.sibling.line;
+          strokeWidth = "2";
+          opacity = "0.6";
+        }
+
         lines.push(
           <path
-            key={`sibling-${sibPos.member.id}`}
+            key={`rel-${rel.id}`}
+            d={getCurvedPath(fromX, fromY, toX2, toY2, 'vertical')}
+            stroke={strokeColor}
+            strokeWidth={isPlaceholder ? "2" : strokeWidth}
+            fill="none"
+            strokeLinecap="round"
+            opacity={isPlaceholder ? "0.4" : opacity}
+            strokeDasharray={isPlaceholder ? "6 4" : undefined}
+          />
+        );
+      } else if (isSiblingType) {
+        const leftPos = fromPos.x <= toPos.x ? fromPos : toPos;
+        const rightPos = fromPos.x <= toPos.x ? toPos : fromPos;
+        const fromX = leftPos.x + nodeWidth;
+        const fromY = leftPos.y + nodeHeight / 2;
+        const toX = rightPos.x;
+        const toY = rightPos.y + nodeHeight / 2;
+
+        lines.push(
+          <path
+            key={`rel-${rel.id}`}
             d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
             stroke={BRANCH_COLORS.sibling.line}
             strokeWidth="2"
@@ -1128,305 +1093,51 @@ export default function FamilyTreeVisualization({
           />
         );
       }
-    });
-
-    // === AUNTS/UNCLES: Connect to grandparents (parent's siblings connect to their parents) ===
-    const auntUnclePositions = positions.filter(p => p.branchType === 'auntuncle');
-    const gpPositionsForAU = positions.filter(p => p.branchType === 'grandparent');
-    
-    auntUnclePositions.forEach(auPos => {
-      // Find which grandparent this aunt/uncle connects to
-      const auParents = childParentMap.get(auPos.member.id) || [];
-      const matchingGp = gpPositionsForAU.find(gp => auParents.includes(gp.member.id));
-      
-      if (matchingGp) {
-        const fromX = matchingGp.x + nodeWidth / 2;
-        const fromY = matchingGp.y + nodeHeight;
-        const toX = auPos.x + nodeWidth / 2;
-        const toY = auPos.y;
-        
-        lines.push(
-          <path
-            key={`gp-to-auntuncle-${auPos.member.id}`}
-            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-            stroke={BRANCH_COLORS.auntuncle.line}
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            opacity="0.6"
-          />
-        );
-      } else {
-        // Fallback: connect horizontally to the nearest parent
-        const nearestParent = parentPositions.length > 0 ? parentPositions[0] : null;
-        if (nearestParent) {
-          const fromX = auPos.x + nodeWidth;
-          const fromY = auPos.y + nodeHeight / 2;
-          const toX = nearestParent.x;
-          const toY = nearestParent.y + nodeHeight / 2;
-          
-          lines.push(
-            <path
-              key={`parent-to-auntuncle-${auPos.member.id}`}
-              d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
-              stroke={BRANCH_COLORS.auntuncle.line}
-              strokeWidth="2"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.5"
-              strokeDasharray="4 4"
-            />
-          );
-        }
-      }
-    });
-
-    // === COUSINS: Connect to their parent (aunt/uncle) - using deterministic parentAuntUncleId ===
-    const cousinPositions = positions.filter(p => p.branchType === 'cousin');
-    
-    cousinPositions.forEach(cousinPos => {
-      // Use the deterministically stored parent aunt/uncle ID
-      const parentAUId = cousinPos.parentAuntUncleId;
-      const matchingAU = parentAUId 
-        ? auntUnclePositions.find(au => au.member.id === parentAUId)
-        : null;
-      
-      if (matchingAU) {
-        const fromX = matchingAU.x + nodeWidth / 2;
-        const fromY = matchingAU.y + nodeHeight;
-        const toX = cousinPos.x + nodeWidth / 2;
-        const toY = cousinPos.y;
-        
-        lines.push(
-          <path
-            key={`auntuncle-to-cousin-${cousinPos.member.id}`}
-            d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-            stroke={BRANCH_COLORS.cousin.line}
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            opacity="0.6"
-          />
-        );
-      }
-    });
-
-    positions.forEach((pos) => {
-      if (pos.branchType === 'spouse') {
-        const focusPos = positions.find(p => p.branchType === 'focus');
-        if (focusPos) {
-          const fromX = focusPos.x + nodeWidth;
-          const fromY = focusPos.y + nodeHeight / 2;
-          const toX = pos.x;
-          const toY = pos.y + nodeHeight / 2;
-          
-          lines.push(
-            <path
-              key={`spouse-${pos.member.id}`}
-              d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
-              stroke={BRANCH_COLORS.spouse.line}
-              strokeWidth="3"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.8"
-              className="transition-all duration-300"
-            />
-          );
-          
-          const markerX = (fromX + toX) / 2;
-          const markerY = fromY;
-          lines.push(
-            <circle
-              key={`spouse-marker-${pos.member.id}`}
-              cx={markerX}
-              cy={markerY}
-              r="6"
-              fill={BRANCH_COLORS.spouse.line}
-              stroke="hsl(var(--background))"
-              strokeWidth="2"
-            />
-          );
-          
-          // Connect spouse to their parents (in-laws) - shown at parent level
-          const { childParentMap } = getRelationshipMaps();
-          const spouseParents = childParentMap.get(pos.member.id) || [];
-          spouseParents.forEach(spId => {
-            const spParentPos = positions.find(p => p.member.id === spId);
-            if (spParentPos) {
-              const spFromX = pos.x + nodeWidth / 2;
-              const spFromY = pos.y; // Top of spouse
-              const spToX = spParentPos.x + nodeWidth / 2;
-              const spToY = spParentPos.y + nodeHeight; // Bottom of in-law parent
-              
-              lines.push(
-                <path
-                  key={`spouse-to-inlaw-${pos.member.id}-${spId}`}
-                  d={getCurvedPath(spToX, spToY, spFromX, spFromY, 'vertical')}
-                  stroke={BRANCH_COLORS.inlaw.line}
-                  strokeWidth="2"
-                  fill="none"
-                  strokeLinecap="round"
-                  opacity="0.6"
-                  strokeDasharray="4 2"
-                />
-              );
-            }
-          });
-        }
-      }
-    });
-
-    // === CO-PARENTS: Purple line from focus to co-parent (different from spouse) ===
-    positions.forEach((pos) => {
-      if (pos.branchType === 'coparent') {
-        const focusPos = positions.find(p => p.branchType === 'focus');
-        if (focusPos) {
-          const fromX = focusPos.x + nodeWidth;
-          const fromY = focusPos.y + nodeHeight / 2;
-          const toX = pos.x;
-          const toY = pos.y + nodeHeight / 2;
-          
-          lines.push(
-            <path
-              key={`coparent-${pos.member.id}`}
-              d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
-              stroke={BRANCH_COLORS.coparent.line}
-              strokeWidth="3"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.8"
-              strokeDasharray="6 4"
-              className="transition-all duration-300"
-            />
-          );
-          
-          const markerX = (fromX + toX) / 2;
-          const markerY = fromY;
-          lines.push(
-            <circle
-              key={`coparent-marker-${pos.member.id}`}
-              cx={markerX}
-              cy={markerY}
-              r="6"
-              fill={BRANCH_COLORS.coparent.line}
-              stroke="hsl(var(--background))"
-              strokeWidth="2"
-            />
-          );
-        }
-      }
-    });
-
-    // === IN-LAW GRANDPARENTS: Lines from in-law grandparent to in-law ===
-    const inlawGrandparentPositions = positions.filter(p => p.branchType === 'inlaw-grandparent');
-    const inlawPositions = positions.filter(p => p.branchType === 'inlaw');
-    inlawGrandparentPositions.forEach(ilGpPos => {
-      const { childParentMap } = getRelationshipMaps();
-      inlawPositions.forEach(inlawPos => {
-        const inlawParents = childParentMap.get(inlawPos.member.id) || [];
-        if (inlawParents.includes(ilGpPos.member.id)) {
-          const fromX = ilGpPos.x + nodeWidth / 2;
-          const fromY = ilGpPos.y + nodeHeight;
-          const toX = inlawPos.x + nodeWidth / 2;
-          const toY = inlawPos.y;
-          
-          lines.push(
-            <path
-              key={`inlaw-gp-to-inlaw-${ilGpPos.member.id}-${inlawPos.member.id}`}
-              d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-              stroke={BRANCH_COLORS['inlaw-grandparent'].line}
-              strokeWidth="2"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.5"
-              strokeDasharray="4 2"
-            />
-          );
-        }
-      });
-    });
-
-    // === UNCONNECTED CLUSTERS: Draw relationship lines between unconnected members ===
-    const unconnectedPositions = positions.filter(p => p.branchType === 'unconnected');
-    if (unconnectedPositions.length > 1) {
-      const { parentChildMap, spouseMap } = getRelationshipMaps();
-      const unconnectedIdSet = new Set(unconnectedPositions.map(p => p.member.id));
-      const drawnPairs = new Set<string>();
-
-      for (const pos of unconnectedPositions) {
-        const children = (parentChildMap.get(pos.member.id) || []).filter(cid => unconnectedIdSet.has(cid));
-        for (const childId of children) {
-          const pairKey = `${pos.member.id}-${childId}`;
-          if (drawnPairs.has(pairKey)) continue;
-          drawnPairs.add(pairKey);
-          const childPos = unconnectedPositions.find(p => p.member.id === childId);
-          if (childPos) {
-            const fromX = pos.x + nodeWidth / 2;
-            const fromY = pos.y + nodeHeight;
-            const toX = childPos.x + nodeWidth / 2;
-            const toY = childPos.y;
-            lines.push(
-              <path
-                key={`unconnected-parent-${pos.member.id}-${childId}`}
-                d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
-                stroke={BRANCH_COLORS.unconnected.line}
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="round"
-                opacity="0.5"
-              />
-            );
-          }
-        }
-
-        const spouses = (spouseMap.get(pos.member.id) || []).filter(sid => unconnectedIdSet.has(sid));
-        for (const spouseId of spouses) {
-          const pairKey = [pos.member.id, spouseId].sort().join('-spouse-');
-          if (drawnPairs.has(pairKey)) continue;
-          drawnPairs.add(pairKey);
-          const spousePos = unconnectedPositions.find(p => p.member.id === spouseId);
-          if (spousePos) {
-            const fromX = Math.min(pos.x, spousePos.x) + nodeWidth;
-            const fromY = pos.y + nodeHeight / 2;
-            const toX = Math.max(pos.x, spousePos.x);
-            const toY = spousePos.y + nodeHeight / 2;
-            lines.push(
-              <path
-                key={`unconnected-spouse-${pos.member.id}-${spouseId}`}
-                d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
-                stroke="hsl(340 80% 60%)"
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="round"
-                opacity="0.5"
-              />
-            );
-            const markerX = (fromX + toX) / 2;
-            const markerY = (fromY + toY) / 2;
-            lines.push(
-              <circle
-                key={`unconnected-spouse-marker-${pos.member.id}-${spouseId}`}
-                cx={markerX}
-                cy={markerY}
-                r="4"
-                fill="hsl(340 80% 60%)"
-                stroke="hsl(var(--background))"
-                strokeWidth="2"
-              />
-            );
-          }
-        }
-      }
     }
+
+    positions.forEach(pos => {
+      if (!pos.member.isUnknown || !pos.member.id.startsWith('placeholder-')) return;
+      const parts = pos.member.id.split('-');
+      const childId = parts.slice(2).join('-');
+      const childPos = posMap.get(childId);
+      if (!childPos) return;
+
+      const pairKey = `${pos.member.id}->${childId}`;
+      if (drawnPairs.has(pairKey)) return;
+      drawnPairs.add(pairKey);
+
+      const fromX = pos.x + nodeWidth / 2;
+      const fromY = pos.y + nodeHeight;
+      const toX = childPos.x + nodeWidth / 2;
+      const toY = childPos.y;
+
+      let strokeColor = BRANCH_COLORS.parent.line;
+      if (pos.branchType === 'grandparent') strokeColor = BRANCH_COLORS.grandparent.line;
+      if (pos.branchType === 'greatgrandparent') strokeColor = BRANCH_COLORS.greatgrandparent.line;
+
+      lines.push(
+        <path
+          key={`placeholder-line-${pos.member.id}`}
+          d={getCurvedPath(fromX, fromY, toX, toY, 'vertical')}
+          stroke={strokeColor}
+          strokeWidth="2"
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.4"
+          strokeDasharray="6 4"
+        />
+      );
+    });
 
     return lines;
   };
 
-  // SVG dimensions - use the full extent to ensure lines align with cards
+  const minX = positions.length > 0 ? Math.min(...positions.map((p) => p.x)) - 100 : 0;
+  const minY = positions.length > 0 ? Math.min(...positions.map((p) => p.y)) - 100 : 0;
   const maxX = positions.length > 0 ? Math.max(...positions.map((p) => p.x)) + nodeWidth + 200 : 1000;
   const maxY = positions.length > 0 ? Math.max(...positions.map((p) => p.y)) + nodeHeight + 200 : 800;
-  const svgWidth = maxX;
-  const svgHeight = maxY;
+  const svgWidth = maxX - Math.min(minX, 0);
+  const svgHeight = maxY - Math.min(minY, 0);
 
   const getBranchStyles = (branchType: NodePosition['branchType']) => {
     const colors = BRANCH_COLORS[branchType];
@@ -1526,7 +1237,9 @@ export default function FamilyTreeVisualization({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                onMemberClick(pos.member);
+                if (!pos.member.isUnknown) {
+                  onMemberClick(pos.member);
+                }
               }}
               data-testid={`node-member-${pos.member.id}`}
             >
