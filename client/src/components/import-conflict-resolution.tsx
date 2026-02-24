@@ -86,6 +86,10 @@ export default function ImportConflictResolution({
       keepCount?: number;
       rootAncestors?: number;
       leafMembers?: number;
+      spouseConnections?: number;
+      chainVerification?: Array<{ name: string; depth: number; path: string[] }>;
+      duplicatesRemoved?: number;
+      cyclesDetected?: number;
     };
     results: Array<{ sourceMemberId: string; action: string; status: string }>;
   } | null>(null);
@@ -468,15 +472,49 @@ export default function ImportConflictResolution({
               {importSummary.integrity.relationshipTypes && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {Object.entries(importSummary.integrity.relationshipTypes).map(([type, count]) => (
-                    <Badge key={type} variant="outline" className="text-xs">
+                    <Badge key={type} variant="outline" className="text-xs" data-testid={`badge-reltype-${type}`}>
                       {count} {type}
                     </Badge>
                   ))}
                 </div>
               )}
+              {(importSummary.integrity.spouseConnections ?? 0) > 0 && (
+                <p className="text-muted-foreground mt-1">
+                  {importSummary.integrity.spouseConnections} spouse connection{importSummary.integrity.spouseConnections !== 1 ? 's' : ''} preserved
+                </p>
+              )}
+              {(importSummary.integrity.duplicatesRemoved ?? 0) > 0 && (
+                <p className="text-muted-foreground mt-1">
+                  {importSummary.integrity.duplicatesRemoved} duplicate relationship{importSummary.integrity.duplicatesRemoved !== 1 ? 's' : ''} cleaned up
+                </p>
+              )}
             </div>
-            {Object.values(importSummary.integrity.transferredData).some(v => v > 0) && (
+            {(importSummary.integrity.cyclesDetected ?? 0) > 0 && (
               <div className="pt-2 border-t">
+                <p className="text-xs font-medium text-yellow-600 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  {importSummary.integrity.cyclesDetected} circular reference{importSummary.integrity.cyclesDetected !== 1 ? 's' : ''} detected in ancestor chains
+                </p>
+              </div>
+            )}
+            {importSummary.integrity.chainVerification && importSummary.integrity.chainVerification.length > 0 && (
+              <div className="pt-2 border-t" data-testid="section-chain-verification">
+                <p className="text-xs font-medium mb-1.5">Ancestor chain verification:</p>
+                <div className="space-y-1">
+                  {importSummary.integrity.chainVerification.map((chain, idx) => (
+                    <div key={idx} className="text-xs text-muted-foreground flex items-start gap-1.5" data-testid={`chain-${idx}`}>
+                      <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />
+                      <span>
+                        <strong>{chain.name}</strong>: {chain.depth} generation{chain.depth !== 1 ? 's' : ''} deep
+                        <span className="text-muted-foreground/60 ml-1">({chain.path.join(' \u2190 ')})</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {Object.values(importSummary.integrity.transferredData).some(v => v > 0) && (
+              <div className="pt-2 border-t" data-testid="section-transferred-data">
                 <p className="text-xs text-muted-foreground mb-1">Data preserved during merge:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {importSummary.integrity.transferredData.events > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.events} events</Badge>}
@@ -485,6 +523,8 @@ export default function ImportConflictResolution({
                   {importSummary.integrity.transferredData.career > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.career} career</Badge>}
                   {importSummary.integrity.transferredData.tags > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.tags} tags</Badge>}
                   {importSummary.integrity.transferredData.fsSources > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.fsSources} sources</Badge>}
+                  {importSummary.integrity.transferredData.extIds > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.extIds} external IDs</Badge>}
+                  {importSummary.integrity.transferredData.specialConns > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.specialConns} special connections</Badge>}
                   {importSummary.integrity.transferredData.giftRegistries > 0 && <Badge variant="secondary" className="text-xs">{importSummary.integrity.transferredData.giftRegistries} gift registries</Badge>}
                 </div>
               </div>
