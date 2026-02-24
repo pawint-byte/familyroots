@@ -252,9 +252,13 @@ export default function TreeView() {
         }
       }
     }
-    // Fall back to root member
-    if (treeData?.tree?.rootMemberId && !focusMemberId) {
-      setFocusMemberId(treeData.tree.rootMemberId);
+    // Fall back to root member, or first member if no root is set
+    if (!focusMemberId && treeData?.tree) {
+      if (treeData.tree.rootMemberId) {
+        setFocusMemberId(treeData.tree.rootMemberId);
+      } else if (treeData.members && treeData.members.length > 0) {
+        setFocusMemberId(treeData.members[0].id);
+      }
     }
     if (treeData?.tree?.preferredLayout && groupLayoutMode === "auto") {
       setGroupLayoutMode(treeData.tree.preferredLayout as GroupLayoutMode);
