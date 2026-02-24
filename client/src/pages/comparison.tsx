@@ -24,6 +24,9 @@ const features: FeatureRow[] = [
   { category: "Tree Building", feature: "Export tree as image", familyRoots: true, ancestry: false },
   { category: "Tree Building", feature: "Life events tracking", familyRoots: true, ancestry: true },
   { category: "Tree Building", feature: "Education & career history", familyRoots: true, ancestry: false },
+  { category: "Tree Building", feature: "Name history tracking (maiden, married, etc.)", familyRoots: true, ancestry: false },
+  { category: "Tree Building", feature: "Upcoming birthday & gift registry indicators", familyRoots: true, ancestry: false },
+  { category: "Tree Building", feature: "Soft delete with 30-day restore", familyRoots: true, ancestry: false },
 
   { category: "Organization & Structure", feature: "Nested sub-groups (tree-in-tree)", familyRoots: true, ancestry: false },
   { category: "Organization & Structure", feature: "Re-parent / detach sub-groups", familyRoots: true, ancestry: false },
@@ -39,6 +42,7 @@ const features: FeatureRow[] = [
   { category: "Collaboration", feature: "Profile claiming by members", familyRoots: true, ancestry: false },
   { category: "Collaboration", feature: "Custodianship for deceased members", familyRoots: true, ancestry: false },
   { category: "Collaboration", feature: "Invitation links with expiry", familyRoots: true, ancestry: true },
+  { category: "Collaboration", feature: "In-tree connection invite links", familyRoots: true, ancestry: false },
   { category: "Collaboration", feature: "Email invitations (via Resend)", familyRoots: true, ancestry: true },
   { category: "Collaboration", feature: "Disassociation protections for tree owners", familyRoots: true, ancestry: false },
 
@@ -61,8 +65,13 @@ const features: FeatureRow[] = [
   { category: "Connections & Discovery", feature: "Referral system", familyRoots: true, ancestry: false },
 
   { category: "Records & Research", feature: "FamilySearch record search", familyRoots: true, ancestry: false },
-  { category: "Records & Research", feature: "FamilySearch tree import", familyRoots: true, ancestry: false },
+  { category: "Records & Research", feature: "FamilySearch tree import (4 generations)", familyRoots: true, ancestry: false },
   { category: "Records & Research", feature: "Selective member import", familyRoots: true, ancestry: false },
+  { category: "Records & Research", feature: "Smart conflict detection (fuzzy matching)", familyRoots: true, ancestry: false },
+  { category: "Records & Research", feature: "Smart merge sync (keeps most complete data)", familyRoots: true, ancestry: false },
+  { category: "Records & Research", feature: "Linked data transfer during merge", familyRoots: true, ancestry: false },
+  { category: "Records & Research", feature: "Spouse preservation on skip", familyRoots: true, ancestry: false },
+  { category: "Records & Research", feature: "Post-import integrity verification", familyRoots: true, ancestry: false },
   { category: "Records & Research", feature: "Built-in historical records", familyRoots: false, ancestry: "65+ billion" },
   { category: "Records & Research", feature: "Cemetery records", familyRoots: false, ancestry: true },
   { category: "Records & Research", feature: "Newspaper archives", familyRoots: false, ancestry: true },

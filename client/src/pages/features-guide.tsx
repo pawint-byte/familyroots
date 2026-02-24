@@ -120,6 +120,24 @@ export default function FeaturesGuide() {
           whereToFind: "Tree View > click a member > Edit > click the photo area or upload button.",
           icon: <Camera className="h-5 w-5 text-cyan-600" />,
         },
+        {
+          name: "Name History",
+          description: "Track name changes throughout a member's life — birth names, married names, names after divorce, or adoption names. A timeline shows when each name was used.",
+          whereToFind: "Tree View > click a member > scroll to 'Name History' section in the profile panel.",
+          icon: <ScrollText className="h-5 w-5 text-indigo-500" />,
+        },
+        {
+          name: "Upcoming Event Indicators",
+          description: "Member cards in the tree show small badge indicators for upcoming birthdays (within 30 days, with countdown) and active gift registries. Quickly see who has a birthday coming up at a glance.",
+          whereToFind: "Visible directly on member cards in the tree visualization. Birthday cake and gift icons appear automatically.",
+          icon: <Bell className="h-5 w-5 text-red-500" />,
+        },
+        {
+          name: "Soft Delete & Restore",
+          description: "Deleted trees and members are kept for 30 days in a 'Recently Deleted' area before permanent removal. Restore anything you accidentally deleted within that window.",
+          whereToFind: "Dashboard > scroll to 'Recently Deleted' section. For members: Tree View > Settings > 'Deleted Members'.",
+          icon: <Award className="h-5 w-5 text-gray-500" />,
+        },
       ],
     },
     {
@@ -137,6 +155,18 @@ export default function FeaturesGuide() {
           description: "View and edit all relationships across your trees. Remove incorrect connections or change relationship types.",
           whereToFind: "Dashboard > menu (top right) > 'Manage Relationships'. Or Tree View > click a member > scroll to Relationships section.",
           icon: <Settings className="h-5 w-5 text-gray-600" />,
+        },
+        {
+          name: "Special Connections",
+          description: "Define non-standard relationships like godparents, mentors, best friends, or boyfriend/girlfriend. These appear alongside regular family relationships on member profiles.",
+          whereToFind: "Tree View > click a member > scroll to 'Special Connections' section > 'Add Connection' button.",
+          icon: <Heart className="h-5 w-5 text-pink-500" />,
+        },
+        {
+          name: "Relationship Calculator",
+          description: "Select any two members in your tree and see how they're related. The calculator traces the connection path and shows the relationship label (e.g., second cousin, great-uncle).",
+          whereToFind: "Tree View > menu > 'Relationship Calculator'. Select two people to see the result.",
+          icon: <Zap className="h-5 w-5 text-yellow-500" />,
         },
       ],
     },

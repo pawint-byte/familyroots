@@ -598,6 +598,10 @@ export default function FAQ() {
           answer: "Click on any family member, then set another member as your 'Focus'. The relationship calculator automatically determines how the two people are related - whether they're first cousins, great-aunts, second cousins once removed, or any other relationship. It traces the path through your family tree."
         },
         {
+          question: "How do I know when a family member's birthday is coming up?",
+          answer: "FamilyRoots shows small badge indicators directly on member cards in the tree visualization. If someone has a birthday within the next 30 days, you'll see a birthday cake icon with a countdown showing how many days away it is. Members with active gift registries also show a purple gift icon. These indicators appear automatically — no setup needed beyond adding birth dates to your family members."
+        },
+        {
           question: "Can I see my family timeline?",
           answer: "Yes! Each tree has a Timeline view that shows all family events in chronological order - births, deaths, marriages, and other milestones. It's a beautiful way to see your family's history unfold over time."
         },
