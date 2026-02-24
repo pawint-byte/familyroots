@@ -1232,3 +1232,46 @@ export const insertMemberTagSchema = createInsertSchema(memberTags).omit({
 
 export type MemberTag = typeof memberTags.$inferSelect;
 export type InsertMemberTag = z.infer<typeof insertMemberTagSchema>;
+
+export const memories = pgTable("memories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  treeId: varchar("tree_id").notNull(),
+  memberId: varchar("member_id"),
+  createdByUserId: varchar("created_by_user_id").notNull(),
+  title: text("title").notNull(),
+  story: text("story"),
+  eventDate: date("event_date"),
+  photoUrl: text("photo_url"),
+  mediaAttachments: jsonb("media_attachments").$type<EventMediaAttachment[]>(),
+  category: text("category").default("memory"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertMemorySchema = createInsertSchema(memories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Memory = typeof memories.$inferSelect;
+export type InsertMemory = z.infer<typeof insertMemorySchema>;
+
+export const voiceNotes = pgTable("voice_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(),
+  treeId: varchar("tree_id").notNull(),
+  recordedByUserId: varchar("recorded_by_user_id").notNull(),
+  audioUrl: text("audio_url").notNull(),
+  durationSeconds: integer("duration_seconds"),
+  title: text("title"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertVoiceNoteSchema = createInsertSchema(voiceNotes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type VoiceNote = typeof voiceNotes.$inferSelect;
+export type InsertVoiceNote = z.infer<typeof insertVoiceNoteSchema>;
