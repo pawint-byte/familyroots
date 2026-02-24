@@ -953,16 +953,19 @@ export default function FamilyTreeVisualization({
       const toPos = posMap.get(rel.toMemberId);
       if (!fromPos || !toPos) continue;
 
-      const pairKey = SYMMETRIC_TYPES.has(rel.relationshipType)
-        ? [rel.fromMemberId, rel.toMemberId].sort().join(':')
-        : `${rel.fromMemberId}->${rel.toMemberId}`;
-      if (drawnPairs.has(pairKey)) continue;
-      drawnPairs.add(pairKey);
-
       const isParentType = rel.relationshipType === "parent" || rel.relationshipType === "parent-child";
+      const isChildType = rel.relationshipType === "child";
       const isSpouseType = rel.relationshipType === "spouse";
       const isCoparentType = rel.relationshipType === "coparent";
       const isSiblingType = rel.relationshipType === "sibling";
+
+      const pairKey = (SYMMETRIC_TYPES.has(rel.relationshipType))
+        ? [rel.fromMemberId, rel.toMemberId].sort().join(':')
+        : (isParentType || isChildType)
+          ? [rel.fromMemberId, rel.toMemberId].sort().join(':parent:')
+          : `${rel.fromMemberId}->${rel.toMemberId}`;
+      if (drawnPairs.has(pairKey)) continue;
+      drawnPairs.add(pairKey);
 
       if (isSpouseType || isCoparentType) {
         const leftPos = fromPos.x <= toPos.x ? fromPos : toPos;
@@ -998,9 +1001,9 @@ export default function FamilyTreeVisualization({
             strokeWidth="2"
           />
         );
-      } else if (isParentType) {
-        const parentPos = fromPos;
-        const childPos = toPos;
+      } else if (isParentType || isChildType) {
+        const parentPos = isChildType ? toPos : fromPos;
+        const childPos = isChildType ? fromPos : toPos;
         const fromX = parentPos.x + nodeWidth / 2;
         const fromY = parentPos.y + nodeHeight;
         const toX2 = childPos.x + nodeWidth / 2;
@@ -1090,6 +1093,26 @@ export default function FamilyTreeVisualization({
             strokeLinecap="round"
             opacity="0.5"
             strokeDasharray="6 4"
+          />
+        );
+      } else {
+        const leftPos = fromPos.x <= toPos.x ? fromPos : toPos;
+        const rightPos = fromPos.x <= toPos.x ? toPos : fromPos;
+        const x1 = leftPos.x + nodeWidth;
+        const y1 = leftPos.y + nodeHeight / 2;
+        const x2 = rightPos.x;
+        const y2 = rightPos.y + nodeHeight / 2;
+
+        lines.push(
+          <path
+            key={`rel-${rel.id}`}
+            d={`M ${x1} ${y1} L ${x2} ${y2}`}
+            stroke="hsl(var(--muted-foreground))"
+            strokeWidth="1.5"
+            fill="none"
+            strokeLinecap="round"
+            opacity="0.4"
+            strokeDasharray="4 4"
           />
         );
       }
