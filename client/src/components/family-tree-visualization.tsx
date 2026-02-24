@@ -358,11 +358,12 @@ export default function FamilyTreeVisualization({
     const spousePositions: { x: number; y: number; spouseId: string }[] = [];
     const coParentPositions: { x: number; y: number; coParentId: string }[] = [];
     
-    // Place explicit spouses first
+    const partnerSpacing = nodeWidth + horizontalGap / 3;
+    
     spouses.forEach((spouseId, index) => {
       const spouse = deduplicatedMembers.find(m => m.id === spouseId);
       if (spouse && !placed.has(spouseId)) {
-        const spouseX = centerX + (nodeWidth + horizontalGap) * (index + 1);
+        const spouseX = centerX + partnerSpacing * (index + 1);
         positioned.push({
           x: spouseX,
           y: centerY,
@@ -374,12 +375,11 @@ export default function FamilyTreeVisualization({
       }
     });
     
-    // Place co-parents after spouses (with offset)
     const coParentStartOffset = spouses.length + 1;
     coParents.forEach((coParentId, index) => {
       const coParent = deduplicatedMembers.find(m => m.id === coParentId);
       if (coParent && !placed.has(coParentId)) {
-        const cpX = centerX + (nodeWidth + horizontalGap) * (coParentStartOffset + index);
+        const cpX = centerX + partnerSpacing * (coParentStartOffset + index);
         positioned.push({
           x: cpX,
           y: centerY,
@@ -492,14 +492,14 @@ export default function FamilyTreeVisualization({
             const parentSiblings = getSiblings(parent.id, parentChildMap, childParentMap, siblingMap);
             // Position them to the side of this parent at parent level
             if (parentSiblings.length > 0) {
-              // Position aunts/uncles to the LEFT of the parent area
               const auntUncleY = parentY;
-              const auntUncleStartX = parentStartX - (parentSiblings.length) * (nodeWidth + horizontalGap / 2);
+              const auSpacing = nodeWidth + horizontalGap / 3;
+              const auntUncleStartX = parentStartX - (parentSiblings.length) * auSpacing;
               
               parentSiblings.forEach((auId, auIndex) => {
                 const auntUncle = deduplicatedMembers.find(m => m.id === auId);
                 if (auntUncle && !placed.has(auId)) {
-                  const auX = auntUncleStartX + auIndex * (nodeWidth + horizontalGap / 2);
+                  const auX = auntUncleStartX + auIndex * auSpacing;
                   positioned.push({
                     x: auX,
                     y: auntUncleY,
@@ -620,15 +620,14 @@ export default function FamilyTreeVisualization({
       const allSiblings = getSiblings(focusId, parentChildMap, childParentMap, siblingMap);
       const siblings = allSiblings.filter(sibId => sibId !== focusId && !placed.has(sibId));
       if (siblings.length > 0) {
-        // Position all siblings to the LEFT of focus
-        // This clearly separates blood relatives from spouse/partner
-        labels.push({ x: centerX - (nodeWidth + horizontalGap) * ((siblings.length + 1) / 2), y: centerY - 30, text: 'Siblings', type: 'sibling' });
+        const sibSpacing = nodeWidth + horizontalGap / 3;
+        labels.push({ x: centerX - sibSpacing * ((siblings.length + 1) / 2), y: centerY - 30, text: 'Siblings', type: 'sibling' });
         
         siblings.forEach((sibId, index) => {
           const sib = deduplicatedMembers.find(m => m.id === sibId);
           if (sib && !placed.has(sibId)) {
             positioned.push({
-              x: centerX - (nodeWidth + horizontalGap) * (index + 1),
+              x: centerX - sibSpacing * (index + 1),
               y: centerY,
               member: sib,
               branchType: 'sibling'
@@ -663,7 +662,12 @@ export default function FamilyTreeVisualization({
     if (allChildren.length > 0) {
       const childY = centerY + verticalGap + nodeHeight;
       
-      labels.push({ x: centerX, y: childY - 40, text: 'Children', type: 'child' });
+      const familyXPositions = [centerX];
+      spousePositions.forEach(sp => familyXPositions.push(sp.x));
+      coParentPositions.forEach(cp => familyXPositions.push(cp.x));
+      const familyUnitCenter = (Math.min(...familyXPositions) + Math.max(...familyXPositions)) / 2;
+      
+      labels.push({ x: familyUnitCenter, y: childY - 40, text: 'Children', type: 'child' });
 
       const measureSubtreeWidth = (rootId: string, visited: Set<string>): number => {
         if (visited.has(rootId) || placed.has(rootId)) return 0;
@@ -698,7 +702,7 @@ export default function FamilyTreeVisualization({
       const totalChildrenWidth = childSubtreeWidths.reduce((sum, c) => sum + c.width, 0)
         + Math.max(0, allChildren.length - 1) * horizontalGap;
 
-      let childAllocX = centerX - totalChildrenWidth / 2;
+      let childAllocX = familyUnitCenter - totalChildrenWidth / 2;
 
       const placeSubtree = (rootId: string, allocX: number, allocWidth: number, y: number, depth: number) => {
         if (depth > 10 || placed.has(rootId)) return;
@@ -740,7 +744,7 @@ export default function FamilyTreeVisualization({
         const subTotal = subWidths.reduce((s, c) => s + c.width, 0)
           + Math.max(0, subChildIds.length - 1) * horizontalGap;
 
-        const subCenterX = memberX + nodeWidth / 2;
+        const subCenterX = memberX + unitWidth / 2;
         let subX = subCenterX - subTotal / 2;
         const subY = y + verticalGap + nodeHeight;
 
@@ -899,7 +903,7 @@ export default function FamilyTreeVisualization({
     };
 
     const recenterAncestors = () => {
-      const ancestorTypes = new Set(['grandparent', 'greatgrandparent', 'inlaw-grandparent']);
+      const ancestorTypes = new Set(['parent', 'grandparent', 'greatgrandparent', 'inlaw-grandparent']);
       const ancestors = positioned.filter(p => ancestorTypes.has(p.branchType));
       ancestors.sort((a, b) => b.y - a.y);
 
