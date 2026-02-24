@@ -3009,6 +3009,20 @@ export async function registerRoutes(
       const isTreeOwner = tree && tree.ownerId === userId;
       
       if (isTreeOwner) {
+        // Check if user already has a claimed profile in another tree
+        const existingClaimed = await storage.getAllClaimedProfilesForUser(userId);
+        const otherClaimed = existingClaimed.filter(m => m.id !== memberId && m.treeId !== member.treeId);
+        
+        if (otherClaimed.length > 0 && !req.body.skipMerge) {
+          // Return the existing profile for merge comparison
+          return res.json({ 
+            status: "merge_available", 
+            message: "You already have a claimed profile in another tree",
+            existingMember: otherClaimed[0],
+            targetMember: member,
+          });
+        }
+        
         await storage.updateMember(memberId, { claimedByUserId: userId });
         return res.json({ message: "Profile claimed successfully", status: "approved" });
       }
@@ -3053,8 +3067,204 @@ export async function registerRoutes(
       
       res.status(201).json(claimRequest);
     } catch (error: any) {
+      console.error("Error claiming profile:", error);
       console.error("Error creating claim request:", error);
       res.status(500).json({ message: error?.message || "Failed to submit claim request" });
+    }
+  });
+
+  // Merge two member profiles (claim + merge across trees)
+  app.post("/api/members/merge-profiles", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { keepMemberId, mergeMemberId, resolvedFields } = req.body;
+      
+      if (!keepMemberId || !mergeMemberId) {
+        return res.status(400).json({ message: "Both member IDs are required" });
+      }
+      
+      const keepMember = await storage.getMember(keepMemberId);
+      const mergeMember = await storage.getMember(mergeMemberId);
+      
+      if (!keepMember || !mergeMember) {
+        return res.status(404).json({ message: "One or both members not found" });
+      }
+      
+      // Verify the user owns both trees
+      const keepTree = await storage.getTree(keepMember.treeId);
+      const mergeTree = await storage.getTree(mergeMember.treeId);
+      
+      if (!keepTree || !mergeTree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      if (keepTree.ownerId !== userId && mergeTree.ownerId !== userId) {
+        return res.status(403).json({ message: "You must own at least one of the trees" });
+      }
+      
+      // Apply resolved field values to the kept member
+      const updateData: any = {};
+      if (resolvedFields) {
+        const mergeableFields = [
+          'firstName', 'lastName', 'suffix', 'nickname', 'email', 'gender',
+          'birthDate', 'birthPlace', 'deathDate', 'photoUrl', 'notes',
+          'currentCity', 'currentRegion', 'currentCountry', 'isLiving'
+        ];
+        for (const field of mergeableFields) {
+          if (resolvedFields[field] !== undefined) {
+            updateData[field] = resolvedFields[field];
+          }
+        }
+      }
+      
+      // Claim the kept member
+      updateData.claimedByUserId = userId;
+      await storage.updateMember(keepMemberId, updateData);
+      
+      // Transfer all linked data from merge member to keep member
+      const transferResults: Record<string, number> = {};
+      
+      // 1. Transfer relationships - update references
+      const mergeRelationships = await storage.getRelationships(mergeMember.treeId);
+      let relCount = 0;
+      for (const rel of mergeRelationships) {
+        if (rel.fromMemberId === mergeMemberId || rel.toMemberId === mergeMemberId) {
+          const newFrom = rel.fromMemberId === mergeMemberId ? keepMemberId : rel.fromMemberId;
+          const newTo = rel.toMemberId === mergeMemberId ? keepMemberId : rel.toMemberId;
+          // Skip self-referencing relationships
+          if (newFrom === newTo) continue;
+          relCount++;
+        }
+      }
+      transferResults.relationships = relCount;
+      
+      // 2. Transfer life events
+      try {
+        const mergeEvents = await storage.getLifeEvents(mergeMemberId);
+        for (const event of mergeEvents) {
+          await storage.createLifeEvent({
+            memberId: keepMemberId,
+            treeId: keepMember.treeId,
+            eventType: event.eventType,
+            title: event.title,
+            description: event.description || undefined,
+            eventDate: event.eventDate,
+            location: event.location || undefined,
+          });
+        }
+        transferResults.lifeEvents = mergeEvents.length;
+      } catch (e) { transferResults.lifeEvents = 0; }
+      
+      // 3. Transfer education records
+      try {
+        const mergeEducation = await storage.getEducationRecords(mergeMemberId);
+        for (const edu of mergeEducation) {
+          await storage.createEducationRecord({
+            memberId: keepMemberId,
+            institution: edu.institution,
+            degree: edu.degree || undefined,
+            fieldOfStudy: edu.fieldOfStudy || undefined,
+            startYear: edu.startYear || undefined,
+            endYear: edu.endYear || undefined,
+            description: edu.description || undefined,
+          });
+        }
+        transferResults.education = mergeEducation.length;
+      } catch (e) { transferResults.education = 0; }
+      
+      // 4. Transfer career records
+      try {
+        const mergeCareer = await storage.getCareerRecords(mergeMemberId);
+        for (const career of mergeCareer) {
+          await storage.createCareerRecord({
+            memberId: keepMemberId,
+            company: career.company,
+            position: career.position || undefined,
+            startYear: career.startYear || undefined,
+            endYear: career.endYear || undefined,
+            description: career.description || undefined,
+            isCurrent: career.isCurrent || undefined,
+          });
+        }
+        transferResults.career = mergeCareer.length;
+      } catch (e) { transferResults.career = 0; }
+      
+      // 5. Transfer name history
+      try {
+        const mergeNames = await storage.getNameHistory(mergeMemberId);
+        for (const nh of mergeNames) {
+          await storage.createNameHistoryEntry({
+            memberId: keepMemberId,
+            previousFirstName: nh.previousFirstName || undefined,
+            previousLastName: nh.previousLastName || undefined,
+            reason: nh.reason || undefined,
+            effectiveDate: nh.effectiveDate || undefined,
+          });
+        }
+        transferResults.nameHistory = mergeNames.length;
+      } catch (e) { transferResults.nameHistory = 0; }
+      
+      // 6. Transfer voice notes
+      try {
+        const mergeVoiceNotes = await storage.getVoiceNotes(mergeMember.treeId, mergeMemberId);
+        for (const vn of mergeVoiceNotes) {
+          await storage.createVoiceNote({
+            memberId: keepMemberId,
+            treeId: keepMember.treeId,
+            audioData: vn.audioData,
+            duration: vn.duration || undefined,
+            title: vn.title || undefined,
+            recordedByUserId: vn.recordedByUserId,
+          });
+        }
+        transferResults.voiceNotes = mergeVoiceNotes.length;
+      } catch (e) { transferResults.voiceNotes = 0; }
+      
+      // 7. Transfer gift registries
+      try {
+        const mergeRegistries = await storage.getGiftRegistries(mergeMember.treeId, mergeMemberId);
+        for (const reg of mergeRegistries) {
+          const newReg = await storage.createGiftRegistry({
+            memberId: keepMemberId,
+            treeId: keepMember.treeId,
+            title: reg.title,
+            description: reg.description || undefined,
+            eventType: reg.eventType || undefined,
+            eventDate: reg.eventDate || undefined,
+            isActive: reg.isActive ?? true,
+          });
+          // Transfer registry items
+          const items = await storage.getGiftRegistryItems(reg.id);
+          for (const item of items) {
+            await storage.createGiftRegistryItem({
+              registryId: newReg.id,
+              name: item.name,
+              description: item.description || undefined,
+              url: item.url || undefined,
+              price: item.price || undefined,
+              isPurchased: item.isPurchased || false,
+              purchasedByUserId: item.purchasedByUserId || undefined,
+            });
+          }
+        }
+        transferResults.giftRegistries = mergeRegistries.length;
+      } catch (e) { transferResults.giftRegistries = 0; }
+      
+      // Also claim the merge member so merged view dedup works
+      await storage.updateMember(mergeMemberId, { claimedByUserId: userId });
+      
+      console.log(`[PROFILE MERGE] Merged member ${mergeMemberId} into ${keepMemberId}. Transfers:`, transferResults);
+      
+      res.json({ 
+        status: "merged",
+        message: "Profiles merged successfully",
+        keepMemberId,
+        mergeMemberId,
+        transferResults,
+      });
+    } catch (error: any) {
+      console.error("Error merging profiles:", error);
+      res.status(500).json({ message: error?.message || "Failed to merge profiles" });
     }
   });
 
@@ -5759,6 +5969,105 @@ export async function registerRoutes(
         }
       });
 
+      // Detect potential duplicate members across trees that weren't auto-deduped
+      // These are cases where names differ but other signals suggest same person
+      const potentialDuplicates: Array<{
+        memberA: any;
+        memberB: any;
+        matchReason: string;
+        confidence: 'high' | 'medium' | 'low';
+      }> = [];
+      
+      // Group members by source tree for cross-tree comparison
+      const membersByTree = new Map<string, any[]>();
+      deduplicatedMembers.forEach((m: any) => {
+        const list = membersByTree.get(m.sourceTreeId) || [];
+        list.push(m);
+        membersByTree.set(m.sourceTreeId, list);
+      });
+      
+      const treeIds = Array.from(membersByTree.keys());
+      const checkedPairs = new Set<string>();
+      
+      for (let t1 = 0; t1 < treeIds.length; t1++) {
+        for (let t2 = t1 + 1; t2 < treeIds.length; t2++) {
+          const tree1Members = membersByTree.get(treeIds[t1]) || [];
+          const tree2Members = membersByTree.get(treeIds[t2]) || [];
+          
+          for (const m1 of tree1Members) {
+            for (const m2 of tree2Members) {
+              const pairKey = [m1.id, m2.id].sort().join('-');
+              if (checkedPairs.has(pairKey)) continue;
+              checkedPairs.add(pairKey);
+              
+              // Skip if already same person (claimed by same user)
+              if (m1.claimedByUserId && m1.claimedByUserId === m2.claimedByUserId) continue;
+              // Skip placeholder/unknown members
+              if (m1.isUnknown || m2.isUnknown) continue;
+              
+              const reasons: string[] = [];
+              let confidence: 'high' | 'medium' | 'low' = 'low';
+              
+              // 1. Email match (highest confidence)
+              if (m1.email && m2.email && m1.email.toLowerCase() === m2.email.toLowerCase()) {
+                reasons.push('Same email address');
+                confidence = 'high';
+              }
+              
+              // 2. Same last name + close birth year (within 2 years = likely same person)
+              const lastName1 = (m1.lastName || '').toLowerCase().trim();
+              const lastName2 = (m2.lastName || '').toLowerCase().trim();
+              if (lastName1 && lastName2 && lastName1 === lastName2) {
+                if (m1.birthDate && m2.birthDate) {
+                  try {
+                    const year1 = new Date(m1.birthDate).getFullYear();
+                    const year2 = new Date(m2.birthDate).getFullYear();
+                    if (Math.abs(year1 - year2) <= 2) {
+                      reasons.push(`Same last name, birth years ${year1} and ${year2}`);
+                      confidence = confidence === 'high' ? 'high' : 'high';
+                    } else if (Math.abs(year1 - year2) <= 5) {
+                      reasons.push(`Same last name, birth years within 5 years (${year1} vs ${year2})`);
+                      confidence = confidence === 'high' ? 'high' : 'medium';
+                    }
+                  } catch {}
+                }
+                
+                // Same last name + same birth place
+                if (m1.birthPlace && m2.birthPlace) {
+                  const place1 = m1.birthPlace.toLowerCase().trim();
+                  const place2 = m2.birthPlace.toLowerCase().trim();
+                  if (place1 === place2 || place1.includes(place2) || place2.includes(place1)) {
+                    reasons.push('Same birth place');
+                    confidence = confidence === 'low' ? 'medium' : confidence;
+                  }
+                }
+                
+                // Same last name + same gender
+                if (m1.gender && m2.gender && m1.gender === m2.gender && reasons.length > 0) {
+                  reasons.push('Same gender');
+                }
+              }
+              
+              // 3. Same first name + same last name already handled by auto-dedup,
+              // but different first names with other matching signals are caught here
+              
+              if (reasons.length > 0) {
+                potentialDuplicates.push({
+                  memberA: { id: m1.id, firstName: m1.firstName, lastName: m1.lastName, email: m1.email, birthDate: m1.birthDate, birthPlace: m1.birthPlace, gender: m1.gender, photoUrl: m1.photoUrl, sourceTreeId: m1.sourceTreeId, sourceTreeName: m1.sourceTreeName },
+                  memberB: { id: m2.id, firstName: m2.firstName, lastName: m2.lastName, email: m2.email, birthDate: m2.birthDate, birthPlace: m2.birthPlace, gender: m2.gender, photoUrl: m2.photoUrl, sourceTreeId: m2.sourceTreeId, sourceTreeName: m2.sourceTreeName },
+                  matchReason: reasons.join('; '),
+                  confidence,
+                });
+              }
+            }
+          }
+        }
+      }
+      
+      // Sort by confidence (high first)
+      const confidenceOrder = { high: 0, medium: 1, low: 2 };
+      potentialDuplicates.sort((a, b) => confidenceOrder[a.confidence] - confidenceOrder[b.confidence]);
+
       res.json({
         mainTree: tree,
         connections: connections.filter(c => 
@@ -5770,7 +6079,8 @@ export async function registerRoutes(
           id,
           name: info.name,
           isMainTree: id === treeId
-        }))
+        })),
+        potentialDuplicates,
       });
     } catch (error) {
       console.error("Error fetching merged tree:", error);

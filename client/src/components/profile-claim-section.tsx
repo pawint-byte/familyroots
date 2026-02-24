@@ -6,8 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { UserCheck, Clock, XCircle, CheckCircle, Send, UserMinus, AlertTriangle } from "lucide-react";
+import { UserCheck, Clock, XCircle, CheckCircle, Send, UserMinus, AlertTriangle, Merge } from "lucide-react";
 import type { FamilyMember } from "@shared/schema";
+import { MemberMergeDialog } from "./member-merge-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +36,8 @@ interface ProfileClaimSectionProps {
 export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProps) {
   const [claimMessage, setClaimMessage] = useState("");
   const [showClaimForm, setShowClaimForm] = useState(false);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [mergeExistingMember, setMergeExistingMember] = useState<FamilyMember | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -81,6 +84,13 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
       return response.json();
     },
     onSuccess: (data: any) => {
+      if (data?.status === 'merge_available') {
+        setMergeExistingMember(data.existingMember);
+        setShowMergeDialog(true);
+        setShowClaimForm(false);
+        return;
+      }
+
       const isAutoApproved = data?.status === 'approved';
       toast({
         title: isAutoApproved ? "Profile claimed!" : "Claim request submitted",
@@ -96,6 +106,33 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
     onError: (error: any) => {
       toast({
         title: "Failed to submit claim",
+        description: error?.message || "Please try again later.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const claimWithoutMergeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/members/${member.id}/claim`, {
+        message: claimMessage || undefined,
+        skipMerge: true,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Profile claimed!",
+        description: "This member is now linked to your account.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/members', member.id, 'claim-status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/trees'] });
+      setShowClaimForm(false);
+      setShowMergeDialog(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to claim",
         description: error?.message || "Please try again later.",
         variant: "destructive",
       });
@@ -227,68 +264,106 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
 
   if (showClaimForm) {
     return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Claim This Profile</CardTitle>
-          <CardDescription>
-            {isOwner
-              ? "Mark this member as yourself. This links your account to this profile."
-              : "Is this you? Request to claim this profile to manage your own information."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!isOwner && (
-            <Textarea
-              placeholder="Add a message to the tree owner (optional)..."
-              value={claimMessage}
-              onChange={(e) => setClaimMessage(e.target.value)}
-              className="resize-none"
-              rows={3}
-              data-testid="textarea-claim-message"
-            />
-          )}
-          <div className="flex gap-2">
-            <Button
-              onClick={() => submitClaimMutation.mutate()}
-              disabled={submitClaimMutation.isPending}
-              className="gap-2"
-              data-testid="button-submit-claim"
-            >
-              <Send className="h-4 w-4" />
-              {submitClaimMutation.isPending ? "Claiming..." : isOwner ? "Claim as Me" : "Submit Claim"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowClaimForm(false);
-                setClaimMessage("");
-              }}
-              data-testid="button-cancel-claim"
-            >
-              Cancel
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Claim This Profile</CardTitle>
+            <CardDescription>
+              {isOwner
+                ? "Mark this member as yourself. This links your account to this profile."
+                : "Is this you? Request to claim this profile to manage your own information."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!isOwner && (
+              <Textarea
+                placeholder="Add a message to the tree owner (optional)..."
+                value={claimMessage}
+                onChange={(e) => setClaimMessage(e.target.value)}
+                className="resize-none"
+                rows={3}
+                data-testid="textarea-claim-message"
+              />
+            )}
+            <div className="flex gap-2">
+              <Button
+                onClick={() => submitClaimMutation.mutate()}
+                disabled={submitClaimMutation.isPending}
+                className="gap-2"
+                data-testid="button-submit-claim"
+              >
+                <Send className="h-4 w-4" />
+                {submitClaimMutation.isPending ? "Claiming..." : isOwner ? "Claim as Me" : "Submit Claim"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowClaimForm(false);
+                  setClaimMessage("");
+                }}
+                data-testid="button-cancel-claim"
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {showMergeDialog && mergeExistingMember && (
+          <MemberMergeDialog
+            open={showMergeDialog}
+            onOpenChange={(open) => {
+              setShowMergeDialog(open);
+              if (!open) setShowClaimForm(false);
+            }}
+            memberA={mergeExistingMember}
+            memberB={member}
+            onMergeComplete={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/members', member.id, 'claim-status'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/trees'] });
+              setShowClaimForm(false);
+            }}
+          />
+        )}
+      </>
     );
   }
 
   return (
-    <Card className="border-dashed hover-elevate cursor-pointer" onClick={() => setShowClaimForm(true)}>
-      <CardContent className="py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <UserCheck className="h-5 w-5 text-primary" />
-            <div>
-              <p className="font-medium text-sm">Is this you?</p>
-              <p className="text-xs text-muted-foreground">Claim this profile to manage your information</p>
+    <>
+      <Card className="border-dashed hover-elevate cursor-pointer" onClick={() => setShowClaimForm(true)} data-testid="card-claim-profile">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium text-sm">Is this you?</p>
+                <p className="text-xs text-muted-foreground">Claim this profile to manage your information</p>
+              </div>
             </div>
+            <Button variant="outline" size="sm" data-testid="button-claim-profile">
+              Claim Profile
+            </Button>
           </div>
-          <Button variant="outline" size="sm" data-testid="button-claim-profile">
-            Claim Profile
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {showMergeDialog && mergeExistingMember && (
+        <MemberMergeDialog
+          open={showMergeDialog}
+          onOpenChange={(open) => {
+            setShowMergeDialog(open);
+            if (!open) setShowClaimForm(false);
+          }}
+          memberA={mergeExistingMember}
+          memberB={member}
+          onMergeComplete={() => {
+            queryClient.invalidateQueries({ queryKey: ['/api/members', member.id, 'claim-status'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/trees'] });
+            setShowClaimForm(false);
+          }}
+        />
+      )}
+    </>
   );
 }
