@@ -205,7 +205,7 @@ export default function TimelineView({ members, treeId }: TimelineViewProps) {
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-muted-foreground" data-testid="text-event-count">
-            {events.length} event{events.length !== 1 ? 's' : ''} across {years.length} year{years.length !== 1 ? 's' : ''}
+            {events.length} event{events.length !== 1 ? 's' : ''} spanning {years[years.length - 1]}–{years[0]}
           </p>
         </div>
 
