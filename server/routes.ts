@@ -3004,6 +3004,15 @@ export async function registerRoutes(
       // Get the current user's email
       const currentUser = await storage.getUser(userId);
       
+      // Check if user is the tree owner — auto-approve their claim
+      const tree = await storage.getTree(member.treeId);
+      const isTreeOwner = tree && tree.ownerId === userId;
+      
+      if (isTreeOwner) {
+        await storage.updateMember(memberId, { claimedByUserId: userId });
+        return res.json({ message: "Profile claimed successfully", status: "approved" });
+      }
+      
       // Create the claim request
       const claimRequest = await storage.createProfileClaimRequest({
         memberId,

@@ -47,7 +47,7 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
       if (!response.ok) throw new Error('Failed to fetch claim status');
       return response.json();
     },
-    enabled: !isOwner && member.isLiving !== false, // Query only runs for living members in non-owned trees
+    enabled: member.isLiving !== false,
   });
 
   const unclaimMutation = useMutation({
@@ -80,12 +80,16 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      const isAutoApproved = data?.status === 'approved';
       toast({
-        title: "Claim request submitted",
-        description: "The tree owner will review your request.",
+        title: isAutoApproved ? "Profile claimed!" : "Claim request submitted",
+        description: isAutoApproved
+          ? "This member is now linked to your account."
+          : "The tree owner will review your request.",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/members', member.id, 'claim-status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/trees'] });
       setShowClaimForm(false);
       setClaimMessage("");
     },
@@ -98,8 +102,7 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
     },
   });
 
-  // Only hide if user owns the tree or member is explicitly marked as deceased
-  if (isOwner || member.isLiving === false) {
+  if (member.isLiving === false) {
     return null;
   }
 
@@ -228,18 +231,22 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Claim This Profile</CardTitle>
           <CardDescription>
-            Is this you? Request to claim this profile to manage your own information.
+            {isOwner
+              ? "Mark this member as yourself. This links your account to this profile."
+              : "Is this you? Request to claim this profile to manage your own information."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Textarea
-            placeholder="Add a message to the tree owner (optional)..."
-            value={claimMessage}
-            onChange={(e) => setClaimMessage(e.target.value)}
-            className="resize-none"
-            rows={3}
-            data-testid="textarea-claim-message"
-          />
+          {!isOwner && (
+            <Textarea
+              placeholder="Add a message to the tree owner (optional)..."
+              value={claimMessage}
+              onChange={(e) => setClaimMessage(e.target.value)}
+              className="resize-none"
+              rows={3}
+              data-testid="textarea-claim-message"
+            />
+          )}
           <div className="flex gap-2">
             <Button
               onClick={() => submitClaimMutation.mutate()}
@@ -248,7 +255,7 @@ export function ProfileClaimSection({ member, isOwner }: ProfileClaimSectionProp
               data-testid="button-submit-claim"
             >
               <Send className="h-4 w-4" />
-              {submitClaimMutation.isPending ? "Submitting..." : "Submit Claim"}
+              {submitClaimMutation.isPending ? "Claiming..." : isOwner ? "Claim as Me" : "Submit Claim"}
             </Button>
             <Button
               variant="outline"
