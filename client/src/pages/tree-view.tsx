@@ -62,6 +62,7 @@ import { InviteConnectDialog } from "@/components/invite-connect-dialog";
 import { MemoryLane } from "@/components/memory-lane";
 import { VoiceNotesSection } from "@/components/voice-notes-section";
 import { AnnualTreeReport } from "@/components/annual-tree-report";
+import { TreeRegistriesTab } from "@/components/tree-registries-tab";
 
 interface TreeData {
   tree: FamilyTree;
@@ -1668,6 +1669,14 @@ export default function TreeView() {
                   <BarChart3 className="h-4 w-4" />
                   Report
                 </TabsTrigger>
+                <TabsTrigger 
+                  value="registries" 
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-2"
+                  data-testid="tab-registries"
+                >
+                  <Gift className="h-4 w-4" />
+                  Registries
+                </TabsTrigger>
               </TabsList>
             </div>
           </div>
@@ -2195,6 +2204,10 @@ export default function TreeView() {
                 treeName={treeData?.tree?.name || ''} 
               />
             </div>
+          </TabsContent>
+
+          <TabsContent value="registries" className="flex-1 m-0 overflow-y-auto">
+            <TreeRegistriesTab treeId={treeId!} canEdit={canEditTree} />
           </TabsContent>
         </Tabs>
       </div>
