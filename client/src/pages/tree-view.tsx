@@ -58,6 +58,7 @@ import { SpecialConnectionsSection, LocationSection } from "@/components/special
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 import { BranchImportDialog } from "@/components/branch-import-dialog";
 import { MergeMembersDialog } from "@/components/merge-members-dialog";
+import { MemberMergeDialog } from "@/components/member-merge-dialog";
 import { InviteConnectDialog } from "@/components/invite-connect-dialog";
 import { MemoryLane } from "@/components/memory-lane";
 import { VoiceNotesSection } from "@/components/voice-notes-section";
@@ -122,6 +123,14 @@ export default function TreeView() {
   const [showMergedView, setShowMergedView] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
+  const [crossTreeMergeData, setCrossTreeMergeData] = useState<{
+    connectedMember: FamilyMember;
+    ownTreeMember: FamilyMember;
+    connectedTreeName: string;
+  } | null>(null);
+  const [showCrossTreeMerge, setShowCrossTreeMerge] = useState(false);
+  const [showSamePersonPicker, setShowSamePersonPicker] = useState(false);
+  const [samePersonSearch, setSamePersonSearch] = useState("");
   const [isFocusPanelCollapsed, setIsFocusPanelCollapsed] = useState(false);
   const [viewDepth, setViewDepth] = useState<'immediate' | 'extended' | 'all'>('all');
   const [isCreateSubgroupOpen, setIsCreateSubgroupOpen] = useState(false);
@@ -2887,6 +2896,42 @@ export default function TreeView() {
                   </div>
                 )}
 
+                {showMergedView && mergedData && treeData && (() => {
+                  const isFromConnected = (selectedMember as any).isFromConnectedTree;
+                  const hasConnectedMembers = mergedData.members.some(m => (m as any).isFromConnectedTree);
+                  const hasOwnMembers = treeData.members.length > 0;
+                  if (!hasConnectedMembers || !hasOwnMembers) return null;
+                  return (
+                    <div className="p-3 mb-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                      {isFromConnected && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="text-blue-600 border-blue-400 gap-1">
+                            <Link2 className="h-3 w-3" />
+                            From {(selectedMember as any).sourceTreeName || "Connected Tree"}
+                          </Badge>
+                        </div>
+                      )}
+                      <p className="text-sm text-muted-foreground mb-3">
+                        {isFromConnected
+                          ? "Is this person already in your tree? Merge them to sync their data across both trees."
+                          : "Is this person also in a connected tree? Merge them to sync their data across both trees."}
+                      </p>
+                      <Button
+                        variant="default"
+                        className="gap-2 w-full"
+                        onClick={() => {
+                          setSamePersonSearch("");
+                          setShowSamePersonPicker(true);
+                        }}
+                        data-testid="button-same-person"
+                      >
+                        <Merge className="h-4 w-4" />
+                        Same Person — Merge Profiles
+                      </Button>
+                    </div>
+                  );
+                })()}
+
                 <div className="flex gap-2 pt-4 border-t border-border flex-wrap">
                   <Button 
                     variant={focusMemberId === selectedMember.id ? "default" : "outline"} 
@@ -3499,6 +3544,117 @@ export default function TreeView() {
           relationships={treeData.relationships}
           treeId={treeData.tree.id}
           currentUserId={user?.id}
+        />
+      )}
+
+      {selectedMember && treeData && mergedData && showSamePersonPicker && (() => {
+        const isFromConnected = (selectedMember as any).isFromConnectedTree;
+        const candidateMembers = isFromConnected
+          ? treeData.members.filter(m => m.id !== selectedMember.id)
+          : mergedData.members.filter(m => (m as any).isFromConnectedTree && m.id !== selectedMember.id);
+        const searchLabel = isFromConnected ? "your tree" : "the connected tree";
+        return (
+          <Dialog open={showSamePersonPicker} onOpenChange={(open) => {
+            setShowSamePersonPicker(open);
+            if (!open) setSamePersonSearch("");
+          }}>
+            <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+              <DialogHeader>
+                <DialogTitle className="font-serif flex items-center gap-2">
+                  <Merge className="h-5 w-5" />
+                  Who is {selectedMember.firstName} {selectedMember.lastName || ""} in {searchLabel}?
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">
+                Select the member in {searchLabel} that is the same person as {selectedMember.firstName}.
+              </p>
+              <Input
+                placeholder={`Search ${searchLabel} members...`}
+                value={samePersonSearch}
+                onChange={(e) => setSamePersonSearch(e.target.value)}
+                data-testid="input-same-person-search"
+              />
+              <ScrollArea className="flex-1 max-h-[40vh]">
+                <div className="space-y-1 pr-4">
+                  {candidateMembers
+                    .filter(m => {
+                      if (!samePersonSearch) return true;
+                      const name = `${m.firstName} ${m.lastName || ""}`.toLowerCase();
+                      return name.includes(samePersonSearch.toLowerCase());
+                    })
+                    .map(m => (
+                      <button
+                        key={m.id}
+                        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors text-left"
+                        onClick={() => {
+                          const ownMember = isFromConnected ? m : selectedMember;
+                          const connMember = isFromConnected ? selectedMember : m;
+                          setCrossTreeMergeData({
+                            connectedMember: connMember,
+                            ownTreeMember: ownMember,
+                            connectedTreeName: (connMember as any).sourceTreeName || "Connected Tree",
+                          });
+                          setShowSamePersonPicker(false);
+                          setIsMemberDetailOpen(false);
+                          setTimeout(() => setShowCrossTreeMerge(true), 150);
+                        }}
+                        data-testid={`button-pick-same-person-${m.id}`}
+                      >
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={m.photoUrl || undefined} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                            {m.firstName[0]}{m.lastName?.[0] || ""}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{m.firstName} {m.lastName || ""}</p>
+                          <div className="flex items-center gap-2">
+                            {m.birthDate && (
+                              <p className="text-xs text-muted-foreground">
+                                b. {new Date(m.birthDate).getFullYear()}
+                              </p>
+                            )}
+                            {(m as any).sourceTreeName && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                {(m as any).sourceTreeName}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  }
+                  {candidateMembers.filter(m => {
+                    if (!samePersonSearch) return true;
+                    const name = `${m.firstName} ${m.lastName || ""}`.toLowerCase();
+                    return name.includes(samePersonSearch.toLowerCase());
+                  }).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No matching members found</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {crossTreeMergeData && (
+        <MemberMergeDialog
+          open={showCrossTreeMerge}
+          onOpenChange={(open) => {
+            setShowCrossTreeMerge(open);
+            if (!open) setCrossTreeMergeData(null);
+          }}
+          memberA={crossTreeMergeData.ownTreeMember}
+          memberB={crossTreeMergeData.connectedMember}
+          memberATreeName={treeData?.tree.name}
+          memberBTreeName={crossTreeMergeData.connectedTreeName}
+          onMergeComplete={() => {
+            setShowCrossTreeMerge(false);
+            setCrossTreeMergeData(null);
+            queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId, "merged"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+          }}
         />
       )}
 

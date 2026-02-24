@@ -11317,12 +11317,12 @@ export async function registerRoutes(
       
       const allTreeIds = [...ownedTrees.map(t => t.id), ...collabTreeIds];
       
-      // Get all pending matches for these trees
+      // Get all pending and confirmed (not yet merged) matches for these trees
       const allMatches: any[] = [];
       for (const treeId of allTreeIds) {
         const matches = await storage.getCrossTreeMatchesForTree(treeId);
-        const pendingMatches = matches.filter(m => m.status === 'pending');
-        allMatches.push(...pendingMatches);
+        const actionableMatches = matches.filter(m => m.status === 'pending' || m.status === 'confirmed');
+        allMatches.push(...actionableMatches);
       }
       
       // Deduplicate matches (same match might appear for both trees)
