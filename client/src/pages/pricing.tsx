@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { useAuth } from "@/hooks/use-auth";
-import { Trees, Check, ArrowLeft, Loader2, Users, Sparkles, Crown, Gift, TrendingUp, Package, Zap, Star } from "lucide-react";
+import { Trees, Check, ArrowLeft, Loader2, Users, Crown, Gift, TrendingUp, Package, Zap, Star, Sparkles, X, Infinity } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface PricingPack {
@@ -19,13 +19,31 @@ interface PricingPack {
   savings?: string;
 }
 
+interface TierConfig {
+  label: string;
+  tagline: string;
+  monthlyPriceCents: number;
+  color: string;
+}
+
+interface TierLimits {
+  [feature: string]: {
+    explorer: number;
+    cultivator: number;
+    heritage: number;
+    legacy: number;
+  };
+}
+
+interface FeatureInfoMap {
+  [feature: string]: { label: string; description: string };
+}
+
 interface PricingConfig {
   packs: PricingPack[];
-  premium: {
-    monthlyPriceCents: number;
-    label: string;
-    features: string[];
-  };
+  tiers: Record<string, TierConfig>;
+  tierLimits: TierLimits;
+  featureInfo: FeatureInfoMap;
   rewards: {
     monthlyAddsThreshold: number;
     monthlyDiscountPercent: number;
@@ -44,6 +62,7 @@ interface PricingStatus {
   totalMemberCount: number;
   memberCredits: number;
   isPremium: boolean;
+  featureTier: string;
   monthlyAddsCount: number;
   hasActiveReward: boolean;
   activeRewardDiscount: number;
@@ -51,6 +70,16 @@ interface PricingStatus {
   activeReward: ActiveReward | null;
   pricingModel: string;
 }
+
+const TIER_KEYS = ['explorer', 'cultivator', 'heritage', 'legacy'] as const;
+const FEATURE_KEYS = ['ai_chat', 'familysearch_import', 'email_tagged_group', 'ai_avatar_video', 'media_upload'] as const;
+
+const tierIcons: Record<string, typeof Crown> = {
+  explorer: Users,
+  cultivator: Sparkles,
+  heritage: Crown,
+  legacy: Star,
+};
 
 export default function Pricing() {
   const [, navigate] = useLocation();
@@ -66,9 +95,9 @@ export default function Pricing() {
     enabled: !user,
   });
 
-  const bulkPackMutation = useMutation({
-    mutationFn: async (packType: string) => {
-      const res = await apiRequest("POST", "/api/pricing/bulk-pack/checkout", { packType });
+  const tierCheckoutMutation = useMutation({
+    mutationFn: async (tier: string) => {
+      const res = await apiRequest("POST", "/api/pricing/tier/checkout", { tier });
       return res.json();
     },
     onSuccess: (data) => {
@@ -78,9 +107,9 @@ export default function Pricing() {
     },
   });
 
-  const premiumMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/pricing/premium/checkout");
+  const bulkPackMutation = useMutation({
+    mutationFn: async (packType: string) => {
+      const res = await apiRequest("POST", "/api/pricing/bulk-pack/checkout", { packType });
       return res.json();
     },
     onSuccess: (data) => {
@@ -97,16 +126,37 @@ export default function Pricing() {
     }).format(cents / 100);
   };
 
+  const formatLimit = (val: number) => {
+    if (val === -1) return 'Unlimited';
+    if (val === 0) return '—';
+    return `${val}/mo`;
+  };
+
   const config = pricingStatus?.config || publicConfig || {
     packs: [
       { type: 'starter_10', credits: 10, priceCents: 799, perMemberCents: 80, label: 'Starter Pack' },
       { type: 'growth_25', credits: 25, priceCents: 1499, perMemberCents: 60, label: 'Growth Pack', savings: '25%' },
       { type: 'family_50', credits: 50, priceCents: 2499, perMemberCents: 50, label: 'Family Pack', savings: '37%' },
     ],
-    premium: {
-      monthlyPriceCents: 499,
-      label: 'Premium',
-      features: ['Unlimited media uploads', 'Gift registries', 'Priority support', 'Advanced analytics'],
+    tiers: {
+      explorer:   { label: 'Explorer',   tagline: 'Try it out, no commitment',              monthlyPriceCents: 0,    color: '#6b7280' },
+      cultivator: { label: 'Cultivator', tagline: 'For regular users building their trees',  monthlyPriceCents: 499,  color: '#3b82f6' },
+      heritage:   { label: 'Heritage',   tagline: 'For power users and large groups',        monthlyPriceCents: 1299, color: '#8b5cf6' },
+      legacy:     { label: 'Legacy',     tagline: 'High-volume, still capped for your safety', monthlyPriceCents: 2499, color: '#f59e0b' },
+    },
+    tierLimits: {
+      ai_chat:             { explorer: 5,   cultivator: 30,  heritage: 100, legacy: 300 },
+      familysearch_import: { explorer: 1,   cultivator: 5,   heritage: 15,  legacy: 40  },
+      email_tagged_group:  { explorer: 2,   cultivator: 10,  heritage: 30,  legacy: -1  },
+      ai_avatar_video:     { explorer: 0,   cultivator: 2,   heritage: 5,   legacy: 10  },
+      media_upload:        { explorer: 10,  cultivator: 50,  heritage: 200, legacy: 500 },
+    },
+    featureInfo: {
+      ai_chat:             { label: 'AI Chat',             description: 'AI-powered assistant' },
+      familysearch_import: { label: 'FamilySearch Import', description: 'Import ancestors' },
+      email_tagged_group:  { label: 'Group Email',         description: 'Email tagged members' },
+      ai_avatar_video:     { label: 'AI Avatar Video',     description: 'Generate videos' },
+      media_upload:        { label: 'Media Upload',        description: 'Upload photos' },
     },
     rewards: {
       monthlyAddsThreshold: 5,
@@ -116,20 +166,19 @@ export default function Pricing() {
     freeTierCredits: 20,
   };
 
+  const currentTier = pricingStatus?.featureTier || 'explorer';
   const memberCredits = pricingStatus?.memberCredits || 0;
   const totalMembers = pricingStatus?.totalMemberCount || 0;
   const monthlyAdds = pricingStatus?.monthlyAddsCount || 0;
-  const isPremium = pricingStatus?.isPremium || false;
   const activeReward = pricingStatus?.activeReward;
   const freeRemaining = Math.max(0, config.freeTierCredits - totalMembers);
 
-  const getPackIcon = (type: string) => {
-    switch (type) {
-      case 'starter_10': return <Package className="h-6 w-6" />;
-      case 'growth_25': return <TrendingUp className="h-6 w-6" />;
-      case 'family_50': return <Users className="h-6 w-6" />;
-      default: return <Package className="h-6 w-6" />;
+  const handleTierCheckout = (tier: string) => {
+    if (!user) {
+      window.location.href = "/api/login";
+      return;
     }
+    tierCheckoutMutation.mutate(tier);
   };
 
   const handleBuyPack = (packType: string) => {
@@ -140,35 +189,21 @@ export default function Pricing() {
     bulkPackMutation.mutate(packType);
   };
 
-  const handleBuyPremium = () => {
-    if (!user) {
-      window.location.href = "/api/login";
-      return;
+  const getPackIcon = (type: string) => {
+    switch (type) {
+      case 'starter_10': return <Package className="h-6 w-6" />;
+      case 'growth_25': return <TrendingUp className="h-6 w-6" />;
+      case 'family_50': return <Users className="h-6 w-6" />;
+      default: return <Package className="h-6 w-6" />;
     }
-    premiumMutation.mutate();
-  };
-
-  const pricingStructuredData = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    "name": "FamilyRoots Member Packs",
-    "description": "Add family members to your tree with flexible member packs. First 20 members free.",
-    "offers": config.packs.map(pack => ({
-      "@type": "Offer",
-      "name": pack.label,
-      "price": (pack.priceCents / 100).toFixed(2),
-      "priceCurrency": "USD",
-      "description": `${pack.credits} member credits at ${formatPrice(pack.perMemberCents)} each`
-    }))
   };
 
   return (
     <div className="min-h-screen bg-background">
       <SEO
-        title="Pricing - FamilyRoots | Family Tree Member Packs"
-        description="Build your family tree for free. First 20 members included. Add more with affordable member packs starting at $7.99."
-        keywords="family tree pricing, genealogy member packs, family history"
-        structuredData={pricingStructuredData}
+        title="Pricing - FamilyRoots | Plans & Member Packs"
+        description="Start free with 20 members. Choose a plan that fits your needs — from Explorer to Legacy. Add more members with affordable packs."
+        keywords="family tree pricing, genealogy plans, family history subscription"
       />
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4 flex-wrap">
@@ -201,109 +236,80 @@ export default function Pricing() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
+      <main className="container mx-auto px-4 py-12">
+        {/* Hero */}
+        <div className="text-center mb-6">
           <h1 className="text-4xl font-serif font-bold mb-4" data-testid="text-pricing-title">
-            Simple, Fair Pricing
+            Plans That Grow With You
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Start for free with {config.freeTierCredits} family members. Add more anytime with affordable member packs. 
-            The more active you are, the more you save.
+            Every plan starts with <strong>{config.freeTierCredits} free members</strong> — no credit card required.
+            Upgrade anytime for more features.
           </p>
         </div>
 
+        {/* 20 Free Members Banner */}
+        <div className="max-w-3xl mx-auto mb-10">
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 border border-green-500/20 p-6 text-center">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <Gift className="h-7 w-7 text-green-500" />
+              <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                First {config.freeTierCredits} Members Free
+              </span>
+              <Gift className="h-7 w-7 text-green-500" />
+            </div>
+            <p className="text-muted-foreground">
+              Create unlimited trees. Add up to {config.freeTierCredits} people across all your trees at no cost. 
+              No credit card. No trial period. Just start building.
+            </p>
+          </div>
+        </div>
+
+        {/* Current Account Status (logged in users) */}
         {user && !statusLoading && pricingStatus && (
-          <Card className="max-w-2xl mx-auto mb-12 border-primary" data-testid="card-current-status">
-            <CardHeader>
+          <Card className="max-w-2xl mx-auto mb-10 border-primary/30" data-testid="card-current-status">
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-full bg-primary/10">
-                  <Users className="h-6 w-6 text-primary" />
+                  <Users className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="font-serif">Your Account</CardTitle>
+                  <CardTitle className="font-serif text-lg">Your Account</CardTitle>
                   <CardDescription>
-                    {totalMembers} family members across all trees
+                    {totalMembers} member{totalMembers !== 1 ? 's' : ''} across all trees
                   </CardDescription>
+                </div>
+                <div className="ml-auto">
+                  <Badge 
+                    style={{ backgroundColor: config.tiers[currentTier]?.color || '#6b7280', color: 'white' }}
+                    data-testid="badge-current-tier"
+                  >
+                    {config.tiers[currentTier]?.label || 'Explorer'}
+                  </Badge>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg bg-muted/50">
-                  <p className="text-sm text-muted-foreground">Member Credits</p>
-                  <p className="text-2xl font-bold" data-testid="text-credits-balance">
+            <CardContent className="space-y-3 pt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Member Credits</p>
+                  <p className="text-xl font-bold" data-testid="text-credits-balance">
                     {freeRemaining > 0 ? `${freeRemaining} free` : memberCredits}
                   </p>
-                  {freeRemaining > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      {freeRemaining} of {config.freeTierCredits} free slots remaining
-                    </p>
-                  )}
-                  {freeRemaining <= 0 && memberCredits > 0 && (
-                    <p className="text-xs text-muted-foreground">purchased credits available</p>
-                  )}
-                  {freeRemaining <= 0 && memberCredits <= 0 && (
-                    <p className="text-xs text-muted-foreground">purchase a pack to add more</p>
-                  )}
                 </div>
-                <div className="p-4 rounded-lg bg-muted/50">
-                  <p className="text-sm text-muted-foreground">This Month</p>
-                  <p className="text-2xl font-bold" data-testid="text-monthly-adds">
-                    {monthlyAdds} added
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {monthlyAdds >= config.rewards.monthlyAddsThreshold 
-                      ? "Reward earned!" 
-                      : `${config.rewards.monthlyAddsThreshold - monthlyAdds} more for ${config.rewards.monthlyDiscountPercent}% off`}
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Added This Month</p>
+                  <p className="text-xl font-bold" data-testid="text-monthly-adds">
+                    {monthlyAdds}
                   </p>
                 </div>
               </div>
 
               {activeReward && (
-                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center gap-3">
-                  <Zap className="h-5 w-5 text-green-500 shrink-0" />
-                  <div>
-                    <p className="font-medium text-sm">Active Reward: {activeReward.discountPercent}% Off</p>
-                    <p className="text-xs text-muted-foreground">
-                      Automatically applied to your next member pack purchase
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {!isPremium && (
-                <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="text-xs">Free Plan</Badge>
-                  <span className="text-sm text-muted-foreground">
-                    Upgrade to Premium for unlimited media and more
-                  </span>
-                </div>
-              )}
-
-              {isPremium && (
-                <div className="flex items-center gap-3">
-                  <Badge className="bg-gradient-to-r from-violet-500 to-purple-500 text-white border-0">
-                    <Crown className="h-3 w-3 mr-1" />
-                    Premium
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    All premium features unlocked
-                  </span>
-                </div>
-              )}
-
-              {totalMembers > 0 && totalMembers < config.rewards.milestoneFreePack.memberCount && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Progress to free {config.rewards.milestoneFreePack.freeCredits}-pack bonus</span>
-                    <span>{totalMembers} / {config.rewards.milestoneFreePack.memberCount} members</span>
-                  </div>
-                  <Progress 
-                    value={(totalMembers / config.rewards.milestoneFreePack.memberCount) * 100} 
-                    className="h-3" 
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Connect {config.rewards.milestoneFreePack.memberCount - totalMembers} more members to earn a free {config.rewards.milestoneFreePack.freeCredits}-member pack
+                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-green-500 shrink-0" />
+                  <p className="text-sm">
+                    <strong>{activeReward.discountPercent}% off</strong> your next member pack
                   </p>
                 </div>
               )}
@@ -312,147 +318,209 @@ export default function Pricing() {
         )}
 
         {(authLoading || statusLoading) && user && (
-          <div className="flex justify-center py-12">
+          <div className="flex justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {/* Free Tier Highlight */}
-        <div className="text-center mb-8">
-          <Badge variant="secondary" className="text-base px-4 py-1.5 mb-4">
-            <Gift className="h-4 w-4 mr-2" />
-            First {config.freeTierCredits} members are free
-          </Badge>
-          <p className="text-sm text-muted-foreground">Unlimited trees. No credit card required to get started.</p>
-        </div>
+        {/* ==================== TIER COMPARISON ==================== */}
+        <h2 className="text-2xl font-serif font-bold text-center mb-2">Choose Your Plan</h2>
+        <p className="text-center text-muted-foreground mb-8 text-sm">
+          All plans include {config.freeTierCredits} free members, unlimited trees, and core features. 
+          Paid plans unlock higher usage of advanced features.
+        </p>
 
-        <h2 className="text-2xl font-serif font-bold text-center mb-8">Member Packs</h2>
-        
-        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-16">
-          {config.packs.map((pack, index) => {
-            const isPopular = index === 1;
-            const displayPrice = activeReward 
-              ? Math.round(pack.priceCents * (1 - activeReward.discountPercent / 100))
-              : pack.priceCents;
-            
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-6xl mx-auto mb-16">
+          {TIER_KEYS.map((tierKey) => {
+            const tier = config.tiers[tierKey];
+            if (!tier) return null;
+            const isCurrent = currentTier === tierKey && user;
+            const isPopular = tierKey === 'heritage';
+            const TierIcon = tierIcons[tierKey] || Users;
+            const tierIdx = TIER_KEYS.indexOf(tierKey);
+            const currentIdx = TIER_KEYS.indexOf(currentTier as any);
+            const isDowngrade = user && tierIdx < currentIdx;
+            const isFree = tierKey === 'explorer';
+
             return (
               <Card 
-                key={pack.type}
-                className={`relative ${isPopular ? 'border-primary ring-2 ring-primary/20' : ''}`}
-                data-testid={`card-pack-${pack.type}`}
+                key={tierKey}
+                className={`relative flex flex-col ${isPopular ? 'border-2 ring-2 ring-violet-500/20' : ''} ${isCurrent ? 'border-primary' : ''}`}
+                style={isPopular ? { borderColor: tier.color } : undefined}
+                data-testid={`card-tier-${tierKey}`}
               >
                 {isPopular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-primary text-primary-foreground">Most Popular</Badge>
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                    <Badge style={{ backgroundColor: tier.color, color: 'white' }}>Most Popular</Badge>
                   </div>
                 )}
-                {pack.savings && (
-                  <div className="absolute -top-3 right-3">
-                    <Badge variant="secondary">Save {pack.savings}</Badge>
+                {isCurrent && (
+                  <div className="absolute -top-3 right-3 z-10">
+                    <Badge variant="outline" className="bg-background">Current Plan</Badge>
                   </div>
                 )}
+
                 <CardHeader className="text-center pb-2">
-                  <div className={`mx-auto mb-2 p-3 rounded-full ${isPopular ? 'bg-primary/10 text-primary' : 'bg-muted'}`}>
-                    {getPackIcon(pack.type)}
-                  </div>
-                  <CardTitle className="text-lg">{pack.label}</CardTitle>
-                  <CardDescription>
-                    {pack.credits} member credits
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-center pb-4">
-                  <div className="text-3xl font-bold mb-1">
-                    {activeReward && displayPrice !== pack.priceCents ? (
-                      <>
-                        <span className="line-through text-muted-foreground text-lg mr-2">
-                          {formatPrice(pack.priceCents)}
-                        </span>
-                        {formatPrice(displayPrice)}
-                      </>
-                    ) : (
-                      formatPrice(pack.priceCents)
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {formatPrice(activeReward ? Math.round(pack.perMemberCents * (1 - activeReward.discountPercent / 100)) : pack.perMemberCents)} per member
-                  </p>
-                </CardContent>
-                <CardFooter>
-                  <Button 
-                    className="w-full"
-                    variant={isPopular ? 'default' : 'outline'}
-                    onClick={() => handleBuyPack(pack.type)}
-                    disabled={bulkPackMutation.isPending}
-                    data-testid={`button-buy-${pack.type}`}
+                  <div 
+                    className="mx-auto mb-2 p-3 rounded-full"
+                    style={{ backgroundColor: `${tier.color}15` }}
                   >
-                    {bulkPackMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                    <TierIcon className="h-6 w-6" style={{ color: tier.color }} />
+                  </div>
+                  <CardTitle className="text-lg font-serif">{tier.label}</CardTitle>
+                  <CardDescription className="text-xs">{tier.tagline}</CardDescription>
+                </CardHeader>
+
+                <CardContent className="text-center flex-1">
+                  <div className="mb-4">
+                    {isFree ? (
+                      <div className="text-3xl font-bold">Free</div>
                     ) : (
-                      `Buy ${pack.label}`
+                      <>
+                        <div className="text-3xl font-bold">{formatPrice(tier.monthlyPriceCents)}</div>
+                        <p className="text-xs text-muted-foreground">/month</p>
+                      </>
                     )}
-                  </Button>
+                  </div>
+
+                  <div className="space-y-2 text-left">
+                    {FEATURE_KEYS.map((featureKey) => {
+                      const limits = config.tierLimits[featureKey];
+                      if (!limits) return null;
+                      const val = limits[tierKey as keyof typeof limits];
+                      const info = config.featureInfo[featureKey];
+                      if (!info) return null;
+
+                      return (
+                        <div key={featureKey} className="flex items-center justify-between text-sm py-1 border-b border-border/50 last:border-0">
+                          <span className="text-muted-foreground truncate mr-2">{info.label}</span>
+                          <span className={`font-medium shrink-0 ${val === 0 ? 'text-muted-foreground/50' : val === -1 ? 'text-green-500' : ''}`}>
+                            {val === -1 ? (
+                              <span className="flex items-center gap-1"><Infinity className="h-3.5 w-3.5" /></span>
+                            ) : val === 0 ? (
+                              <X className="h-3.5 w-3.5" />
+                            ) : (
+                              `${val}/mo`
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+
+                <CardFooter className="pt-0">
+                  {isCurrent ? (
+                    <Badge variant="secondary" className="w-full justify-center py-2" data-testid={`badge-tier-active-${tierKey}`}>
+                      <Check className="h-3 w-3 mr-1" />
+                      Active
+                    </Badge>
+                  ) : isFree ? (
+                    <Badge variant="outline" className="w-full justify-center py-2 text-muted-foreground">
+                      Included
+                    </Badge>
+                  ) : isDowngrade ? (
+                    <Button variant="outline" className="w-full" disabled>
+                      Current plan is higher
+                    </Button>
+                  ) : (
+                    <Button 
+                      className="w-full"
+                      style={isPopular ? { backgroundColor: tier.color, color: 'white' } : undefined}
+                      variant={isPopular ? 'default' : 'outline'}
+                      onClick={() => handleTierCheckout(tierKey)}
+                      disabled={tierCheckoutMutation.isPending}
+                      data-testid={`button-upgrade-${tierKey}`}
+                    >
+                      {tierCheckoutMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        `Upgrade to ${tier.label}`
+                      )}
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
             );
           })}
         </div>
 
-        {/* Premium Section */}
-        <div className="max-w-2xl mx-auto mb-16">
-          <h2 className="text-2xl font-serif font-bold text-center mb-8">Premium Features</h2>
-          <Card className="border-violet-500/30" data-testid="card-premium">
-            <CardHeader>
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-gradient-to-r from-violet-500/10 to-purple-500/10">
-                    <Crown className="h-6 w-6 text-violet-500" />
-                  </div>
-                  <div>
-                    <CardTitle className="font-serif">FamilyRoots Premium</CardTitle>
-                    <CardDescription>Unlock all advanced features</CardDescription>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold">{formatPrice(config.premium.monthlyPriceCents)}</p>
-                  <p className="text-sm text-muted-foreground">/month</p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {config.premium.features.map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <Check className="h-4 w-4 text-green-500 shrink-0" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-            <CardFooter>
-              {isPremium ? (
-                <Badge variant="secondary" className="w-full justify-center py-2" data-testid="badge-premium-active">
-                  <Crown className="h-3 w-3 mr-1" />
-                  Active
-                </Badge>
-              ) : (
-                <Button 
-                  className="w-full bg-gradient-to-r from-violet-500 to-purple-500 text-white border-0"
-                  onClick={handleBuyPremium}
-                  disabled={premiumMutation.isPending}
-                  data-testid="button-buy-premium"
+        {/* ==================== MEMBER PACKS ==================== */}
+        <div className="max-w-4xl mx-auto mb-16">
+          <h2 className="text-2xl font-serif font-bold text-center mb-2">Need More Members?</h2>
+          <p className="text-center text-muted-foreground mb-8 text-sm">
+            After your {config.freeTierCredits} free members, add more with one-time member packs. No subscription needed.
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {config.packs.map((pack, index) => {
+              const isPopular = index === 1;
+              const displayPrice = activeReward 
+                ? Math.round(pack.priceCents * (1 - activeReward.discountPercent / 100))
+                : pack.priceCents;
+              
+              return (
+                <Card 
+                  key={pack.type}
+                  className={`relative ${isPopular ? 'border-primary ring-2 ring-primary/20' : ''}`}
+                  data-testid={`card-pack-${pack.type}`}
                 >
-                  {premiumMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    'Upgrade to Premium'
+                  {isPopular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-primary text-primary-foreground">Best Value</Badge>
+                    </div>
                   )}
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
+                  {pack.savings && (
+                    <div className="absolute -top-3 right-3">
+                      <Badge variant="secondary">Save {pack.savings}</Badge>
+                    </div>
+                  )}
+                  <CardHeader className="text-center pb-2">
+                    <div className={`mx-auto mb-2 p-3 rounded-full ${isPopular ? 'bg-primary/10 text-primary' : 'bg-muted'}`}>
+                      {getPackIcon(pack.type)}
+                    </div>
+                    <CardTitle className="text-lg">{pack.label}</CardTitle>
+                    <CardDescription>{pack.credits} member credits</CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-center pb-4">
+                    <div className="text-3xl font-bold mb-1">
+                      {activeReward && displayPrice !== pack.priceCents ? (
+                        <>
+                          <span className="line-through text-muted-foreground text-lg mr-2">
+                            {formatPrice(pack.priceCents)}
+                          </span>
+                          {formatPrice(displayPrice)}
+                        </>
+                      ) : (
+                        formatPrice(pack.priceCents)
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {formatPrice(activeReward ? Math.round(pack.perMemberCents * (1 - activeReward.discountPercent / 100)) : pack.perMemberCents)} per member
+                    </p>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      className="w-full"
+                      variant={isPopular ? 'default' : 'outline'}
+                      onClick={() => handleBuyPack(pack.type)}
+                      disabled={bulkPackMutation.isPending}
+                      data-testid={`button-buy-${pack.type}`}
+                    >
+                      {bulkPackMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        `Buy ${pack.label}`
+                      )}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Rewards Section */}
+        {/* ==================== REWARDS ==================== */}
         <div className="max-w-2xl mx-auto mb-16">
           <h2 className="text-2xl font-serif font-bold text-center mb-8">Earn Rewards</h2>
           <div className="grid sm:grid-cols-2 gap-6">
@@ -482,16 +550,17 @@ export default function Pricing() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Connect {config.rewards.milestoneFreePack.memberCount} family members and earn a <strong>free {config.rewards.milestoneFreePack.freeCredits}-member pack</strong> as a thank you.
+                  Connect {config.rewards.milestoneFreePack.memberCount} members and earn a <strong>free {config.rewards.milestoneFreePack.freeCredits}-member pack</strong> as a thank you.
                 </p>
               </CardContent>
             </Card>
           </div>
         </div>
 
+        {/* CTA for non-logged-in */}
         {!user && (
           <div className="text-center mt-12">
-            <p className="text-muted-foreground mb-4">Sign in to start building your family tree for free.</p>
+            <p className="text-muted-foreground mb-4">Sign in to start building your family tree — {config.freeTierCredits} members free.</p>
             <Button asChild size="lg" data-testid="button-get-started">
               <a href="/api/login">Get Started Free</a>
             </Button>
@@ -499,7 +568,7 @@ export default function Pricing() {
         )}
 
         <div className="text-center mt-12 text-sm text-muted-foreground">
-          <p>Member packs never expire. No recurring charges unless you choose Premium. Cancel anytime.</p>
+          <p>Member packs never expire. Subscriptions can be cancelled anytime. All plans include {config.freeTierCredits} free members.</p>
         </div>
       </main>
     </div>

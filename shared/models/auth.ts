@@ -66,6 +66,7 @@ export const users = pgTable("users", {
   // New pricing model fields
   memberCredits: integer("member_credits").default(0),
   isPremium: boolean("is_premium").default(false),
+  premiumTier: varchar("premium_tier").default("explorer"),
   premiumStartedAt: timestamp("premium_started_at"),
   monthlyAddsCount: integer("monthly_adds_count").default(0),
   monthlyAddsResetAt: timestamp("monthly_adds_reset_at"),

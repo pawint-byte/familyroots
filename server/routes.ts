@@ -90,7 +90,7 @@ import { testDiscordConnection, sendDiscordNotification, notifyNewSignup, notify
 import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification, sendRegistryAnnouncementEmail, sendRegistryItemPurchasedEmail, sendTreeUpdateNotification } from "./lib/email";
 import { insertAccountHeirSchema, insertAnnouncementSchema } from "@shared/schema";
 import { printfulService } from "./printful";
-import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG, PREMIUM_LIMITS, type PremiumFeature } from "./subscriptionService";
+import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG, PREMIUM_LIMITS, TIER_CONFIG, TIER_LIMITS, FEATURE_INFO, type PremiumFeature, type FeatureTier } from "./subscriptionService";
 import * as familySearchService from "./familySearch";
 
 // Admin users who bypass all limits and costs
@@ -1050,12 +1050,15 @@ export async function registerRoutes(
       if (!isAdminAccount(userId, req.user?.claims?.email)) {
         const access = await subscriptionService.checkFeatureAccess(userId, 'email_tagged_group');
         if (!access.allowed) {
+          const nextLabel = access.nextTier ? TIER_CONFIG[access.nextTier]?.label : 'a higher plan';
           return res.status(403).json({
-            error: "premium_limit_reached",
+            error: "tier_limit_reached",
             feature: 'email_tagged_group',
             used: access.used,
             limit: access.limit,
-            message: `You've used your ${access.limit} free group emails this month. Upgrade to Premium for unlimited emails.`,
+            tier: access.tier,
+            nextTier: access.nextTier,
+            message: `You've used your ${access.limit} group emails this month. Upgrade to ${nextLabel} for more.`,
           });
         }
       }
@@ -6232,7 +6235,37 @@ export async function registerRoutes(
     }
   });
 
-  // Purchase premium subscription
+  // Purchase tier subscription (replaces flat premium)
+  app.post("/api/pricing/tier/checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const userId = req.user.claims.sub;
+      const { tier } = req.body;
+      const validTiers = ['cultivator', 'heritage', 'legacy'];
+      if (!tier || !validTiers.includes(tier)) {
+        return res.status(400).json({ message: "Invalid tier. Choose cultivator, heritage, or legacy." });
+      }
+
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+
+      const session = await subscriptionService.createTierCheckout(
+        userId,
+        tier,
+        `${baseUrl}/pricing?tier=${tier}&status=success`,
+        `${baseUrl}/pricing?tier=${tier}&status=cancel`
+      );
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating tier checkout:", error);
+      res.status(500).json({ message: error.message || "Failed to create checkout session" });
+    }
+  });
+
+  // Legacy premium checkout (maps to cultivator tier)
   app.post("/api/pricing/premium/checkout", isAuthenticated, async (req: any, res) => {
     try {
       if (!isStripeConfigured()) {
@@ -6242,10 +6275,11 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
 
-      const session = await subscriptionService.createPremiumCheckout(
+      const session = await subscriptionService.createTierCheckout(
         userId,
-        `${baseUrl}/pricing?premium=success`,
-        `${baseUrl}/pricing?premium=cancel`
+        'cultivator',
+        `${baseUrl}/pricing?tier=cultivator&status=success`,
+        `${baseUrl}/pricing?tier=cultivator&status=cancel`
       );
 
       res.json({ url: session.url });
@@ -6261,12 +6295,14 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const allUsage = await subscriptionService.getAllFeatureUsage(userId);
-      const limits = Object.entries(PREMIUM_LIMITS).map(([key, config]) => ({
+      const firstFeature = Object.values(allUsage)[0];
+      const tier = firstFeature?.tier || 'explorer';
+      const limits = Object.entries(FEATURE_INFO).map(([key, info]) => ({
         feature: key,
-        ...config,
+        ...info,
         ...allUsage[key as keyof typeof allUsage],
       }));
-      res.json({ usage: allUsage, limits, isPremium: allUsage.ai_chat?.isPremium || false });
+      res.json({ usage: allUsage, limits, tier, tierConfig: TIER_CONFIG, tierLimits: TIER_LIMITS });
     } catch (error) {
       console.error("Error getting premium usage:", error);
       res.status(500).json({ message: "Failed to get usage info" });
@@ -6277,12 +6313,12 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const feature = req.params.feature as PremiumFeature;
-      if (!PREMIUM_LIMITS[feature]) {
+      if (!FEATURE_INFO[feature]) {
         return res.status(400).json({ message: "Invalid feature" });
       }
       const access = await subscriptionService.checkFeatureAccess(userId, feature);
-      const config = PREMIUM_LIMITS[feature];
-      res.json({ ...access, feature, label: config.label, description: config.description, freeLimit: config.freeLimit });
+      const info = FEATURE_INFO[feature];
+      res.json({ ...access, feature, label: info.label, description: info.description });
     } catch (error) {
       console.error("Error checking feature access:", error);
       res.status(500).json({ message: "Failed to check access" });
@@ -6292,8 +6328,9 @@ export async function registerRoutes(
   app.get("/api/premium/limits", async (req, res) => {
     res.json({
       limits: PREMIUM_LIMITS,
-      premiumPrice: PRICING_CONFIG.premium.monthlyPriceCents,
-      premiumFeatures: PRICING_CONFIG.premium.features,
+      tiers: TIER_CONFIG,
+      tierLimits: TIER_LIMITS,
+      featureInfo: FEATURE_INFO,
     });
   });
 

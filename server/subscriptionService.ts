@@ -6,33 +6,51 @@ import { getUncachableStripeClient } from './stripeClient';
 
 export type PremiumFeature = 'ai_chat' | 'familysearch_import' | 'email_tagged_group' | 'ai_avatar_video' | 'media_upload';
 
+export type FeatureTier = 'explorer' | 'cultivator' | 'heritage' | 'legacy';
+
+export const TIER_ORDER: FeatureTier[] = ['explorer', 'cultivator', 'heritage', 'legacy'];
+
+export const TIER_CONFIG: Record<FeatureTier, { label: string; tagline: string; monthlyPriceCents: number; color: string }> = {
+  explorer:   { label: 'Explorer',   tagline: 'Try it out, no commitment',              monthlyPriceCents: 0,    color: '#6b7280' },
+  cultivator: { label: 'Cultivator', tagline: 'For regular users building their trees',  monthlyPriceCents: 499,  color: '#3b82f6' },
+  heritage:   { label: 'Heritage',   tagline: 'For power users and large groups',        monthlyPriceCents: 1299, color: '#8b5cf6' },
+  legacy:     { label: 'Legacy',     tagline: 'High-volume, still capped for your safety', monthlyPriceCents: 2499, color: '#f59e0b' },
+};
+
+export const TIER_LIMITS: Record<PremiumFeature, Record<FeatureTier, number>> = {
+  ai_chat:             { explorer: 5,   cultivator: 30,  heritage: 100, legacy: 300 },
+  familysearch_import: { explorer: 1,   cultivator: 5,   heritage: 15,  legacy: 40  },
+  email_tagged_group:  { explorer: 2,   cultivator: 10,  heritage: 30,  legacy: -1  },
+  ai_avatar_video:     { explorer: 0,   cultivator: 2,   heritage: 5,   legacy: 10  },
+  media_upload:        { explorer: 10,  cultivator: 50,  heritage: 200, legacy: 500 },
+};
+
+export const FEATURE_INFO: Record<PremiumFeature, { label: string; description: string }> = {
+  ai_chat:             { label: 'AI Chat',             description: 'AI-powered family tree assistant' },
+  familysearch_import: { label: 'FamilySearch Import', description: 'Import ancestors from FamilySearch' },
+  email_tagged_group:  { label: 'Email Tagged Group',  description: 'Send emails to tagged members' },
+  ai_avatar_video:     { label: 'AI Avatar Video',     description: 'Generate AI avatar videos' },
+  media_upload:        { label: 'Media Upload',        description: 'Upload photos and media to events' },
+};
+
 export const PREMIUM_LIMITS: Record<PremiumFeature, { freeLimit: number; period: 'monthly' | 'lifetime'; label: string; description: string }> = {
   ai_chat: { freeLimit: 5, period: 'monthly', label: 'AI Chat', description: 'AI-powered family tree assistant' },
   familysearch_import: { freeLimit: 1, period: 'monthly', label: 'FamilySearch Import', description: 'Import ancestors from FamilySearch' },
   email_tagged_group: { freeLimit: 2, period: 'monthly', label: 'Email Tagged Group', description: 'Send emails to tagged members' },
-  ai_avatar_video: { freeLimit: 1, period: 'monthly', label: 'AI Avatar Video', description: 'Generate AI avatar videos' },
+  ai_avatar_video: { freeLimit: 0, period: 'monthly', label: 'AI Avatar Video', description: 'Generate AI avatar videos' },
   media_upload: { freeLimit: 10, period: 'monthly', label: 'Media Upload', description: 'Upload photos and media to events' },
 };
 
-// New pricing model: Bulk add packs + optional premium
+// New pricing model: Bulk add packs + tiered subscriptions
 export const PRICING_CONFIG = {
   packs: [
     { type: 'starter_10' as const, credits: 10, priceCents: 799, perMemberCents: 80, label: 'Starter Pack' },
     { type: 'growth_25' as const, credits: 25, priceCents: 1499, perMemberCents: 60, label: 'Growth Pack', savings: '25%' },
     { type: 'family_50' as const, credits: 50, priceCents: 2499, perMemberCents: 50, label: 'Family Pack', savings: '37%' },
   ],
-  premium: {
-    monthlyPriceCents: 499,
-    label: 'Premium',
-    features: [
-      'Unlimited AI chat messages',
-      'Unlimited FamilySearch imports',
-      'Unlimited email to tagged groups',
-      'Unlimited AI avatar videos',
-      'Unlimited media uploads',
-      'Priority support',
-    ],
-  },
+  tiers: TIER_CONFIG,
+  tierLimits: TIER_LIMITS,
+  featureInfo: FEATURE_INFO,
   rewards: {
     monthlyAddsThreshold: 5,
     monthlyDiscountPercent: 20,
@@ -81,6 +99,7 @@ export interface UserSubscriptionInfo {
   // New pricing model fields
   memberCredits: number;
   isPremium: boolean;
+  featureTier: FeatureTier;
   monthlyAddsCount: number;
   hasActiveReward: boolean;
   activeRewardDiscount: number;
@@ -162,6 +181,7 @@ export class SubscriptionService {
     // Get new pricing model data
     const memberCredits = user?.memberCredits || 0;
     const isPremium = user?.isPremium || false;
+    const featureTier = this.getUserTier(user || {});
     const monthlyAddsCount = user?.monthlyAddsCount || 0;
 
     // Check for active reward
@@ -182,6 +202,7 @@ export class SubscriptionService {
       milestonePaymentRequired,
       memberCredits,
       isPremium,
+      featureTier,
       monthlyAddsCount,
       hasActiveReward,
       activeRewardDiscount,
@@ -446,7 +467,8 @@ export class SubscriptionService {
     }
   }
 
-  async createPremiumCheckout(userId: string, successUrl: string, cancelUrl: string) {
+  async createTierCheckout(userId: string, tier: FeatureTier, successUrl: string, cancelUrl: string) {
+    if (tier === 'explorer') throw new Error('Explorer is the free tier');
     const stripe = await getUncachableStripeClient();
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     
@@ -462,6 +484,13 @@ export class SubscriptionService {
       await db.update(users).set({ stripeCustomerId: customerId }).where(eq(users.id, userId));
     }
 
+    const tierInfo = TIER_CONFIG[tier];
+    const featureList = Object.entries(TIER_LIMITS).map(([key, limits]) => {
+      const info = FEATURE_INFO[key as PremiumFeature];
+      const val = limits[tier];
+      return `${info.label}: ${val === -1 ? 'Unlimited' : val}/mo`;
+    }).join(', ');
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
@@ -470,10 +499,10 @@ export class SubscriptionService {
         price_data: {
           currency: 'usd',
           product_data: {
-            name: 'FamilyRoots Premium',
-            description: PRICING_CONFIG.premium.features.join(', '),
+            name: `FamilyRoots ${tierInfo.label}`,
+            description: featureList,
           },
-          unit_amount: PRICING_CONFIG.premium.monthlyPriceCents,
+          unit_amount: tierInfo.monthlyPriceCents,
           recurring: { interval: 'month' },
         },
         quantity: 1,
@@ -482,12 +511,14 @@ export class SubscriptionService {
       cancel_url: cancelUrl,
       metadata: {
         userId,
-        type: 'premium_subscription',
+        type: 'tier_subscription',
+        tier,
       },
       subscription_data: {
         metadata: {
           userId,
-          type: 'premium_subscription',
+          type: 'tier_subscription',
+          tier,
         },
       },
     });
@@ -495,10 +526,15 @@ export class SubscriptionService {
     return session;
   }
 
-  async handlePremiumSubscriptionCreated(userId: string, subscriptionId: string): Promise<void> {
+  async createPremiumCheckout(userId: string, successUrl: string, cancelUrl: string) {
+    return this.createTierCheckout(userId, 'cultivator', successUrl, cancelUrl);
+  }
+
+  async handleTierSubscriptionCreated(userId: string, tier: FeatureTier, subscriptionId: string): Promise<void> {
     await db.update(users)
       .set({
-        isPremium: true,
+        isPremium: tier !== 'explorer',
+        premiumTier: tier,
         premiumStartedAt: new Date(),
         stripeSubscriptionId: subscriptionId,
         isSubscriptionActive: true,
@@ -507,10 +543,15 @@ export class SubscriptionService {
       .where(eq(users.id, userId));
   }
 
+  async handlePremiumSubscriptionCreated(userId: string, subscriptionId: string): Promise<void> {
+    await this.handleTierSubscriptionCreated(userId, 'cultivator', subscriptionId);
+  }
+
   async handlePremiumSubscriptionCancelled(userId: string): Promise<void> {
     await db.update(users)
       .set({
         isPremium: false,
+        premiumTier: 'explorer',
         isSubscriptionActive: false,
         updatedAt: new Date(),
       })
@@ -710,13 +751,31 @@ export class SubscriptionService {
     return { start, end };
   }
 
-  async getFeatureUsage(userId: string, feature: PremiumFeature): Promise<{ used: number; limit: number; remaining: number; isPremium: boolean }> {
-    const [user] = await db.select({ isPremium: users.isPremium }).from(users).where(eq(users.id, userId));
-    const isPremium = user?.isPremium || false;
-    const config = PREMIUM_LIMITS[feature];
+  getUserTier(user: { premiumTier?: string | null; isPremium?: boolean | null }): FeatureTier {
+    if (user.premiumTier && TIER_ORDER.includes(user.premiumTier as FeatureTier)) {
+      return user.premiumTier as FeatureTier;
+    }
+    if (user.isPremium) return 'cultivator';
+    return 'explorer';
+  }
 
-    if (isPremium) {
-      return { used: 0, limit: -1, remaining: -1, isPremium: true };
+  getTierLimit(tier: FeatureTier, feature: PremiumFeature): number {
+    return TIER_LIMITS[feature][tier];
+  }
+
+  getNextTierForFeature(currentTier: FeatureTier): FeatureTier | null {
+    const idx = TIER_ORDER.indexOf(currentTier);
+    if (idx < 0 || idx >= TIER_ORDER.length - 1) return null;
+    return TIER_ORDER[idx + 1];
+  }
+
+  async getFeatureUsage(userId: string, feature: PremiumFeature): Promise<{ used: number; limit: number; remaining: number; tier: FeatureTier }> {
+    const [user] = await db.select({ isPremium: users.isPremium, premiumTier: users.premiumTier }).from(users).where(eq(users.id, userId));
+    const tier = this.getUserTier(user || {});
+    const limit = this.getTierLimit(tier, feature);
+
+    if (limit === -1) {
+      return { used: 0, limit: -1, remaining: -1, tier };
     }
 
     const { start, end } = this.getCurrentPeriod();
@@ -734,28 +793,34 @@ export class SubscriptionService {
     const used = record?.usageCount || 0;
     return {
       used,
-      limit: config.freeLimit,
-      remaining: Math.max(0, config.freeLimit - used),
-      isPremium: false,
+      limit,
+      remaining: Math.max(0, limit - used),
+      tier,
     };
   }
 
-  async checkFeatureAccess(userId: string, feature: PremiumFeature): Promise<{ allowed: boolean; used: number; limit: number; isPremium: boolean }> {
+  async checkFeatureAccess(userId: string, feature: PremiumFeature): Promise<{ allowed: boolean; used: number; limit: number; isPremium: boolean; tier: FeatureTier; nextTier: FeatureTier | null }> {
     const usage = await this.getFeatureUsage(userId, feature);
-    if (usage.isPremium) {
-      return { allowed: true, used: 0, limit: -1, isPremium: true };
+    const nextTier = this.getNextTierForFeature(usage.tier);
+    if (usage.limit === -1) {
+      return { allowed: true, used: 0, limit: -1, isPremium: usage.tier !== 'explorer', tier: usage.tier, nextTier };
     }
     return {
       allowed: usage.remaining > 0,
       used: usage.used,
       limit: usage.limit,
-      isPremium: false,
+      isPremium: usage.tier !== 'explorer',
+      tier: usage.tier,
+      nextTier,
     };
   }
 
   async incrementFeatureUsage(userId: string, feature: PremiumFeature): Promise<{ used: number; limit: number; remaining: number }> {
-    const [user] = await db.select({ isPremium: users.isPremium }).from(users).where(eq(users.id, userId));
-    if (user?.isPremium) {
+    const [user] = await db.select({ isPremium: users.isPremium, premiumTier: users.premiumTier }).from(users).where(eq(users.id, userId));
+    const tier = this.getUserTier(user || {});
+    const limit = this.getTierLimit(tier, feature);
+
+    if (limit === -1) {
       return { used: 0, limit: -1, remaining: -1 };
     }
 
@@ -788,26 +853,18 @@ export class SubscriptionService {
       });
     }
 
-    const config = PREMIUM_LIMITS[feature];
     return {
       used: newCount,
-      limit: config.freeLimit,
-      remaining: Math.max(0, config.freeLimit - newCount),
+      limit,
+      remaining: Math.max(0, limit - newCount),
     };
   }
 
-  async getAllFeatureUsage(userId: string): Promise<Record<PremiumFeature, { used: number; limit: number; remaining: number; isPremium: boolean }>> {
-    const [user] = await db.select({ isPremium: users.isPremium }).from(users).where(eq(users.id, userId));
-    const isPremium = user?.isPremium || false;
+  async getAllFeatureUsage(userId: string): Promise<Record<PremiumFeature, { used: number; limit: number; remaining: number; tier: FeatureTier }>> {
+    const [user] = await db.select({ isPremium: users.isPremium, premiumTier: users.premiumTier }).from(users).where(eq(users.id, userId));
+    const tier = this.getUserTier(user || {});
 
-    const result = {} as Record<PremiumFeature, { used: number; limit: number; remaining: number; isPremium: boolean }>;
-
-    if (isPremium) {
-      for (const [key, config] of Object.entries(PREMIUM_LIMITS)) {
-        result[key as PremiumFeature] = { used: 0, limit: -1, remaining: -1, isPremium: true };
-      }
-      return result;
-    }
+    const result = {} as Record<PremiumFeature, { used: number; limit: number; remaining: number; tier: FeatureTier }>;
 
     const { start, end } = this.getCurrentPeriod();
     const records = await db.select()
@@ -822,13 +879,14 @@ export class SubscriptionService {
 
     const usageMap = new Map(records.map(r => [r.feature, r.usageCount || 0]));
 
-    for (const [key, config] of Object.entries(PREMIUM_LIMITS)) {
-      const used = usageMap.get(key) || 0;
-      result[key as PremiumFeature] = {
+    for (const feature of Object.keys(TIER_LIMITS) as PremiumFeature[]) {
+      const limit = this.getTierLimit(tier, feature);
+      const used = limit === -1 ? 0 : (usageMap.get(feature) || 0);
+      result[feature] = {
         used,
-        limit: config.freeLimit,
-        remaining: Math.max(0, config.freeLimit - used),
-        isPremium: false,
+        limit,
+        remaining: limit === -1 ? -1 : Math.max(0, limit - used),
+        tier,
       };
     }
 

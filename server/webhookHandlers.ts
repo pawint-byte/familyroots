@@ -37,6 +37,13 @@ export class WebhookHandlers {
             session.payment_intent,
             metadata.rewardId || undefined
           );
+        } else if (metadata.type === 'tier_subscription') {
+          const tier = metadata.tier || 'cultivator';
+          console.log(`Tier subscription created for user ${metadata.userId}: ${tier}`);
+          const subscriptionId = session.subscription;
+          if (subscriptionId) {
+            await subscriptionService.handleTierSubscriptionCreated(metadata.userId, tier as any, subscriptionId);
+          }
         } else if (metadata.type === 'premium_subscription') {
           console.log(`Premium subscription created for user ${metadata.userId}`);
           const subscriptionId = session.subscription;
@@ -113,8 +120,8 @@ export class WebhookHandlers {
         const subscription = event.data.object;
         const metadata = subscription.metadata || {};
 
-        if (metadata.type === 'premium_subscription' && metadata.userId) {
-          console.log(`Premium subscription cancelled for user ${metadata.userId}`);
+        if ((metadata.type === 'tier_subscription' || metadata.type === 'premium_subscription') && metadata.userId) {
+          console.log(`Subscription cancelled for user ${metadata.userId} (type: ${metadata.type})`);
           await subscriptionService.handlePremiumSubscriptionCancelled(metadata.userId);
         } else if (metadata.userId) {
           await subscriptionService.handleSubscriptionCancelled(metadata.userId);
