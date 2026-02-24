@@ -3579,8 +3579,17 @@ export default function TreeView() {
                   {candidateMembers
                     .filter(m => {
                       if (!samePersonSearch) return true;
+                      const q = samePersonSearch.toLowerCase();
                       const name = `${m.firstName} ${m.lastName || ""}`.toLowerCase();
-                      return name.includes(samePersonSearch.toLowerCase());
+                      const nick = (m.nickname || "").toLowerCase();
+                      const email = (m.email || "").toLowerCase();
+                      return name.includes(q) || nick.includes(q) || email.includes(q);
+                    })
+                    .sort((a, b) => {
+                      const selectedLast = (selectedMember.lastName || "").toLowerCase();
+                      const aMatch = (a.lastName || "").toLowerCase() === selectedLast ? 1 : 0;
+                      const bMatch = (b.lastName || "").toLowerCase() === selectedLast ? 1 : 0;
+                      return bMatch - aMatch;
                     })
                     .map(m => (
                       <button
