@@ -114,6 +114,7 @@ export default function Dashboard() {
     totalMemberCount: number;
     memberCredits: number;
     isPremium: boolean;
+    featureTier: string;
     monthlyAddsCount: number;
     hasActiveReward: boolean;
     activeRewardDiscount: number;
@@ -1107,6 +1108,11 @@ export default function Dashboard() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <Package className="h-5 w-5 text-primary" />
               Member Credits
+              {pricingStatus?.featureTier && pricingStatus.featureTier !== 'explorer' && (
+                <Badge variant="secondary" className="ml-auto text-xs" data-testid="badge-dashboard-tier">
+                  {pricingStatus.featureTier === 'cultivator' ? 'Cultivator' : pricingStatus.featureTier === 'heritage' ? 'Heritage' : pricingStatus.featureTier === 'legacy' ? 'Legacy' : 'Explorer'}
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>

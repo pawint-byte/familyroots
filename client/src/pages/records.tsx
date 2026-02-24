@@ -283,12 +283,30 @@ export default function RecordsPage() {
         importedCount: result.imported.members,
       });
     },
-    onError: () => {
-      toast({
-        title: "Import Failed",
-        description: "Could not import the selected people. Please try again.",
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      const errMsg = error?.message || '';
+      let isTierLimit = false;
+      if (errMsg.startsWith('403:')) {
+        try {
+          const body = JSON.parse(errMsg.slice(5));
+          if (body?.error === 'tier_limit_reached') isTierLimit = true;
+        } catch {
+          if (errMsg.includes('tier_limit_reached')) isTierLimit = true;
+        }
+      }
+      if (isTierLimit) {
+        toast({
+          title: "Import Limit Reached",
+          description: "You've reached your FamilySearch import limit for this month. Visit the Pricing page to upgrade your plan.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Import Failed",
+          description: "Could not import the selected people. Please try again.",
+          variant: "destructive",
+        });
+      }
     },
   });
 

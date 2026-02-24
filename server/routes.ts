@@ -6348,12 +6348,15 @@ export async function registerRoutes(
         if (!isAdminAccount(userId, req.user?.claims?.email)) {
           const access = await subscriptionService.checkFeatureAccess(userId, 'ai_chat');
           if (!access.allowed) {
+            const nextLabel = access.nextTier ? TIER_CONFIG[access.nextTier]?.label : 'a higher plan';
             return res.status(403).json({
-              error: "premium_limit_reached",
+              error: "tier_limit_reached",
               feature: 'ai_chat',
               used: access.used,
               limit: access.limit,
-              message: `You've used all ${access.limit} free AI chat messages this month. Upgrade to Premium for unlimited access.`,
+              tier: access.tier,
+              nextTier: access.nextTier,
+              message: `You've used your ${access.limit} AI chat messages this month. Upgrade to ${nextLabel} for more.`,
             });
           }
         }
@@ -9630,12 +9633,15 @@ export async function registerRoutes(
       if (!isAdminAccount(userId, req.user?.claims?.email)) {
         const access = await subscriptionService.checkFeatureAccess(userId, 'familysearch_import');
         if (!access.allowed) {
+          const nextLabel = access.nextTier ? TIER_CONFIG[access.nextTier]?.label : 'a higher plan';
           return res.status(403).json({
-            error: "premium_limit_reached",
+            error: "tier_limit_reached",
             feature: 'familysearch_import',
             used: access.used,
             limit: access.limit,
-            message: `You've used your ${access.limit} free FamilySearch import this month. Upgrade to Premium for unlimited imports.`,
+            tier: access.tier,
+            nextTier: access.nextTier,
+            message: `You've used your ${access.limit} FamilySearch imports this month. Upgrade to ${nextLabel} for more.`,
           });
         }
       }

@@ -51,7 +51,26 @@ export function Chatbot() {
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to send message");
+      if (!response.ok) {
+        if (response.status === 403) {
+          const errorData = await response.json().catch(() => null);
+          if (errorData?.error === "tier_limit_reached") {
+            const nextLabel = errorData.nextTier ? {
+              cultivator: "Cultivator", heritage: "Heritage", legacy: "Legacy"
+            }[errorData.nextTier as string] || "a higher plan" : "a higher plan";
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: `You've used all ${errorData.limit} AI chat messages for this month on your current plan. Upgrade to ${nextLabel} for more messages.\n\n[View Plans](/pricing)`,
+              },
+            ]);
+            setIsLoading(false);
+            return;
+          }
+        }
+        throw new Error("Failed to send message");
+      }
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No response body");
