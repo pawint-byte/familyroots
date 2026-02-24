@@ -5853,7 +5853,6 @@ export async function registerRoutes(
               if (existing) {
                 // Prefer member from main tree, otherwise prefer the one with more data
                 const shouldReplace = id === treeId && existing.preferredMember.sourceTreeId !== treeId;
-                console.log(`[MERGE DEDUP] Found duplicate claimed member: ${m.firstName} ${m.lastName} (id: ${m.id}, claimedBy: ${m.claimedByUserId}) - remapping to ${existing.preferredMember.id}`);
                 if (shouldReplace) {
                   // Remap the old preferred member ID to this one
                   memberIdRemapping.set(existing.preferredMember.id, m.id);
@@ -5975,13 +5974,11 @@ export async function registerRoutes(
           (suffix1Last.suffix !== suffix2Last.suffix && suffix1Last.suffix && suffix2Last.suffix);
         
         if (hasGenerationalDifference) {
-          console.log(`[MERGE DEDUP] Generational difference detected: "${m1.firstName} ${m1.lastName}" vs "${m2.firstName} ${m2.lastName}" - NOT duplicates`);
           return false;
         }
         
         // Check if birth years suggest different generations
         if (!sameGeneration(m1.birthDate, m2.birthDate)) {
-          console.log(`[MERGE DEDUP] Different generations by birth date: "${m1.firstName} ${m1.lastName}" vs "${m2.firstName} ${m2.lastName}" - NOT duplicates`);
           return false;
         }
         
@@ -6000,7 +5997,6 @@ export async function registerRoutes(
         // Check exact match first - but still verify they're the same generation
         const exactMatch = claimedMembersByExactName.get(exactKey);
         if (exactMatch && areLikelySamePerson(m, exactMatch)) {
-          console.log(`[MERGE DEDUP] Exact name match (same generation): unclaimed "${m.firstName} ${m.lastName}" (${m.id}) -> claimed (${exactMatch.id})`);
           memberIdRemapping.set(m.id, exactMatch.id);
           return false;
         }
@@ -6009,7 +6005,6 @@ export async function registerRoutes(
         const sameSurname = claimedMembersByLastName.get(lastName) || [];
         for (const claimed of sameSurname) {
           if (firstNameMatches(m.firstName, claimed.firstName) && areLikelySamePerson(m, claimed)) {
-            console.log(`[MERGE DEDUP] Fuzzy name match (same generation): unclaimed "${m.firstName} ${m.lastName}" (${m.id}) -> claimed "${claimed.firstName} ${claimed.lastName}" (${claimed.id})`);
             memberIdRemapping.set(m.id, claimed.id);
             return false;
           }
@@ -6038,7 +6033,6 @@ export async function registerRoutes(
             // Prefer member from main tree
             if (m.sourceTreeId === treeId && candidate.sourceTreeId !== treeId) {
               // This one is from main tree, remap the existing one
-              console.log(`[MERGE DEDUP] Unclaimed match (keeping main): "${m.firstName} ${m.lastName}" (${m.id}) kept, remapping (${candidate.id})`);
               memberIdRemapping.set(candidate.id, m.id);
               // Replace candidate with m in the list
               const idx = existing.indexOf(candidate);
@@ -6046,7 +6040,6 @@ export async function registerRoutes(
               return true;
             } else {
               // Keep existing, remap this one
-              console.log(`[MERGE DEDUP] Unclaimed match: "${m.firstName} ${m.lastName}" (${m.id}) -> (${candidate.id})`);
               memberIdRemapping.set(m.id, candidate.id);
               return false;
             }
@@ -6058,9 +6051,6 @@ export async function registerRoutes(
         seenUnclaimedByKey.set(fuzzyKey, existing);
         return true;
       });
-      
-      console.log(`[MERGE DEDUP] Summary: ${allMembers.length} members -> ${deduplicatedMembers.length} after deduplication`);
-      console.log(`[MERGE DEDUP] Remapping table:`, Object.fromEntries(memberIdRemapping));
       
       // Remap relationship IDs to use preferred member IDs (deduplicated)
       const remappedRelationships = allRelationships.map((rel: any) => ({

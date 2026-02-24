@@ -264,17 +264,6 @@ export default function FamilyTreeVisualization({
     const focusSiblings = new Set<string>(getSiblings(focusId, parentChildMap, childParentMap, siblingMap));
     focusSiblings.delete(focusId); // Remove focus from their own siblings list
     
-    if (process.env.NODE_ENV === 'development') {
-      const focusParents = childParentMap.get(focusId) || [];
-      console.log('[Tree Viz] Focus ID:', focusId);
-      console.log('[Tree Viz] Focus Parents:', focusParents);
-      focusParents.forEach(pId => {
-        const parentChildren = parentChildMap.get(pId) || [];
-        console.log('[Tree Viz] Parent', pId, 'children:', parentChildren);
-      });
-      console.log('[Tree Viz] Detected Siblings:', Array.from(focusSiblings));
-    }
-
     // View depth controls which generations to show:
     // 'immediate': only parents, spouse, children (1 generation each direction)
     // 'extended': includes grandparents, grandchildren, siblings, great-grandparents (3 generations up)
@@ -352,41 +341,17 @@ export default function FamilyTreeVisualization({
     const focusChildren = parentChildMap.get(focusId) || [];
     const coParentIds = new Set<string>(explicitCoParents); // Start with explicit co-parents
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Tree Viz] Focus Children:', focusChildren);
-      console.log('[Tree Viz] Focus Parent IDs:', Array.from(focusParentIds));
-      console.log('[Tree Viz] Explicit Co-Parents from coparentMap:', explicitCoParents);
-    }
-    
     focusChildren.forEach(childId => {
       const childParents = childParentMap.get(childId) || [];
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Tree Viz] Child', childId, 'has parents:', childParents);
-      }
       childParents.forEach(parentId => {
-        // Add if not the focus person, not already a defined spouse, 
-        // NOT focus's own parent, and NOT a sibling of focus
         const isFocusParent = focusParentIds.has(parentId);
         const isFocusSibling = focusSiblings.has(parentId);
         if (parentId !== focusId && !spouses.includes(parentId) && !isFocusParent && !isFocusSibling) {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[Tree Viz] Adding co-parent:', parentId, 'from child:', childId);
-          }
           coParentIds.add(parentId);
-        } else if (process.env.NODE_ENV === 'development' && parentId !== focusId) {
-          console.log('[Tree Viz] EXCLUDING as co-parent:', parentId, 
-            '- isSpouse:', spouses.includes(parentId),
-            '- isFocusParent:', isFocusParent,
-            '- isFocusSibling:', isFocusSibling);
         }
       });
     });
     const coParents = Array.from(coParentIds);
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Tree Viz] Spouses (explicit):', spouses);
-      console.log('[Tree Viz] Co-Parents (inferred):', coParents);
-    }
     
     const spousePositions: { x: number; y: number; spouseId: string }[] = [];
     const coParentPositions: { x: number; y: number; coParentId: string }[] = [];
@@ -693,54 +658,99 @@ export default function FamilyTreeVisualization({
     });
     const allChildren = Array.from(new Set([...children, ...sharedSpouseChildren]));
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Tree Viz] Focus:', focusId, 'Children:', children, 'SharedSpouseChildren:', sharedSpouseChildren, 'AllChildren:', allChildren);
-    }
-    
     if (allChildren.length > 0) {
       const childY = centerY + verticalGap + nodeHeight;
-      // Center children around the focus member
-      const childStartX = centerX - ((allChildren.length - 1) * (nodeWidth + horizontalGap)) / 2;
       
       labels.push({ x: centerX, y: childY - 40, text: 'Children', type: 'child' });
-      
-      allChildren.forEach((childId, index) => {
-        const child = deduplicatedMembers.find(m => m.id === childId);
-        if (child && !placed.has(childId)) {
-          positioned.push({
-            x: childStartX + index * (nodeWidth + horizontalGap),
-            y: childY,
-            member: child,
-            branchType: 'child'
-          });
-          placed.add(childId);
 
-          // Recursively place descendants below each child
-          if (showGrandchildren) {
-            const placeDescendantsRecursively = (parentId: string, parentX: number, parentY: number, depth: number) => {
-              if (depth > 10) return;
-              const descendants = (parentChildMap.get(parentId) || []).filter(id => !placed.has(id));
-              if (descendants.length === 0) return;
-              const descY = parentY + verticalGap + nodeHeight;
-              const descStartX = parentX - ((descendants.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
-              descendants.forEach((descId, descIdx) => {
-                const desc = deduplicatedMembers.find(m => m.id === descId);
-                if (desc && !placed.has(descId)) {
-                  const descX = descStartX + descIdx * (nodeWidth + horizontalGap / 2);
-                  positioned.push({
-                    x: descX,
-                    y: descY,
-                    member: desc,
-                    branchType: depth === 0 ? 'grandchild' : 'grandchild'
-                  });
-                  placed.add(descId);
-                  placeDescendantsRecursively(descId, descX, descY, depth + 1);
-                }
-              });
-            };
-            placeDescendantsRecursively(childId, childStartX + index * (nodeWidth + horizontalGap), childY, 0);
+      const measureSubtreeWidth = (rootId: string, visited: Set<string>): number => {
+        if (visited.has(rootId) || placed.has(rootId)) return 0;
+        visited.add(rootId);
+
+        const spouseIds = (spouseMap.get(rootId) || []).filter(id => !placed.has(id) && !visited.has(id));
+        spouseIds.forEach(id => visited.add(id));
+
+        const unitCount = 1 + spouseIds.length;
+        const selfWidth = unitCount * nodeWidth + Math.max(0, unitCount - 1) * (horizontalGap / 2);
+
+        if (!showGrandchildren) return selfWidth;
+
+        const childIds = (parentChildMap.get(rootId) || []).filter(id => !placed.has(id) && !visited.has(id));
+        if (childIds.length === 0) return selfWidth;
+
+        let childrenWidth = 0;
+        childIds.forEach(cid => {
+          childrenWidth += measureSubtreeWidth(cid, visited);
+        });
+        childrenWidth += Math.max(0, childIds.length - 1) * horizontalGap;
+
+        return Math.max(selfWidth, childrenWidth);
+      };
+
+      const childSubtreeWidths = allChildren.map(childId => {
+        const visited = new Set<string>();
+        const w = measureSubtreeWidth(childId, visited);
+        return { id: childId, width: Math.max(nodeWidth, w) };
+      });
+
+      const totalChildrenWidth = childSubtreeWidths.reduce((sum, c) => sum + c.width, 0)
+        + Math.max(0, allChildren.length - 1) * horizontalGap;
+
+      let childAllocX = centerX - totalChildrenWidth / 2;
+
+      const placeSubtree = (rootId: string, allocX: number, allocWidth: number, y: number, depth: number) => {
+        if (depth > 10 || placed.has(rootId)) return;
+        const member = deduplicatedMembers.find(m => m.id === rootId);
+        if (!member) return;
+
+        const spouseIds = (spouseMap.get(rootId) || []).filter(id => !placed.has(id));
+        const unitCount = 1 + spouseIds.length;
+        const unitWidth = unitCount * nodeWidth + Math.max(0, unitCount - 1) * (horizontalGap / 2);
+        const memberX = allocX + allocWidth / 2 - unitWidth / 2;
+
+        positioned.push({
+          x: memberX, y, member,
+          branchType: depth === 0 ? 'child' : 'grandchild'
+        });
+        placed.add(rootId);
+
+        spouseIds.forEach((spId, idx) => {
+          const sp = deduplicatedMembers.find(m => m.id === spId);
+          if (sp && !placed.has(spId)) {
+            positioned.push({
+              x: memberX + (idx + 1) * (nodeWidth + horizontalGap / 2),
+              y, member: sp, branchType: 'spouse'
+            });
+            placed.add(spId);
           }
-        }
+        });
+
+        if (!showGrandchildren) return;
+
+        const subChildIds = (parentChildMap.get(rootId) || []).filter(id => !placed.has(id));
+        if (subChildIds.length === 0) return;
+
+        const subWidths = subChildIds.map(cid => {
+          const visited = new Set<string>();
+          return { id: cid, width: Math.max(nodeWidth, measureSubtreeWidth(cid, visited)) };
+        });
+
+        const subTotal = subWidths.reduce((s, c) => s + c.width, 0)
+          + Math.max(0, subChildIds.length - 1) * horizontalGap;
+
+        const subCenterX = memberX + nodeWidth / 2;
+        let subX = subCenterX - subTotal / 2;
+        const subY = y + verticalGap + nodeHeight;
+
+        subWidths.forEach(({ id, width }) => {
+          placeSubtree(id, subX, width, subY, depth + 1);
+          subX += width + horizontalGap;
+        });
+      };
+
+      childSubtreeWidths.forEach(({ id, width }) => {
+        placeSubtree(id, childAllocX, width, childY, 0);
+        childAllocX += width + horizontalGap;
       });
     }
 
@@ -859,6 +869,29 @@ export default function FamilyTreeVisualization({
           });
           placed.add(member.id);
         });
+      }
+    }
+
+    // Post-layout collision resolution: ensure no two nodes overlap
+    const minHGap = nodeWidth + 20;
+    const yBuckets = new Map<number, NodePosition[]>();
+    for (const pos of positioned) {
+      const yKey = Math.round(pos.y / 10) * 10;
+      if (!yBuckets.has(yKey)) yBuckets.set(yKey, []);
+      yBuckets.get(yKey)!.push(pos);
+    }
+    for (const [, levelNodes] of yBuckets) {
+      levelNodes.sort((a, b) => a.x - b.x);
+      for (let i = 1; i < levelNodes.length; i++) {
+        const prev = levelNodes[i - 1];
+        const curr = levelNodes[i];
+        if (curr.x - prev.x < minHGap) {
+          const shift = minHGap - (curr.x - prev.x);
+          // Push current and all subsequent nodes right
+          for (let j = i; j < levelNodes.length; j++) {
+            levelNodes[j].x += shift;
+          }
+        }
       }
     }
 
