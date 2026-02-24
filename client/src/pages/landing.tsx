@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
 import { useI18n } from "@/lib/i18n";
-import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase, Lock, Eye, EyeOff, Globe, UserCheck, Search } from "lucide-react";
+import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase, Lock, Eye, EyeOff, Globe, UserCheck, Search, BookHeart, Mic, BarChart3 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 import { QRCodeSVG } from "qrcode.react";
@@ -626,6 +626,39 @@ export default function Landing() {
                   <Button variant="outline" size="sm" className="mt-2" data-testid="button-explore-familysearch">
                     Explore Records
                   </Button>
+                </CardContent>
+              </Card>
+              <Card className="hover-elevate group" data-testid="card-feature-memory-lane">
+                <CardContent className="p-6 space-y-4">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <BookHeart className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg">Memory Lane</h3>
+                  <p className="text-muted-foreground">
+                    Capture and share family stories, milestones, traditions, and life lessons in a beautiful story feed. Add photos and categorize memories to build a living archive.
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="hover-elevate group" data-testid="card-feature-voice-notes">
+                <CardContent className="p-6 space-y-4">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Mic className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg">Voice Notes</h3>
+                  <p className="text-muted-foreground">
+                    Record audio memories directly on member profiles. Preserve the voices of loved ones and attach personal voice messages to any family member.
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="hover-elevate group" data-testid="card-feature-annual-report">
+                <CardContent className="p-6 space-y-4">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <BarChart3 className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg">Annual Tree Report</h3>
+                  <p className="text-muted-foreground">
+                    Get yearly insights into your family tree with statistics, relationship breakdowns, growth trends, and milestone summaries all in one beautiful report.
+                  </p>
                 </CardContent>
               </Card>
             </div>

@@ -9,7 +9,7 @@ import {
   Church, Trophy, GraduationCap, Briefcase, BookOpen, QrCode, Share2, Globe, MapPin,
   Search, Bell, Camera, Palette, ShoppingBag, Video, Bot, Link2, Layers, Split,
   Settings, Eye, Lock, Mail, Award, UserCheck, ScrollText, Network, GitMerge, CheckCircle2, FileCheck,
-  Star, ArrowRight, Crown
+  Star, ArrowRight, Crown, BookHeart, Mic, BarChart3
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -379,6 +379,30 @@ export default function FeaturesGuide() {
           description: "Build your own tree type with completely custom relationship labels and terminology. Fully flexible for any group structure you can imagine.",
           whereToFind: "Dashboard > Create New Tree > select 'Custom'.",
           icon: <Sparkles className="h-5 w-5 text-violet-500" />,
+        },
+      ],
+    },
+    {
+      title: "Premium Content",
+      icon: <Crown className="h-5 w-5" />,
+      features: [
+        {
+          name: "Memory Lane",
+          description: "A story feed attached to each tree where members can share memories, milestones, traditions, funny moments, and life lessons. Each memory can include a title, story text, category, optional photo, and date. Memories are displayed as a scrollable timeline that the whole tree can enjoy.",
+          whereToFind: "Tree View > 'Memories' tab. Add new memories with the 'Add Memory' button at the top of the feed.",
+          icon: <BookHeart className="h-5 w-5 text-rose-500" />,
+        },
+        {
+          name: "Voice Notes",
+          description: "Record and attach audio voice notes to individual member profiles. Capture oral histories, personal messages, birthday wishes, or any audio keepsake directly within the app. Notes are saved and playable from the member's profile panel.",
+          whereToFind: "Tree View > click a member > scroll to 'Voice Notes' section in the profile panel. Use the record button to capture audio.",
+          icon: <Mic className="h-5 w-5 text-blue-500" />,
+        },
+        {
+          name: "Annual Tree Report",
+          description: "A yearly statistical summary of your tree including total members, new additions, relationship breakdowns, and growth trends. View reports for the current year or browse past years to see how your tree has evolved over time.",
+          whereToFind: "Tree View > 'Report' tab. Select a year from the dropdown to view historical reports.",
+          icon: <BarChart3 className="h-5 w-5 text-emerald-600" />,
         },
       ],
     },

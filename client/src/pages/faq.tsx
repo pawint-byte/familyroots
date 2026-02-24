@@ -10,7 +10,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n";
-import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase, BookOpen, Lock, EyeOff, Globe, UserCheck, Tag, Star, QrCode, Search, ShoppingBag, GitMerge, ArrowRight } from "lucide-react";
+import { TreeDeciduous, ArrowLeft, CreditCard, Users, Shield, Sparkles, HelpCircle, Gift, User, Scale, Heart, Zap, Church, Trophy, GraduationCap, Briefcase, BookOpen, Lock, EyeOff, Globe, UserCheck, Tag, Star, QrCode, Search, ShoppingBag, GitMerge, ArrowRight, BookHeart, Mic, BarChart3 } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface FAQItem {
@@ -808,6 +808,60 @@ export default function FAQ() {
         {
           question: "Is my FamilySearch data shared with other FamilyRoots users?",
           answer: "No. Your FamilySearch connection is private to your account. Any records you search or ancestors you import are only visible within your own trees, subject to whatever sharing and collaboration permissions you've set. Other FamilyRoots users cannot see your FamilySearch data."
+        }
+      ]
+    },
+    {
+      title: "Premium Content Features",
+      icon: <BookHeart className="h-5 w-5" />,
+      items: [
+        {
+          question: "What is Memory Lane?",
+          answer: "Memory Lane is a storytelling feed attached to your family tree where members can share memories, milestones, traditions, funny moments, and life lessons. Think of it as a private family journal that lives alongside your tree. Each memory can include a title, story text, photos, and a category so your family's most meaningful moments are preserved and easy to browse."
+        },
+        {
+          question: "How do I add a memory to Memory Lane?",
+          answer: "Navigate to your tree, open the Memories tab, and tap the button to add a new memory. Give it a title, write the story, choose a category, optionally attach a photo, and save. The memory is immediately visible to everyone who has access to the tree."
+        },
+        {
+          question: "What categories are available for memories?",
+          answer: "There are five categories to organize your memories: Memory (general recollections), Milestone (significant achievements or events), Tradition (recurring family customs), Funny (humorous stories and moments), and Lesson (wisdom or life lessons passed down). Categories make it easy to filter and browse specific types of stories."
+        },
+        {
+          question: "Can I add photos to memories?",
+          answer: "Yes. Each memory supports a photo attachment. When creating or editing a memory, you can upload an image that accompanies the story. This is great for pairing a written memory with the photo that captures the moment."
+        },
+        {
+          question: "Who can see memories on Memory Lane?",
+          answer: "Memories are visible to everyone who has access to the tree. Only tree members with edit permissions can add, edit, or delete memories. Visibility follows the same access rules as the rest of your tree — if someone can see the tree, they can see the memories."
+        },
+        {
+          question: "What are Voice Notes?",
+          answer: "Voice Notes let you record audio messages attached to individual family member profiles. Capture a grandparent telling a story, a parent sharing advice, or a child's first words — all saved directly on the person's profile in the tree. It's a way to preserve voices alongside the names and photos in your family history."
+        },
+        {
+          question: "How do I record a Voice Note?",
+          answer: "Open any family member's detail panel by clicking on them in the tree. Scroll to the Voice Notes section and tap the record button. Grant microphone access when prompted, record your message, and save it. The recording is attached to that member's profile and can be played back by anyone with access to the tree."
+        },
+        {
+          question: "Where do Voice Notes appear?",
+          answer: "Voice Notes appear in the member detail panel when you click on a family member in the tree view. They are listed in the Voice Notes section alongside other profile information like location, relationships, and life events."
+        },
+        {
+          question: "Can I delete a Voice Note?",
+          answer: "Yes. If you have edit permissions on the tree, you can delete any Voice Note from a member's profile. Open the member's detail panel, find the Voice Note you want to remove, and use the delete option. Deleted Voice Notes cannot be recovered."
+        },
+        {
+          question: "What is the Annual Tree Report?",
+          answer: "The Annual Tree Report is a yearly summary of your family tree's growth and activity. It shows statistics like total members, new additions, relationship breakdowns, and other insights about how your tree has evolved over the year. It's a great way to reflect on your family's growth and share highlights with relatives."
+        },
+        {
+          question: "Can I view Annual Tree Reports from past years?",
+          answer: "Yes. The Annual Tree Report section lets you select different years to review past reports. This allows you to compare growth across years and see how your family tree has expanded over time."
+        },
+        {
+          question: "How is the Annual Tree Report generated?",
+          answer: "The report is generated automatically based on the data in your tree. It analyzes member additions, relationship types, and tree structure to produce statistics and insights. No manual setup is required — just navigate to the Report tab on your tree to see the current year's summary or browse previous years."
         }
       ]
     }

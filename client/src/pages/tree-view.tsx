@@ -28,7 +28,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
   LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors,
-  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight, UserPlus
+  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight, UserPlus, BookHeart, BarChart3
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1652,6 +1652,22 @@ export default function TreeView() {
                   <Clock className="h-4 w-4" />
                   Timeline
                 </TabsTrigger>
+                <TabsTrigger 
+                  value="memories" 
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-2"
+                  data-testid="tab-memories"
+                >
+                  <BookHeart className="h-4 w-4" />
+                  Memories
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="report" 
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-2"
+                  data-testid="tab-report"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Report
+                </TabsTrigger>
               </TabsList>
             </div>
           </div>
@@ -2161,6 +2177,25 @@ export default function TreeView() {
               treeId={treeId!}
             />
           </TabsContent>
+
+          <TabsContent value="memories" className="flex-1 m-0 overflow-y-auto">
+            <div className="container mx-auto px-4 py-6">
+              <MemoryLane 
+                treeId={treeId!} 
+                members={treeData?.members || []} 
+                canEdit={canEditTree} 
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="report" className="flex-1 m-0 overflow-y-auto">
+            <div className="container mx-auto px-4 py-6">
+              <AnnualTreeReport 
+                treeId={treeId!} 
+                treeName={treeData?.tree?.name || ''} 
+              />
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -2580,6 +2615,15 @@ export default function TreeView() {
                     onUpdate={async (updates) => {
                       await updateMemberMutation.mutateAsync({ memberId: selectedMember.id, updates });
                     }}
+                  />
+                )}
+
+                {treeData && (
+                  <VoiceNotesSection
+                    memberId={selectedMember.id}
+                    treeId={treeData.tree.id}
+                    canEdit={canEdit}
+                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '')}
                   />
                 )}
 
