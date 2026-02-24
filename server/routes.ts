@@ -3705,6 +3705,19 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/trees/:treeId/all-events", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const events = await db.select().from(familyEvents)
+        .where(eq(familyEvents.treeId, treeId))
+        .orderBy(desc(familyEvents.eventDate));
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching tree events:", error);
+      res.status(500).json({ message: "Failed to fetch tree events" });
+    }
+  });
+
   // Create a life event with optional media attachments
   app.post("/api/trees/:treeId/events", isAuthenticated, async (req: any, res) => {
     try {
