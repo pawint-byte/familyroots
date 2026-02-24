@@ -8,7 +8,7 @@ import {
   TreeDeciduous, ArrowLeft, Users, Shield, Sparkles, Tag, Gift, User, Heart, Zap,
   Church, Trophy, GraduationCap, Briefcase, BookOpen, QrCode, Share2, Globe, MapPin,
   Search, Bell, Camera, Palette, ShoppingBag, Video, Bot, Link2, Layers, Split,
-  Settings, Eye, Lock, Mail, Award, UserCheck, ScrollText, Network
+  Settings, Eye, Lock, Mail, Award, UserCheck, ScrollText, Network, GitMerge, CheckCircle2, FileCheck
 } from "lucide-react";
 
 interface FeatureEntry {
@@ -218,15 +218,33 @@ export default function FeaturesGuide() {
         },
         {
           name: "FamilySearch Integration",
-          description: "Connect to FamilySearch's genealogical database to research ancestors, find records, and selectively import members into your tree.",
+          description: "Search FamilySearch's 66 billion+ historical records and import ancestors directly into your tree. Search individual records or import entire family branches with all relationships intact — up to 4 generations of ancestors (great-great-grandparents).",
           whereToFind: "Dashboard > 'Records' in the menu, or navigate to the FamilySearch page directly.",
           icon: <Search className="h-5 w-5 text-green-700" />,
         },
         {
           name: "Selective Member Import",
-          description: "When researching on FamilySearch, pick and choose which discovered relatives to import into your tree rather than importing everything at once.",
-          whereToFind: "FamilySearch page > search for ancestors > check the ones you want > 'Import Selected'.",
+          description: "When importing from FamilySearch, pick and choose which ancestors, descendants, and spouses to bring into your tree. Select individuals or entire branches, and all their parent-child and spouse relationships are imported automatically.",
+          whereToFind: "FamilySearch page > 'Import Tree' tab > check the people you want > 'Import Selected'.",
           icon: <Users className="h-5 w-5 text-teal-600" />,
+        },
+        {
+          name: "Smart Conflict Detection",
+          description: "When importing from FamilySearch, the system automatically compares imported people against your existing tree using fuzzy matching (name, birth year within 5 years, birth place, gender). Potential duplicates are shown side-by-side with differences highlighted so you can decide what to do.",
+          whereToFind: "Happens automatically during FamilySearch tree import. After import, you'll see the conflict resolution screen.",
+          icon: <Eye className="h-5 w-5 text-amber-600" />,
+        },
+        {
+          name: "Smart Merge Sync",
+          description: "When merging two people during import, FamilyRoots does a true sync — keeping the most complete data from both sides. All linked records transfer automatically: life events, education, career history, name changes, tags, FamilySearch sources, and external identifiers. Nothing is ever lost.",
+          whereToFind: "During FamilySearch import conflict resolution > choose 'Same Person (Merge)' for any duplicate.",
+          icon: <GitMerge className="h-5 w-5 text-blue-600" />,
+        },
+        {
+          name: "Import Integrity Verification",
+          description: "After resolving all conflicts, an automatic integrity check verifies every relationship, traces ancestor chains from root to most distant generation, and confirms all linked data transferred successfully. A detailed summary shows merge/skip/keep counts, relationship totals, and chain verification status.",
+          whereToFind: "Shown automatically after completing conflict resolution during FamilySearch import.",
+          icon: <FileCheck className="h-5 w-5 text-emerald-600" />,
         },
       ],
     },

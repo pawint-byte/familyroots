@@ -76,7 +76,7 @@ export default function FAQ() {
         },
         {
           question: "How is FamilyRoots different from FamilySearch?",
-          answer: <>FamilySearch is free and has incredible historical records, and we're actually working on integrating with them so you can search their records right from FamilyRoots. But FamilySearch's tree is one giant shared tree where anyone can edit anyone, which leads to conflicts and errors. FamilyRoots gives each family their own private tree with clear ownership, role-based permissions, and the ability to connect trees when families want to share. You get the benefits of connection without losing control.</>
+          answer: <>FamilySearch is free and has incredible historical records, and FamilyRoots connects directly to FamilySearch so you can search records and import ancestors without leaving the app. But FamilySearch's tree is one giant shared tree where anyone can edit anyone, which leads to conflicts and errors. FamilyRoots gives each family their own private tree with clear ownership, role-based permissions, and the ability to connect trees when families want to share. You get the benefits of connection without losing control. Plus, when you import from FamilySearch, our smart conflict detection finds duplicates automatically and lets you merge, keep, or skip each one — preserving every relationship and transferring all linked data.</>
         },
         {
           question: "What can I do on FamilyRoots that I can't do anywhere else?",
@@ -88,7 +88,7 @@ export default function FAQ() {
         },
         {
           question: "Can I use FamilyRoots alongside Ancestry or FamilySearch?",
-          answer: "Absolutely, and many families do. Use Ancestry or FamilySearch for researching ancestors and historical records. Use FamilyRoots to manage the living side of your family: collaboration, privacy, profile ownership, event tracking, gift registries, and staying connected. We're building FamilySearch integration so you can search historical records directly from FamilyRoots without switching platforms."
+          answer: "Absolutely, and many families do. Use Ancestry or FamilySearch for researching ancestors and historical records. Use FamilyRoots to manage the living side of your family: collaboration, privacy, profile ownership, event tracking, gift registries, and staying connected. FamilyRoots already integrates with FamilySearch — you can search historical records and import entire family branches directly from FamilyRoots without switching platforms."
         },
         {
           question: "Where can I see the full feature comparison?",
@@ -779,7 +779,19 @@ export default function FAQ() {
         },
         {
           question: "Are relationships preserved when I merge a duplicate during import?",
-          answer: "Yes. When you choose 'Same Person (Merge)' for a duplicate, all the relationships that the imported person had with other imported people are re-pointed to your existing member. For example, if you already have yourself in your tree and the import includes you along with your parents, merging your duplicate means the parent-child connections from the import now link directly to your existing profile. No relationships are lost."
+          answer: "Yes. When you choose 'Same Person (Merge)' for a duplicate, all the relationships that the imported person had — including distant ones like great-grandparents — are re-pointed to your existing member. The system uses a 7-phase process: it moves all members and relationships into your tree first, then processes merges and skips, then deduplicates, and finally runs an integrity check to verify every connection survived. Even ancestors four generations back stay fully connected."
+        },
+        {
+          question: "What data is kept when I merge two people?",
+          answer: "Everything. FamilyRoots does a true sync: if only one side has a piece of data (like a birth place or photo), it's always kept. If both sides have different values, the more complete version is used. Beyond profile fields, all linked records transfer to the merged profile — life events, education history, career history, name changes, tags, FamilySearch sources, and external identifiers. Nothing is ever lost during a merge."
+        },
+        {
+          question: "What happens to spouse relationships when I skip a duplicate?",
+          answer: "Spouse connections are preserved. When you skip a duplicate, the system doesn't just bridge parent-child chains — it also re-routes spouse relationships. If the skipped person was married to someone, that spouse connection is transferred to the corresponding merged or kept member. No family connections are silently deleted."
+        },
+        {
+          question: "How do I know the import worked correctly?",
+          answer: "After resolving all conflicts, FamilyRoots runs an automatic integrity check and shows you a detailed summary. You'll see exactly how many members were merged, kept, or skipped; how many relationships were preserved; how much linked data (events, education, career records, etc.) was transferred; and whether all ancestor chains from root to most distant generation are intact. If anything looks off, the summary will flag it."
         },
         {
           question: "Will FamilyRoots notify me when new ancestors are found?",

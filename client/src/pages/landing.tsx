@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
 import { useI18n } from "@/lib/i18n";
-import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase, Lock, Eye, EyeOff, Globe, UserCheck } from "lucide-react";
+import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase, Lock, Eye, EyeOff, Globe, UserCheck, Search } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 import { QRCodeSVG } from "qrcode.react";
@@ -607,6 +607,24 @@ export default function Landing() {
                   </p>
                   <Button variant="outline" size="sm" className="mt-2" data-testid="button-shop-merchandise">
                     Shop Now
+                  </Button>
+                </CardContent>
+              </Card>
+              <Card 
+                className="hover-elevate group cursor-pointer" 
+                onClick={() => navigate("/familysearch")}
+                data-testid="card-feature-familysearch"
+              >
+                <CardContent className="p-6 space-y-4">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Search className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg">FamilySearch Integration</h3>
+                  <p className="text-muted-foreground">
+                    Search 66 billion+ historical records and import entire family branches with relationships intact. Smart conflict detection merges duplicates and preserves every connection.
+                  </p>
+                  <Button variant="outline" size="sm" className="mt-2" data-testid="button-explore-familysearch">
+                    Explore Records
                   </Button>
                 </CardContent>
               </Card>
