@@ -1932,7 +1932,7 @@ export default function TreeView() {
                       zoom={zoom}
                       onMemberClick={handleMemberClick}
                       onConnectMember={canEditTree ? handleConnectMember : undefined}
-                      focusMemberId={focusMemberId}
+                      focusMemberId={focusMemberId || treeData?.tree?.rootMemberId || null}
                       viewDepth={viewDepth}
                       upcomingEvents={upcomingEvents}
                     />
@@ -1942,7 +1942,7 @@ export default function TreeView() {
                       relationships={displayRelationships}
                       zoom={zoom}
                       onMemberClick={handleMemberClick}
-                      focusMemberId={focusMemberId}
+                      focusMemberId={focusMemberId || treeData?.tree?.rootMemberId || null}
                       treeType={(treeData?.tree.treeType || "family") as TreeType}
                       layoutOverride={groupLayoutMode}
                       onMemberPositionChange={handleMemberPositionChange}

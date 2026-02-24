@@ -281,7 +281,27 @@ export default function FamilyTreeVisualization({
 
     const { parentChildMap, childParentMap, spouseMap, coparentMap, siblingMap, qualifierMap } = getRelationshipMaps();
 
-    const focusId = focusMemberId || deduplicatedMembers[0]?.id;
+    let focusId = focusMemberId;
+    if (!focusId) {
+      const memberConnectionCount = new Map<string, number>();
+      for (const m of deduplicatedMembers) {
+        let count = 0;
+        count += (childParentMap.get(m.id) || []).length;
+        count += (parentChildMap.get(m.id) || []).length;
+        count += (spouseMap.get(m.id) || []).length;
+        memberConnectionCount.set(m.id, count);
+      }
+      let bestId = deduplicatedMembers[0]?.id;
+      let bestCount = memberConnectionCount.get(bestId || '') || 0;
+      for (const m of deduplicatedMembers) {
+        const count = memberConnectionCount.get(m.id) || 0;
+        if (count > bestCount) {
+          bestCount = count;
+          bestId = m.id;
+        }
+      }
+      focusId = bestId;
+    }
     const focusMember = deduplicatedMembers.find(m => m.id === focusId);
     
     if (!focusMember) return { positions: [], labels: [] };
