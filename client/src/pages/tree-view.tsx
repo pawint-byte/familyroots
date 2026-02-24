@@ -41,6 +41,7 @@ import MemberForm from "@/components/member-form";
 import { NameHistorySection } from "@/components/name-history";
 import { MemberDiscoverability } from "@/components/member-discoverability";
 import { MatchRequests } from "@/components/match-requests";
+import SmartMatchDialog from "@/components/smart-match-dialog";
 import { InvitationStatus } from "@/components/invitation-status";
 import { EducationHistorySection } from "@/components/education-history";
 import { CareerHistorySection } from "@/components/career-history";
@@ -101,6 +102,7 @@ export default function TreeView() {
   const [autoJoinEnabled, setAutoJoinEnabled] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isInviteConnectOpen, setIsInviteConnectOpen] = useState(false);
+  const [isSmartMatchOpen, setIsSmartMatchOpen] = useState(false);
   const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
   const [showPaymentGate, setShowPaymentGate] = useState(false);
   const [paymentGateInfo, setPaymentGateInfo] = useState<{ limit?: number; current: number; credits?: number }>({ current: 0 });
@@ -1227,6 +1229,17 @@ export default function TreeView() {
                 >
                   <UserPlus className="h-4 w-4" />
                   Invite to Connect
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setTimeout(() => setIsSmartMatchOpen(true), 10);
+                  }}
+                  data-testid="menu-smart-match"
+                >
+                  <Search className="h-4 w-4" />
+                  Smart Match
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
@@ -2945,6 +2958,12 @@ export default function TreeView() {
             treeId={treeData.tree.id}
             treeName={treeData.tree.name}
             treeType={treeData.tree.treeType || "family"}
+          />
+          <SmartMatchDialog
+            treeId={treeData.tree.id}
+            treeName={treeData.tree.name}
+            open={isSmartMatchOpen}
+            onOpenChange={setIsSmartMatchOpen}
           />
         </>
       )}

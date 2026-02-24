@@ -9814,6 +9814,172 @@ export async function registerRoutes(
     }
   });
 
+  // Smart Match Scan — compare all members across connected trees
+  app.post("/api/trees/:treeId/smart-match-scan", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const connections = await storage.getTreeConnections(treeId);
+      if (connections.length === 0) {
+        return res.json({ matches: [], summary: { scannedTrees: 0, totalCompared: 0, matchesFound: 0 } });
+      }
+
+      const myMembers = await storage.getMembers(treeId);
+      if (myMembers.length === 0) {
+        return res.json({ matches: [], summary: { scannedTrees: 0, totalCompared: 0, matchesFound: 0 } });
+      }
+
+      const existingRequests = await storage.getSentMatchRequests(treeId);
+      const existingIncoming = await storage.getMatchRequests(treeId);
+      const alreadyRequestedPairs = new Set<string>();
+      for (const r of [...existingRequests, ...existingIncoming]) {
+        alreadyRequestedPairs.add(`${r.requestingMemberId}:${r.targetMemberId}`);
+        alreadyRequestedPairs.add(`${r.targetMemberId}:${r.requestingMemberId}`);
+      }
+
+      const connectorMemberIds = new Set<string>();
+      for (const conn of connections) {
+        if (conn.connector1MemberId) connectorMemberIds.add(conn.connector1MemberId);
+        if (conn.connector2MemberId) connectorMemberIds.add(conn.connector2MemberId);
+      }
+
+      const matches: Array<{
+        sourceMember: { id: string; firstName: string; lastName?: string | null; birthDate?: string | null; birthPlace?: string | null; gender?: string | null };
+        targetMember: { id: string; firstName: string; lastName?: string | null; birthDate?: string | null; birthPlace?: string | null; gender?: string | null; treeId: string };
+        targetTree: { id: string; name: string };
+        matchScore: number;
+        matchCriteria: string[];
+        alreadyRequested: boolean;
+      }> = [];
+
+      let scannedTrees = 0;
+      let totalCompared = 0;
+
+      for (const conn of connections) {
+        const connectedTreeId = conn.tree1Id === treeId ? conn.tree2Id : conn.tree1Id;
+        const connectedTree = await storage.getTree(connectedTreeId);
+        if (!connectedTree) continue;
+
+        const connectedMembers = await storage.getMembers(connectedTreeId);
+        scannedTrees++;
+
+        for (const myMember of myMembers) {
+          for (const otherMember of connectedMembers) {
+            totalCompared++;
+
+            if (connectorMemberIds.has(myMember.id) && connectorMemberIds.has(otherMember.id)) continue;
+
+            let score = 0;
+            const criteria: string[] = [];
+
+            const sFirst = (myMember.firstName || "").trim().toLowerCase();
+            const tFirst = (otherMember.firstName || "").trim().toLowerCase();
+            const sLast = (myMember.lastName || "").trim().toLowerCase();
+            const tLast = (otherMember.lastName || "").trim().toLowerCase();
+
+            if (sFirst && tFirst && sFirst === tFirst) {
+              score += 30;
+              criteria.push("firstName");
+            }
+
+            if (sLast && tLast && sLast === tLast) {
+              score += 30;
+              criteria.push("lastName");
+            }
+
+            const sBirthYear = myMember.birthDate ? myMember.birthDate.match(/\d{4}/)?.[0] : null;
+            const tBirthYear = otherMember.birthDate ? otherMember.birthDate.match(/\d{4}/)?.[0] : null;
+            if (sBirthYear && tBirthYear) {
+              const yearDiff = Math.abs(parseInt(sBirthYear) - parseInt(tBirthYear));
+              if (yearDiff === 0) {
+                score += 20;
+                criteria.push("birthYear");
+              } else if (yearDiff <= 5) {
+                score += 10;
+                criteria.push("birthYearClose");
+              }
+            }
+
+            const sBirthPlace = (myMember.birthPlace || "").trim().toLowerCase();
+            const tBirthPlace = (otherMember.birthPlace || "").trim().toLowerCase();
+            if (sBirthPlace && tBirthPlace) {
+              if (sBirthPlace === tBirthPlace) {
+                score += 15;
+                criteria.push("birthPlace");
+              } else if (sBirthPlace.includes(tBirthPlace) || tBirthPlace.includes(sBirthPlace)) {
+                score += 8;
+                criteria.push("birthPlacePartial");
+              }
+            }
+
+            if (myMember.gender && otherMember.gender && myMember.gender === otherMember.gender) {
+              score += 5;
+              criteria.push("gender");
+            }
+
+            if (myMember.email && otherMember.email &&
+                myMember.email.toLowerCase() === otherMember.email.toLowerCase()) {
+              score += 40;
+              criteria.push("email");
+            }
+
+            if (score >= 50) {
+              const pairKey1 = `${myMember.id}:${otherMember.id}`;
+              const pairKey2 = `${otherMember.id}:${myMember.id}`;
+              matches.push({
+                sourceMember: {
+                  id: myMember.id,
+                  firstName: myMember.firstName,
+                  lastName: myMember.lastName,
+                  birthDate: myMember.birthDate,
+                  birthPlace: myMember.birthPlace,
+                  gender: myMember.gender,
+                },
+                targetMember: {
+                  id: otherMember.id,
+                  firstName: otherMember.firstName,
+                  lastName: otherMember.lastName,
+                  birthDate: otherMember.birthDate,
+                  birthPlace: otherMember.birthPlace,
+                  gender: otherMember.gender,
+                  treeId: connectedTreeId,
+                },
+                targetTree: { id: connectedTree.id, name: connectedTree.name },
+                matchScore: Math.min(score, 100),
+                matchCriteria: criteria,
+                alreadyRequested: alreadyRequestedPairs.has(pairKey1) || alreadyRequestedPairs.has(pairKey2),
+              });
+            }
+          }
+        }
+      }
+
+      matches.sort((a, b) => b.matchScore - a.matchScore);
+      const topMatches = matches.slice(0, 50);
+
+      res.json({
+        matches: topMatches,
+        summary: {
+          scannedTrees,
+          totalCompared,
+          matchesFound: matches.length,
+        },
+      });
+    } catch (error) {
+      console.error("Error running smart match scan:", error);
+      res.status(500).json({ message: "Failed to run smart match scan" });
+    }
+  });
+
   // Attach a source to a family member
   app.post("/api/members/:memberId/sources", isAuthenticated, async (req: any, res) => {
     try {
