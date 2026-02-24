@@ -359,7 +359,7 @@ export default function ImportConflictResolution({
                     <Button
                       size="sm"
                       variant={resolution?.action === "skip" ? "destructive" : "outline"}
-                      onClick={() => setResolution(sourceMember.id, "skip")}
+                      onClick={() => setResolution(sourceMember.id, "skip", targetMember.id)}
                       data-testid={`button-skip-${sourceMember.id}`}
                     >
                       <XCircle className="h-3 w-3 mr-1" />
