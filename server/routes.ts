@@ -736,7 +736,7 @@ export async function registerRoutes(
       }
 
       const deletedMembers = await storage.getDeletedMembers(treeId);
-      const allRels = await db.select().from(relationships).where(eq(relationships.treeId, treeId));
+      const allRels = await db.select().from(relationshipsTable).where(eq(relationshipsTable.treeId, treeId));
       const activeMembers = await storage.getMembers(treeId);
       const memberMap = new Map(activeMembers.map(m => [m.id, m]));
       const deletedMemberMap = new Map(deletedMembers.map(m => [m.id, m]));
@@ -8931,6 +8931,98 @@ export async function registerRoutes(
               results.push({ action: `delete_relationship ${action.relationshipId}`, status: 'success' });
               break;
             }
+            case 'auto_fix_relationships': {
+              const members = await storage.getMembers(treeId);
+              const rels = await storage.getRelationships(treeId);
+              const relSet = new Set(rels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`));
+              let addedCount = 0;
+
+              for (const rel of rels) {
+                if (rel.relationshipType === 'parent') {
+                  const reverseKey = `${rel.toMemberId}|${rel.fromMemberId}|child`;
+                  if (!relSet.has(reverseKey)) {
+                    await storage.createRelationship({ treeId, fromMemberId: rel.toMemberId, toMemberId: rel.fromMemberId, relationshipType: 'child', qualifier: rel.qualifier || null });
+                    relSet.add(reverseKey);
+                    addedCount++;
+                  }
+                } else if (rel.relationshipType === 'child') {
+                  const reverseKey = `${rel.toMemberId}|${rel.fromMemberId}|parent`;
+                  if (!relSet.has(reverseKey)) {
+                    await storage.createRelationship({ treeId, fromMemberId: rel.toMemberId, toMemberId: rel.fromMemberId, relationshipType: 'parent', qualifier: rel.qualifier || null });
+                    relSet.add(reverseKey);
+                    addedCount++;
+                  }
+                } else if (rel.relationshipType === 'spouse') {
+                  const reverseKey = `${rel.toMemberId}|${rel.fromMemberId}|spouse`;
+                  if (!relSet.has(reverseKey)) {
+                    await storage.createRelationship({ treeId, fromMemberId: rel.toMemberId, toMemberId: rel.fromMemberId, relationshipType: 'spouse', qualifier: rel.qualifier || null });
+                    relSet.add(reverseKey);
+                    addedCount++;
+                  }
+                } else if (rel.relationshipType === 'sibling') {
+                  const reverseKey = `${rel.toMemberId}|${rel.fromMemberId}|sibling`;
+                  if (!relSet.has(reverseKey)) {
+                    await storage.createRelationship({ treeId, fromMemberId: rel.toMemberId, toMemberId: rel.fromMemberId, relationshipType: 'sibling', qualifier: rel.qualifier || null });
+                    relSet.add(reverseKey);
+                    addedCount++;
+                  }
+                }
+              }
+
+              const updatedRels = await storage.getRelationships(treeId);
+              const parentMap = new Map<string, string[]>();
+              for (const r of updatedRels) {
+                if (r.relationshipType === 'parent') {
+                  if (!parentMap.has(r.toMemberId)) parentMap.set(r.toMemberId, []);
+                  parentMap.get(r.toMemberId)!.push(r.fromMemberId);
+                }
+              }
+              const updatedRelSet = new Set(updatedRels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`));
+              let spousesAdded = 0;
+              for (const [childId, parentIds] of parentMap) {
+                if (parentIds.length >= 2) {
+                  for (let i = 0; i < parentIds.length; i++) {
+                    for (let j = i + 1; j < parentIds.length; j++) {
+                      const spKey1 = `${parentIds[i]}|${parentIds[j]}|spouse`;
+                      const spKey2 = `${parentIds[j]}|${parentIds[i]}|spouse`;
+                      if (!updatedRelSet.has(spKey1)) {
+                        await storage.createRelationship({ treeId, fromMemberId: parentIds[i], toMemberId: parentIds[j], relationshipType: 'spouse', qualifier: null });
+                        updatedRelSet.add(spKey1);
+                        spousesAdded++;
+                      }
+                      if (!updatedRelSet.has(spKey2)) {
+                        await storage.createRelationship({ treeId, fromMemberId: parentIds[j], toMemberId: parentIds[i], relationshipType: 'spouse', qualifier: null });
+                        updatedRelSet.add(spKey2);
+                        spousesAdded++;
+                      }
+                    }
+                  }
+                }
+              }
+
+              results.push({ 
+                action: 'auto_fix_relationships', 
+                status: 'success', 
+                detail: `Added ${addedCount} reverse relationships and ${spousesAdded} spouse relationships` 
+              });
+              break;
+            }
+            case 'deduplicate_relationships': {
+              const allRels = await storage.getRelationships(treeId);
+              const seen = new Map<string, string>();
+              let removedCount = 0;
+              for (const rel of allRels) {
+                const key = `${rel.fromMemberId}|${rel.toMemberId}|${rel.relationshipType}`;
+                if (seen.has(key)) {
+                  await storage.deleteRelationship(rel.id);
+                  removedCount++;
+                } else {
+                  seen.set(key, rel.id);
+                }
+              }
+              results.push({ action: 'deduplicate_relationships', status: 'success', detail: `Removed ${removedCount} duplicate relationships` });
+              break;
+            }
             default:
               results.push({ action: action.type, status: 'error', detail: 'Unknown action type' });
           }
@@ -8943,6 +9035,86 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error repairing tree:", error);
       res.status(500).json({ message: "Failed to repair tree" });
+    }
+  });
+
+  app.post("/api/admin/users/:userId/fix-all-trees", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const userTrees = await storage.getUserTrees(userId);
+      const activeTrees = userTrees.filter(t => !t.deletedAt);
+      const allResults: Array<{ treeName: string; treeId: string; reverseAdded: number; spousesAdded: number; dupesRemoved: number }> = [];
+
+      for (const tree of activeTrees) {
+        const treeId = tree.id;
+        let reverseAdded = 0;
+        let spousesAdded = 0;
+        let dupesRemoved = 0;
+
+        const rels = await storage.getRelationships(treeId);
+        const relSet = new Set(rels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`));
+
+        for (const rel of rels) {
+          let reverseType: string | null = null;
+          if (rel.relationshipType === 'parent') reverseType = 'child';
+          else if (rel.relationshipType === 'child') reverseType = 'parent';
+          else if (rel.relationshipType === 'spouse' || rel.relationshipType === 'sibling') reverseType = rel.relationshipType;
+
+          if (reverseType) {
+            const reverseKey = `${rel.toMemberId}|${rel.fromMemberId}|${reverseType}`;
+            if (!relSet.has(reverseKey)) {
+              await storage.createRelationship({ treeId, fromMemberId: rel.toMemberId, toMemberId: rel.fromMemberId, relationshipType: reverseType, qualifier: rel.qualifier || null });
+              relSet.add(reverseKey);
+              reverseAdded++;
+            }
+          }
+        }
+
+        const updatedRels = await storage.getRelationships(treeId);
+        const parentMap = new Map<string, string[]>();
+        for (const r of updatedRels) {
+          if (r.relationshipType === 'parent') {
+            if (!parentMap.has(r.toMemberId)) parentMap.set(r.toMemberId, []);
+            parentMap.get(r.toMemberId)!.push(r.fromMemberId);
+          }
+        }
+        const updatedRelSet = new Set(updatedRels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`));
+        for (const [, parentIds] of parentMap) {
+          if (parentIds.length >= 2) {
+            for (let i = 0; i < parentIds.length; i++) {
+              for (let j = i + 1; j < parentIds.length; j++) {
+                for (const [a, b] of [[parentIds[i], parentIds[j]], [parentIds[j], parentIds[i]]]) {
+                  const spKey = `${a}|${b}|spouse`;
+                  if (!updatedRelSet.has(spKey)) {
+                    await storage.createRelationship({ treeId, fromMemberId: a, toMemberId: b, relationshipType: 'spouse', qualifier: null });
+                    updatedRelSet.add(spKey);
+                    spousesAdded++;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        const finalRels = await storage.getRelationships(treeId);
+        const seen = new Map<string, string>();
+        for (const rel of finalRels) {
+          const key = `${rel.fromMemberId}|${rel.toMemberId}|${rel.relationshipType}`;
+          if (seen.has(key)) {
+            await storage.deleteRelationship(rel.id);
+            dupesRemoved++;
+          } else {
+            seen.set(key, rel.id);
+          }
+        }
+
+        allResults.push({ treeName: tree.name, treeId, reverseAdded, spousesAdded, dupesRemoved });
+      }
+
+      res.json({ treesProcessed: allResults.length, results: allResults });
+    } catch (error: any) {
+      console.error("Error fixing all trees:", error);
+      res.status(500).json({ message: "Failed to fix trees" });
     }
   });
 
