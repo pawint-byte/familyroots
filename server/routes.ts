@@ -6948,6 +6948,68 @@ export async function registerRoutes(
     res.json(PRICING_CONFIG);
   });
 
+  app.get("/api/pricing/all-members", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userTrees = await storage.getTreesByOwner(userId);
+      const result: {
+        trees: Array<{
+          treeId: number;
+          treeName: string;
+          treeType: string;
+          members: Array<{
+            id: string;
+            firstName: string;
+            lastName: string | null;
+            photoUrl: string | null;
+            type: "owned" | "imported";
+          }>;
+        }>;
+      } = { trees: [] };
+
+      for (const tree of userTrees) {
+        const members = await storage.getMembersByTreeId(tree.id);
+        const importedMembers = await storage.getImportedMembersForTree(tree.id);
+
+        const ownedList = members.map((m) => ({
+          id: m.id,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          photoUrl: m.photoUrl,
+          type: "owned" as const,
+        }));
+
+        const importedList: typeof ownedList = [];
+        for (const im of importedMembers) {
+          const sourceMember = await storage.getMember(im.sourceMemberId);
+          if (sourceMember) {
+            importedList.push({
+              id: sourceMember.id,
+              firstName: sourceMember.firstName,
+              lastName: sourceMember.lastName,
+              photoUrl: sourceMember.photoUrl,
+              type: "imported" as const,
+            });
+          }
+        }
+
+        if (ownedList.length > 0 || importedList.length > 0) {
+          result.trees.push({
+            treeId: tree.id,
+            treeName: tree.name,
+            treeType: tree.treeType || "family",
+            members: [...ownedList, ...importedList],
+          });
+        }
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error getting all members:", error);
+      res.status(500).json({ message: "Failed to get all members" });
+    }
+  });
+
   // Get user credits and pricing info
   app.get("/api/pricing/status", isAuthenticated, async (req: any, res) => {
     try {

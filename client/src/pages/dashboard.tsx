@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,139 @@ import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
 type FamilyTreeWithCount = FamilyTree & { memberCount?: number };
+
+interface AllMembersTree {
+  treeId: number;
+  treeName: string;
+  treeType: string;
+  members: Array<{
+    id: string;
+    firstName: string;
+    lastName: string | null;
+    photoUrl: string | null;
+    type: "owned" | "imported";
+  }>;
+}
+
+function AllMembersDialog({ totalMembers }: { totalMembers: number }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [, navigate] = useLocation();
+
+  const { data, isLoading } = useQuery<{ trees: AllMembersTree[] }>({
+    queryKey: ["/api/pricing/all-members"],
+    enabled: open,
+  });
+
+  const filteredTrees = useMemo(() => {
+    if (!data?.trees) return [];
+    if (!search.trim()) return data.trees;
+    const q = search.toLowerCase();
+    return data.trees
+      .map((tree) => ({
+        ...tree,
+        members: tree.members.filter(
+          (m) =>
+            m.firstName.toLowerCase().includes(q) ||
+            (m.lastName && m.lastName.toLowerCase().includes(q)) ||
+            tree.treeName.toLowerCase().includes(q)
+        ),
+      }))
+      .filter((tree) => tree.members.length > 0);
+  }, [data, search]);
+
+  const totalShown = filteredTrees.reduce((s, t) => s + t.members.length, 0);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="gap-2" data-testid="button-view-all-members">
+          <Users className="h-4 w-4" />
+          View All Members
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            All Members ({totalMembers})
+          </DialogTitle>
+        </DialogHeader>
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name or tree..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+            data-testid="input-search-all-members"
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-20 w-full" />
+              ))}
+            </div>
+          ) : filteredTrees.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8" data-testid="text-no-members-found">
+              {search ? "No members match your search" : "No members found"}
+            </p>
+          ) : (
+            filteredTrees.map((tree) => (
+              <div key={tree.treeId} className="border rounded-lg overflow-hidden">
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-2 bg-muted/50 hover:bg-muted transition-colors text-left"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate(`/trees/${tree.treeId}`);
+                  }}
+                  data-testid={`tree-header-${tree.treeId}`}
+                >
+                  <TreeDeciduous className="h-4 w-4 text-primary shrink-0" />
+                  <span className="font-medium text-sm truncate">{tree.treeName}</span>
+                  <Badge variant="secondary" className="ml-auto text-xs shrink-0">
+                    {tree.members.length} {tree.members.length === 1 ? "member" : "members"}
+                  </Badge>
+                </button>
+                <div className="divide-y">
+                  {tree.members.map((member) => (
+                    <div
+                      key={`${tree.treeId}-${member.id}`}
+                      className="flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors"
+                      data-testid={`member-row-${member.id}`}
+                    >
+                      <Avatar className="h-8 w-8 shrink-0">
+                        {member.photoUrl && <AvatarImage src={member.photoUrl} alt={member.firstName} />}
+                        <AvatarFallback className="text-xs">
+                          {`${member.firstName?.[0] || ""}${member.lastName?.[0] || ""}`.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm truncate">
+                        {member.firstName} {member.lastName || ""}
+                      </span>
+                      {member.type === "imported" && (
+                        <Badge variant="outline" className="text-[10px] ml-auto shrink-0">
+                          Imported
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+          {!isLoading && search && totalShown > 0 && (
+            <p className="text-xs text-center text-muted-foreground">
+              Showing {totalShown} of {totalMembers} members
+            </p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
@@ -1192,6 +1325,7 @@ export default function Dashboard() {
               <Button variant="outline" onClick={() => navigate("/pricing")} data-testid="button-view-pricing">
                 View All Plans
               </Button>
+              <AllMembersDialog totalMembers={totalMembers} />
               {pricingStatus?.hasActiveReward && (
                 <span className="flex items-center gap-1 text-sm text-primary font-medium">
                   <Award className="h-4 w-4" />
