@@ -150,7 +150,7 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
       ...prev,
       [selectedKeep]: { ...(prev[selectedKeep] || {}), [fieldKey]: value }
     }));
-    toast({ title: "Field queued", description: `Will sync "${fieldKey}" from ${sourceVersion.treeName} version when you confirm.` });
+    toast({ title: `"${fieldKey}" synced from ${sourceVersion.treeName}`, description: `This value will be copied to the kept version when you click Resolve.` });
   };
 
   const keepVersion = versions.find(v => v.id === selectedKeep);
@@ -300,18 +300,20 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
             </div>
 
             <div className="border rounded-lg p-3">
-              <p className="text-xs font-medium mb-2">Field-by-field comparison — click a value to sync it to the kept version</p>
+              <p className="text-sm font-medium mb-1">Field-by-field comparison</p>
+              <p className="text-xs text-muted-foreground mb-3">Click any value from a REMOVE column to copy it to the KEEP version. Synced fields show a green highlight.</p>
               <div className="space-y-0">
                 {fields.map(f => {
                   const vals = versions.map(v => (v as any)[f.key]);
                   const hasAny = vals.some(v => v);
                   const hasDiff = new Set(vals.filter(v => v).map(v => String(v))).size > 1;
                   if (!hasAny) return null;
+                  const keepVal = (versions.find(v => v.id === selectedKeep) as any)?.[f.key];
                   return (
-                    <div key={f.key} className={`grid gap-2 py-1.5 border-b border-border/30 last:border-0 ${hasDiff ? 'bg-amber-50 dark:bg-amber-900/10 px-2 -mx-2 rounded' : ''}`}
+                    <div key={f.key} className={`grid gap-2 py-2 border-b border-border/40 last:border-0 ${hasDiff ? 'bg-amber-50 dark:bg-amber-900/10 px-2 -mx-2 rounded' : ''}`}
                       style={{ gridTemplateColumns: `100px repeat(${versions.length}, 1fr)` }}
                     >
-                      <span className="text-[10px] font-medium text-muted-foreground flex items-center">
+                      <span className="text-xs font-medium text-muted-foreground flex items-center">
                         {f.label}
                         {hasDiff && <AlertTriangle className="h-3 w-3 text-amber-500 ml-1" />}
                       </span>
@@ -319,30 +321,44 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
                         const val = (v as any)[f.key];
                         const isSynced = syncFields[selectedKeep]?.[f.key] !== undefined && syncFields[selectedKeep][f.key] === val;
                         const isKeep = v.id === selectedKeep;
+                        const canSync = !isKeep && val;
+                        const displayVal = f.key === 'photoUrl'
+                          ? (val ? <Avatar className="h-8 w-8"><AvatarImage src={val} /><AvatarFallback>?</AvatarFallback></Avatar> : "—")
+                          : (f.key === 'birthDate' || f.key === 'deathDate')
+                            ? (formatDate(val) || "—")
+                            : (val || "—");
                         return (
-                          <button
+                          <div
                             key={v.id}
-                            className={`text-left text-[11px] px-1.5 py-0.5 rounded transition-colors ${
-                              f.key === 'photoUrl' && val ? '' :
-                              isSynced ? 'bg-primary/20 ring-1 ring-primary' :
-                              isKeep ? 'font-medium' :
-                              val && hasDiff ? 'hover:bg-primary/10 cursor-pointer' :
-                              ''
+                            className={`relative text-left text-xs px-2 py-1.5 rounded transition-all ${
+                              isSynced
+                                ? 'bg-green-100 dark:bg-green-900/30 ring-2 ring-green-500 font-medium'
+                                : isKeep
+                                  ? 'bg-primary/5 font-medium border border-primary/20'
+                                  : canSync
+                                    ? 'hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:ring-2 hover:ring-blue-400 cursor-pointer border border-transparent hover:border-blue-300'
+                                    : 'text-muted-foreground/50'
                             }`}
-                            onClick={() => {
-                              if (!isKeep && val && hasDiff) handleFieldSync(f.key, v);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (canSync) {
+                                handleFieldSync(f.key, v);
+                              }
                             }}
-                            disabled={isKeep || !val || !hasDiff}
+                            role={canSync ? "button" : undefined}
+                            tabIndex={canSync ? 0 : undefined}
                             data-testid={`sync-field-${f.key}-${v.id}`}
                           >
-                            {f.key === 'photoUrl' ? (
-                              val ? <Avatar className="h-6 w-6"><AvatarImage src={val} /><AvatarFallback>?</AvatarFallback></Avatar> : "—"
-                            ) : f.key === 'birthDate' || f.key === 'deathDate' ? (
-                              formatDate(val) || "—"
-                            ) : (
-                              val || "—"
+                            {displayVal}
+                            {isSynced && (
+                              <span className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px]">✓</span>
                             )}
-                          </button>
+                            {canSync && !isSynced && (
+                              <span className="absolute -top-1 -right-1 bg-blue-400 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] opacity-0 group-hover:opacity-100">
+                                <Copy className="h-2.5 w-2.5" />
+                              </span>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
