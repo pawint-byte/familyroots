@@ -9102,6 +9102,123 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/trees/:targetTreeId/populate-from/:sourceTreeId", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const { targetTreeId, sourceTreeId } = req.params;
+
+      const targetTree = await storage.getTree(targetTreeId);
+      const sourceTree = await storage.getTree(sourceTreeId);
+      if (!targetTree || !sourceTree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      const sourceMembers = (await storage.getMembers(sourceTreeId)).filter(m => !m.deletedAt);
+      const sourceRels = (await storage.getRelationships(sourceTreeId)).filter(r => !r.deletedAt);
+      const existingMembers = (await storage.getMembers(targetTreeId)).filter(m => !m.deletedAt);
+
+      const idMap = new Map<string, string>();
+      let addedCount = 0;
+      let skippedCount = 0;
+
+      for (const sm of sourceMembers) {
+        const existing = existingMembers.find(m => {
+          const fMatch = m.firstName.toLowerCase().trim() === sm.firstName.toLowerCase().trim();
+          const lMatch = (m.lastName || '').toLowerCase().trim() === (sm.lastName || '').toLowerCase().trim();
+          if (fMatch && lMatch) return true;
+          if (fMatch && sm.birthDate && m.birthDate === sm.birthDate) return true;
+          if (fMatch && sm.email && m.email && m.email.toLowerCase() === sm.email.toLowerCase()) return true;
+          return false;
+        });
+
+        if (existing) {
+          idMap.set(sm.id, existing.id);
+          skippedCount++;
+
+          const fieldsToSync = ['nickname', 'email', 'gender', 'birthDate', 'birthPlace', 'deathDate', 'photoUrl', 'notes', 'currentCity', 'currentRegion', 'currentCountry', 'suffix', 'alternateEmail'];
+          const updates: Record<string, any> = {};
+          for (const f of fieldsToSync) {
+            if (!(existing as any)[f] && (sm as any)[f]) {
+              updates[f] = (sm as any)[f];
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            await db.update(familyMembers).set(updates).where(eq(familyMembers.id, existing.id));
+          }
+        } else {
+          const newId = crypto.randomUUID();
+          idMap.set(sm.id, newId);
+          await db.insert(familyMembers).values({
+            id: newId,
+            treeId: targetTreeId,
+            firstName: sm.firstName,
+            lastName: sm.lastName,
+            suffix: sm.suffix,
+            nickname: sm.nickname,
+            email: sm.email,
+            alternateEmail: sm.alternateEmail,
+            gender: sm.gender,
+            birthDate: sm.birthDate,
+            birthPlace: sm.birthPlace,
+            deathDate: sm.deathDate,
+            isLiving: sm.isLiving,
+            photoUrl: sm.photoUrl,
+            notes: sm.notes,
+            currentCity: sm.currentCity,
+            currentRegion: sm.currentRegion,
+            currentCountry: sm.currentCountry,
+            sharedInPool: true,
+            poolSourceMemberId: sm.id,
+            poolSourceTreeId: sourceTreeId,
+          });
+          addedCount++;
+        }
+      }
+
+      const existingRels = (await storage.getRelationships(targetTreeId)).filter(r => !r.deletedAt);
+      let relsAdded = 0;
+      let relsSkipped = 0;
+
+      for (const rel of sourceRels) {
+        const newFromId = idMap.get(rel.fromMemberId);
+        const newToId = idMap.get(rel.toMemberId);
+        if (!newFromId || !newToId) continue;
+
+        const alreadyExists = existingRels.some(r =>
+          r.fromMemberId === newFromId && r.toMemberId === newToId && r.relationshipType === rel.relationshipType
+        );
+
+        if (!alreadyExists) {
+          await db.insert(relationshipsTable).values({
+            id: crypto.randomUUID(),
+            treeId: targetTreeId,
+            fromMemberId: newFromId,
+            toMemberId: newToId,
+            relationshipType: rel.relationshipType,
+            qualifier: rel.qualifier,
+            customLabel: rel.customLabel,
+          });
+          relsAdded++;
+        } else {
+          relsSkipped++;
+        }
+      }
+
+      res.json({
+        message: `Populated ${targetTree.name} from ${sourceTree.name}`,
+        membersAdded: addedCount,
+        membersSkipped: skippedCount,
+        relationshipsAdded: relsAdded,
+        relationshipsSkipped: relsSkipped,
+        totalSourceMembers: sourceMembers.length,
+        totalSourceRelationships: sourceRels.length,
+      });
+    } catch (error) {
+      console.error("Error populating tree:", error);
+      res.status(500).json({ message: "Failed to populate tree" });
+    }
+  });
+
   app.patch("/api/admin/members/:memberId/sync-fields", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { memberId } = req.params;

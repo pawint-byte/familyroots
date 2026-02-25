@@ -33,8 +33,11 @@ interface TreeInfo {
 export default function AdminTreeManager() {
   const { toast } = useToast();
   const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showPopulateDialog, setShowPopulateDialog] = useState(false);
   const [selectedTree, setSelectedTree] = useState<TreeInfo | null>(null);
   const [transferTargetUserId, setTransferTargetUserId] = useState("");
+  const [populateSourceTreeId, setPopulateSourceTreeId] = useState("");
+  const [populatePending, setPopulatePending] = useState(false);
 
   const { data: isAdmin, isLoading: checkingAdmin } = useQuery<{ isAdmin: boolean }>({
     queryKey: ["/api/admin/check"],
@@ -262,6 +265,19 @@ export default function AdminTreeManager() {
                           size="sm"
                           onClick={() => {
                             setSelectedTree(tree);
+                            setPopulateSourceTreeId("");
+                            setShowPopulateDialog(true);
+                          }}
+                          data-testid={`button-populate-${tree.id}`}
+                        >
+                          <Users className="h-3 w-3 mr-1" />
+                          Populate
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTree(tree);
                             setShowTransferDialog(true);
                           }}
                           data-testid={`button-transfer-${tree.id}`}
@@ -351,6 +367,95 @@ export default function AdminTreeManager() {
                 <ArrowRight className="h-4 w-4 mr-2" />
               )}
               Transfer Tree
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPopulateDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowPopulateDialog(false);
+          setSelectedTree(null);
+          setPopulateSourceTreeId("");
+        }
+      }}>
+        <DialogContent data-testid="dialog-populate-tree">
+          <DialogHeader>
+            <DialogTitle>Populate Tree from Source</DialogTitle>
+            <DialogDescription>
+              Copy all members and relationships from a source tree into "{selectedTree?.name}".
+              Members that already exist (by name match) will be skipped but their missing fields will be filled in.
+              All relationships will be recreated in the target tree.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Source Tree</label>
+              <Select value={populateSourceTreeId} onValueChange={setPopulateSourceTreeId}>
+                <SelectTrigger data-testid="select-populate-source">
+                  <SelectValue placeholder="Pick a tree to copy from..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeTrees
+                    .filter(t => t.id !== selectedTree?.id)
+                    .map(t => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name} ({t.memberCount} members)
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="p-3 bg-muted rounded-lg text-xs space-y-1">
+              <p><strong>Target:</strong> {selectedTree?.name} ({selectedTree?.memberCount} current members)</p>
+              <p>Existing members will keep their data. New members will be added. All source relationships will be created.</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPopulateDialog(false);
+                setSelectedTree(null);
+                setPopulateSourceTreeId("");
+              }}
+              data-testid="button-cancel-populate"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!selectedTree || !populateSourceTreeId) return;
+                setPopulatePending(true);
+                try {
+                  const res = await apiRequest("POST", `/api/admin/trees/${selectedTree.id}/populate-from/${populateSourceTreeId}`);
+                  const data = await res.json();
+                  toast({
+                    title: "Tree Populated",
+                    description: `Added ${data.membersAdded} members, skipped ${data.membersSkipped} existing. Added ${data.relationshipsAdded} relationships.`,
+                  });
+                  setShowPopulateDialog(false);
+                  setSelectedTree(null);
+                  setPopulateSourceTreeId("");
+                  queryClient.invalidateQueries({ queryKey: ["/api/admin/all-trees"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/trees"] });
+                } catch (err: any) {
+                  toast({ title: "Failed", description: err.message, variant: "destructive" });
+                } finally {
+                  setPopulatePending(false);
+                }
+              }}
+              disabled={!populateSourceTreeId || populatePending}
+              data-testid="button-confirm-populate"
+            >
+              {populatePending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+              )}
+              Populate Tree
             </Button>
           </DialogFooter>
         </DialogContent>
