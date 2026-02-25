@@ -7882,6 +7882,166 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Tree diagnostic - shows all members and relationships with clear labels
+  app.get("/api/admin/trees/:treeId/diagnostic", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const members = await storage.getMembers(treeId);
+      const relationships = await storage.getRelationships(treeId);
+      
+      const memberMap = new Map(members.map(m => [m.id, m]));
+      
+      const diagnosticRelationships = relationships.map(r => {
+        const fromMember = memberMap.get(r.fromMemberId);
+        const toMember = memberMap.get(r.toMemberId);
+        return {
+          id: r.id,
+          type: r.relationshipType,
+          qualifier: r.qualifier,
+          fromMemberId: r.fromMemberId,
+          fromMemberName: fromMember ? `${fromMember.firstName} ${fromMember.lastName || ''}`.trim() : 'UNKNOWN',
+          toMemberId: r.toMemberId,
+          toMemberName: toMember ? `${toMember.firstName} ${toMember.lastName || ''}`.trim() : 'UNKNOWN',
+          description: `${fromMember ? fromMember.firstName : '?'} is ${r.relationshipType} of ${toMember ? toMember.firstName : '?'}`,
+        };
+      });
+      
+      const diagnosticMembers = members.map(m => ({
+        id: m.id,
+        name: `${m.firstName} ${m.lastName || ''}`.trim(),
+        birthDate: m.birthDate,
+        deathDate: m.deathDate,
+        isLiving: m.isLiving,
+        gender: m.gender,
+        claimedByUserId: m.claimedByUserId,
+        isRoot: m.id === tree.rootMemberId,
+        isUnknown: m.isUnknown,
+        deletedAt: m.deletedAt,
+        relationshipsAsFrom: diagnosticRelationships.filter(r => r.fromMemberId === m.id),
+        relationshipsAsTo: diagnosticRelationships.filter(r => r.toMemberId === m.id),
+      }));
+      
+      const duplicates: Array<{ name: string; members: typeof diagnosticMembers }> = [];
+      const nameGroups = new Map<string, typeof diagnosticMembers>();
+      for (const m of diagnosticMembers) {
+        const key = m.name.toLowerCase();
+        if (!nameGroups.has(key)) nameGroups.set(key, []);
+        nameGroups.get(key)!.push(m);
+      }
+      for (const [name, group] of nameGroups) {
+        if (group.length > 1) {
+          duplicates.push({ name, members: group });
+        }
+      }
+      
+      res.json({
+        tree: {
+          id: tree.id,
+          name: tree.name,
+          rootMemberId: tree.rootMemberId,
+          treeType: tree.treeType,
+          ownerId: tree.ownerId,
+        },
+        memberCount: members.length,
+        relationshipCount: relationships.length,
+        members: diagnosticMembers,
+        relationships: diagnosticRelationships,
+        duplicates,
+        issues: diagnosticMembers.filter(m => {
+          const hasRelationships = m.relationshipsAsFrom.length > 0 || m.relationshipsAsTo.length > 0;
+          return !hasRelationships && !m.isRoot;
+        }).map(m => `Orphaned member: ${m.name} (${m.id}) has no relationships`),
+      });
+    } catch (error: any) {
+      console.error("Error running tree diagnostic:", error);
+      res.status(500).json({ message: "Failed to run diagnostic" });
+    }
+  });
+
+  // Admin: Repair tree - batch fix relationships and members
+  app.post("/api/admin/trees/:treeId/repair", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const { actions } = req.body;
+      
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      
+      const results: Array<{ action: string; status: string; detail?: string }> = [];
+      
+      for (const action of actions) {
+        try {
+          switch (action.type) {
+            case 'delete_member': {
+              const member = await storage.getMember(action.memberId);
+              if (!member) {
+                results.push({ action: `delete_member ${action.memberId}`, status: 'error', detail: 'Member not found' });
+                break;
+              }
+              if (tree.rootMemberId === action.memberId && action.newRootMemberId) {
+                await storage.updateTree(treeId, { rootMemberId: action.newRootMemberId });
+              }
+              await storage.softDeleteMember(action.memberId);
+              results.push({ action: `delete_member ${action.memberId}`, status: 'success', detail: `Deleted ${member.firstName} ${member.lastName || ''}` });
+              break;
+            }
+            case 'swap_relationship': {
+              const rels = await storage.getRelationships(treeId);
+              const rel = rels.find(r => r.id === action.relationshipId);
+              if (!rel) {
+                results.push({ action: `swap_relationship ${action.relationshipId}`, status: 'error', detail: 'Relationship not found' });
+                break;
+              }
+              await storage.updateRelationship(action.relationshipId, {
+                fromMemberId: rel.toMemberId,
+                toMemberId: rel.fromMemberId,
+              });
+              results.push({ action: `swap_relationship ${action.relationshipId}`, status: 'success', detail: `Swapped direction` });
+              break;
+            }
+            case 'update_root': {
+              await storage.updateTree(treeId, { rootMemberId: action.memberId });
+              results.push({ action: `update_root ${action.memberId}`, status: 'success', detail: 'Root member updated' });
+              break;
+            }
+            case 'add_relationship': {
+              const newRel = await storage.createRelationship({
+                treeId,
+                fromMemberId: action.fromMemberId,
+                toMemberId: action.toMemberId,
+                relationshipType: action.relationshipType,
+                qualifier: action.qualifier || null,
+              });
+              results.push({ action: `add_relationship`, status: 'success', detail: `Created ${action.relationshipType} relationship: ${action.fromMemberId} -> ${action.toMemberId}` });
+              break;
+            }
+            case 'delete_relationship': {
+              await storage.deleteRelationship(action.relationshipId);
+              results.push({ action: `delete_relationship ${action.relationshipId}`, status: 'success' });
+              break;
+            }
+            default:
+              results.push({ action: action.type, status: 'error', detail: 'Unknown action type' });
+          }
+        } catch (err: any) {
+          results.push({ action: action.type, status: 'error', detail: err?.message || 'Unknown error' });
+        }
+      }
+      
+      res.json({ results });
+    } catch (error: any) {
+      console.error("Error repairing tree:", error);
+      res.status(500).json({ message: "Failed to repair tree" });
+    }
+  });
+
   // Get account settings including activity info
   app.get("/api/account/settings", isAuthenticated, async (req: any, res) => {
     try {
