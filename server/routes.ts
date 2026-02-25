@@ -9038,83 +9038,242 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/users/:userId/fix-all-trees", isAuthenticated, isAdmin, async (req: any, res) => {
+  app.get("/api/admin/trees/:treeId/health", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const { userId } = req.params;
-      const userTrees = await storage.getUserTrees(userId);
-      const activeTrees = userTrees.filter(t => !t.deletedAt);
-      const allResults: Array<{ treeName: string; treeId: string; reverseAdded: number; spousesAdded: number; dupesRemoved: number }> = [];
+      const { treeId } = req.params;
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
 
-      for (const tree of activeTrees) {
-        const treeId = tree.id;
-        let reverseAdded = 0;
-        let spousesAdded = 0;
-        let dupesRemoved = 0;
+      const members = await storage.getMembers(treeId);
+      const rels = await storage.getRelationships(treeId);
+      const memberMap = new Map(members.map(m => [m.id, m]));
+      const relSet = new Set(rels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`));
 
-        const rels = await storage.getRelationships(treeId);
-        const relSet = new Set(rels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`));
+      interface ProposedFix {
+        id: string;
+        category: 'missing_reverse' | 'missing_spouse' | 'duplicate_relationship' | 'duplicate_member';
+        description: string;
+        detail: any;
+      }
+      const fixes: ProposedFix[] = [];
+      let fixId = 0;
 
-        for (const rel of rels) {
-          let reverseType: string | null = null;
-          if (rel.relationshipType === 'parent') reverseType = 'child';
-          else if (rel.relationshipType === 'child') reverseType = 'parent';
-          else if (rel.relationshipType === 'spouse' || rel.relationshipType === 'sibling') reverseType = rel.relationshipType;
-
-          if (reverseType) {
-            const reverseKey = `${rel.toMemberId}|${rel.fromMemberId}|${reverseType}`;
-            if (!relSet.has(reverseKey)) {
-              await storage.createRelationship({ treeId, fromMemberId: rel.toMemberId, toMemberId: rel.fromMemberId, relationshipType: reverseType, qualifier: rel.qualifier || null });
-              relSet.add(reverseKey);
-              reverseAdded++;
-            }
+      for (const rel of rels) {
+        let reverseType: string | null = null;
+        if (rel.relationshipType === 'parent') reverseType = 'child';
+        else if (rel.relationshipType === 'child') reverseType = 'parent';
+        else if (rel.relationshipType === 'spouse' || rel.relationshipType === 'sibling') reverseType = rel.relationshipType;
+        if (reverseType) {
+          const reverseKey = `${rel.toMemberId}|${rel.fromMemberId}|${reverseType}`;
+          if (!relSet.has(reverseKey)) {
+            const from = memberMap.get(rel.toMemberId);
+            const to = memberMap.get(rel.fromMemberId);
+            fixes.push({
+              id: `fix-${fixId++}`,
+              category: 'missing_reverse',
+              description: `${from?.firstName || '?'} ${from?.lastName || ''} → ${reverseType} → ${to?.firstName || '?'} ${to?.lastName || ''} (reverse of existing ${rel.relationshipType})`,
+              detail: { treeId, fromMemberId: rel.toMemberId, toMemberId: rel.fromMemberId, relationshipType: reverseType, qualifier: rel.qualifier || null },
+            });
+            relSet.add(reverseKey);
           }
         }
+      }
 
-        const updatedRels = await storage.getRelationships(treeId);
-        const parentMap = new Map<string, string[]>();
-        for (const r of updatedRels) {
-          if (r.relationshipType === 'parent') {
-            if (!parentMap.has(r.toMemberId)) parentMap.set(r.toMemberId, []);
-            parentMap.get(r.toMemberId)!.push(r.fromMemberId);
-          }
+      const parentMap = new Map<string, string[]>();
+      for (const r of rels) {
+        if (r.relationshipType === 'parent') {
+          if (!parentMap.has(r.toMemberId)) parentMap.set(r.toMemberId, []);
+          parentMap.get(r.toMemberId)!.push(r.fromMemberId);
         }
-        const updatedRelSet = new Set(updatedRels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`));
-        for (const [, parentIds] of parentMap) {
-          if (parentIds.length >= 2) {
-            for (let i = 0; i < parentIds.length; i++) {
-              for (let j = i + 1; j < parentIds.length; j++) {
-                for (const [a, b] of [[parentIds[i], parentIds[j]], [parentIds[j], parentIds[i]]]) {
-                  const spKey = `${a}|${b}|spouse`;
-                  if (!updatedRelSet.has(spKey)) {
-                    await storage.createRelationship({ treeId, fromMemberId: a, toMemberId: b, relationshipType: 'spouse', qualifier: null });
-                    updatedRelSet.add(spKey);
-                    spousesAdded++;
-                  }
+      }
+      for (const [childId, parentIds] of parentMap) {
+        if (parentIds.length >= 2) {
+          for (let i = 0; i < parentIds.length; i++) {
+            for (let j = i + 1; j < parentIds.length; j++) {
+              for (const [a, b] of [[parentIds[i], parentIds[j]], [parentIds[j], parentIds[i]]]) {
+                const spKey = `${a}|${b}|spouse`;
+                if (!relSet.has(spKey)) {
+                  const mA = memberMap.get(a);
+                  const mB = memberMap.get(b);
+                  const child = memberMap.get(childId);
+                  fixes.push({
+                    id: `fix-${fixId++}`,
+                    category: 'missing_spouse',
+                    description: `${mA?.firstName || '?'} ${mA?.lastName || ''} ↔ spouse ↔ ${mB?.firstName || '?'} ${mB?.lastName || ''} (both parents of ${child?.firstName || '?'})`,
+                    detail: { treeId, fromMemberId: a, toMemberId: b, relationshipType: 'spouse', qualifier: null },
+                  });
+                  relSet.add(spKey);
                 }
               }
             }
           }
         }
+      }
 
-        const finalRels = await storage.getRelationships(treeId);
-        const seen = new Map<string, string>();
-        for (const rel of finalRels) {
-          const key = `${rel.fromMemberId}|${rel.toMemberId}|${rel.relationshipType}`;
-          if (seen.has(key)) {
-            await storage.deleteRelationship(rel.id);
-            dupesRemoved++;
-          } else {
-            seen.set(key, rel.id);
+      const seen = new Map<string, { id: string; rel: typeof rels[0] }>();
+      for (const rel of rels) {
+        const key = `${rel.fromMemberId}|${rel.toMemberId}|${rel.relationshipType}`;
+        if (seen.has(key)) {
+          const from = memberMap.get(rel.fromMemberId);
+          const to = memberMap.get(rel.toMemberId);
+          fixes.push({
+            id: `fix-${fixId++}`,
+            category: 'duplicate_relationship',
+            description: `Duplicate: ${from?.firstName || '?'} ${from?.lastName || ''} → ${rel.relationshipType} → ${to?.firstName || '?'} ${to?.lastName || ''}`,
+            detail: { relationshipId: rel.id },
+          });
+        } else {
+          seen.set(key, { id: rel.id, rel });
+        }
+      }
+
+      const fingerprints = new Map<string, typeof members[0][]>();
+      for (const m of members) {
+        const fp = `${m.firstName.toLowerCase()}_${(m.lastName || '').toLowerCase()}_${m.birthDate || ''}`.trim();
+        if (!fingerprints.has(fp)) fingerprints.set(fp, []);
+        fingerprints.get(fp)!.push(m);
+      }
+      for (const [fp, dupes] of fingerprints) {
+        if (dupes.length > 1) {
+          fixes.push({
+            id: `fix-${fixId++}`,
+            category: 'duplicate_member',
+            description: `Possible duplicate members: ${dupes.map(d => `${d.firstName} ${d.lastName || ''} (${d.id.slice(0, 8)})`).join(' vs ')}`,
+            detail: { memberIds: dupes.map(d => d.id), members: dupes.map(d => ({ id: d.id, firstName: d.firstName, lastName: d.lastName, email: d.email, birthDate: d.birthDate, gender: d.gender, photoUrl: d.photoUrl })) },
+          });
+        }
+      }
+
+      res.json({
+        tree: { id: tree.id, name: tree.name, treeType: tree.treeType, memberCount: members.length, relationshipCount: rels.length },
+        fixes,
+        summary: {
+          missingReverse: fixes.filter(f => f.category === 'missing_reverse').length,
+          missingSpouse: fixes.filter(f => f.category === 'missing_spouse').length,
+          duplicateRelationships: fixes.filter(f => f.category === 'duplicate_relationship').length,
+          duplicateMembers: fixes.filter(f => f.category === 'duplicate_member').length,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error scanning tree health:", error);
+      res.status(500).json({ message: "Failed to scan tree health" });
+    }
+  });
+
+  app.post("/api/admin/trees/:treeId/apply-fixes", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const { fixes } = req.body;
+      if (!Array.isArray(fixes) || fixes.length === 0) {
+        return res.status(400).json({ message: "No fixes provided" });
+      }
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      const applied: string[] = [];
+      const errors: string[] = [];
+
+      for (const fix of fixes) {
+        try {
+          if (fix.category === 'missing_reverse' || fix.category === 'missing_spouse') {
+            await storage.createRelationship({
+              treeId: fix.detail.treeId || treeId,
+              fromMemberId: fix.detail.fromMemberId,
+              toMemberId: fix.detail.toMemberId,
+              relationshipType: fix.detail.relationshipType,
+              qualifier: fix.detail.qualifier || null,
+            });
+            applied.push(fix.id);
+          } else if (fix.category === 'duplicate_relationship') {
+            await storage.deleteRelationship(fix.detail.relationshipId);
+            applied.push(fix.id);
+          } else if (fix.category === 'duplicate_member' && fix.detail.keepMemberId && fix.detail.removeMemberId) {
+            await storage.softDeleteMember(fix.detail.removeMemberId);
+            applied.push(fix.id);
+          }
+        } catch (err: any) {
+          errors.push(`${fix.id}: ${err?.message || 'Unknown error'}`);
+        }
+      }
+
+      res.json({ applied: applied.length, errors });
+    } catch (error: any) {
+      console.error("Error applying fixes:", error);
+      res.status(500).json({ message: "Failed to apply fixes" });
+    }
+  });
+
+  app.get("/api/admin/users/:userId/tree-health", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const userTrees = await storage.getUserTrees(userId);
+      const activeTrees = userTrees.filter(t => !t.deletedAt);
+
+      const treeSummaries = [];
+      for (const tree of activeTrees) {
+        const members = await storage.getMembers(tree.id);
+        const rels = await storage.getRelationships(tree.id);
+        const relSet = new Set(rels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`));
+
+        let missingReverse = 0;
+        for (const rel of rels) {
+          let reverseType: string | null = null;
+          if (rel.relationshipType === 'parent') reverseType = 'child';
+          else if (rel.relationshipType === 'child') reverseType = 'parent';
+          else if (rel.relationshipType === 'spouse' || rel.relationshipType === 'sibling') reverseType = rel.relationshipType;
+          if (reverseType && !relSet.has(`${rel.toMemberId}|${rel.fromMemberId}|${reverseType}`)) {
+            missingReverse++;
+            relSet.add(`${rel.toMemberId}|${rel.fromMemberId}|${reverseType}`);
           }
         }
 
-        allResults.push({ treeName: tree.name, treeId, reverseAdded, spousesAdded, dupesRemoved });
+        const parentMap = new Map<string, string[]>();
+        for (const r of rels) {
+          if (r.relationshipType === 'parent') {
+            if (!parentMap.has(r.toMemberId)) parentMap.set(r.toMemberId, []);
+            parentMap.get(r.toMemberId)!.push(r.fromMemberId);
+          }
+        }
+        let missingSpouse = 0;
+        for (const [, parentIds] of parentMap) {
+          if (parentIds.length >= 2) {
+            for (let i = 0; i < parentIds.length; i++) {
+              for (let j = i + 1; j < parentIds.length; j++) {
+                if (!relSet.has(`${parentIds[i]}|${parentIds[j]}|spouse`)) missingSpouse++;
+                if (!relSet.has(`${parentIds[j]}|${parentIds[i]}|spouse`)) missingSpouse++;
+              }
+            }
+          }
+        }
+
+        const seenRels = new Set<string>();
+        let dupeRels = 0;
+        for (const rel of rels) {
+          const key = `${rel.fromMemberId}|${rel.toMemberId}|${rel.relationshipType}`;
+          if (seenRels.has(key)) dupeRels++;
+          else seenRels.add(key);
+        }
+
+        const issues = missingReverse + missingSpouse + dupeRels;
+        treeSummaries.push({
+          id: tree.id,
+          name: tree.name,
+          treeType: tree.treeType,
+          memberCount: members.length,
+          relationshipCount: rels.length,
+          issues,
+          missingReverse,
+          missingSpouse,
+          duplicateRelationships: dupeRels,
+          health: issues === 0 ? 'healthy' : issues <= 5 ? 'warning' : 'critical',
+        });
       }
 
-      res.json({ treesProcessed: allResults.length, results: allResults });
+      res.json({ userId, trees: treeSummaries });
     } catch (error: any) {
-      console.error("Error fixing all trees:", error);
-      res.status(500).json({ message: "Failed to fix trees" });
+      console.error("Error fetching tree health:", error);
+      res.status(500).json({ message: "Failed to fetch tree health" });
     }
   });
 
