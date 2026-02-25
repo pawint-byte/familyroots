@@ -663,6 +663,14 @@ export default function Dashboard() {
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/tree-manager")}
+                      data-testid="mobile-menu-admin-tree-manager"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Tree Manager</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
                       onClick={() => navigate("/admin/connections")}
                       data-testid="mobile-menu-admin-connections"
                     >
@@ -790,6 +798,10 @@ export default function Dashboard() {
                   <DropdownMenuItem onClick={() => navigate("/admin/connections")} data-testid="admin-menu-connections">
                     <Link2 className="h-4 w-4 mr-2" />
                     Connections
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/admin/tree-manager")} data-testid="admin-menu-tree-manager">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Tree Manager
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -946,6 +958,14 @@ export default function Dashboard() {
                     >
                       <Shield className="h-4 w-4" />
                       <span>Admin - Members</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/tree-manager")}
+                      data-testid="menu-admin-tree-manager"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Tree Manager</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       className="flex items-center gap-2"

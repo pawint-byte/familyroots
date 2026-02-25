@@ -8642,6 +8642,60 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/all-trees", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const allTrees = await db.select({
+        id: trees.id,
+        name: trees.name,
+        ownerId: trees.ownerId,
+        treeType: trees.treeType,
+        deletedAt: trees.deletedAt,
+      }).from(trees);
+
+      const ownerIds = [...new Set(allTrees.map(t => t.ownerId))];
+      const owners = await db.select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+      }).from(users).where(inArray(users.id, ownerIds));
+
+      const ownerMap = new Map(owners.map(o => [o.id, o]));
+
+      const treeIds = allTrees.filter(t => !t.deletedAt).map(t => t.id);
+      const memberCounts = await db.select({
+        treeId: treeMembers.treeId,
+        count: sql<number>`count(*)::int`,
+      }).from(treeMembers)
+        .where(and(
+          inArray(treeMembers.treeId, treeIds.length > 0 ? treeIds : [""]),
+          isNull(treeMembers.deletedAt)
+        ))
+        .groupBy(treeMembers.treeId);
+
+      const countMap = new Map(memberCounts.map(c => [c.treeId, c.count]));
+
+      const result = allTrees.map(t => {
+        const owner = ownerMap.get(t.ownerId);
+        return {
+          id: t.id,
+          name: t.name,
+          ownerId: t.ownerId,
+          ownerEmail: owner?.email || null,
+          ownerName: owner ? `${owner.firstName || ""} ${owner.lastName || ""}`.trim() : null,
+          treeType: t.treeType,
+          memberCount: countMap.get(t.id) || 0,
+          deletedAt: t.deletedAt,
+        };
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching all trees:", error);
+      res.status(500).json({ message: "Failed to fetch trees" });
+    }
+  });
+
   app.post("/api/admin/trees/:treeId/transfer-ownership", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { treeId } = req.params;
