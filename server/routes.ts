@@ -1889,6 +1889,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "CSV data is required" });
       }
 
+      const treeOwner = await storage.getUser(tree.ownerId);
+      const adminBypass = isAdminAccount(tree.ownerId, treeOwner?.email);
+
       const validRelTypes = getValidRelationshipValues(tree.treeType as TreeType, tree.customRelationshipTypes as any);
 
       const lines = csvData.split("\n")
@@ -2022,10 +2025,70 @@ export async function registerRoutes(
         }
       }
 
+      const existingMembers = await storage.getMembers(treeId);
+      const existingLookup = new Map<string, typeof existingMembers[0]>();
+      for (const em of existingMembers) {
+        const nameKey = `${em.firstName.toLowerCase()}|${(em.lastName || '').toLowerCase()}`.trim();
+        existingLookup.set(nameKey, em);
+        if (em.email) {
+          existingLookup.set(`email:${em.email.toLowerCase()}`, em);
+        }
+        if (em.alternateEmail) {
+          existingLookup.set(`email:${em.alternateEmail.toLowerCase()}`, em);
+        }
+      }
+
+      const duplicateRowIds = new Set<string>();
+      const skippedDuplicates: string[] = [];
+      for (const [rowId, row] of memberRows) {
+        const nameKey = `${row.firstName.toLowerCase()}|${(row.lastName || '').toLowerCase()}`.trim();
+        let existingMatch = existingLookup.get(nameKey);
+        if (!existingMatch && row.email) {
+          existingMatch = existingLookup.get(`email:${row.email.toLowerCase()}`);
+        }
+        if (existingMatch) {
+          duplicateRowIds.add(rowId);
+          const displayName = row.lastName ? `${row.firstName} ${row.lastName}` : row.firstName;
+          skippedDuplicates.push(displayName);
+        }
+      }
+
+      const newMemberCount = memberRows.size - duplicateRowIds.size;
+
+      if (!adminBypass && newMemberCount > 0) {
+        const totalMemberCount = await subscriptionService.calculateTotalMemberCount(tree.ownerId);
+        const freeLimit = PRICING_CONFIG.freeTierCredits;
+        const freeSlots = Math.max(0, freeLimit - totalMemberCount);
+        const creditsNeeded = Math.max(0, newMemberCount - freeSlots);
+        const ownerCredits = treeOwner?.memberCredits || 0;
+
+        if (creditsNeeded > 0 && ownerCredits < creditsNeeded) {
+          return res.status(402).json({
+            message: `This upload adds ${newMemberCount} new member${newMemberCount !== 1 ? 's' : ''}${skippedDuplicates.length > 0 ? ` (${skippedDuplicates.length} already exist and will be skipped)` : ''}. You have ${freeSlots > 0 ? `${freeSlots} free slot${freeSlots !== 1 ? 's' : ''} and ` : ''}${ownerCredits} credit${ownerCredits !== 1 ? 's' : ''} available, but need ${creditsNeeded} more. Purchase a member pack to continue.`,
+            code: "INSUFFICIENT_CREDITS",
+            membersToAdd: newMemberCount,
+            duplicatesSkipped: skippedDuplicates.length,
+            freeSlots,
+            creditsAvailable: ownerCredits,
+            creditsNeeded,
+            current: totalMemberCount,
+          });
+        }
+      }
+
       const rowIdToMemberId = new Map<string, string>();
       const createdMembers: any[] = [];
 
       for (const [rowId, row] of memberRows) {
+        if (duplicateRowIds.has(rowId)) {
+          const nameKey = `${row.firstName.toLowerCase()}|${(row.lastName || '').toLowerCase()}`.trim();
+          const match = existingLookup.get(nameKey) || (row.email ? existingLookup.get(`email:${row.email.toLowerCase()}`) : undefined);
+          if (match) {
+            rowIdToMemberId.set(rowId, match.id);
+          }
+          continue;
+        }
+
         const memberData: any = {
           treeId,
           firstName: row.firstName,
@@ -2044,6 +2107,12 @@ export async function registerRoutes(
         const created = await storage.createMember(memberData);
         rowIdToMemberId.set(rowId, created.id);
         createdMembers.push(created);
+
+        const newNameKey = `${created.firstName.toLowerCase()}|${(created.lastName || '').toLowerCase()}`.trim();
+        existingLookup.set(newNameKey, created);
+        if (created.email) {
+          existingLookup.set(`email:${created.email.toLowerCase()}`, created);
+        }
       }
 
       const createdRelationships: any[] = [];
@@ -2082,10 +2151,59 @@ export async function registerRoutes(
         }
       }
 
+      if (!adminBypass && createdMembers.length > 0) {
+        const postTotal = await subscriptionService.calculateTotalMemberCount(tree.ownerId);
+        const freeLimit = PRICING_CONFIG.freeTierCredits;
+        const creditsToDeduct = Math.max(0, postTotal - freeLimit) - Math.max(0, (postTotal - createdMembers.length) - freeLimit);
+        for (let i = 0; i < creditsToDeduct; i++) {
+          await subscriptionService.deductCredit(tree.ownerId);
+        }
+        await subscriptionService.checkAndGrantMilestoneReward(tree.ownerId);
+      }
+
+      let invitationsSent = 0;
+      const currentUser = await storage.getUser(userId);
+      const inviterName = currentUser?.firstName && currentUser?.lastName
+        ? `${currentUser.firstName} ${currentUser.lastName}`
+        : currentUser?.firstName || currentUser?.email || "A member";
+
+      for (const member of createdMembers) {
+        const emailsToInvite = [member.email, member.alternateEmail].filter(Boolean) as string[];
+        for (const email of emailsToInvite) {
+          try {
+            const existingUser = await storage.getUserByEmail(email);
+            if (!existingUser) {
+              const existingInvitation = await storage.getMemberInvitationByEmail(email, member.id);
+              if (!existingInvitation) {
+                const memberName = member.lastName
+                  ? `${member.firstName} ${member.lastName}`
+                  : member.firstName;
+
+                await sendFamilyMemberInvitation(email, memberName, tree.name, inviterName);
+
+                await storage.createMemberInvitation({
+                  email,
+                  memberId: member.id,
+                  treeId: tree.id,
+                  treeName: tree.name,
+                  invitedBy: userId,
+                  inviterName,
+                  memberName: memberName,
+                });
+                invitationsSent++;
+              }
+            }
+          } catch (emailError: any) {
+            console.error(`Error sending bulk invitation to ${email}:`, emailError?.message || emailError);
+          }
+        }
+      }
+
       res.json({
         message: `Successfully imported ${createdMembers.length} members and ${createdRelationships.length} relationships`,
         membersCreated: createdMembers.length,
         relationshipsCreated: createdRelationships.length,
+        invitationsSent,
         errors: errors.length > 0 ? errors : undefined,
       });
     } catch (error: any) {
@@ -2190,7 +2308,7 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
       
-      const fullAllowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes", "visibilityOverride", "customPosition", "sharedInPool"];
+      const fullAllowedFields = ["firstName", "lastName", "nickname", "email", "alternateEmail", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes", "visibilityOverride", "customPosition", "sharedInPool"];
       const custodianAllowedFields = ["firstName", "lastName", "deathDate", "notes", "photoUrl"];
       const treeStructureOnlyFields = ["visibilityOverride", "customPosition", "sharedInPool", "notes"];
 
@@ -2482,6 +2600,10 @@ export async function registerRoutes(
         if (!canEdit) {
           return res.status(403).json({ message: "Access denied" });
         }
+      }
+
+      if (tree.rootMemberId === memberId) {
+        return res.status(400).json({ message: "Cannot delete the main person of this tree. Set a different main person first." });
       }
 
       await storage.softDeleteMember(memberId);

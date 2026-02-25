@@ -85,6 +85,7 @@ export const familyMembers = pgTable("family_members", {
   suffix: text("suffix"), // Jr, Sr, III, etc.
   nickname: text("nickname"),
   email: text("email"),
+  alternateEmail: text("alternate_email"),
   gender: genderEnum("gender"),
   birthDate: date("birth_date"),
   birthPlace: text("birth_place"),

@@ -1393,11 +1393,13 @@ export class DatabaseStorage implements IStorage {
       const matchCriteria: string[] = [];
       let matchScore = 0;
 
-      if (sourceDiscoverable.matchByEmail && discoverable.matchByEmail && 
-          sourceMember.email && targetMember.email && 
-          sourceMember.email.toLowerCase() === targetMember.email.toLowerCase()) {
-        matchCriteria.push("email");
-        matchScore += 50;
+      if (sourceDiscoverable.matchByEmail && discoverable.matchByEmail) {
+        const sourceEmails = [sourceMember.email, sourceMember.alternateEmail].filter(Boolean).map(e => e!.toLowerCase());
+        const targetEmails = [targetMember.email, targetMember.alternateEmail].filter(Boolean).map(e => e!.toLowerCase());
+        if (sourceEmails.some(se => targetEmails.includes(se))) {
+          matchCriteria.push("email");
+          matchScore += 50;
+        }
       }
 
       if (sourceDiscoverable.matchByName && discoverable.matchByName) {

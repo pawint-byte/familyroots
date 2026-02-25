@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Upload, X, Loader2, User, HelpCircle, Tag } from "lucide-react";
@@ -280,6 +280,23 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="alternateEmail"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Alternate Email (optional)</FormLabel>
+              <FormControl>
+                <Input type="email" placeholder="backup@example.com" {...field} data-testid="input-alternate-email" />
+              </FormControl>
+              <FormDescription className="text-xs">
+                A backup email in case they lose access to their primary (e.g. school email after graduation)
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
