@@ -735,7 +735,28 @@ export async function registerRoutes(
       }
 
       const deletedMembers = await storage.getDeletedMembers(treeId);
-      res.json(deletedMembers);
+      const allRels = await db.select().from(relationships).where(eq(relationships.treeId, treeId));
+      const activeMembers = await storage.getMembers(treeId);
+      const memberMap = new Map(activeMembers.map(m => [m.id, m]));
+      const deletedMemberMap = new Map(deletedMembers.map(m => [m.id, m]));
+
+      const enriched = deletedMembers.map(member => {
+        const memberRels = allRels.filter(
+          r => (r.fromMemberId === member.id || r.toMemberId === member.id) && r.deletedAt !== null
+        );
+        const relationshipBadges = memberRels.map(r => {
+          const otherId = r.fromMemberId === member.id ? r.toMemberId : r.fromMemberId;
+          const other = memberMap.get(otherId) || deletedMemberMap.get(otherId);
+          const otherName = other ? `${other.firstName} ${other.lastName || ''}`.trim() : 'Unknown';
+          return `${r.relationshipType} of ${otherName}`;
+        });
+        return {
+          ...member,
+          relationshipBadges,
+          savedRelationshipCount: memberRels.length,
+        };
+      });
+      res.json(enriched);
     } catch (error) {
       console.error("Error fetching deleted members:", error);
       res.status(500).json({ message: "Failed to fetch deleted members" });
@@ -797,7 +818,26 @@ export async function registerRoutes(
       }
 
       await storage.restoreMember(memberId);
-      res.json({ message: "Member restored successfully" });
+      const restoredRelationships = await storage.getRelationships(treeId);
+      const memberRels = restoredRelationships.filter(
+        r => r.fromMemberId === memberId || r.toMemberId === memberId
+      );
+      const activeMembers = await storage.getMembers(treeId);
+      const memberMap = new Map(activeMembers.map(m => [m.id, m]));
+      const relationshipSummary = memberRels.map(r => {
+        const otherId = r.fromMemberId === memberId ? r.toMemberId : r.fromMemberId;
+        const other = memberMap.get(otherId);
+        return {
+          type: r.relationshipType,
+          qualifier: r.qualifier,
+          otherMemberName: other ? `${other.firstName} ${other.lastName || ''}`.trim() : 'Unknown',
+        };
+      });
+      res.json({
+        message: "Member restored successfully",
+        restoredRelationships: relationshipSummary.length,
+        relationships: relationshipSummary,
+      });
     } catch (error) {
       console.error("Error restoring member:", error);
       res.status(500).json({ message: "Failed to restore member" });
@@ -1479,6 +1519,226 @@ export async function registerRoutes(
       }
       
       res.status(400).json({ message: error?.message || "Failed to add member" });
+    }
+  });
+
+  app.get("/api/trees/:treeId/member-pool", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      const search = (req.query.search || "").trim().toLowerCase();
+
+      const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, treeId));
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      const userTrees = await storage.getTrees(userId);
+      const connections = await storage.getUserConnections(userId);
+      const connectedUserIds = connections.map(c =>
+        c.userId1 === userId ? c.userId2 : c.userId1
+      );
+
+      const accessibleTreeIds = new Set<string>();
+      for (const t of userTrees) {
+        if (t.id !== treeId && !t.deletedAt) accessibleTreeIds.add(t.id);
+      }
+
+      for (const connUserId of connectedUserIds) {
+        const connTrees = await storage.getTrees(connUserId);
+        for (const ct of connTrees) {
+          if (!ct.deletedAt && ct.id !== treeId && ct.privacy !== 'private') {
+            accessibleTreeIds.add(ct.id);
+          }
+        }
+        const collabTrees = await storage.getCollaboratedTrees(connUserId);
+        for (const ct of collabTrees.collaboratedTrees) {
+          if (!ct.deletedAt && ct.id !== treeId) accessibleTreeIds.add(ct.id);
+        }
+      }
+
+      const collabData = await storage.getCollaboratedTrees(userId);
+      for (const ct of collabData.collaboratedTrees) {
+        if (!ct.deletedAt && ct.id !== treeId) accessibleTreeIds.add(ct.id);
+      }
+
+      const currentMembers = await storage.getMembers(treeId);
+      const currentMemberFingerprints = new Set(
+        currentMembers.map(m => `${(m.firstName || '').toLowerCase()}_${(m.lastName || '').toLowerCase()}_${m.birthDate || ''}`)
+      );
+
+      const poolMembers: Array<{
+        id: string;
+        firstName: string;
+        lastName: string | null;
+        photoUrl: string | null;
+        gender: string | null;
+        birthDate: string | null;
+        deathDate: string | null;
+        birthPlace: string | null;
+        isLiving: boolean | null;
+        sourceTreeId: string;
+        sourceTreeName: string;
+        alreadyInTree: boolean;
+        relationships: Array<{
+          type: string;
+          qualifier: string | null;
+          otherMemberName: string;
+        }>;
+      }> = [];
+
+      const treeIdArray = Array.from(accessibleTreeIds);
+      const batchSize = 10;
+      for (let i = 0; i < treeIdArray.length; i += batchSize) {
+        const batch = treeIdArray.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (srcTreeId) => {
+          const [srcTree] = await db.select().from(familyTrees).where(eq(familyTrees.id, srcTreeId));
+          if (!srcTree) return;
+
+          const members = await storage.getMembers(srcTreeId);
+          const rels = await storage.getRelationships(srcTreeId);
+          const memberMap = new Map(members.map(m => [m.id, m]));
+
+          for (const m of members) {
+            if (m.isUnknown) continue;
+
+            if (search) {
+              const fullName = `${m.firstName || ''} ${m.lastName || ''}`.toLowerCase();
+              if (!fullName.includes(search)) continue;
+            }
+
+            const fingerprint = `${(m.firstName || '').toLowerCase()}_${(m.lastName || '').toLowerCase()}_${m.birthDate || ''}`;
+            const alreadyInTree = currentMemberFingerprints.has(fingerprint);
+
+            const memberRels = rels.filter(r => r.fromMemberId === m.id || r.toMemberId === m.id);
+            const relSummary = memberRels.slice(0, 5).map(r => {
+              const otherId = r.fromMemberId === m.id ? r.toMemberId : r.fromMemberId;
+              const other = memberMap.get(otherId);
+              return {
+                type: r.relationshipType,
+                qualifier: r.qualifier,
+                otherMemberName: other ? `${other.firstName} ${other.lastName || ''}`.trim() : 'Unknown',
+              };
+            });
+
+            poolMembers.push({
+              id: m.id,
+              firstName: m.firstName,
+              lastName: m.lastName,
+              photoUrl: m.photoUrl,
+              gender: m.gender,
+              birthDate: m.birthDate,
+              deathDate: m.deathDate,
+              birthPlace: m.birthPlace,
+              isLiving: m.isLiving,
+              sourceTreeId: srcTreeId,
+              sourceTreeName: srcTree.name,
+              alreadyInTree,
+              relationships: relSummary,
+            });
+          }
+        }));
+      }
+
+      const seen = new Map<string, typeof poolMembers[0]>();
+      for (const pm of poolMembers) {
+        const key = `${(pm.firstName || '').toLowerCase()}_${(pm.lastName || '').toLowerCase()}_${pm.birthDate || ''}`;
+        if (!seen.has(key) || pm.relationships.length > (seen.get(key)!.relationships.length)) {
+          seen.set(key, pm);
+        }
+      }
+
+      const dedupedPool = Array.from(seen.values())
+        .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+
+      res.json({
+        members: dedupedPool.slice(0, 200),
+        totalAvailable: dedupedPool.length,
+      });
+    } catch (error) {
+      console.error("Error fetching member pool:", error);
+      res.status(500).json({ message: "Failed to fetch member pool" });
+    }
+  });
+
+  app.post("/api/trees/:treeId/member-pool/import", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      const { sourceMemberIds, sourceTreeId } = req.body;
+
+      if (!Array.isArray(sourceMemberIds) || sourceMemberIds.length === 0) {
+        return res.status(400).json({ message: "No members selected" });
+      }
+      if (!sourceTreeId) {
+        return res.status(400).json({ message: "Source tree ID required" });
+      }
+
+      const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, treeId));
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || !collab.canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const sourceMembers = await storage.getMembers(sourceTreeId);
+      const sourceRels = await storage.getRelationships(sourceTreeId);
+      const sourceMemberMap = new Map(sourceMembers.map(m => [m.id, m]));
+      const selectedSourceIds = new Set(sourceMemberIds as string[]);
+
+      const idMapping = new Map<string, string>();
+      const importedMembers: any[] = [];
+
+      for (const srcId of selectedSourceIds) {
+        const srcMember = sourceMemberMap.get(srcId);
+        if (!srcMember) continue;
+
+        const newMember = await storage.createMember({
+          treeId,
+          firstName: srcMember.firstName,
+          lastName: srcMember.lastName,
+          suffix: srcMember.suffix,
+          nickname: srcMember.nickname,
+          email: null,
+          gender: srcMember.gender,
+          birthDate: srcMember.birthDate,
+          deathDate: srcMember.deathDate,
+          birthPlace: srcMember.birthPlace,
+          isLiving: srcMember.isLiving,
+          photoUrl: srcMember.photoUrl,
+          notes: srcMember.notes,
+          isUnknown: srcMember.isUnknown,
+          unknownLabel: srcMember.unknownLabel,
+        });
+        idMapping.set(srcId, newMember.id);
+        importedMembers.push(newMember);
+      }
+
+      let relationshipsCreated = 0;
+      for (const rel of sourceRels) {
+        const newFromId = idMapping.get(rel.fromMemberId);
+        const newToId = idMapping.get(rel.toMemberId);
+        if (newFromId && newToId) {
+          await storage.createRelationship({
+            treeId,
+            fromMemberId: newFromId,
+            toMemberId: newToId,
+            relationshipType: rel.relationshipType,
+            qualifier: rel.qualifier,
+            customLabel: rel.customLabel,
+          });
+          relationshipsCreated++;
+        }
+      }
+
+      res.json({
+        importedCount: importedMembers.length,
+        relationshipsCreated,
+        members: importedMembers,
+      });
+    } catch (error) {
+      console.error("Error importing from member pool:", error);
+      res.status(500).json({ message: "Failed to import members" });
     }
   });
 

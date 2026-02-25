@@ -42,6 +42,8 @@ The backend uses Node.js, Express.js, and TypeScript, providing RESTful API endp
 -   **Real-time Import Preview**: Ghost preview nodes appear on both FamilyTreeVisualization and GroupVisualization as members are selected for import. Family trees use BFS positioning from connector member; group visualizations position previews near connected existing members. Green dashed SVG connection lines drawn between preview nodes.
 -   **Selective Connected Tree Merge**: Users select which connected trees to overlay via checkboxes. Backend accepts `?treeIds=` query param on `GET /api/trees/:treeId/merged`.
 -   **Visualization Rescue Pass**: Iterative rescue pass places unplaced members with relationships to already-placed members before falling into "No Relationship Defined" section.
+-   **Relationship Soft-Delete & Recovery**: Relationships now have a `deletedAt` column. When a member is soft-deleted, their relationships are soft-deleted too. Restoring a member also restores all their relationships. The "Recently Deleted" dialog shows birth/death dates, relationship badges, and saved relationship counts. The restore endpoint returns details about recovered relationships.
+-   **Member Pool / Network Reuse**: `GET /api/trees/:treeId/member-pool?search=` searches all members across user's own trees and connected users' accessible trees. `POST /api/trees/:treeId/member-pool/import` copies selected members (with inter-relationships) into the target tree. "From Network" button in tree view header opens a search dialog to find and import existing members without re-entering data.
 
 ## External Dependencies
 

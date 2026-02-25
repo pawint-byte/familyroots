@@ -855,11 +855,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async softDeleteMember(id: string): Promise<boolean> {
+    const now = new Date();
     const [updated] = await db.update(familyMembers)
-      .set({ deletedAt: new Date() })
+      .set({ deletedAt: now })
       .where(eq(familyMembers.id, id))
       .returning();
-    return !!updated;
+    if (!updated) return false;
+    await db.update(relationships)
+      .set({ deletedAt: now })
+      .where(and(
+        or(eq(relationships.fromMemberId, id), eq(relationships.toMemberId, id)),
+        isNull(relationships.deletedAt)
+      ));
+    return true;
   }
 
   async restoreMember(id: string): Promise<boolean> {
@@ -867,7 +875,14 @@ export class DatabaseStorage implements IStorage {
       .set({ deletedAt: null })
       .where(eq(familyMembers.id, id))
       .returning();
-    return !!updated;
+    if (!updated) return false;
+    await db.update(relationships)
+      .set({ deletedAt: null })
+      .where(and(
+        or(eq(relationships.fromMemberId, id), eq(relationships.toMemberId, id)),
+        isNotNull(relationships.deletedAt)
+      ));
+    return true;
   }
 
   async permanentlyDeleteMember(id: string): Promise<boolean> {
@@ -894,7 +909,7 @@ export class DatabaseStorage implements IStorage {
 
   // Relationships
   async getRelationships(treeId: string): Promise<Relationship[]> {
-    return db.select().from(relationships).where(eq(relationships.treeId, treeId));
+    return db.select().from(relationships).where(and(eq(relationships.treeId, treeId), isNull(relationships.deletedAt)));
   }
 
   async createRelationship(rel: InsertRelationship): Promise<Relationship> {
@@ -911,7 +926,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteRelationship(id: string): Promise<boolean> {
-    await db.delete(relationships).where(eq(relationships.id, id));
+    await db.update(relationships)
+      .set({ deletedAt: new Date() })
+      .where(eq(relationships.id, id));
     return true;
   }
 

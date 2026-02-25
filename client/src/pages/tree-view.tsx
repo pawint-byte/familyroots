@@ -57,6 +57,7 @@ import { CustodianshipSection } from "@/components/custodianship-section";
 import { SpecialConnectionsSection, LocationSection } from "@/components/special-connections";
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 import { BranchImportDialog } from "@/components/branch-import-dialog";
+import { MemberPoolDialog } from "@/components/member-pool-dialog";
 import { MergeMembersDialog } from "@/components/merge-members-dialog";
 import { MemberMergeDialog } from "@/components/member-merge-dialog";
 import { InviteConnectDialog } from "@/components/invite-connect-dialog";
@@ -124,6 +125,7 @@ export default function TreeView() {
   const [selectedConnectedTrees, setSelectedConnectedTrees] = useState<Set<string> | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
+  const [isMemberPoolOpen, setIsMemberPoolOpen] = useState(false);
   const [crossTreeMergeData, setCrossTreeMergeData] = useState<{
     connectedMember: FamilyMember;
     ownTreeMember: FamilyMember;
@@ -459,12 +461,16 @@ export default function TreeView() {
     mutationFn: async (memberId: string) => {
       return apiRequest("PATCH", `/api/deleted/trees/${treeId}/members/${memberId}/restore`);
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
       queryClient.invalidateQueries({ queryKey: [`/api/deleted/trees/${treeId}/members`] });
+      const relCount = data?.restoredRelationships || 0;
+      const relSummary = relCount > 0
+        ? ` with ${relCount} relationship${relCount > 1 ? 's' : ''}`
+        : '';
       toast({
         title: "Member Restored",
-        description: "Member has been restored successfully.",
+        description: `Member has been restored successfully${relSummary}.`,
       });
     },
     onError: () => {
@@ -1563,27 +1569,38 @@ export default function TreeView() {
             </DropdownMenu>
             <ThemeToggle />
             {canEditTree && (
-              <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2" data-testid="button-add-member">
-                    <Plus className="h-4 w-4" />
-                    <span className="hidden sm:inline">Add Member</span>
-                  </Button>
-                </DialogTrigger>
-              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="font-serif">
-                  {treeData ? getTreeTypeConfig((treeData.tree.treeType || "family") as TreeType).addMemberLabel : "Add Member"}
-                </DialogTitle>
-                </DialogHeader>
-                <MemberForm 
-                  treeId={treeId!}
-                  onSubmit={(data) => addMemberMutation.mutate(data)}
-                  isLoading={addMemberMutation.isPending}
-                  availableTags={treeData?.tags}
-                />
-              </DialogContent>
-              </Dialog>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setIsMemberPoolOpen(true)}
+                  data-testid="button-add-from-network"
+                >
+                  <Users className="h-4 w-4" />
+                  <span className="hidden sm:inline">From Network</span>
+                </Button>
+                <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2" data-testid="button-add-member">
+                      <Plus className="h-4 w-4" />
+                      <span className="hidden sm:inline">Add Member</span>
+                    </Button>
+                  </DialogTrigger>
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="font-serif">
+                    {treeData ? getTreeTypeConfig((treeData.tree.treeType || "family") as TreeType).addMemberLabel : "Add Member"}
+                  </DialogTitle>
+                  </DialogHeader>
+                  <MemberForm 
+                    treeId={treeId!}
+                    onSubmit={(data) => addMemberMutation.mutate(data)}
+                    isLoading={addMemberMutation.isPending}
+                    availableTags={treeData?.tags}
+                  />
+                </DialogContent>
+                </Dialog>
+              </div>
             )}
 
             <Dialog open={isRenameOpen} onOpenChange={(open) => {
@@ -4534,6 +4551,14 @@ export default function TreeView() {
         </DialogContent>
       </Dialog>
 
+      {treeId && (
+        <MemberPoolDialog
+          isOpen={isMemberPoolOpen}
+          onClose={() => setIsMemberPoolOpen(false)}
+          treeId={treeId}
+        />
+      )}
+
       <Dialog open={isDeletedMembersOpen} onOpenChange={setIsDeletedMembersOpen}>
         <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -4548,46 +4573,84 @@ export default function TreeView() {
                 const deletedDate = new Date(member.deletedAt);
                 const expiryDate = new Date(deletedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
                 const daysLeft = Math.max(0, Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                const birthYear = member.birthDate ? new Date(member.birthDate).getFullYear() : null;
+                const deathYear = member.deathDate ? new Date(member.deathDate).getFullYear() : null;
+                const dateRange = birthYear
+                  ? deathYear ? `${birthYear} – ${deathYear}` : `b. ${birthYear}`
+                  : null;
+                const badges: string[] = member.relationshipBadges || [];
+                const savedRels: number = member.savedRelationshipCount || 0;
                 return (
-                  <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border bg-card" data-testid={`deleted-member-${member.id}`}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Avatar className="h-8 w-8 flex-shrink-0">
-                        <AvatarImage src={member.photoUrl || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {(member.firstName?.[0] || "") + (member.lastName?.[0] || "")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{member.firstName} {member.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{daysLeft} days left to restore</p>
+                  <div key={member.id} className="flex flex-col gap-2 p-3 rounded-lg border bg-card" data-testid={`deleted-member-${member.id}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-10 w-10 flex-shrink-0">
+                          <AvatarImage src={member.photoUrl || undefined} />
+                          <AvatarFallback className="text-xs">
+                            {(member.firstName?.[0] || "") + (member.lastName?.[0] || "")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{member.firstName} {member.lastName}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {dateRange && (
+                              <span className="text-xs text-muted-foreground">{dateRange}</span>
+                            )}
+                            <span className="text-xs text-muted-foreground">{daysLeft}d left</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => restoreMemberMutation.mutate(member.id)}
+                              disabled={restoreMemberMutation.isPending}
+                              data-testid={`button-restore-member-${member.id}`}
+                            >
+                              <Undo2 className="h-4 w-4 text-green-600" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Restore member{savedRels > 0 ? ` with ${savedRels} relationship${savedRels > 1 ? 's' : ''}` : ''}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            if (confirm("Permanently delete this member? This cannot be undone.")) {
+                              permanentDeleteMemberMutation.mutate(member.id);
+                            }
+                          }}
+                          disabled={permanentDeleteMemberMutation.isPending}
+                          data-testid={`button-permanent-delete-member-${member.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => restoreMemberMutation.mutate(member.id)}
-                        disabled={restoreMemberMutation.isPending}
-                        data-testid={`button-restore-member-${member.id}`}
-                      >
-                        <Undo2 className="h-4 w-4 text-green-600" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          if (confirm("Permanently delete this member? This cannot be undone.")) {
-                            permanentDeleteMemberMutation.mutate(member.id);
-                          }
-                        }}
-                        disabled={permanentDeleteMemberMutation.isPending}
-                        data-testid={`button-permanent-delete-member-${member.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
+                    {(badges.length > 0 || savedRels > 0) && (
+                      <div className="flex items-center gap-1.5 flex-wrap pl-13">
+                        {savedRels > 0 && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            {savedRels} relationship{savedRels > 1 ? 's' : ''} saved
+                          </Badge>
+                        )}
+                        {badges.slice(0, 3).map((badge: string, idx: number) => (
+                          <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
+                            {badge}
+                          </Badge>
+                        ))}
+                        {badges.length > 3 && (
+                          <span className="text-[10px] text-muted-foreground">+{badges.length - 3} more</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })

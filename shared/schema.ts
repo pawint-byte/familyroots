@@ -122,6 +122,7 @@ export const relationships = pgTable("relationships", {
   relationshipType: text("relationship_type").notNull(),
   qualifier: text("qualifier"),
   customLabel: text("custom_label"),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
