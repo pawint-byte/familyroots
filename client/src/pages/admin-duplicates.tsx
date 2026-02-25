@@ -97,6 +97,7 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
   const [keepId, setKeepId] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [syncFields, setSyncFields] = useState<Record<string, Record<string, string | null>>>({});
+  const [selectedRels, setSelectedRels] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   const versions = group.versions;
@@ -132,6 +133,7 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
         keepMemberId: selectedKeep,
         keepTreeId: keepVersion.treeId,
         removeMemberIds: removeIds,
+        selectedRelationships: Array.from(selectedRels),
       });
     },
     onSuccess: async (response: any) => {
@@ -428,16 +430,66 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
               </div>
             ))}
 
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mt-2">
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4 rotate-180" />
-                Relationships will be transferred
-              </p>
-              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                All {removeVersions.reduce((sum, v) => sum + v.relationshipCount, 0)} relationship(s) from the removed versions will be automatically transferred to the kept version.
-                Any related members not already in "{keepVersion?.treeName}" will be copied in.
-              </p>
-            </div>
+            {(() => {
+              const transferableRels = removeVersions.flatMap(v =>
+                v.relationships.map((r, i) => ({
+                  key: `${v.id}|${r.type}|${r.otherName}|${i}`,
+                  sourceTree: v.treeName,
+                  sourceMemberId: v.id,
+                  type: r.type,
+                  qualifier: r.qualifier,
+                  otherName: r.otherName,
+                }))
+              );
+              if (transferableRels.length === 0) return null;
+              return (
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mt-2">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                    Select relationships to transfer to kept version:
+                  </p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {transferableRels.map(rel => (
+                      <label key={rel.key} className="flex items-center gap-2 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/30 rounded px-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedRels.has(rel.key)}
+                          onChange={(e) => {
+                            const next = new Set(selectedRels);
+                            if (e.target.checked) next.add(rel.key);
+                            else next.delete(rel.key);
+                            setSelectedRels(next);
+                          }}
+                          className="rounded border-blue-300"
+                          data-testid={`checkbox-rel-${rel.key}`}
+                        />
+                        <span className="text-xs text-blue-800 dark:text-blue-200">
+                          <strong>{rel.type}</strong>{rel.qualifier ? ` (${rel.qualifier})` : ''}: {rel.otherName}
+                          <span className="text-blue-500 ml-1">from {rel.sourceTree}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      className="text-[10px] text-blue-600 dark:text-blue-400 underline"
+                      onClick={() => {
+                        const all = new Set(transferableRels.map(r => r.key));
+                        setSelectedRels(all);
+                      }}
+                      data-testid="button-select-all-rels"
+                    >Select All</button>
+                    <button
+                      className="text-[10px] text-blue-600 dark:text-blue-400 underline"
+                      onClick={() => setSelectedRels(new Set())}
+                      data-testid="button-deselect-all-rels"
+                    >Deselect All</button>
+                  </div>
+                  <p className="text-[10px] text-blue-600 dark:text-blue-300 mt-1">
+                    {selectedRels.size} of {transferableRels.length} selected. Unchecked relationships will not be transferred.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
 
           <DialogFooter>

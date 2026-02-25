@@ -8818,10 +8818,12 @@ export async function registerRoutes(
   app.post("/api/admin/duplicates/merge", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub;
-      const { keepMemberId, keepTreeId, removeMemberIds } = req.body;
+      const { keepMemberId, keepTreeId, removeMemberIds, selectedRelationships } = req.body;
       if (!keepMemberId || !keepTreeId || !removeMemberIds?.length) {
         return res.status(400).json({ message: "keepMemberId, keepTreeId, and removeMemberIds are required" });
       }
+
+      const selectedRelKeys: Set<string> = new Set(selectedRelationships || []);
 
       const keepTree = await storage.getTree(keepTreeId);
       if (!keepTree || keepTree.ownerId !== userId) {
@@ -8831,8 +8833,6 @@ export async function registerRoutes(
       const keepMembers = await storage.getMembers(keepTreeId);
       const keepMember = keepMembers.find(m => m.id === keepMemberId);
       if (!keepMember) return res.status(404).json({ message: "Keep member not found" });
-
-      const keepRels = await storage.getRelationships(keepTreeId);
 
       const transferred: string[] = [];
       const copiedMembers: string[] = [];
@@ -8848,10 +8848,14 @@ export async function registerRoutes(
           const treeRels = await storage.getRelationships(tree.id);
           const memberRels = treeRels.filter(r => r.fromMemberId === rmId || r.toMemberId === rmId);
 
-          for (const rel of memberRels) {
+          for (let i = 0; i < memberRels.length; i++) {
+            const rel = memberRels[i];
             const otherIdInSource = rel.fromMemberId === rmId ? rel.toMemberId : rel.fromMemberId;
             const otherSourceMember = members.find(m => m.id === otherIdInSource);
             if (!otherSourceMember) continue;
+
+            const relKey = `${rmId}|${rel.relationshipType}|${otherSourceMember.firstName}${otherSourceMember.lastName ? ' ' + otherSourceMember.lastName : ''}|${i}`;
+            if (selectedRelKeys.size > 0 && !selectedRelKeys.has(relKey)) continue;
 
             const refreshedKeepMembers = await storage.getMembers(keepTreeId);
             let otherInKeep = refreshedKeepMembers.find(m =>
