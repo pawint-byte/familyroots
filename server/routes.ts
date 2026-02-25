@@ -9331,6 +9331,61 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/trees/:treeId/members-detail", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const members = (await storage.getMembers(treeId)).filter(m => !m.deletedAt);
+      const rels = (await storage.getRelationships(treeId)).filter(r => !r.deletedAt);
+      
+      const detailed = members.map(m => {
+        const memberRels = rels.filter(r => r.fromMemberId === m.id || r.toMemberId === m.id);
+        const relDetails = memberRels.map(r => {
+          const otherId = r.fromMemberId === m.id ? r.toMemberId : r.fromMemberId;
+          const other = members.find(x => x.id === otherId);
+          const direction = r.fromMemberId === m.id ? 'from' : 'to';
+          return {
+            relId: r.id,
+            type: r.relationshipType,
+            qualifier: r.qualifier,
+            otherMemberId: otherId,
+            otherName: other ? `${other.firstName} ${other.lastName || ''}`.trim() : 'unknown',
+            direction,
+          };
+        });
+        return {
+          id: m.id,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          birthDate: m.birthDate,
+          email: m.email,
+          claimedByUserId: m.claimedByUserId,
+          relationships: relDetails,
+        };
+      });
+      res.json(detailed);
+    } catch (error: any) {
+      console.error("Error getting member details:", error);
+      res.status(500).json({ message: "Failed to get member details" });
+    }
+  });
+
+  app.delete("/api/admin/members/:memberId/force-delete", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      await db.update(relationshipsTable).set({ deletedAt: new Date() }).where(
+        or(
+          eq(relationshipsTable.fromMemberId, memberId),
+          eq(relationshipsTable.toMemberId, memberId)
+        )
+      );
+      await db.update(familyMembers).set({ deletedAt: new Date() }).where(eq(familyMembers.id, memberId));
+      res.json({ message: "Member soft-deleted", memberId });
+    } catch (error: any) {
+      console.error("Error force-deleting member:", error);
+      res.status(500).json({ message: "Failed to delete member" });
+    }
+  });
+
   // Admin: Get all user connections
   app.get("/api/admin/connections", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
