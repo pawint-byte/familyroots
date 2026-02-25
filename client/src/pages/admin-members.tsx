@@ -55,7 +55,9 @@ export default function AdminMembers() {
     enabled: isAdmin?.isAdmin === true,
   });
 
-  const { data: members = [], isLoading: loadingMembers } = useQuery<FamilyMember[]>({
+  const [showDeleted, setShowDeleted] = useState(false);
+
+  const { data: allMembers = [], isLoading: loadingMembers } = useQuery<FamilyMember[]>({
     queryKey: ["/api/admin/trees", selectedTreeId, "members"],
     queryFn: async () => {
       const res = await fetch(`/api/admin/trees/${selectedTreeId}/members`, { credentials: "include" });
@@ -64,6 +66,8 @@ export default function AdminMembers() {
     },
     enabled: !!selectedTreeId && isAdmin?.isAdmin === true,
   });
+
+  const members = showDeleted ? allMembers : allMembers.filter((m: any) => !m.deletedAt);
 
   const updateMutation = useMutation({
     mutationFn: async (data: { memberId: string; updates: Partial<FamilyMember> }) => {
@@ -167,8 +171,14 @@ export default function AdminMembers() {
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Members</CardTitle>
-              <CardDescription>Click a member to edit</CardDescription>
+              <CardTitle>Members ({members.length})</CardTitle>
+              <CardDescription className="flex items-center justify-between">
+                <span>Click a member to edit</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} />
+                  <span className="text-xs">Show deleted</span>
+                </label>
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {loadingMembers ? (
@@ -176,18 +186,68 @@ export default function AdminMembers() {
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
               ) : (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
+                <div className="space-y-2 max-h-[500px] overflow-y-auto">
                   {members.map((member) => (
-                    <Button
+                    <div
                       key={member.id}
-                      variant={selectedMember?.id === member.id ? "default" : "outline"}
-                      className="w-full justify-start"
+                      className={`flex items-center justify-between p-2 rounded border cursor-pointer ${selectedMember?.id === member.id ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`}
                       onClick={() => handleSelectMember(member)}
                       data-testid={`member-${member.id}`}
                     >
-                      {member.firstName || "?"} {member.lastName || ""}
-                      {member.nickname && ` (${member.nickname})`}
-                    </Button>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {member.firstName || "?"} {member.lastName || ""}
+                          {member.nickname && ` (${member.nickname})`}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {member.birthDate || 'No DOB'}{member.deathDate ? ` - ${member.deathDate}` : ''} | {member.email || 'No email'} | ID: {member.id.slice(0, 8)}
+                        </p>
+                        {(member as any).deletedAt && <p className="text-[10px] text-red-500 font-medium">DELETED</p>}
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                        {(member as any).deletedAt ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-green-600 hover:text-green-700 text-xs"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await apiRequest("PATCH", `/api/admin/members/${member.id}/restore`);
+                                toast({ title: "Restored", description: `${member.firstName} ${member.lastName} restored` });
+                                queryClient.invalidateQueries({ queryKey: ["/api/admin/trees", selectedTreeId, "members"] });
+                              } catch (err: any) {
+                                toast({ title: "Failed", description: err.message, variant: "destructive" });
+                              }
+                            }}
+                            data-testid={`restore-member-${member.id}`}
+                          >
+                            Restore
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm(`Delete "${member.firstName} ${member.lastName}"? This will soft-delete the member and all their relationships.`)) return;
+                              try {
+                                await apiRequest("DELETE", `/api/admin/members/${member.id}/force-delete`);
+                                toast({ title: "Deleted", description: `${member.firstName} ${member.lastName} removed` });
+                                queryClient.invalidateQueries({ queryKey: ["/api/admin/trees", selectedTreeId, "members"] });
+                                if (selectedMember?.id === member.id) setSelectedMember(null);
+                              } catch (err: any) {
+                                toast({ title: "Failed", description: err.message, variant: "destructive" });
+                              }
+                            }}
+                            data-testid={`delete-member-${member.id}`}
+                          >
+                            X
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}

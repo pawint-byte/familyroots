@@ -9386,6 +9386,23 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/admin/members/:memberId/restore", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      await db.update(familyMembers).set({ deletedAt: null }).where(eq(familyMembers.id, memberId));
+      await db.update(relationshipsTable).set({ deletedAt: null }).where(
+        or(
+          eq(relationshipsTable.fromMemberId, memberId),
+          eq(relationshipsTable.toMemberId, memberId)
+        )
+      );
+      res.json({ message: "Member restored", memberId });
+    } catch (error: any) {
+      console.error("Error restoring member:", error);
+      res.status(500).json({ message: "Failed to restore member" });
+    }
+  });
+
   // Admin: Get all user connections
   app.get("/api/admin/connections", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
