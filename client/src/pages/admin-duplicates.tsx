@@ -414,7 +414,7 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
               <div className="flex items-center gap-2">
                 <Copy className="h-4 w-4 text-blue-500" />
                 <span className="text-sm">
-                  <strong>Sync:</strong> {Object.keys(syncFields[selectedKeep]).join(", ")}
+                  <strong>Sync fields:</strong> {Object.keys(syncFields[selectedKeep]).join(", ")}
                 </span>
               </div>
             )}
@@ -427,6 +427,17 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
                 </span>
               </div>
             ))}
+
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mt-2">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                <ArrowLeft className="h-4 w-4 rotate-180" />
+                Relationships will be transferred
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                All {removeVersions.reduce((sum, v) => sum + v.relationshipCount, 0)} relationship(s) from the removed versions will be automatically transferred to the kept version.
+                Any related members not already in "{keepVersion?.treeName}" will be copied in.
+              </p>
+            </div>
           </div>
 
           <DialogFooter>
