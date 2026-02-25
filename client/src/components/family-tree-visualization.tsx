@@ -5,6 +5,28 @@ import { parseDateString } from "@/lib/utils";
 import type { FamilyMember, Relationship } from "@shared/schema";
 import type { MemberUpcomingEvent } from "@/components/group-visualization";
 
+export interface PreviewMemberData {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  photoUrl: string | null;
+  gender: string | null;
+}
+
+export interface PreviewRelationship {
+  fromMemberId: string;
+  toMemberId: string;
+  relationshipType: string;
+  qualifier: string | null;
+}
+
+export interface ImportPreviewConfig {
+  members: PreviewMemberData[];
+  relationships: PreviewRelationship[];
+  connectorSourceMemberId: string | null;
+  connectorTargetMemberId: string | null;
+}
+
 interface FamilyTreeVisualizationProps {
   members: FamilyMember[];
   relationships: Relationship[];
@@ -14,6 +36,8 @@ interface FamilyTreeVisualizationProps {
   focusMemberId?: string | null;
   viewDepth?: 'immediate' | 'extended' | 'all';
   upcomingEvents?: MemberUpcomingEvent[];
+  onMemberPositionChange?: (memberId: string, position: { x: number; y: number }) => void;
+  importPreview?: ImportPreviewConfig | null;
 }
 
 type RelationshipQualifier = 'biological' | 'step' | 'adopted' | 'foster' | 'half' | 'in-law' | null;
@@ -62,6 +86,8 @@ export default function FamilyTreeVisualization({
   focusMemberId,
   viewDepth = 'all',
   upcomingEvents,
+  onMemberPositionChange,
+  importPreview,
 }: FamilyTreeVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1065,10 +1091,184 @@ export default function FamilyTreeVisualization({
         }
       }
     }
+    const restoredOffsets = new Map<string, { x: number; y: number }>();
+    for (const pos of rawPositions) {
+      const saved = (pos.member as any).customPosition;
+      if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
+        restoredOffsets.set(pos.member.id, {
+          x: saved.x - pos.x,
+          y: saved.y - pos.y,
+        });
+      }
+    }
     setPositions(rawPositions);
     setBranchLabels(result.labels);
-    setNodeDragOffsets(new Map());
+    setNodeDragOffsets(restoredOffsets);
   }, [calculateHierarchicalPositions]);
+
+  const previewPositions = useMemo(() => {
+    if (!importPreview || importPreview.members.length === 0 || positions.length === 0) return [];
+
+    const { members: previewMembers, relationships: previewRels, connectorSourceMemberId, connectorTargetMemberId } = importPreview;
+    const previewNodes: Array<{ x: number; y: number; member: PreviewMemberData }> = [];
+    const placedPreviewIds = new Set<string>();
+    const existingMemberIds = new Set(positions.map(p => p.member.id));
+
+    const connectorPos = connectorTargetMemberId
+      ? positions.find(p => p.member.id === connectorTargetMemberId)
+      : null;
+
+    if (!connectorPos) {
+      let startX = Math.max(...positions.map(p => p.x)) + nodeWidth + horizontalGap * 2;
+      for (const pm of previewMembers) {
+        previewNodes.push({ x: startX, y: 50, member: pm });
+        startX += nodeWidth + horizontalGap;
+      }
+      return previewNodes;
+    }
+
+    const parentMap = new Map<string, string[]>();
+    const childMap = new Map<string, string[]>();
+    const spouseMap = new Map<string, string[]>();
+    const siblingMap = new Map<string, string[]>();
+
+    for (const rel of previewRels) {
+      if (rel.relationshipType === 'parent') {
+        if (!childMap.has(rel.fromMemberId)) childMap.set(rel.fromMemberId, []);
+        childMap.get(rel.fromMemberId)!.push(rel.toMemberId);
+        if (!parentMap.has(rel.toMemberId)) parentMap.set(rel.toMemberId, []);
+        parentMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+      } else if (rel.relationshipType === 'spouse' || rel.relationshipType === 'co_parent') {
+        if (!spouseMap.has(rel.fromMemberId)) spouseMap.set(rel.fromMemberId, []);
+        spouseMap.get(rel.fromMemberId)!.push(rel.toMemberId);
+        if (!spouseMap.has(rel.toMemberId)) spouseMap.set(rel.toMemberId, []);
+        spouseMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+      } else if (rel.relationshipType === 'sibling') {
+        if (!siblingMap.has(rel.fromMemberId)) siblingMap.set(rel.fromMemberId, []);
+        siblingMap.get(rel.fromMemberId)!.push(rel.toMemberId);
+        if (!siblingMap.has(rel.toMemberId)) siblingMap.set(rel.toMemberId, []);
+        siblingMap.get(rel.toMemberId)!.push(rel.fromMemberId);
+      }
+    }
+
+    const previewMemberMap = new Map(previewMembers.map(m => [m.id, m]));
+    const getPosition = (id: string) => {
+      const existing = positions.find(p => p.member.id === id);
+      if (existing) {
+        const dragOff = nodeDragOffsets.get(id);
+        return { x: existing.x + (dragOff?.x || 0), y: existing.y + (dragOff?.y || 0) };
+      }
+      const preview = previewNodes.find(p => p.member.id === id);
+      return preview ? { x: preview.x, y: preview.y } : null;
+    };
+
+    const placePreviewMember = (memberId: string, x: number, y: number) => {
+      const member = previewMemberMap.get(memberId);
+      if (!member || placedPreviewIds.has(memberId) || existingMemberIds.has(memberId)) return;
+      placedPreviewIds.add(memberId);
+      previewNodes.push({ x, y, member });
+    };
+
+    const isPlaced = (id: string) => existingMemberIds.has(id) || placedPreviewIds.has(id);
+
+    const queue: string[] = [];
+    if (connectorSourceMemberId && previewMemberMap.has(connectorSourceMemberId)) {
+      const cDragOff = nodeDragOffsets.get(connectorPos.member.id);
+      const cx = connectorPos.x + (cDragOff?.x || 0);
+      const cy = connectorPos.y + (cDragOff?.y || 0);
+
+      const parents = parentMap.get(connectorSourceMemberId) || [];
+      const children = childMap.get(connectorSourceMemberId) || [];
+      const spouses = spouseMap.get(connectorSourceMemberId) || [];
+      const siblings = siblingMap.get(connectorSourceMemberId) || [];
+
+      let parentX = cx - ((parents.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+      for (const pid of parents) {
+        placePreviewMember(pid, parentX, cy - verticalGap);
+        parentX += nodeWidth + horizontalGap / 2;
+        queue.push(pid);
+      }
+
+      let childX = cx - ((children.length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+      for (const cid of children) {
+        placePreviewMember(cid, childX, cy + verticalGap);
+        childX += nodeWidth + horizontalGap / 2;
+        queue.push(cid);
+      }
+
+      let spouseX = cx + nodeWidth + horizontalGap / 3;
+      for (const sid of spouses) {
+        placePreviewMember(sid, spouseX, cy);
+        spouseX += nodeWidth + horizontalGap / 3;
+        queue.push(sid);
+      }
+
+      let siblingX = cx + nodeWidth + horizontalGap;
+      for (const sid of siblings) {
+        placePreviewMember(sid, siblingX, cy);
+        siblingX += nodeWidth + horizontalGap;
+        queue.push(sid);
+      }
+    }
+
+    let iterations = 0;
+    while (queue.length > 0 && iterations < 500) {
+      iterations++;
+      const currentId = queue.shift()!;
+      const currentPos = getPosition(currentId);
+      if (!currentPos) continue;
+
+      const parents = parentMap.get(currentId) || [];
+      const children = childMap.get(currentId) || [];
+      const spouses = spouseMap.get(currentId) || [];
+      const siblings = siblingMap.get(currentId) || [];
+
+      let parentX = currentPos.x - ((parents.filter(p => !isPlaced(p)).length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+      for (const pid of parents) {
+        if (!isPlaced(pid)) {
+          placePreviewMember(pid, parentX, currentPos.y - verticalGap);
+          parentX += nodeWidth + horizontalGap / 2;
+          queue.push(pid);
+        }
+      }
+
+      let childX = currentPos.x - ((children.filter(c => !isPlaced(c)).length - 1) * (nodeWidth + horizontalGap / 2)) / 2;
+      for (const cid of children) {
+        if (!isPlaced(cid)) {
+          placePreviewMember(cid, childX, currentPos.y + verticalGap);
+          childX += nodeWidth + horizontalGap / 2;
+          queue.push(cid);
+        }
+      }
+
+      let spouseX = currentPos.x + nodeWidth + horizontalGap / 3;
+      for (const sid of spouses) {
+        if (!isPlaced(sid)) {
+          placePreviewMember(sid, spouseX, currentPos.y);
+          spouseX += nodeWidth + horizontalGap / 3;
+          queue.push(sid);
+        }
+      }
+
+      let siblingX = currentPos.x + nodeWidth + horizontalGap;
+      for (const sid of siblings) {
+        if (!isPlaced(sid)) {
+          placePreviewMember(sid, siblingX, currentPos.y);
+          siblingX += nodeWidth + horizontalGap;
+          queue.push(sid);
+        }
+      }
+    }
+
+    for (const pm of previewMembers) {
+      if (!placedPreviewIds.has(pm.id) && !existingMemberIds.has(pm.id)) {
+        const maxX = Math.max(...previewNodes.map(p => p.x), ...positions.map(p => p.x)) + nodeWidth + horizontalGap;
+        placePreviewMember(pm.id, maxX, connectorPos.y);
+      }
+    }
+
+    return previewNodes;
+  }, [importPreview, positions, nodeDragOffsets, nodeWidth, nodeHeight, horizontalGap, verticalGap]);
 
   useEffect(() => {
     if (positions.length === 0 || !containerRef.current) return;
@@ -1130,9 +1330,19 @@ export default function FamilyTreeVisualization({
   }, [draggingNodeId, positions, zoom, nodeDragStart, offset]);
 
   const handleNodeDragEnd = useCallback(() => {
+    if (draggingNodeId && onMemberPositionChange) {
+      const pos = positions.find(p => p.member.id === draggingNodeId);
+      const dragOff = nodeDragOffsets.get(draggingNodeId);
+      if (pos && dragOff) {
+        onMemberPositionChange(draggingNodeId, {
+          x: pos.x + dragOff.x,
+          y: pos.y + dragOff.y,
+        });
+      }
+    }
     setDraggingNodeId(null);
     setTimeout(() => setWasDragged(false), 50);
-  }, []);
+  }, [draggingNodeId, positions, nodeDragOffsets, onMemberPositionChange]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-member-node]")) return;
@@ -1448,10 +1658,12 @@ export default function FamilyTreeVisualization({
     return lines;
   };
 
-  const minX = positions.length > 0 ? Math.min(...positions.map((p) => p.x)) - 100 : 0;
-  const minY = positions.length > 0 ? Math.min(...positions.map((p) => p.y)) - 100 : 0;
-  const maxX = positions.length > 0 ? Math.max(...positions.map((p) => p.x)) + nodeWidth + 200 : 1000;
-  const maxY = positions.length > 0 ? Math.max(...positions.map((p) => p.y)) + nodeHeight + 200 : 800;
+  const allPositionXValues = [...positions.map(p => p.x), ...previewPositions.map(p => p.x)];
+  const allPositionYValues = [...positions.map(p => p.y), ...previewPositions.map(p => p.y)];
+  const minX = allPositionXValues.length > 0 ? Math.min(...allPositionXValues) - 100 : 0;
+  const minY = allPositionYValues.length > 0 ? Math.min(...allPositionYValues) - 100 : 0;
+  const maxX = allPositionXValues.length > 0 ? Math.max(...allPositionXValues) + nodeWidth + 200 : 1000;
+  const maxY = allPositionYValues.length > 0 ? Math.max(...allPositionYValues) + nodeHeight + 200 : 800;
   const svgWidth = maxX - Math.min(minX, 0);
   const svgHeight = maxY - Math.min(minY, 0);
 
@@ -1690,6 +1902,104 @@ export default function FamilyTreeVisualization({
             </div>
           );
         })}
+
+        {previewPositions.length > 0 && (
+          <>
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              style={{ zIndex: 0 }}
+              width={svgWidth}
+              height={svgHeight}
+            >
+              {importPreview && previewPositions.map((pp) => {
+                const ppCenter = { x: pp.x + nodeWidth / 2, y: pp.y + nodeHeight / 2 };
+                const lines: JSX.Element[] = [];
+                for (const rel of importPreview.relationships) {
+                  if (rel.fromMemberId !== pp.member.id) continue;
+                  const targetExisting = positions.find(p => p.member.id === rel.toMemberId);
+                  const targetPreview = previewPositions.find(p => p.member.id === rel.toMemberId);
+                  const target = targetExisting || targetPreview;
+                  if (!target) continue;
+                  const tx = target.x + (targetExisting ? (nodeDragOffsets.get(target.member.id)?.x || 0) : 0);
+                  const ty = target.y + (targetExisting ? (nodeDragOffsets.get(target.member.id)?.y || 0) : 0);
+                  const tCenter = { x: tx + nodeWidth / 2, y: ty + nodeHeight / 2 };
+                  lines.push(
+                    <line
+                      key={`preview-line-${rel.fromMemberId}-${rel.toMemberId}`}
+                      x1={ppCenter.x}
+                      y1={ppCenter.y}
+                      x2={tCenter.x}
+                      y2={tCenter.y}
+                      stroke="hsl(142 60% 50%)"
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                      opacity={0.5}
+                    />
+                  );
+                }
+                return lines;
+              })}
+              {importPreview && importPreview.connectorTargetMemberId && (() => {
+                const ctmId = importPreview.connectorTargetMemberId;
+                const csmId = importPreview.connectorSourceMemberId;
+                if (!ctmId || !csmId) return null;
+                const targetPos = positions.find(p => p.member.id === ctmId);
+                const sourcePreview = previewPositions.find(p => p.member.id === csmId);
+                if (!targetPos || !sourcePreview) return null;
+                const tDrag = nodeDragOffsets.get(ctmId) || { x: 0, y: 0 };
+                return (
+                  <line
+                    x1={targetPos.x + tDrag.x + nodeWidth / 2}
+                    y1={targetPos.y + tDrag.y + nodeHeight / 2}
+                    x2={sourcePreview.x + nodeWidth / 2}
+                    y2={sourcePreview.y + nodeHeight / 2}
+                    stroke="hsl(142 60% 50%)"
+                    strokeWidth={2.5}
+                    strokeDasharray="8 4"
+                    opacity={0.7}
+                  />
+                );
+              })()}
+            </svg>
+
+            {previewPositions.map((pp) => (
+              <div
+                key={`preview-${pp.member.id}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: pp.x,
+                  top: pp.y,
+                  width: nodeWidth,
+                  opacity: 0.55,
+                  zIndex: 2,
+                }}
+                data-testid={`preview-node-${pp.member.id}`}
+              >
+                <div className="relative rounded-md p-3 shadow-sm border-2 border-dashed border-emerald-400 dark:border-emerald-500 bg-emerald-50/80 dark:bg-emerald-900/30">
+                  <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-md z-10">+</div>
+                  <div className="flex flex-col items-center text-center pt-2">
+                    <Avatar className="h-14 w-14 mb-2 ring-2 ring-emerald-400/50 shadow-md">
+                      <AvatarImage src={pp.member.photoUrl || undefined} />
+                      <AvatarFallback className="font-serif text-lg bg-emerald-100 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200">
+                        {pp.member.firstName[0]}
+                        {pp.member.lastName?.[0] || ""}
+                      </AvatarFallback>
+                    </Avatar>
+                    <h3 className="font-semibold text-sm truncate w-full text-emerald-800 dark:text-emerald-200">
+                      {pp.member.firstName}
+                    </h3>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 truncate w-full">
+                      {pp.member.lastName || ""}
+                    </p>
+                    <div className="mt-2 px-2 py-0.5 rounded-full text-[9px] font-medium uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                      Preview
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

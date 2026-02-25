@@ -28,7 +28,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
   LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors,
-  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight, UserPlus, BookHeart, BarChart3, Copy
+  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight, UserPlus, BookHeart, BarChart3, Copy, Save
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -150,6 +150,7 @@ export default function TreeView() {
     connectorMemberId: string;
     sourceTreeName: string;
   } | null>(null);
+  const [importPreviewData, setImportPreviewData] = useState<import("@/components/branch-import-dialog").ImportPreviewData | null>(null);
   const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
   const [newTagLabel, setNewTagLabel] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
@@ -537,12 +538,64 @@ export default function TreeView() {
     },
   });
 
+  const importPreviewConfig = useMemo(() => {
+    if (!importPreviewData) return null;
+    return {
+      members: importPreviewData.selectedMembers.map(m => ({
+        id: m.id,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        photoUrl: m.photoUrl,
+        gender: m.gender,
+      })),
+      relationships: importPreviewData.relationships,
+      connectorSourceMemberId: importPreviewData.connectorMemberIds.sourceMemberId,
+      connectorTargetMemberId: importPreviewData.connectorMemberIds.targetMemberId,
+    };
+  }, [importPreviewData]);
+
+  const [pendingPositionChanges, setPendingPositionChanges] = useState<Map<string, { x: number; y: number }>>(new Map());
+
   const handleMemberPositionChange = useCallback(
     (memberId: string, position: { x: number; y: number }) => {
-      updateMemberPositionMutation.mutate({ memberId, position });
+      setPendingPositionChanges(prev => {
+        const next = new Map(prev);
+        next.set(memberId, position);
+        return next;
+      });
     },
-    [updateMemberPositionMutation]
+    []
   );
+
+  const saveLayoutMutation = useMutation({
+    mutationFn: async (positions: Array<{ memberId: string; position: { x: number; y: number } }>) => {
+      await apiRequest("PATCH", `/api/trees/${treeId}/members/positions`, { positions });
+    },
+    onSuccess: () => {
+      setPendingPositionChanges(new Map());
+      queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      toast({
+        title: "Layout saved",
+        description: "Node positions have been saved successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to save layout positions",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveLayout = useCallback(() => {
+    if (pendingPositionChanges.size === 0) return;
+    const positions = Array.from(pendingPositionChanges.entries()).map(([memberId, position]) => ({
+      memberId,
+      position,
+    }));
+    saveLayoutMutation.mutate(positions);
+  }, [pendingPositionChanges, saveLayoutMutation]);
 
   const renameTreeMutation = useMutation({
     mutationFn: async (data: { name?: string; treeType?: string; treeTypeLabel?: string | null }) => {
@@ -2066,6 +2119,8 @@ export default function TreeView() {
                       focusMemberId={focusMemberId || treeData?.tree?.rootMemberId || null}
                       viewDepth={viewDepth}
                       upcomingEvents={upcomingEvents}
+                      onMemberPositionChange={canEditTree ? handleMemberPositionChange : undefined}
+                      importPreview={importPreviewConfig}
                     />
                   ) : (
                     <GroupVisualization
@@ -2449,6 +2504,26 @@ export default function TreeView() {
             >
               <ZoomIn className="h-5 w-5 sm:h-4 sm:w-4" />
             </Button>
+            {canEditTree && pendingPositionChanges.size > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="icon"
+                    onClick={handleSaveLayout}
+                    disabled={saveLayoutMutation.isPending}
+                    data-testid="button-save-layout"
+                    className="h-10 w-10 sm:h-9 sm:w-9"
+                    aria-label="Save layout"
+                  >
+                    <Save className="h-5 w-5 sm:h-4 sm:w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Save layout ({pendingPositionChanges.size} changed)</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </>
       )}
@@ -3654,11 +3729,13 @@ export default function TreeView() {
           onClose={() => {
             setImportDialogOpen(false);
             setImportConnectionData(null);
+            setImportPreviewData(null);
           }}
           treeId={treeId}
           connectionId={importConnectionData.connectionId}
           connectorMemberId={importConnectionData.connectorMemberId}
           sourceTreeName={importConnectionData.sourceTreeName}
+          onPreviewChange={setImportPreviewData}
         />
       )}
 

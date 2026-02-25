@@ -1482,6 +1482,59 @@ export async function registerRoutes(
     }
   });
 
+  // Batch update member positions (Save Layout)
+  app.patch("/api/trees/:treeId/members/positions", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+
+      let canEdit = false;
+      if (tree.ownerId === userId) {
+        canEdit = true;
+      } else {
+        const collaborators = await storage.getCollaborators(treeId);
+        canEdit = collaborators.some(c => c.userId === userId && c.canEdit);
+      }
+
+      if (!canEdit) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const schema = z.object({
+        positions: z.array(z.object({
+          memberId: z.string().min(1),
+          position: z.object({
+            x: z.number(),
+            y: z.number(),
+          }),
+        })),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request body" });
+      }
+
+      const { positions } = parsed.data;
+
+      await Promise.all(
+        positions.map(({ memberId, position }) =>
+          storage.updateMember(memberId, { customPosition: position } as any)
+        )
+      );
+
+      res.json({ success: true, updated: positions.length });
+    } catch (error) {
+      console.error("Error batch updating positions:", error);
+      res.status(500).json({ message: "Failed to save positions" });
+    }
+  });
+
   // Update a family member
   app.patch("/api/trees/:treeId/members/:memberId", isAuthenticated, async (req: any, res) => {
     try {
@@ -5605,14 +5658,130 @@ export async function registerRoutes(
     }
   });
 
-  // Commit an import (actually import the selected branch)
+  // Get all available members from a connected tree for selective import
+  app.get("/api/trees/:treeId/connections/:connectionId/available-members", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, connectionId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) {
+        return res.status(404).json({ message: "Tree not found" });
+      }
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || (collab.role !== "co_owner" && collab.role !== "editor")) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const connections = await storage.getTreeConnections(treeId);
+      const connection = connections.find(c => c.id === connectionId);
+      if (!connection) {
+        return res.status(404).json({ message: "Connection not found" });
+      }
+
+      const sourceTreeId = connection.tree1Id === treeId ? connection.tree2Id : connection.tree1Id;
+      const sourceTree = await storage.getTree(sourceTreeId);
+      if (!sourceTree) {
+        return res.status(404).json({ message: "Source tree not found" });
+      }
+
+      const sourceMembers = await storage.getMembers(sourceTreeId);
+      const sourceRelationships = await storage.getRelationships(sourceTreeId);
+
+      const alreadyImportedSet = new Set<string>();
+      const importedMembers = await storage.getImportedMembersForTree(treeId);
+      for (const im of importedMembers) {
+        if (im.sourceTreeId === sourceTreeId) {
+          alreadyImportedSet.add(im.sourceMemberId);
+        }
+      }
+
+      const relationshipMap: Record<string, Array<{ memberId: string; type: string; direction: string }>> = {};
+      for (const rel of sourceRelationships) {
+        if (!relationshipMap[rel.fromMemberId]) relationshipMap[rel.fromMemberId] = [];
+        if (!relationshipMap[rel.toMemberId]) relationshipMap[rel.toMemberId] = [];
+        relationshipMap[rel.fromMemberId].push({ memberId: rel.toMemberId, type: rel.relationshipType, direction: "from" });
+        relationshipMap[rel.toMemberId].push({ memberId: rel.fromMemberId, type: rel.relationshipType, direction: "to" });
+      }
+
+      const memberNameMap: Record<string, string> = {};
+      for (const m of sourceMembers) {
+        memberNameMap[m.id] = `${m.firstName}${m.lastName ? ' ' + m.lastName : ''}`;
+      }
+
+      const currentImported = await storage.getImportedMemberCount(treeId);
+      const ownedMembers = await storage.getMembers(treeId);
+      const currentTotal = ownedMembers.length + currentImported;
+
+      const getPricingTier = (count: number) => {
+        if (count >= 100) return { price: 0, label: "FREE" };
+        if (count >= 75) return { price: 2.50, label: "75% off" };
+        if (count >= 50) return { price: 4.99, label: "50% off" };
+        if (count >= 25) return { price: 7.49, label: "25% off" };
+        return { price: 9.99, label: "Base" };
+      };
+
+      const members = sourceMembers.map(m => {
+        const rels = relationshipMap[m.id] || [];
+        const relationshipBadges = rels.slice(0, 3).map(r => {
+          const relLabel = r.direction === "to" && r.type === "parent" ? "child of" :
+                           r.direction === "from" && r.type === "parent" ? "parent of" :
+                           r.type === "spouse" ? "spouse of" :
+                           r.type === "sibling" ? "sibling of" :
+                           `${r.type} of`;
+          return `${relLabel} ${memberNameMap[r.memberId] || "Unknown"}`;
+        });
+
+        const immediateRelativeIds = rels.map(r => r.memberId);
+
+        return {
+          id: m.id,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          photoUrl: m.photoUrl,
+          gender: m.gender,
+          birthDate: m.birthDate,
+          isLiving: m.isLiving,
+          alreadyImported: alreadyImportedSet.has(m.id),
+          relationshipBadges,
+          immediateRelativeIds,
+        };
+      });
+
+      const relationships = sourceRelationships.map(r => ({
+        id: r.id,
+        fromMemberId: r.fromMemberId,
+        toMemberId: r.toMemberId,
+        relationshipType: r.relationshipType,
+        qualifier: r.qualifier || null,
+      }));
+
+      res.json({
+        sourceTree: { id: sourceTree.id, name: sourceTree.name },
+        members,
+        relationships,
+        connectorMemberIds: {
+          sourceMemberId: connection.tree1Id === treeId ? connection.connector2MemberId : connection.connector1MemberId,
+          targetMemberId: connection.tree1Id === treeId ? connection.connector1MemberId : connection.connector2MemberId,
+        },
+        currentTotal,
+        currentTier: getPricingTier(currentTotal),
+      });
+    } catch (error) {
+      console.error("Error fetching available members:", error);
+      res.status(500).json({ message: "Failed to fetch available members" });
+    }
+  });
+
+  // Commit an import (actually import selected members)
   app.post("/api/trees/:treeId/connections/:connectionId/import", isAuthenticated, async (req: any, res) => {
     try {
       const { treeId, connectionId } = req.params;
-      const { rootMemberId, scope = "immediate_family", includeSpouses = true, includeParents = false, includeChildren = true } = req.body;
+      const { memberIds, rootMemberId, scope = "immediate_family", includeSpouses = true, includeParents = false, includeChildren = true } = req.body;
       const userId = req.user.claims.sub;
 
-      // Verify access to the target tree (must be owner or co-owner)
       const tree = await storage.getTree(treeId);
       if (!tree) {
         return res.status(404).json({ message: "Tree not found" });
@@ -5624,95 +5793,105 @@ export async function registerRoutes(
         }
       }
 
-      // Get the connection
       const connections = await storage.getTreeConnections(treeId);
       const connection = connections.find(c => c.id === connectionId);
       if (!connection) {
         return res.status(404).json({ message: "Connection not found" });
       }
 
-      // Determine source tree
       const sourceTreeId = connection.tree1Id === treeId ? connection.tree2Id : connection.tree1Id;
 
-      // Create import config
+      let selectedMemberIds: Set<string>;
+
+      if (memberIds && Array.isArray(memberIds) && memberIds.length > 0) {
+        const sourceMembers = await storage.getMembers(sourceTreeId);
+        const validIds = new Set(sourceMembers.map(m => m.id));
+        const invalidIds = memberIds.filter((id: string) => !validIds.has(id));
+        if (invalidIds.length > 0) {
+          return res.status(400).json({ message: "Some selected members do not belong to the source tree" });
+        }
+        selectedMemberIds = new Set(memberIds);
+      } else if (rootMemberId) {
+        const sourceMembers = await storage.getMembers(sourceTreeId);
+        const sourceRelationships = await storage.getRelationships(sourceTreeId);
+
+        const getRelatedMembers = (memberId: string): { parents: string[], children: string[], spouses: string[], siblings: string[] } => {
+          const parents: string[] = [];
+          const children: string[] = [];
+          const spouses: string[] = [];
+          const siblings: string[] = [];
+          for (const rel of sourceRelationships) {
+            if (rel.fromMemberId === memberId) {
+              if (rel.relationshipType === "parent") children.push(rel.toMemberId);
+              if (rel.relationshipType === "spouse") spouses.push(rel.toMemberId);
+              if (rel.relationshipType === "sibling") siblings.push(rel.toMemberId);
+            }
+            if (rel.toMemberId === memberId) {
+              if (rel.relationshipType === "parent") parents.push(rel.fromMemberId);
+              if (rel.relationshipType === "spouse") spouses.push(rel.fromMemberId);
+              if (rel.relationshipType === "sibling") siblings.push(rel.fromMemberId);
+            }
+          }
+          return { parents, children, spouses, siblings };
+        };
+
+        selectedMemberIds = new Set<string>();
+        selectedMemberIds.add(rootMemberId);
+
+        if (scope === "single") {
+        } else if (scope === "immediate_family") {
+          const related = getRelatedMembers(rootMemberId);
+          if (includeSpouses) related.spouses.forEach(id => selectedMemberIds.add(id));
+          if (includeParents) related.parents.forEach(id => selectedMemberIds.add(id));
+          if (includeChildren) related.children.forEach(id => selectedMemberIds.add(id));
+          related.siblings.forEach(id => selectedMemberIds.add(id));
+        } else if (scope === "descendants") {
+          const queue = [rootMemberId];
+          while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            const related = getRelatedMembers(currentId);
+            if (includeSpouses) related.spouses.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); } });
+            related.children.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); queue.push(id); } });
+          }
+        } else if (scope === "ancestors") {
+          const queue = [rootMemberId];
+          while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            const related = getRelatedMembers(currentId);
+            if (includeSpouses) related.spouses.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); } });
+            related.parents.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); queue.push(id); } });
+          }
+        }
+      } else {
+        return res.status(400).json({ message: "Either memberIds or rootMemberId must be provided" });
+      }
+
       const importConfig = await storage.createImportConfig({
         connectionId,
         sourceTreeId,
         targetTreeId: treeId,
-        importRootMemberId: rootMemberId,
-        importScope: scope,
-        includeSpouses,
-        includeParents,
-        includeChildren,
+        importRootMemberId: rootMemberId || Array.from(selectedMemberIds)[0],
+        importScope: memberIds ? "custom" : scope,
+        includeSpouses: memberIds ? false : includeSpouses,
+        includeParents: memberIds ? false : includeParents,
+        includeChildren: memberIds ? false : includeChildren,
         createdBy: userId
       });
 
-      // Get members based on the same logic as preview
-      const sourceMembers = await storage.getMembers(sourceTreeId);
-      const sourceRelationships = await storage.getRelationships(sourceTreeId);
-
-      const getRelatedMembers = (memberId: string): { parents: string[], children: string[], spouses: string[], siblings: string[] } => {
-        const parents: string[] = [];
-        const children: string[] = [];
-        const spouses: string[] = [];
-        const siblings: string[] = [];
-
-        for (const rel of sourceRelationships) {
-          if (rel.fromMemberId === memberId) {
-            if (rel.relationshipType === "parent") children.push(rel.toMemberId);
-            if (rel.relationshipType === "spouse") spouses.push(rel.toMemberId);
-            if (rel.relationshipType === "sibling") siblings.push(rel.toMemberId);
-          }
-          if (rel.toMemberId === memberId) {
-            if (rel.relationshipType === "parent") parents.push(rel.fromMemberId);
-            if (rel.relationshipType === "spouse") spouses.push(rel.fromMemberId);
-            if (rel.relationshipType === "sibling") siblings.push(rel.fromMemberId);
-          }
-        }
-        return { parents, children, spouses, siblings };
-      };
-
-      const selectedMemberIds = new Set<string>();
-      selectedMemberIds.add(rootMemberId);
-
-      if (scope === "single") {
-        // Just root
-      } else if (scope === "immediate_family") {
-        const related = getRelatedMembers(rootMemberId);
-        if (includeSpouses) related.spouses.forEach(id => selectedMemberIds.add(id));
-        if (includeParents) related.parents.forEach(id => selectedMemberIds.add(id));
-        if (includeChildren) related.children.forEach(id => selectedMemberIds.add(id));
-        related.siblings.forEach(id => selectedMemberIds.add(id));
-      } else if (scope === "descendants") {
-        const queue = [rootMemberId];
-        while (queue.length > 0) {
-          const currentId = queue.shift()!;
-          const related = getRelatedMembers(currentId);
-          if (includeSpouses) related.spouses.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); } });
-          related.children.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); queue.push(id); } });
-        }
-      } else if (scope === "ancestors") {
-        const queue = [rootMemberId];
-        while (queue.length > 0) {
-          const currentId = queue.shift()!;
-          const related = getRelatedMembers(currentId);
-          if (includeSpouses) related.spouses.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); } });
-          related.parents.forEach(id => { if (!selectedMemberIds.has(id)) { selectedMemberIds.add(id); queue.push(id); } });
-        }
-      }
-
-      // Create imported member records
       let importedCount = 0;
       for (const memberId of Array.from(selectedMemberIds)) {
-        await storage.createImportedMember({
-          importConfigId: importConfig.id,
-          connectionId,
-          sourceMemberId: memberId,
-          sourceTreeId,
-          targetTreeId: treeId,
-          importedBy: userId
-        });
-        importedCount++;
+        const alreadyImported = await storage.isImportedMember(treeId, memberId);
+        if (!alreadyImported) {
+          await storage.createImportedMember({
+            importConfigId: importConfig.id,
+            connectionId,
+            sourceMemberId: memberId,
+            sourceTreeId,
+            targetTreeId: treeId,
+            importedBy: userId
+          });
+          importedCount++;
+        }
       }
 
       res.status(201).json({
