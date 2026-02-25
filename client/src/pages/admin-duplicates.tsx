@@ -134,8 +134,18 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
         removeMemberIds: removeIds,
       });
     },
-    onSuccess: () => {
-      toast({ title: "Resolved", description: `Kept best version of ${group.name}, removed ${versions.length - 1} duplicate(s).` });
+    onSuccess: async (response: any) => {
+      let detail = `Kept best version of ${group.name}, removed ${versions.length - 1} duplicate(s).`;
+      try {
+        const data = await response.json();
+        if (data.relationshipsTransferred?.length > 0) {
+          detail += ` Transferred ${data.relationshipsTransferred.length} relationship(s).`;
+        }
+        if (data.membersCopied?.length > 0) {
+          detail += ` Copied ${data.membersCopied.length} member(s) into tree: ${data.membersCopied.join(', ')}.`;
+        }
+      } catch {}
+      toast({ title: "Resolved", description: detail });
       setShowConfirm(false);
       onResolved();
     },

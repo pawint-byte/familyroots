@@ -8828,33 +8828,102 @@ export async function registerRoutes(
         return res.status(403).json({ message: "You don't own the target tree" });
       }
 
-      const keepMember = (await storage.getMembers(keepTreeId)).find(m => m.id === keepMemberId);
+      const keepMembers = await storage.getMembers(keepTreeId);
+      const keepMember = keepMembers.find(m => m.id === keepMemberId);
       if (!keepMember) return res.status(404).json({ message: "Keep member not found" });
 
+      const keepRels = await storage.getRelationships(keepTreeId);
+
+      const transferred: string[] = [];
+      const copiedMembers: string[] = [];
       const removed: string[] = [];
+
       for (const rmId of removeMemberIds) {
         const allTrees = await storage.getTrees(userId);
-        let found = false;
         for (const tree of allTrees) {
           const members = await storage.getMembers(tree.id);
           const member = members.find(m => m.id === rmId);
-          if (member) {
-            await db.update(familyMembers)
-              .set({ deletedAt: new Date() })
-              .where(eq(familyMembers.id, rmId));
-            await db.update(relationshipsTable)
-              .set({ deletedAt: new Date() })
-              .where(and(
-                eq(relationshipsTable.treeId, tree.id),
-                or(
-                  eq(relationshipsTable.fromMemberId, rmId),
-                  eq(relationshipsTable.toMemberId, rmId)
-                )
-              ));
-            removed.push(rmId);
-            found = true;
-            break;
+          if (!member) continue;
+
+          const treeRels = await storage.getRelationships(tree.id);
+          const memberRels = treeRels.filter(r => r.fromMemberId === rmId || r.toMemberId === rmId);
+
+          for (const rel of memberRels) {
+            const otherIdInSource = rel.fromMemberId === rmId ? rel.toMemberId : rel.fromMemberId;
+            const otherSourceMember = members.find(m => m.id === otherIdInSource);
+            if (!otherSourceMember) continue;
+
+            const refreshedKeepMembers = await storage.getMembers(keepTreeId);
+            let otherInKeep = refreshedKeepMembers.find(m =>
+              m.firstName.toLowerCase().trim() === otherSourceMember.firstName.toLowerCase().trim() &&
+              (m.lastName || '').toLowerCase().trim() === (otherSourceMember.lastName || '').toLowerCase().trim()
+            );
+
+            if (!otherInKeep) {
+              const newId = crypto.randomUUID();
+              await db.insert(familyMembers).values({
+                id: newId,
+                treeId: keepTreeId,
+                firstName: otherSourceMember.firstName,
+                lastName: otherSourceMember.lastName,
+                suffix: otherSourceMember.suffix,
+                nickname: otherSourceMember.nickname,
+                email: otherSourceMember.email,
+                alternateEmail: otherSourceMember.alternateEmail,
+                gender: otherSourceMember.gender,
+                birthDate: otherSourceMember.birthDate,
+                birthPlace: otherSourceMember.birthPlace,
+                deathDate: otherSourceMember.deathDate,
+                isLiving: otherSourceMember.isLiving,
+                photoUrl: otherSourceMember.photoUrl,
+                notes: otherSourceMember.notes,
+                currentCity: otherSourceMember.currentCity,
+                currentRegion: otherSourceMember.currentRegion,
+                currentCountry: otherSourceMember.currentCountry,
+                sharedInPool: true,
+                poolSourceMemberId: otherSourceMember.id,
+                poolSourceTreeId: tree.id,
+              });
+              otherInKeep = { ...otherSourceMember, id: newId, treeId: keepTreeId } as any;
+              copiedMembers.push(`${otherSourceMember.firstName} ${otherSourceMember.lastName || ''}`);
+            }
+
+            const refreshedKeepRels = await storage.getRelationships(keepTreeId);
+            const fromId = rel.fromMemberId === rmId ? keepMemberId : otherInKeep.id;
+            const toId = rel.toMemberId === rmId ? keepMemberId : otherInKeep.id;
+
+            const alreadyExists = refreshedKeepRels.some(r =>
+              r.fromMemberId === fromId && r.toMemberId === toId && r.relationshipType === rel.relationshipType
+            );
+
+            if (!alreadyExists) {
+              await db.insert(relationshipsTable).values({
+                id: crypto.randomUUID(),
+                treeId: keepTreeId,
+                fromMemberId: fromId,
+                toMemberId: toId,
+                relationshipType: rel.relationshipType,
+                qualifier: rel.qualifier,
+                customLabel: rel.customLabel,
+              });
+              transferred.push(`${rel.relationshipType}: ${otherSourceMember.firstName}`);
+            }
           }
+
+          await db.update(familyMembers)
+            .set({ deletedAt: new Date() })
+            .where(eq(familyMembers.id, rmId));
+          await db.update(relationshipsTable)
+            .set({ deletedAt: new Date() })
+            .where(and(
+              eq(relationshipsTable.treeId, tree.id),
+              or(
+                eq(relationshipsTable.fromMemberId, rmId),
+                eq(relationshipsTable.toMemberId, rmId)
+              )
+            ));
+          removed.push(rmId);
+          break;
         }
       }
 
@@ -8862,6 +8931,8 @@ export async function registerRoutes(
         message: "Duplicates resolved",
         kept: { id: keepMemberId, treeId: keepTreeId },
         removed,
+        relationshipsTransferred: transferred,
+        membersCopied: copiedMembers,
       });
     } catch (error) {
       console.error("Error merging duplicates:", error);
