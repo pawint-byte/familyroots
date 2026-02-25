@@ -2107,13 +2107,12 @@ export async function registerRoutes(
         const created = await storage.createMember(memberData);
         rowIdToMemberId.set(rowId, created.id);
         createdMembers.push(created);
-
-        const newNameKey = `${created.firstName.toLowerCase()}|${(created.lastName || '').toLowerCase()}`.trim();
-        existingLookup.set(newNameKey, created);
-        if (created.email) {
-          existingLookup.set(`email:${created.email.toLowerCase()}`, created);
-        }
       }
+
+      const existingRelationships = await storage.getRelationships(treeId);
+      const existingRelSet = new Set(
+        existingRelationships.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`)
+      );
 
       const createdRelationships: any[] = [];
       for (const row of relationshipRows) {
@@ -2121,6 +2120,11 @@ export async function registerRoutes(
         const toId = rowIdToMemberId.get(row.relatedToRowId!);
         if (!fromId || !toId) {
           errors.push(`Relationship: row_id ${row.rowId} -> ${row.relatedToRowId} references unknown row_id`);
+          continue;
+        }
+
+        const relKey = `${fromId}|${toId}|${row.relationshipType!}`;
+        if (existingRelSet.has(relKey)) {
           continue;
         }
 
@@ -2134,6 +2138,7 @@ export async function registerRoutes(
 
         const created = await storage.createRelationship(relData);
         createdRelationships.push(created);
+        existingRelSet.add(relKey);
 
         const reverseType = getReverseRelationshipType(
           tree.treeType as TreeType,
@@ -2141,13 +2146,17 @@ export async function registerRoutes(
           tree.customRelationshipTypes as any
         );
         if (reverseType) {
-          await storage.createRelationship({
-            treeId,
-            fromMemberId: toId,
-            toMemberId: fromId,
-            relationshipType: reverseType,
-            qualifier: row.qualifier || null,
-          });
+          const reverseKey = `${toId}|${fromId}|${reverseType}`;
+          if (!existingRelSet.has(reverseKey)) {
+            await storage.createRelationship({
+              treeId,
+              fromMemberId: toId,
+              toMemberId: fromId,
+              relationshipType: reverseType,
+              qualifier: row.qualifier || null,
+            });
+            existingRelSet.add(reverseKey);
+          }
         }
       }
 
@@ -2199,10 +2208,17 @@ export async function registerRoutes(
         }
       }
 
+      const parts = [];
+      if (createdMembers.length > 0) parts.push(`Created ${createdMembers.length} member${createdMembers.length !== 1 ? 's' : ''}`);
+      if (createdRelationships.length > 0) parts.push(`${createdRelationships.length} relationship${createdRelationships.length !== 1 ? 's' : ''}`);
+      if (skippedDuplicates.length > 0) parts.push(`Skipped ${skippedDuplicates.length} already in tree`);
+
       res.json({
-        message: `Successfully imported ${createdMembers.length} members and ${createdRelationships.length} relationships`,
+        message: parts.join('. ') || 'No new members to import',
         membersCreated: createdMembers.length,
         relationshipsCreated: createdRelationships.length,
+        duplicatesSkipped: skippedDuplicates.length,
+        skippedNames: skippedDuplicates.length > 0 ? skippedDuplicates : undefined,
         invitationsSent,
         errors: errors.length > 0 ? errors : undefined,
       });

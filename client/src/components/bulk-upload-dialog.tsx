@@ -21,7 +21,7 @@ export function BulkUploadDialog({ treeId, treeName, open, onOpenChange }: BulkU
   const { toast } = useToast();
   const [csvData, setCsvData] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
-  const [result, setResult] = useState<{ membersCreated: number; relationshipsCreated: number; errors?: string[] } | null>(null);
+  const [result, setResult] = useState<{ membersCreated: number; relationshipsCreated: number; duplicatesSkipped?: number; skippedNames?: string[]; errors?: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadMutation = useMutation({
@@ -32,9 +32,13 @@ export function BulkUploadDialog({ treeId, treeName, open, onOpenChange }: BulkU
     onSuccess: (data: any) => {
       setResult(data);
       queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+      const descParts = [];
+      if (data.membersCreated > 0) descParts.push(`Created ${data.membersCreated} member${data.membersCreated !== 1 ? 's' : ''}`);
+      if (data.relationshipsCreated > 0) descParts.push(`${data.relationshipsCreated} relationship${data.relationshipsCreated !== 1 ? 's' : ''}`);
+      if (data.duplicatesSkipped > 0) descParts.push(`Skipped ${data.duplicatesSkipped} duplicate${data.duplicatesSkipped !== 1 ? 's' : ''}`);
       toast({
-        title: "Import complete",
-        description: `Created ${data.membersCreated} members and ${data.relationshipsCreated} relationships`,
+        title: data.membersCreated > 0 ? "Import complete" : "No new members",
+        description: descParts.join('. ') || "All members already exist in this tree",
       });
     },
     onError: (error: any) => {
@@ -222,6 +226,28 @@ export function BulkUploadDialog({ treeId, treeName, open, onOpenChange }: BulkU
                         <p className="text-xs text-green-700/80 dark:text-green-500/80 mt-1">
                           Created {result.membersCreated} member{result.membersCreated !== 1 ? 's' : ''} and {result.relationshipsCreated} relationship{result.relationshipsCreated !== 1 ? 's' : ''}
                         </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {result.duplicatesSkipped && result.duplicatesSkipped > 0 ? (
+                <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+                  <CardContent className="py-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-400" data-testid="text-duplicates-skipped">
+                          Skipped {result.duplicatesSkipped} duplicate{result.duplicatesSkipped !== 1 ? 's' : ''} already in tree
+                        </p>
+                        {result.skippedNames && result.skippedNames.length > 0 && (
+                          <ScrollArea className="max-h-[100px] mt-2">
+                            <p className="text-xs text-amber-700/80 dark:text-amber-500/80">
+                              {result.skippedNames.join(', ')}
+                            </p>
+                          </ScrollArea>
+                        )}
                       </div>
                     </div>
                   </CardContent>
