@@ -9403,6 +9403,127 @@ export async function registerRoutes(
     }
   });
 
+  // T001: Transfer tree ownership
+  app.post("/api/admin/trees/:treeId/transfer-ownership", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const { newOwnerId } = req.body;
+      if (!newOwnerId) return res.status(400).json({ message: "newOwnerId required" });
+
+      const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, treeId));
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      const [newOwner] = await db.select().from(users).where(eq(users.id, newOwnerId));
+      if (!newOwner) return res.status(404).json({ message: "New owner not found" });
+
+      const oldOwnerId = tree.ownerId;
+      await db.update(familyTrees).set({ ownerId: newOwnerId }).where(eq(familyTrees.id, treeId));
+
+      res.json({
+        message: `Tree "${tree.name}" transferred`,
+        treeId,
+        treeName: tree.name,
+        from: oldOwnerId,
+        to: newOwnerId,
+      });
+    } catch (error: any) {
+      console.error("Error transferring tree:", error);
+      res.status(500).json({ message: "Failed to transfer tree" });
+    }
+  });
+
+  // T002: Share all members in pool
+  app.post("/api/admin/trees/:treeId/share-all-members", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const [tree] = await db.select().from(familyTrees).where(eq(familyTrees.id, treeId));
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      const result = await db.update(familyMembers)
+        .set({ sharedInPool: true })
+        .where(and(eq(familyMembers.treeId, treeId), isNull(familyMembers.deletedAt)));
+
+      res.json({
+        message: `All members in "${tree.name}" marked as shared`,
+        treeId,
+        treeName: tree.name,
+        membersUpdated: result.rowCount,
+      });
+    } catch (error: any) {
+      console.error("Error sharing members:", error);
+      res.status(500).json({ message: "Failed to share members" });
+    }
+  });
+
+  app.post("/api/admin/trees/:treeId/smart-restore", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      const allMembers = await storage.getMembers(treeId);
+      const activeMembers = allMembers.filter(m => !m.deletedAt);
+      const deletedMembers = allMembers.filter(m => m.deletedAt);
+      const allRels = await storage.getRelationships(treeId);
+
+      const deletedGroups = new Map<string, typeof deletedMembers>();
+      for (const dm of deletedMembers) {
+        const key = `${(dm.firstName || '').toLowerCase().trim()}|${(dm.lastName || '').toLowerCase().trim()}`;
+        if (!deletedGroups.has(key)) deletedGroups.set(key, []);
+        deletedGroups.get(key)!.push(dm);
+      }
+
+      const restored: string[] = [];
+      const skipped: string[] = [];
+      const permanentlyDeleted: string[] = [];
+
+      for (const [key, versions] of deletedGroups.entries()) {
+        const name = `${versions[0].firstName} ${versions[0].lastName || ''}`.trim();
+        const alreadyActive = activeMembers.find(m => {
+          const mKey = `${(m.firstName || '').toLowerCase().trim()}|${(m.lastName || '').toLowerCase().trim()}`;
+          return mKey === key;
+        });
+
+        if (alreadyActive) {
+          skipped.push(`${name} (already active)`);
+          continue;
+        }
+
+        const best = versions.sort((a, b) => {
+          const aRels = allRels.filter(r => r.fromMemberId === a.id || r.toMemberId === a.id).length;
+          const bRels = allRels.filter(r => r.fromMemberId === b.id || r.toMemberId === b.id).length;
+          return bRels - aRels;
+        })[0];
+
+        await db.update(familyMembers).set({ deletedAt: null }).where(eq(familyMembers.id, best.id));
+        await db.update(relationshipsTable).set({ deletedAt: null }).where(
+          and(
+            eq(relationshipsTable.treeId, treeId),
+            or(
+              eq(relationshipsTable.fromMemberId, best.id),
+              eq(relationshipsTable.toMemberId, best.id)
+            )
+          )
+        );
+        restored.push(`${name} (${allRels.filter(r => r.fromMemberId === best.id || r.toMemberId === best.id).length} rels)`);
+
+        for (const other of versions.filter(v => v.id !== best.id)) {
+          permanentlyDeleted.push(`${name} (copy ${other.id.slice(0, 8)})`);
+        }
+      }
+
+      res.json({
+        message: `Smart restore complete`,
+        restored,
+        skipped,
+        junkCopiesLeft: permanentlyDeleted,
+      });
+    } catch (error: any) {
+      console.error("Error in smart restore:", error);
+      res.status(500).json({ message: "Failed to smart restore" });
+    }
+  });
+
   // Admin: Get all user connections
   app.get("/api/admin/connections", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
