@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { eq, and, or, inArray, desc, gte, lt } from "drizzle-orm";
+import { eq, and, or, inArray, desc, gte, lt, isNull } from "drizzle-orm";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { 
@@ -1576,9 +1576,11 @@ export async function registerRoutes(
         deathDate: string | null;
         birthPlace: string | null;
         isLiving: boolean | null;
+        email: string | null;
         sourceTreeId: string;
         sourceTreeName: string;
         alreadyInTree: boolean;
+        relationshipCount: number;
         relationships: Array<{
           type: string;
           qualifier: string | null;
@@ -1633,29 +1635,23 @@ export async function registerRoutes(
               deathDate: m.deathDate,
               birthPlace: m.birthPlace,
               isLiving: m.isLiving,
+              email: m.email || null,
               sourceTreeId: srcTreeId,
               sourceTreeName: srcTree.name,
               alreadyInTree,
+              relationshipCount: memberRels.length,
               relationships: relSummary,
             });
           }
         }));
       }
 
-      const seen = new Map<string, typeof poolMembers[0]>();
-      for (const pm of poolMembers) {
-        const key = `${(pm.firstName || '').toLowerCase()}_${(pm.lastName || '').toLowerCase()}_${pm.birthDate || ''}`;
-        if (!seen.has(key) || pm.relationships.length > (seen.get(key)!.relationships.length)) {
-          seen.set(key, pm);
-        }
-      }
-
-      const dedupedPool = Array.from(seen.values())
+      const sortedPool = poolMembers
         .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
 
       res.json({
-        members: dedupedPool.slice(0, 200),
-        totalAvailable: dedupedPool.length,
+        members: sortedPool.slice(0, 200),
+        totalAvailable: sortedPool.length,
       });
     } catch (error) {
       console.error("Error fetching member pool:", error);
@@ -8643,6 +8639,55 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error transferring user data:", error);
       res.status(500).json({ message: "Failed to transfer user data" });
+    }
+  });
+
+  app.post("/api/admin/trees/:treeId/transfer-ownership", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const { newOwnerId } = req.body;
+      if (!newOwnerId) return res.status(400).json({ message: "newOwnerId is required" });
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      const newOwner = await storage.getUser(newOwnerId);
+      if (!newOwner) return res.status(404).json({ message: "Target user not found" });
+
+      const oldOwnerId = tree.ownerId;
+      await db.update(familyTrees).set({ ownerId: newOwnerId }).where(eq(familyTrees.id, treeId));
+
+      res.json({
+        message: "Tree ownership transferred",
+        tree: { id: treeId, name: tree.name },
+        from: oldOwnerId,
+        to: { id: newOwner.id, email: newOwner.email },
+      });
+    } catch (error: any) {
+      console.error("Error transferring tree ownership:", error);
+      res.status(500).json({ message: "Failed to transfer tree ownership" });
+    }
+  });
+
+  app.post("/api/admin/trees/:treeId/share-all-members", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      const result = await db.update(familyMembers)
+        .set({ sharedInPool: true })
+        .where(and(eq(familyMembers.treeId, treeId), isNull(familyMembers.deletedAt)));
+
+      const members = await storage.getMembers(treeId);
+      res.json({
+        message: "All members marked as shared in pool",
+        tree: { id: treeId, name: tree.name },
+        membersShared: members.length,
+      });
+    } catch (error: any) {
+      console.error("Error sharing all members:", error);
+      res.status(500).json({ message: "Failed to share members" });
     }
   });
 

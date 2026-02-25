@@ -23,9 +23,11 @@ interface PoolMember {
   deathDate: string | null;
   birthPlace: string | null;
   isLiving: boolean | null;
+  email: string | null;
   sourceTreeId: string;
   sourceTreeName: string;
   alreadyInTree: boolean;
+  relationshipCount: number;
   relationships: Array<{
     type: string;
     qualifier: string | null;
@@ -270,6 +272,17 @@ export function MemberPoolDialog({ isOpen, onClose, treeId }: MemberPoolDialogPr
                               <TreeDeciduous className="h-2.5 w-2.5" />
                               {member.sourceTreeName}
                             </Badge>
+                            {member.relationshipCount > 0 && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                                <Users className="h-2.5 w-2.5" />
+                                {member.relationshipCount} rel{member.relationshipCount !== 1 ? 's' : ''}
+                              </Badge>
+                            )}
+                            {member.email && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                has email
+                              </Badge>
+                            )}
                             {member.relationships.slice(0, 2).map((rel, idx) => (
                               <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
                                 {rel.type} of {rel.otherMemberName}
