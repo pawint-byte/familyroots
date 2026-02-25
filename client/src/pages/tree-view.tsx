@@ -58,6 +58,7 @@ import { SpecialConnectionsSection, LocationSection } from "@/components/special
 import { PaymentGateDialog } from "@/components/payment-gate-dialog";
 import { BranchImportDialog } from "@/components/branch-import-dialog";
 import { MemberPoolDialog } from "@/components/member-pool-dialog";
+import { BulkUploadDialog } from "@/components/bulk-upload-dialog";
 import { MergeMembersDialog } from "@/components/merge-members-dialog";
 import { MemberMergeDialog } from "@/components/member-merge-dialog";
 import { InviteConnectDialog } from "@/components/invite-connect-dialog";
@@ -126,6 +127,7 @@ export default function TreeView() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const [isMemberPoolOpen, setIsMemberPoolOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [crossTreeMergeData, setCrossTreeMergeData] = useState<{
     connectedMember: FamilyMember;
     ownTreeMember: FamilyMember;
@@ -1573,6 +1575,15 @@ export default function TreeView() {
                 <Button
                   variant="outline"
                   className="gap-2"
+                  onClick={() => setIsBulkUploadOpen(true)}
+                  data-testid="button-bulk-upload"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline">Bulk Upload</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-2"
                   onClick={() => setIsMemberPoolOpen(true)}
                   data-testid="button-add-from-network"
                 >
@@ -2784,6 +2795,41 @@ export default function TreeView() {
                   member={selectedMember} 
                   canEdit={canEdit}
                 />
+
+                {isOwner && selectedMember && !selectedMember.isUnknown && (
+                  <Card>
+                    <CardContent className="py-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Users className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium" data-testid="label-share-pool">Share in Family Pool</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(selectedMember as any).sharedInPool
+                                ? "Connected users can add this member to their trees"
+                                : "Only visible in your trees"}
+                            </p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={!!(selectedMember as any).sharedInPool}
+                          onCheckedChange={async (checked) => {
+                            try {
+                              await apiRequest("PATCH", `/api/members/${selectedMember.id}/shared-in-pool`, { shared: checked });
+                              queryClient.invalidateQueries({ queryKey: ["/api/trees", treeId] });
+                              toast({
+                                description: checked ? "Member is now shared in the family pool" : "Member removed from family pool",
+                              });
+                            } catch {
+                              toast({ description: "Failed to update sharing", variant: "destructive" });
+                            }
+                          }}
+                          data-testid={`toggle-share-pool-${selectedMember.id}`}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Disassociation Notice (tree owner only) */}
                 {!selectedMember.claimedByUserId && selectedMember.disassociatedAt && isOwner && (
@@ -4556,6 +4602,15 @@ export default function TreeView() {
           isOpen={isMemberPoolOpen}
           onClose={() => setIsMemberPoolOpen(false)}
           treeId={treeId}
+        />
+      )}
+
+      {isBulkUploadOpen && treeData && (
+        <BulkUploadDialog
+          treeId={treeId}
+          treeName={treeData.tree.name}
+          open={isBulkUploadOpen}
+          onOpenChange={setIsBulkUploadOpen}
         />
       )}
 

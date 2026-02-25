@@ -17,10 +17,11 @@ import {
   voiceNotes, insertVoiceNoteSchema,
   memberMutes, memberInvitations, profileClaimRequests, custodianshipRequests,
   discoverableMembers,
-  memories, insertMemorySchema
+  memories, insertMemorySchema,
+  poolUpdateNotifications
 } from "@shared/schema";
 import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
-import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType } from "@shared/treeTypes";
+import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType, TREE_TYPE_CONFIGS } from "@shared/treeTypes";
 import type { TreeType } from "@shared/treeTypes";
 import { z } from "zod";
 import crypto from "crypto";
@@ -1597,8 +1598,11 @@ export async function registerRoutes(
           const rels = await storage.getRelationships(srcTreeId);
           const memberMap = new Map(members.map(m => [m.id, m]));
 
+          const isOwnTree = srcTree.ownerId === userId;
+
           for (const m of members) {
             if (m.isUnknown) continue;
+            if (!isOwnTree && !m.sharedInPool) continue;
 
             if (search) {
               const fullName = `${m.firstName || ''} ${m.lastName || ''}`.toLowerCase();
@@ -1709,6 +1713,8 @@ export async function registerRoutes(
           notes: srcMember.notes,
           isUnknown: srcMember.isUnknown,
           unknownLabel: srcMember.unknownLabel,
+          poolSourceMemberId: srcMember.id,
+          poolSourceTreeId: sourceTreeId,
         });
         idMapping.set(srcId, newMember.id);
         importedMembers.push(newMember);
@@ -1739,6 +1745,352 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error importing from member pool:", error);
       res.status(500).json({ message: "Failed to import members" });
+    }
+  });
+
+  app.get("/api/trees/:treeId/bulk-upload/template", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collaborators = await storage.getCollaborators(treeId);
+        if (!collaborators.some(c => c.userId === userId && c.canEdit)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const relTypes = getRelationshipTypesForTree(tree.treeType as TreeType, tree.customRelationshipTypes as any);
+      const relValues = relTypes.map(r => r.value);
+
+      const headers = ["row_id", "first_name", "last_name", "email", "related_to_row_id", "relationship_type", "qualifier"];
+
+      const treeTypeLabel = TREE_TYPE_CONFIGS[tree.treeType as TreeType]?.label || tree.treeType;
+      const memberLabel = TREE_TYPE_CONFIGS[tree.treeType as TreeType]?.memberLabel || "Member";
+
+      const examplesByType: Record<string, string[][]> = {
+        family: [
+          ["1", "John", "Doe", "john@example.com", "", "", ""],
+          ["2", "Jane", "Doe", "jane@example.com", "1", "spouse", ""],
+          ["3", "Mike", "Doe", "mike@example.com", "1", "child", "biological"],
+          ["4", "Sarah", "Doe", "", "1", "child", "biological"],
+        ],
+        church: [
+          ["1", "Pastor James", "Williams", "pastor@example.com", "", "pastor", ""],
+          ["2", "Mary", "Johnson", "mary@example.com", "1", "elder", ""],
+          ["3", "David", "Brown", "david@example.com", "1", "member", "youth"],
+          ["4", "Lisa", "Davis", "", "2", "volunteer", "worship"],
+        ],
+        sports: [
+          ["1", "Coach Mike", "Thompson", "coach@example.com", "", "coach", ""],
+          ["2", "Alex", "Rivera", "alex@example.com", "1", "captain", "starter"],
+          ["3", "Jordan", "Lee", "jordan@example.com", "1", "player", "starter"],
+          ["4", "Casey", "Chen", "", "2", "teammate", "reserve"],
+        ],
+        fraternity: [
+          ["1", "Tyler", "Anderson", "tyler@example.com", "", "chapter_president", "active"],
+          ["2", "Marcus", "White", "marcus@example.com", "1", "officer", "active"],
+          ["3", "Ryan", "Garcia", "ryan@example.com", "2", "big", "active"],
+          ["4", "Jake", "Miller", "", "3", "little", "pledge"],
+        ],
+        friends: [
+          ["1", "Emma", "Wilson", "emma@example.com", "", "", ""],
+          ["2", "Sophie", "Martinez", "sophie@example.com", "1", "best_friend", "school"],
+          ["3", "Olivia", "Taylor", "", "1", "close_friend", "work"],
+          ["4", "Noah", "Harris", "noah@example.com", "2", "roommate", ""],
+        ],
+        professional: [
+          ["1", "Sarah", "Park", "sarah@example.com", "", "manager", "engineering"],
+          ["2", "James", "Kim", "james@example.com", "1", "direct_report", "engineering"],
+          ["3", "Lisa", "Chen", "lisa@example.com", "1", "colleague", "design"],
+          ["4", "Tom", "Baker", "", "2", "mentor", ""],
+        ],
+        school: [
+          ["1", "Dr. Smith", "Reynolds", "principal@example.com", "", "principal", "administration"],
+          ["2", "Ms. Lopez", "Torres", "lopez@example.com", "1", "teacher", "faculty"],
+          ["3", "Emily", "Walker", "", "2", "student", "sophomore"],
+          ["4", "Ben", "Scott", "ben@example.com", "3", "classmate", "sophomore"],
+        ],
+        custom: [
+          ["1", "Alex", "Morgan", "alex@example.com", "", "", ""],
+          ["2", "Sam", "Reed", "sam@example.com", "1", relValues[0] || "member", ""],
+          ["3", "Pat", "Blake", "", "1", relValues[1] || relValues[0] || "member", ""],
+        ],
+      };
+
+      const examples = examplesByType[tree.treeType as string] || examplesByType.custom;
+
+      const relTypeList = relTypes.map(r => {
+        const parts = [r.value];
+        if (r.label !== r.value) parts.push(`(${r.label})`);
+        if (r.reverseLabel) parts.push(`- creates reverse: ${r.reverseLabel}`);
+        return `#   ${parts.join(" ")}`;
+      }).join("\n");
+
+      const qualifiers = TREE_TYPE_CONFIGS[tree.treeType as TreeType]?.qualifiers;
+      const qualifierLines = qualifiers && qualifiers.length > 0
+        ? `# Qualifiers: ${qualifiers.map(q => q.value).join(", ")}\n`
+        : "";
+
+      const commentLines = [
+        `# Bulk Upload Template - ${tree.name} (${treeTypeLabel})`,
+        `#`,
+        `# COLUMNS:`,
+        `#   row_id        - A number to identify each ${memberLabel.toLowerCase()} in this file`,
+        `#   first_name    - Required`,
+        `#   last_name     - Optional`,
+        `#   email         - Optional (for sending invitations)`,
+        `#   related_to_row_id - The row_id of who this person is connected to`,
+        `#   relationship_type - How they're connected (see list below)`,
+        `#   qualifier     - Extra detail about the role (optional)`,
+        `#`,
+        `# RELATIONSHIP TYPES for ${treeTypeLabel}:`,
+        relTypeList,
+        `#`,
+        qualifierLines ? qualifierLines : `#`,
+        `# TIPS:`,
+        `#   - Leave related_to_row_id blank if no relationship to define`,
+        `#   - Reverse relationships are created automatically (e.g. parent creates child)`,
+        `#   - Delete these example rows and replace with your real data`,
+        `#`,
+      ];
+
+      const csvContent = commentLines.join("\n") + "\n"
+        + headers.join(",") + "\n"
+        + examples.map(row => row.join(",")).join("\n") + "\n";
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="${tree.name.replace(/[^a-zA-Z0-9]/g, '_')}_bulk_template.csv"`);
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Error generating template:", error);
+      res.status(500).json({ message: "Failed to generate template" });
+    }
+  });
+
+  app.post("/api/trees/:treeId/bulk-upload", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collaborators = await storage.getCollaborators(treeId);
+        if (!collaborators.some(c => c.userId === userId && c.canEdit)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const { csvData } = req.body;
+      if (!csvData || typeof csvData !== "string") {
+        return res.status(400).json({ message: "CSV data is required" });
+      }
+
+      const validRelTypes = getValidRelationshipValues(tree.treeType as TreeType, tree.customRelationshipTypes as any);
+
+      const lines = csvData.split("\n")
+        .map((l: string) => l.trim())
+        .filter((l: string) => l && !l.startsWith("#"));
+
+      if (lines.length < 2) {
+        return res.status(400).json({ message: "CSV must have a header row and at least one data row" });
+      }
+
+      const headerLine = lines[0].toLowerCase();
+      const headers = headerLine.split(",").map((h: string) => h.trim());
+
+      const requiredHeaders = ["row_id", "first_name"];
+      for (const req of requiredHeaders) {
+        if (!headers.includes(req)) {
+          return res.status(400).json({ message: `Missing required column: ${req}` });
+        }
+      }
+
+      interface ParsedRow {
+        rowId: string;
+        firstName: string;
+        lastName?: string;
+        suffix?: string;
+        nickname?: string;
+        email?: string;
+        gender?: string;
+        birthDate?: string;
+        birthPlace?: string;
+        deathDate?: string;
+        isLiving?: boolean;
+        notes?: string;
+        relatedToRowId?: string;
+        relationshipType?: string;
+        qualifier?: string;
+      }
+
+      function parseCsvLine(line: string): string[] {
+        const result: string[] = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (ch === "," && !inQuotes) {
+            result.push(current.trim());
+            current = "";
+          } else {
+            current += ch;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      }
+
+      const rows: ParsedRow[] = [];
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCsvLine(lines[i]);
+        const row: Record<string, string> = {};
+        headers.forEach((h: string, idx: number) => {
+          row[h] = values[idx] || "";
+        });
+
+        if (!row.row_id || !row.first_name) {
+          errors.push(`Row ${i + 1}: row_id and first_name are required`);
+          continue;
+        }
+
+        const gender = row.gender?.toLowerCase();
+        if (gender && !["male", "female", "other", "unknown"].includes(gender)) {
+          errors.push(`Row ${i + 1}: Invalid gender "${row.gender}". Use male, female, other, or unknown`);
+          continue;
+        }
+
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (row.birth_date && !dateRegex.test(row.birth_date)) {
+          errors.push(`Row ${i + 1}: Invalid birth_date "${row.birth_date}". Use YYYY-MM-DD format`);
+          continue;
+        }
+        if (row.death_date && !dateRegex.test(row.death_date)) {
+          errors.push(`Row ${i + 1}: Invalid death_date "${row.death_date}". Use YYYY-MM-DD format`);
+          continue;
+        }
+
+        if (row.relationship_type && !validRelTypes.includes(row.relationship_type)) {
+          errors.push(`Row ${i + 1}: Invalid relationship_type "${row.relationship_type}". Valid types: ${validRelTypes.join(", ")}`);
+          continue;
+        }
+
+        rows.push({
+          rowId: row.row_id,
+          firstName: row.first_name,
+          lastName: row.last_name || undefined,
+          suffix: row.suffix || undefined,
+          nickname: row.nickname || undefined,
+          email: row.email || undefined,
+          gender: gender || undefined,
+          birthDate: row.birth_date || undefined,
+          birthPlace: row.birth_place || undefined,
+          deathDate: row.death_date || undefined,
+          isLiving: row.is_living ? row.is_living.toLowerCase() !== "no" : true,
+          notes: row.notes || undefined,
+          relatedToRowId: row.related_to_row_id || undefined,
+          relationshipType: row.relationship_type || undefined,
+          qualifier: row.qualifier || undefined,
+        });
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({ message: "Validation errors in CSV", errors });
+      }
+
+      const memberRows = new Map<string, ParsedRow>();
+      const relationshipRows: ParsedRow[] = [];
+
+      for (const row of rows) {
+        if (!memberRows.has(row.rowId)) {
+          memberRows.set(row.rowId, row);
+        }
+        if (row.relatedToRowId && row.relationshipType) {
+          relationshipRows.push(row);
+        }
+      }
+
+      const rowIdToMemberId = new Map<string, string>();
+      const createdMembers: any[] = [];
+
+      for (const [rowId, row] of memberRows) {
+        const memberData: any = {
+          treeId,
+          firstName: row.firstName,
+          lastName: row.lastName || null,
+          suffix: row.suffix || null,
+          nickname: row.nickname || null,
+          email: row.email || null,
+          gender: row.gender || null,
+          birthDate: row.birthDate || null,
+          birthPlace: row.birthPlace || null,
+          deathDate: row.deathDate || null,
+          isLiving: row.isLiving ?? true,
+          notes: row.notes || null,
+        };
+
+        const created = await storage.createMember(memberData);
+        rowIdToMemberId.set(rowId, created.id);
+        createdMembers.push(created);
+      }
+
+      const createdRelationships: any[] = [];
+      for (const row of relationshipRows) {
+        const fromId = rowIdToMemberId.get(row.rowId);
+        const toId = rowIdToMemberId.get(row.relatedToRowId!);
+        if (!fromId || !toId) {
+          errors.push(`Relationship: row_id ${row.rowId} -> ${row.relatedToRowId} references unknown row_id`);
+          continue;
+        }
+
+        const relData: any = {
+          treeId,
+          fromMemberId: fromId,
+          toMemberId: toId,
+          relationshipType: row.relationshipType!,
+          qualifier: row.qualifier || null,
+        };
+
+        const created = await storage.createRelationship(relData);
+        createdRelationships.push(created);
+
+        const reverseType = getReverseRelationshipType(
+          tree.treeType as TreeType,
+          row.relationshipType!,
+          tree.customRelationshipTypes as any
+        );
+        if (reverseType) {
+          await storage.createRelationship({
+            treeId,
+            fromMemberId: toId,
+            toMemberId: fromId,
+            relationshipType: reverseType,
+            qualifier: row.qualifier || null,
+          });
+        }
+      }
+
+      res.json({
+        message: `Successfully imported ${createdMembers.length} members and ${createdRelationships.length} relationships`,
+        membersCreated: createdMembers.length,
+        relationshipsCreated: createdRelationships.length,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    } catch (error: any) {
+      console.error("Error processing bulk upload:", error);
+      res.status(500).json({ message: error?.message || "Failed to process bulk upload" });
     }
   });
 
@@ -1838,14 +2190,23 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
       
-      // Determine which fields are allowed based on role
-      const fullAllowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes", "visibilityOverride", "customPosition"];
+      const fullAllowedFields = ["firstName", "lastName", "nickname", "email", "gender", "birthDate", "birthPlace", "deathDate", "isLiving", "photoUrl", "notes", "visibilityOverride", "customPosition", "sharedInPool"];
       const custodianAllowedFields = ["firstName", "lastName", "deathDate", "notes", "photoUrl"];
-      
-      // Custodians can only edit limited fields (unless they're also the tree owner)
-      const allowedFields = (isCustodian && tree.ownerId !== userId) 
-        ? custodianAllowedFields 
-        : fullAllowedFields;
+      const treeStructureOnlyFields = ["visibilityOverride", "customPosition", "sharedInPool", "notes"];
+
+      let allowedFields: string[];
+      if (isCustodian && tree.ownerId !== userId) {
+        allowedFields = custodianAllowedFields;
+      } else if (
+        tree.treeType !== "family" &&
+        existingMember.claimedByUserId &&
+        existingMember.claimedByUserId !== userId &&
+        tree.ownerId === userId
+      ) {
+        allowedFields = treeStructureOnlyFields;
+      } else {
+        allowedFields = fullAllowedFields;
+      }
         
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
@@ -1930,7 +2291,44 @@ export async function registerRoutes(
         }
       }
 
-      // Return updated member with optional email warning
+      if (updated && existingMember.sharedInPool) {
+        try {
+          const trackableFields = ['firstName', 'lastName', 'birthDate', 'deathDate', 'birthPlace', 'gender', 'photoUrl', 'isLiving'];
+          const changedFields: Record<string, { old: string | null; new: string | null }> = {};
+          for (const field of trackableFields) {
+            const oldVal = (existingMember as any)[field];
+            const newVal = (updated as any)[field];
+            if (String(oldVal ?? '') !== String(newVal ?? '')) {
+              changedFields[field] = { old: String(oldVal ?? ''), new: String(newVal ?? '') };
+            }
+          }
+          if (Object.keys(changedFields).length > 0) {
+            const copies = await db.select().from(familyMembers)
+              .where(and(
+                eq(familyMembers.poolSourceMemberId, memberId),
+                eq(familyMembers.poolSourceTreeId, treeId),
+                isNull(familyMembers.deletedAt)
+              ));
+            for (const copy of copies) {
+              const copyTree = await storage.getTree(copy.treeId);
+              if (copyTree && copyTree.ownerId !== userId) {
+                await db.insert(poolUpdateNotifications).values({
+                  recipientUserId: copyTree.ownerId,
+                  sourceMemberId: memberId,
+                  sourceTreeId: treeId,
+                  localMemberId: copy.id,
+                  localTreeId: copy.treeId,
+                  changedFields,
+                  changedByUserId: userId,
+                });
+              }
+            }
+          }
+        } catch (notifError) {
+          console.error("Error sending pool update notifications:", notifError);
+        }
+      }
+
       res.json({ 
         ...updated, 
         emailWarning: emailWarning || null 
@@ -1938,13 +2336,11 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error updating member:", error);
       
-      // Check for Zod validation errors
       if (error instanceof z.ZodError) {
         const fieldErrors = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
         return res.status(400).json({ message: `Validation error: ${fieldErrors}` });
       }
       
-      // Check for database constraint errors
       if (error?.code === '23505') {
         return res.status(400).json({ message: "A member with this information already exists" });
       }
@@ -1956,6 +2352,116 @@ export async function registerRoutes(
       }
       
       res.status(400).json({ message: error?.message || "Failed to update member" });
+    }
+  });
+
+  app.get("/api/pool-updates", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const notifications = await db.select().from(poolUpdateNotifications)
+        .where(and(
+          eq(poolUpdateNotifications.recipientUserId, userId),
+          eq(poolUpdateNotifications.status, "pending")
+        ))
+        .orderBy(desc(poolUpdateNotifications.createdAt));
+
+      const enriched = await Promise.all(notifications.map(async (n) => {
+        const sourceMember = await storage.getMember(n.sourceMemberId);
+        const localMember = await storage.getMember(n.localMemberId);
+        const sourceTree = await storage.getTree(n.sourceTreeId);
+        const localTree = await storage.getTree(n.localTreeId);
+        const changedBy = await storage.getUser(n.changedByUserId);
+        return {
+          ...n,
+          sourceMemberName: sourceMember ? `${sourceMember.firstName} ${sourceMember.lastName || ''}`.trim() : 'Unknown',
+          localMemberName: localMember ? `${localMember.firstName} ${localMember.lastName || ''}`.trim() : 'Unknown',
+          sourceTreeName: sourceTree?.name || 'Unknown tree',
+          localTreeName: localTree?.name || 'Unknown tree',
+          changedByName: changedBy ? `${changedBy.firstName || ''} ${changedBy.lastName || ''}`.trim() : 'Someone',
+        };
+      }));
+
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching pool updates:", error);
+      res.status(500).json({ message: "Failed to fetch pool updates" });
+    }
+  });
+
+  app.patch("/api/pool-updates/:id/accept", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [notification] = await db.select().from(poolUpdateNotifications)
+        .where(and(eq(poolUpdateNotifications.id, id), eq(poolUpdateNotifications.recipientUserId, userId)));
+      if (!notification) return res.status(404).json({ message: "Notification not found" });
+
+      const sourceMember = await storage.getMember(notification.sourceMemberId);
+      if (!sourceMember) return res.status(404).json({ message: "Source member no longer exists" });
+
+      const updateData: Record<string, any> = {};
+      const changedFields = notification.changedFields as Record<string, { old: string | null; new: string | null }>;
+      for (const [field, change] of Object.entries(changedFields)) {
+        const val = change.new;
+        if (val === '' || val === 'null') {
+          updateData[field] = null;
+        } else if (field === 'isLiving') {
+          updateData[field] = val === 'true';
+        } else {
+          updateData[field] = val;
+        }
+      }
+
+      await storage.updateMember(notification.localMemberId, updateData);
+      await db.update(poolUpdateNotifications)
+        .set({ status: "accepted" })
+        .where(eq(poolUpdateNotifications.id, id));
+
+      res.json({ message: "Update accepted", updatedFields: Object.keys(changedFields) });
+    } catch (error) {
+      console.error("Error accepting pool update:", error);
+      res.status(500).json({ message: "Failed to accept update" });
+    }
+  });
+
+  app.patch("/api/pool-updates/:id/dismiss", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      await db.update(poolUpdateNotifications)
+        .set({ status: "dismissed" })
+        .where(and(eq(poolUpdateNotifications.id, id), eq(poolUpdateNotifications.recipientUserId, userId)));
+
+      res.json({ message: "Update dismissed" });
+    } catch (error) {
+      console.error("Error dismissing pool update:", error);
+      res.status(500).json({ message: "Failed to dismiss update" });
+    }
+  });
+
+  app.patch("/api/members/:memberId/shared-in-pool", isAuthenticated, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const userId = req.user.claims.sub;
+      const { shared } = req.body;
+
+      const member = await storage.getMember(memberId);
+      if (!member) return res.status(404).json({ message: "Member not found" });
+
+      const tree = await storage.getTree(member.treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      if (tree.ownerId !== userId) {
+        return res.status(403).json({ message: "Only the tree owner can change sharing settings" });
+      }
+
+      const updated = await storage.updateMember(memberId, { sharedInPool: !!shared } as any);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error toggling shared in pool:", error);
+      res.status(500).json({ message: "Failed to update sharing setting" });
     }
   });
 

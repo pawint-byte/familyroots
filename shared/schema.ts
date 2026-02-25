@@ -108,6 +108,9 @@ export const familyMembers = pgTable("family_members", {
   currentCountry: text("current_country"),
   locationVisible: boolean("location_visible").default(false), // Whether to share location with connections
   customPosition: jsonb("custom_position").$type<{ x: number; y: number } | null>(),
+  sharedInPool: boolean("shared_in_pool").default(false),
+  poolSourceMemberId: varchar("pool_source_member_id"),
+  poolSourceTreeId: varchar("pool_source_tree_id"),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -1276,3 +1279,24 @@ export const insertVoiceNoteSchema = createInsertSchema(voiceNotes).omit({
 
 export type VoiceNote = typeof voiceNotes.$inferSelect;
 export type InsertVoiceNote = z.infer<typeof insertVoiceNoteSchema>;
+
+export const poolUpdateNotifications = pgTable("pool_update_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  recipientUserId: varchar("recipient_user_id").notNull(),
+  sourceMemberId: varchar("source_member_id").notNull(),
+  sourceTreeId: varchar("source_tree_id").notNull(),
+  localMemberId: varchar("local_member_id").notNull(),
+  localTreeId: varchar("local_tree_id").notNull(),
+  changedFields: jsonb("changed_fields").$type<Record<string, { old: string | null; new: string | null }>>().notNull(),
+  changedByUserId: varchar("changed_by_user_id").notNull(),
+  status: text("status").default("pending").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPoolUpdateNotificationSchema = createInsertSchema(poolUpdateNotifications).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PoolUpdateNotification = typeof poolUpdateNotifications.$inferSelect;
+export type InsertPoolUpdateNotification = z.infer<typeof insertPoolUpdateNotificationSchema>;
