@@ -159,7 +159,7 @@ export default function AdminMembers() {
             <SelectContent>
               {trees.map((tree) => (
                 <SelectItem key={tree.id} value={tree.id}>
-                  {tree.name}
+                  {tree.name} ({tree.id.slice(0, 8)})
                 </SelectItem>
               ))}
             </SelectContent>
