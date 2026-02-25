@@ -8743,6 +8743,164 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/duplicates", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const userTrees = await storage.getTrees(userId);
+      if (userTrees.length === 0) return res.json([]);
+
+      const allMembers: any[] = [];
+      const allRelationships: any[] = [];
+      const treeMap = new Map<string, string>();
+      for (const tree of userTrees) {
+        treeMap.set(tree.id, tree.name);
+        const members = await storage.getMembers(tree.id);
+        const rels = await storage.getRelationships(tree.id);
+        for (const m of members) {
+          const memberRels = rels.filter(r => r.fromMemberId === m.id || r.toMemberId === m.id);
+          const relDetails = memberRels.map(r => {
+            const otherId = r.fromMemberId === m.id ? r.toMemberId : r.fromMemberId;
+            const otherMember = members.find(om => om.id === otherId);
+            return {
+              type: r.relationshipType,
+              qualifier: r.qualifier,
+              otherName: otherMember ? `${otherMember.firstName}${otherMember.lastName ? ' ' + otherMember.lastName : ''}` : 'Unknown',
+            };
+          });
+          allMembers.push({
+            id: m.id,
+            treeId: m.treeId,
+            treeName: treeMap.get(m.treeId) || 'Unknown',
+            firstName: m.firstName,
+            lastName: m.lastName,
+            suffix: m.suffix,
+            nickname: m.nickname,
+            email: m.email,
+            gender: m.gender,
+            birthDate: m.birthDate,
+            birthPlace: m.birthPlace,
+            deathDate: m.deathDate,
+            isLiving: m.isLiving,
+            photoUrl: m.photoUrl,
+            notes: m.notes,
+            currentCity: m.currentCity,
+            currentRegion: m.currentRegion,
+            currentCountry: m.currentCountry,
+            relationshipCount: memberRels.length,
+            relationships: relDetails,
+          });
+        }
+      }
+
+      const groups = new Map<string, any[]>();
+      for (const m of allMembers) {
+        const key = `${(m.firstName || '').toLowerCase().trim()}|${(m.lastName || '').toLowerCase().trim()}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(m);
+      }
+
+      const duplicates = Array.from(groups.entries())
+        .filter(([_, members]) => members.length > 1)
+        .map(([key, members]) => ({
+          key,
+          name: `${members[0].firstName}${members[0].lastName ? ' ' + members[0].lastName : ''}`,
+          versions: members,
+        }))
+        .sort((a, b) => b.versions.length - a.versions.length);
+
+      res.json(duplicates);
+    } catch (error) {
+      console.error("Error finding duplicates:", error);
+      res.status(500).json({ message: "Failed to find duplicates" });
+    }
+  });
+
+  app.post("/api/admin/duplicates/merge", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const { keepMemberId, keepTreeId, removeMemberIds } = req.body;
+      if (!keepMemberId || !keepTreeId || !removeMemberIds?.length) {
+        return res.status(400).json({ message: "keepMemberId, keepTreeId, and removeMemberIds are required" });
+      }
+
+      const keepTree = await storage.getTree(keepTreeId);
+      if (!keepTree || keepTree.ownerId !== userId) {
+        return res.status(403).json({ message: "You don't own the target tree" });
+      }
+
+      const keepMember = (await storage.getMembers(keepTreeId)).find(m => m.id === keepMemberId);
+      if (!keepMember) return res.status(404).json({ message: "Keep member not found" });
+
+      const removed: string[] = [];
+      for (const rmId of removeMemberIds) {
+        const allTrees = await storage.getTrees(userId);
+        let found = false;
+        for (const tree of allTrees) {
+          const members = await storage.getMembers(tree.id);
+          const member = members.find(m => m.id === rmId);
+          if (member) {
+            await db.update(familyMembers)
+              .set({ deletedAt: new Date() })
+              .where(eq(familyMembers.id, rmId));
+            await db.update(relationshipsTable)
+              .set({ deletedAt: new Date() })
+              .where(and(
+                eq(relationshipsTable.treeId, tree.id),
+                or(
+                  eq(relationshipsTable.fromMemberId, rmId),
+                  eq(relationshipsTable.toMemberId, rmId)
+                )
+              ));
+            removed.push(rmId);
+            found = true;
+            break;
+          }
+        }
+      }
+
+      res.json({
+        message: "Duplicates resolved",
+        kept: { id: keepMemberId, treeId: keepTreeId },
+        removed,
+      });
+    } catch (error) {
+      console.error("Error merging duplicates:", error);
+      res.status(500).json({ message: "Failed to merge duplicates" });
+    }
+  });
+
+  app.patch("/api/admin/members/:memberId/sync-fields", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { memberId } = req.params;
+      const fields = req.body;
+      if (!fields || Object.keys(fields).length === 0) {
+        return res.status(400).json({ message: "No fields provided" });
+      }
+
+      const allowedFields = [
+        'firstName', 'lastName', 'suffix', 'nickname', 'email', 'alternateEmail',
+        'gender', 'birthDate', 'birthPlace', 'deathDate', 'isLiving', 'photoUrl',
+        'notes', 'currentCity', 'currentRegion', 'currentCountry'
+      ];
+      const updateData: any = {};
+      for (const key of allowedFields) {
+        if (key in fields) updateData[key] = fields[key];
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No valid fields provided" });
+      }
+
+      updateData.updatedAt = new Date();
+      await db.update(familyMembers).set(updateData).where(eq(familyMembers.id, memberId));
+
+      res.json({ message: "Member updated", memberId, updatedFields: Object.keys(updateData) });
+    } catch (error) {
+      console.error("Error syncing member fields:", error);
+      res.status(500).json({ message: "Failed to sync member fields" });
+    }
+  });
+
   // Delete a user (admin only) - only works if user has no trees
   app.delete("/api/admin/users/:userId", isAuthenticated, isAdmin, async (req: any, res) => {
     try {

@@ -671,6 +671,14 @@ export default function Dashboard() {
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/duplicates")}
+                      data-testid="mobile-menu-admin-duplicates"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Duplicate Manager</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
                       onClick={() => navigate("/admin/connections")}
                       data-testid="mobile-menu-admin-connections"
                     >
@@ -802,6 +810,10 @@ export default function Dashboard() {
                   <DropdownMenuItem onClick={() => navigate("/admin/tree-manager")} data-testid="admin-menu-tree-manager">
                     <Shield className="h-4 w-4 mr-2" />
                     Tree Manager
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/admin/duplicates")} data-testid="admin-menu-duplicates">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Duplicate Manager
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -966,6 +978,14 @@ export default function Dashboard() {
                     >
                       <Shield className="h-4 w-4" />
                       <span>Admin - Tree Manager</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2"
+                      onClick={() => navigate("/admin/duplicates")}
+                      data-testid="menu-admin-duplicates"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin - Duplicate Manager</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       className="flex items-center gap-2"
