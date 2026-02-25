@@ -51,6 +51,18 @@ export default function FeaturesGuide() {
           icon: <Split className="h-5 w-5 text-orange-600" />,
         },
         {
+          name: "Clone Tree",
+          description: "Create a complete duplicate of any tree you own or co-own. All members, relationships, and tags are copied with new IDs. Perfect for creating tree variations like 'immediate family' vs 'extended family' without re-entering data.",
+          whereToFind: "Tree View > More Options (three dots menu) > 'Clone Tree'. Name the copy and confirm.",
+          icon: <Layers className="h-5 w-5 text-cyan-600" />,
+        },
+        {
+          name: "Save & Restore Layout",
+          description: "Drag tree nodes to arrange them exactly how you want, then save the layout so it looks the same every time you come back. New members that are added later get auto-positioned while your saved layout stays intact.",
+          whereToFind: "Drag any node to reposition it. A 'Save Layout' button appears in the zoom controls when positions have changed. Click it to save.",
+          icon: <Eye className="h-5 w-5 text-teal-600" />,
+        },
+        {
           name: "Tree Tags",
           description: "Add color-coded labels to your trees for quick identification and organization. Tags like 'Class of 2025', 'Chapter Alpha', or 'Active' appear on dashboard cards and tree headers.",
           whereToFind: "Tree View > click the tag icon next to the tree name, or open 'Manage Tags' from the tree header.",
@@ -268,8 +280,8 @@ export default function FeaturesGuide() {
         },
         {
           name: "Selective Member Import",
-          description: "When importing from FamilySearch, pick and choose which ancestors, descendants, and spouses to bring into your tree. Select individuals or entire branches, and all their parent-child and spouse relationships are imported automatically.",
-          whereToFind: "FamilySearch page > 'Import Tree' tab > check the people you want > 'Import Selected'.",
+          description: "When importing from FamilySearch or a connected tree, browse all available members and hand-pick exactly who to bring in using checkboxes. Each person shows their name, photo, and relationship badges. A real-time ghost preview appears on the tree as you select members, showing exactly where they'll be placed before you commit.",
+          whereToFind: "FamilySearch page > 'Import Tree' tab > check people > 'Import Selected'. For connected trees: Tree View > Connections > 'Import Members' on any connection.",
           icon: <Users className="h-5 w-5 text-teal-600" />,
         },
         {
@@ -385,6 +397,12 @@ export default function FeaturesGuide() {
           description: "Casual group tree for friend networks with flexible, informal relationship types.",
           whereToFind: "Dashboard > Create New Tree > select 'Friends'.",
           icon: <Users className="h-5 w-5 text-sky-500" />,
+        },
+        {
+          name: "School",
+          description: "Organize academic communities with roles like Teacher, Student, Principal, Dean, Counselor, Classmate, and Club Advisor. Tags for class year, honor roll, and faculty status.",
+          whereToFind: "Dashboard > Create New Tree > select 'School'.",
+          icon: <GraduationCap className="h-5 w-5 text-indigo-600" />,
         },
         {
           name: "Custom Tree",

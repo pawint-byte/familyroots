@@ -2134,6 +2134,7 @@ export default function TreeView() {
                       onMemberPositionChange={handleMemberPositionChange}
                       customRelationshipTypes={(treeData?.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null) || null}
                       upcomingEvents={upcomingEvents}
+                      importPreview={importPreviewConfig}
                     />
                   )}
                 </div>

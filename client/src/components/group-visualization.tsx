@@ -15,7 +15,8 @@ import {
   getReverseRelationshipType,
   getDirectionalRoles,
 } from "@shared/treeTypes";
-import { Crown, Star, Shield, Cake, Gift } from "lucide-react";
+import { Crown, Star, Shield, Cake, Gift, Plus } from "lucide-react";
+import type { ImportPreviewConfig, PreviewMemberData } from "@/components/family-tree-visualization";
 
 export type GroupLayoutMode = "auto" | "hub" | "top-grid" | "circle" | "radial" | "grid" | "arc" | "network";
 
@@ -37,6 +38,7 @@ interface GroupVisualizationProps {
   layoutOverride?: GroupLayoutMode;
   customRelationshipTypes?: CustomRelType[] | null;
   upcomingEvents?: MemberUpcomingEvent[];
+  importPreview?: ImportPreviewConfig | null;
 }
 
 interface NodePosition {
@@ -503,6 +505,7 @@ export default function GroupVisualization({
   layoutOverride,
   customRelationshipTypes,
   upcomingEvents,
+  importPreview,
 }: GroupVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -568,14 +571,91 @@ export default function GroupVisualization({
     );
   }, [positions, draggedMemberId, draggedPosition]);
 
+  const previewPositions = useMemo(() => {
+    if (!importPreview || importPreview.members.length === 0) return [];
+    const existingIds = new Set(deduplicatedMembers.map(m => m.id));
+    const previewMembers = importPreview.members.filter(m => !existingIds.has(m.id));
+    if (previewMembers.length === 0) return [];
+
+    const result: { x: number; y: number; member: PreviewMemberData }[] = [];
+    const placed = new Set<string>();
+
+    const connectorTargetPos = importPreview.connectorTargetMemberId
+      ? positions.find(p => p.member.id === importPreview.connectorTargetMemberId)
+      : null;
+
+    const anchorX = connectorTargetPos?.x ?? (positions.length > 0 ? Math.max(...positions.map(p => p.x)) + 250 : 400);
+    const anchorY = connectorTargetPos?.y ?? (positions.length > 0 ? positions.reduce((s, p) => s + p.y, 0) / positions.length : 300);
+
+    const relatedToExisting: PreviewMemberData[] = [];
+    const unrelated: PreviewMemberData[] = [];
+    for (const pm of previewMembers) {
+      const hasRelToExisting = importPreview.relationships.some(r =>
+        (r.fromMemberId === pm.id && existingIds.has(r.toMemberId)) ||
+        (r.toMemberId === pm.id && existingIds.has(r.fromMemberId))
+      );
+      if (hasRelToExisting) relatedToExisting.push(pm);
+      else unrelated.push(pm);
+    }
+
+    const spacing = 180;
+    let col = 0;
+    for (const pm of relatedToExisting) {
+      const connectedExistingId = importPreview.relationships.find(r =>
+        (r.fromMemberId === pm.id && existingIds.has(r.toMemberId)) ||
+        (r.toMemberId === pm.id && existingIds.has(r.fromMemberId))
+      );
+      let baseX = anchorX + spacing;
+      let baseY = anchorY;
+      if (connectedExistingId) {
+        const existingId = connectedExistingId.fromMemberId === pm.id ? connectedExistingId.toMemberId : connectedExistingId.fromMemberId;
+        const existingPos = positions.find(p => p.member.id === existingId);
+        if (existingPos) {
+          baseX = existingPos.x + spacing;
+          baseY = existingPos.y;
+        }
+      }
+      const offsetY = col * 160;
+      result.push({ x: baseX, y: baseY + offsetY, member: pm });
+      placed.add(pm.id);
+      col++;
+    }
+
+    for (const pm of unrelated) {
+      result.push({ x: anchorX + spacing, y: anchorY + col * 160, member: pm });
+      placed.add(pm.id);
+      col++;
+    }
+
+    return result;
+  }, [importPreview, deduplicatedMembers, positions]);
+
+  const previewConnectionLines = useMemo(() => {
+    if (!importPreview || previewPositions.length === 0) return [];
+    const allPosMap = new Map<string, { x: number; y: number }>();
+    for (const p of positions) allPosMap.set(p.member.id, { x: p.x, y: p.y });
+    for (const p of previewPositions) allPosMap.set(p.member.id, { x: p.x, y: p.y });
+
+    const lines: { x1: number; y1: number; x2: number; y2: number; key: string }[] = [];
+    for (const rel of importPreview.relationships) {
+      const from = allPosMap.get(rel.fromMemberId);
+      const to = allPosMap.get(rel.toMemberId);
+      if (from && to) {
+        lines.push({ x1: from.x, y1: from.y, x2: to.x, y2: to.y, key: `preview-${rel.fromMemberId}-${rel.toMemberId}` });
+      }
+    }
+    return lines;
+  }, [importPreview, previewPositions, positions]);
+
   const bounds = useMemo(() => {
-    if (positions.length === 0)
+    const allPositions = [...positions, ...previewPositions.map(p => ({ x: p.x, y: p.y }))];
+    if (allPositions.length === 0)
       return { minX: 0, minY: 0, maxX: 800, maxY: 600, width: 800, height: 600 };
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
       maxY = -Infinity;
-    for (const p of positions) {
+    for (const p of allPositions) {
       if (p.x < minX) minX = p.x;
       if (p.y < minY) minY = p.y;
       if (p.x > maxX) maxX = p.x;
@@ -590,7 +670,7 @@ export default function GroupVisualization({
       width: maxX - minX + pad * 2,
       height: maxY - minY + pad * 2,
     };
-  }, [positions]);
+  }, [positions, previewPositions]);
 
   useEffect(() => {
     if (positions.length === 0 || !containerRef.current) return;
@@ -926,6 +1006,30 @@ export default function GroupVisualization({
             />
           ))}
 
+          {previewConnectionLines.map((line) => {
+            const mx = (line.x1 + line.x2) / 2;
+            const my = (line.y1 + line.y2) / 2;
+            const dx = line.x2 - line.x1;
+            const dy = line.y2 - line.y1;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const curvature = Math.min(dist * 0.25, 80);
+            const nx = -dy / (dist || 1);
+            const ny = dx / (dist || 1);
+            const cx = mx + nx * curvature;
+            const cy = my + ny * curvature;
+            return (
+              <path
+                key={line.key}
+                d={`M ${line.x1} ${line.y1} Q ${cx} ${cy} ${line.x2} ${line.y2}`}
+                fill="none"
+                stroke="#10b981"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                opacity={0.6}
+              />
+            );
+          })}
+
           {connectionLines.map((line) => {
             const mx = (line.x1 + line.x2) / 2;
             const my = (line.y1 + line.y2) / 2;
@@ -1184,6 +1288,54 @@ export default function GroupVisualization({
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+          );
+        })}
+
+        {previewPositions.map((pos) => {
+          const nodeW = isCircleNode ? 96 : 128;
+          const nodeH = isCircleNode ? 96 : 140;
+          const initials = `${pos.member.firstName?.[0] || ""}${(pos.member.lastName)?.[0] || ""}`.toUpperCase();
+
+          return (
+            <div
+              key={`preview-${pos.member.id}`}
+              data-testid={`group-preview-member-${pos.member.id}`}
+              className={`absolute flex flex-col items-center gap-1 ${
+                isCircleNode ? "rounded-full justify-center" : "rounded-lg p-2 justify-start pt-3"
+              }`}
+              style={{
+                left: pos.x - nodeW / 2 - bounds.minX,
+                top: pos.y - nodeH / 2 - bounds.minY,
+                width: nodeW,
+                height: nodeH,
+                borderWidth: "2px",
+                borderStyle: "dashed",
+                borderColor: "#10b981",
+                opacity: 0.55,
+                backgroundColor: "var(--card)",
+                zIndex: 0,
+              }}
+            >
+              <div className="absolute -top-2.5 -right-2.5 rounded-full bg-emerald-500 p-0.5 shadow-sm">
+                <Plus className="h-3 w-3 text-white" />
+              </div>
+              <Avatar className={isCircleNode ? "h-10 w-10" : "h-12 w-12"}>
+                {pos.member.photoUrl && (
+                  <AvatarImage src={pos.member.photoUrl} alt={pos.member.firstName} />
+                )}
+                <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+              </Avatar>
+              {!isCircleNode && (
+                <span className="text-center leading-tight truncate w-full text-xs font-medium">
+                  {pos.member.firstName}
+                </span>
+              )}
+              {isCircleNode && (
+                <span className="text-center leading-tight truncate w-full text-[10px] font-medium">
+                  {pos.member.firstName}
+                </span>
               )}
             </div>
           );

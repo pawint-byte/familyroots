@@ -34,6 +34,49 @@ const getTypeBadge = (type: UpdateType) => {
 
 const releases: Release[] = [
   {
+    version: "2.5",
+    date: "February 25, 2026",
+    headline: "Selective Member Import, Real-time Preview, Save Layout, and Clone Tree",
+    updates: [
+      {
+        title: "Selective Member Import with Checkboxes",
+        description: "Browse all members in a connected tree and hand-pick exactly who to import using checkboxes. Each person shows their photo, name, and relationship badges. Search, Select All, and Clear make bulk selection easy. Already-imported members are clearly marked.",
+        type: "new",
+        category: "Tree Connections",
+      },
+      {
+        title: "Real-time Import Preview",
+        description: "As you select members for import, semi-transparent ghost nodes appear on your tree in real time, showing exactly where each person will be placed. Green dashed connection lines show relationships. Works on both family tree and group visualizations.",
+        type: "new",
+        category: "Tree Connections",
+      },
+      {
+        title: "Save & Restore Layout",
+        description: "Drag tree nodes to arrange your layout, then click 'Save Layout' to persist positions. When you return, every member is exactly where you left them. New members auto-position while your saved layout stays intact.",
+        type: "new",
+        category: "Visualization",
+      },
+      {
+        title: "Clone Tree",
+        description: "Duplicate any tree you own with all members, relationships, and tags. Perfect for creating variations like 'immediate family' vs 'extended family' without re-entering data.",
+        type: "new",
+        category: "Tree Management",
+      },
+      {
+        title: "School Tree Type",
+        description: "New tree type for academic communities with roles like Teacher, Student, Principal, Dean, Counselor, and Club Advisor. Tags for class year, honor roll, and faculty status.",
+        type: "new",
+        category: "Tree Types",
+      },
+      {
+        title: "Updated FAQ & Features Guide",
+        description: "All documentation updated with Selective Member Import, Save Layout, Clone Tree, Import Preview, School tree type, and Selective Connected Tree Merge.",
+        type: "improved",
+        category: "Site Content",
+      },
+    ],
+  },
+  {
     version: "2.4",
     date: "February 24, 2026",
     headline: "Tree-level Gift Registries, Enhanced Timeline, and Site Content Updates",

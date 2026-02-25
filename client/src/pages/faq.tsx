@@ -179,6 +179,10 @@ export default function FAQ() {
           answer: "Map your professional relationships the way they actually work: Manager/Direct Report, Colleague, Mentor/Mentee, Client, Business Partner, Intern/Supervisor. Tag each connection with their department: Engineering, Design, Marketing, Sales, Operations, HR, Finance, or Executive. Unlike LinkedIn where connections are shallow and public, FamilyRoots lets you build a private network where every connection is labeled with what it really means. Startup teams, consulting firms, mentorship programs, and mastermind groups can use it to visualize how their professional world is structured. You own your network, and it's nobody else's business."
         },
         {
+          question: "How would a school use FamilyRoots?",
+          answer: "Map an entire school community with built-in roles: Teacher/Student, Principal, Dean, Counselor, Classmate, Tutor/Tutee, Club Advisor, Team Captain, and Lab Partner. Tag members with class year (Freshman through Senior, Graduate), Faculty, Staff, or Honor Roll. Create sub-groups for individual classes, departments, clubs, or graduating years. Students claim their profiles and keep them updated after graduation, creating a lasting alumni network. Use it for a single classroom, an entire school, or a whole district with nested sub-groups."
+        },
+        {
           question: "What does it mean that I'm at the center of all my trees?",
           answer: "You are the common thread across every tree you belong to. Your family tree, your sorority, your church, your professional network, they're all separate and private, but you're the anchor in each one. Open your dashboard and you see everything: every group, every role, every connection. Nobody else sees this combined view. It's your personal map of every meaningful relationship in your life, and you own it completely."
         },
@@ -192,7 +196,7 @@ export default function FAQ() {
         },
         {
           question: "What tree types are available and what roles come with each?",
-          answer: <>We support seven tree types, each with its own built-in relationship structure:
+          answer: <>We support eight tree types, each with its own built-in relationship structure:
             <ul className="list-disc pl-5 mt-2 space-y-2 text-sm">
               <li><strong>Family Tree</strong> — Parent/Child, Spouse/Partner, Sibling, Co-Parent. Qualifiers: Biological, Step, Adopted, Foster, Half, In-Law.</li>
               <li><strong>Church / Faith Group</strong> — Pastor/Leader, Elder/Deacon, Ministry Leader/Member, Teacher/Student, Worship Leader, Volunteer, Mentor/Mentee. Tags: Youth Ministry, Worship Team, Sunday School, Bible Study, Choir, Outreach.</li>
@@ -200,6 +204,7 @@ export default function FAQ() {
               <li><strong>Fraternity / Sorority</strong> — Big/Little (mentor pairs), Pledge Class, Chapter President, Officer, Faculty Advisor, Active Member, Alumni. Tags: Class of 2024–2030, Active, Pledge, Honorary.</li>
               <li><strong>Friend Circle</strong> — Best Friend, Close Friend, Friend, Roommate, Neighbor, Acquaintance. Tags: School, Work, Neighborhood, Online, Childhood, Mutual Friends.</li>
               <li><strong>Professional Network</strong> — Manager/Direct Report, Colleague, Mentor/Mentee, Client, Business Partner, Intern/Supervisor. Tags: Engineering, Design, Marketing, Sales, Finance, HR, Executive.</li>
+              <li><strong>School</strong> — Teacher/Student, Principal, Dean, Counselor, Classmate, Tutor/Tutee, Club Advisor, Team Captain, Lab Partner. Tags: Freshman, Sophomore, Junior, Senior, Graduate, Faculty, Staff, Honor Roll.</li>
               <li><strong>Custom Group</strong> — The catch-all. Starts with Leader, Co-Leader, Member, Teacher/Student, Mentor/Mentee, Connected. But you can replace or add any roles you need. Perfect for book clubs, bands, study groups, neighborhood watches, or anything else that doesn't fit the above.</li>
             </ul>
             <p className="mt-2 text-sm">Every type also lets you add your own custom roles on top of the defaults during creation.</p>
@@ -366,20 +371,32 @@ export default function FAQ() {
           answer: "The Merged Tree View combines your family tree with any trees you're connected to, showing them as one unified visualization. Toggle 'Show Connected Trees' in your tree view to see your extended family across multiple trees. This is perfect for seeing how your family connects to your spouse's family or other branches."
         },
         {
-          question: "What is Selective Branch Import?",
-          answer: "Selective Branch Import lets you control which members from connected trees count toward your member total. When you connect to another tree, you can choose to import just specific branches (like immediate family or descendants) rather than the entire tree. Only imported members use your credits. The rest remain viewable but don't cost you anything."
+          question: "What is Selective Member Import?",
+          answer: "When your tree is connected to another tree, you can browse all the members on that tree and hand-pick exactly which ones to import into yours. Instead of importing an entire branch, you see a searchable list with checkboxes. Each person shows their name, photo, and relationship badges (like 'parent of John' or 'spouse of Jane'). Check the people you want, and only those are imported. Already-imported members are marked so you don't accidentally duplicate anyone. This gives you precise control over who joins your tree and what it costs."
         },
         {
-          question: "How does importing branches affect my credits?",
-          answer: "Only your own tree members plus imported members from connected trees count toward your total. When you connect to another tree with 59 members, you don't automatically use credits for all 59. You choose which branches to import. For example, you might import just your mother-in-law's immediate family (8 members) and view the rest for free. This gives you control over costs while still seeing the full extended family."
+          question: "Can I preview how my tree will look before importing members?",
+          answer: "Yes! As you check and uncheck members in the import dialog, semi-transparent 'ghost' nodes appear on your tree in real time. These preview nodes show exactly where each person will be placed based on their relationships, with green dashed connection lines. You can see how your tree layout will change before committing to the import. Uncheck someone and their preview node disappears instantly."
         },
         {
-          question: "Can I import different amounts from different connected trees?",
-          answer: "Yes! Each tree connection is independent. You might import your dad's entire branch (descendants) from one tree, but only immediate family from another. You can also change what you've imported at any time - add more branches or remove imports to adjust your costs and features."
+          question: "How does importing members affect my credits?",
+          answer: "Only your own tree members plus imported members count toward your total. When you connect to another tree with 59 members, you don't automatically use credits for all 59. You pick individual people using checkboxes. The import dialog shows a running count of selected members and the cost impact as you make selections. This gives you full control over costs while still seeing the full connected tree for free in the merged view."
+        },
+        {
+          question: "Can I import different members from different connected trees?",
+          answer: "Yes! Each tree connection is independent. You might import 3 specific people from one connected tree and 12 from another. The member picker shows all available members for each connection, and you choose individually who to bring in."
         },
         {
           question: "What features do imported vs view-only members have?",
           answer: "Imported members have full features: you can see their gift registries, get notifications about life events, see their location (if shared), and collaborate on their profiles. View-only members from connected trees can be seen in the merged view, but with limited features - no notifications, view-only access to basic info based on privacy settings."
+        },
+        {
+          question: "What is Clone Tree?",
+          answer: "Clone Tree creates a complete duplicate of any tree you own or co-own. All members get new IDs, all relationships are remapped, and all tags are copied. It's perfect for creating variations of a tree — for example, cloning your full family tree and then removing members to create an 'immediate family only' version. Find it in Tree View > More Options (three dots menu) > 'Clone Tree'."
+        },
+        {
+          question: "Can I save my tree layout so it looks the same when I come back?",
+          answer: "Yes! After you drag nodes to arrange your tree exactly how you want it, a 'Save Layout' button appears in the zoom controls. Click it to save all positions to the database. The next time you open the tree, every member will be in exactly the same spot. If you add new members later, they'll be auto-positioned while your existing layout stays preserved."
         },
         {
           question: "Can I track name changes (maiden names, married names)?",

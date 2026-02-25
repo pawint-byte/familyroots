@@ -39,7 +39,7 @@ The backend uses Node.js, Express.js, and TypeScript, providing RESTful API endp
 -   **Clone Tree**: Duplicate a tree via `POST /api/trees/:id/clone`, creating a full copy with new member UUIDs, remapped relationships, and copied tags.
 -   **Save & Restore Layout**: Node positions persisted via `PATCH /api/trees/:treeId/members/positions` (batch update). FamilyTreeVisualization restores saved `customPosition` on load. "Save Layout" button appears when nodes have been dragged.
 -   **Selective Member Import**: Connected tree import uses a member-picker with checkboxes. `GET /api/trees/:treeId/connections/:connectionId/available-members` returns source members with relationship badges, immediate relative IDs, already-imported flags, source relationships, and connector member IDs. Import endpoint accepts explicit `memberIds[]` array.
--   **Real-time Import Preview**: Ghost preview nodes appear on the tree visualization as members are selected for import. Positioned via BFS from connector member. Green dashed SVG connection lines drawn between preview nodes.
+-   **Real-time Import Preview**: Ghost preview nodes appear on both FamilyTreeVisualization and GroupVisualization as members are selected for import. Family trees use BFS positioning from connector member; group visualizations position previews near connected existing members. Green dashed SVG connection lines drawn between preview nodes.
 -   **Selective Connected Tree Merge**: Users select which connected trees to overlay via checkboxes. Backend accepts `?treeIds=` query param on `GET /api/trees/:treeId/merged`.
 -   **Visualization Rescue Pass**: Iterative rescue pass places unplaced members with relationships to already-placed members before falling into "No Relationship Defined" section.
 
