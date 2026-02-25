@@ -295,15 +295,12 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
 
                     {v.relationships.length > 0 && (
                       <div className="pt-1 space-y-0.5">
-                        <p className="text-[10px] font-medium text-muted-foreground">Relationships:</p>
-                        {v.relationships.slice(0, 5).map((r, i) => (
+                        <p className="text-[10px] font-medium text-muted-foreground">All Relationships ({v.relationships.length}):</p>
+                        {v.relationships.map((r, i) => (
                           <Badge key={i} variant="secondary" className="text-[9px] mr-0.5 mb-0.5">
                             {r.type}{r.qualifier ? ` (${r.qualifier})` : ''}: {r.otherName}
                           </Badge>
                         ))}
-                        {v.relationships.length > 5 && (
-                          <span className="text-[9px] text-muted-foreground">+{v.relationships.length - 5} more</span>
-                        )}
                       </div>
                     )}
                   </CardContent>
@@ -448,26 +445,34 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
                     Select relationships to transfer to kept version:
                   </p>
                   <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {transferableRels.map(rel => (
-                      <label key={rel.key} className="flex items-center gap-2 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/30 rounded px-2 py-1">
-                        <input
-                          type="checkbox"
-                          checked={selectedRels.has(rel.key)}
-                          onChange={(e) => {
-                            const next = new Set(selectedRels);
-                            if (e.target.checked) next.add(rel.key);
-                            else next.delete(rel.key);
-                            setSelectedRels(next);
-                          }}
-                          className="rounded border-blue-300"
-                          data-testid={`checkbox-rel-${rel.key}`}
-                        />
-                        <span className="text-xs text-blue-800 dark:text-blue-200">
-                          <strong>{rel.type}</strong>{rel.qualifier ? ` (${rel.qualifier})` : ''}: {rel.otherName}
-                          <span className="text-blue-500 ml-1">from {rel.sourceTree}</span>
-                        </span>
-                      </label>
-                    ))}
+                    {transferableRels.map(rel => {
+                      const keepVersionData = versions.find(v => v.id === selectedKeep);
+                      const alreadyOnKeep = keepVersionData?.relationships.some(
+                        kr => kr.type === rel.type && kr.otherName === rel.otherName
+                      );
+                      return (
+                        <label key={rel.key} className={`flex items-center gap-2 rounded px-2 py-1 ${alreadyOnKeep ? 'opacity-50 bg-gray-100 dark:bg-gray-800' : 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/30'}`}>
+                          <input
+                            type="checkbox"
+                            checked={selectedRels.has(rel.key)}
+                            disabled={alreadyOnKeep}
+                            onChange={(e) => {
+                              const next = new Set(selectedRels);
+                              if (e.target.checked) next.add(rel.key);
+                              else next.delete(rel.key);
+                              setSelectedRels(next);
+                            }}
+                            className="rounded border-blue-300"
+                            data-testid={`checkbox-rel-${rel.key}`}
+                          />
+                          <span className="text-xs text-blue-800 dark:text-blue-200">
+                            <strong>{rel.type}</strong>{rel.qualifier ? ` (${rel.qualifier})` : ''}: {rel.otherName}
+                            <span className="text-blue-500 ml-1">from {rel.sourceTree}</span>
+                            {alreadyOnKeep && <span className="text-green-600 ml-1">(already on kept version)</span>}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button
