@@ -249,36 +249,63 @@ export function PendingConnectionsSection() {
                     <div className="font-medium" data-testid={`text-requester-name-${request.id}`}>
                       {displayName}
                     </div>
-                    {request.targetTreeName ? (
-                      <p className="text-sm text-muted-foreground mt-1" data-testid={`text-tree-context-${request.id}`}>
-                        Wants to connect to{" "}
-                        {request.targetTreeId ? (
-                          <Link
-                            href={`/tree/${request.targetTreeId}`}
-                            className="font-semibold text-foreground hover:underline inline-flex items-center gap-1"
-                            data-testid={`link-tree-${request.id}`}
-                          >
-                            <TreePine className="h-3 w-3 inline" />
-                            {request.targetTreeName}
-                          </Link>
-                        ) : (
-                          <span className="font-semibold text-foreground">{request.targetTreeName}</span>
-                        )}
-                        {" "}as {relationshipLabel}
-                      </p>
-                    ) : null}
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <Badge variant="secondary" className="text-xs" data-testid={`badge-relationship-${request.id}`}>
-                        Says they're {relationshipLabel}
-                      </Badge>
-                      {request.sourceType === "qr_scan" && (
-                        <Badge variant="outline" className="text-xs">
-                          QR Scan
+                    <div className="mt-1.5 space-y-1">
+                      <p className="text-sm" data-testid={`text-relationship-claim-${request.id}`}>
+                        <span className="text-muted-foreground">Claims to be </span>
+                        <Badge variant="secondary" className="text-xs" data-testid={`badge-relationship-${request.id}`}>
+                          {relationshipLabel}
                         </Badge>
+                      </p>
+                      {request.targetTreeName && (
+                        <p className="text-sm" data-testid={`text-tree-context-${request.id}`}>
+                          <span className="text-muted-foreground">Wants to join </span>
+                          {request.targetTreeId ? (
+                            <Link
+                              href={`/tree/${request.targetTreeId}`}
+                              className="font-semibold text-foreground hover:underline inline-flex items-center gap-1"
+                              data-testid={`link-tree-${request.id}`}
+                            >
+                              <TreePine className="h-3 w-3 inline" />
+                              {request.targetTreeName}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold text-foreground">{request.targetTreeName}</span>
+                          )}
+                        </p>
                       )}
+                      <p className="text-sm" data-testid={`text-your-role-${request.id}`}>
+                        <span className="text-muted-foreground">If you accept, you'll be added as </span>
+                        <Badge variant="outline" className="text-xs">
+                          {(() => {
+                            const REVERSE_ROLES: Record<string, string> = {
+                              son: "Their Parent",
+                              daughter: "Their Parent",
+                              parent: "Their Child",
+                              spouse: "Their Spouse",
+                              sibling: "Their Sibling",
+                              grandparent: "Their Grandchild",
+                              grandchild: "Their Grandparent",
+                              aunt: "Their Niece/Nephew",
+                              uncle: "Their Niece/Nephew",
+                              niece: "Their Aunt/Uncle",
+                              nephew: "Their Aunt/Uncle",
+                              cousin: "Their Cousin",
+                              in_law: "Their In-Law",
+                              step_relative: "Their Step-Relative",
+                              other: "Connected",
+                            };
+                            return REVERSE_ROLES[request.relationshipType] || "Connected";
+                          })()}
+                        </Badge>
+                      </p>
                     </div>
+                    {request.sourceType === "qr_scan" && (
+                      <Badge variant="outline" className="text-xs mt-1">
+                        Via QR Scan
+                      </Badge>
+                    )}
                     {request.message && (
-                      <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                      <p className="text-sm text-muted-foreground mt-2 line-clamp-2 italic">
                         "{request.message}"
                       </p>
                     )}

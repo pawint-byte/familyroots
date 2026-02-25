@@ -209,24 +209,34 @@ export function MyConnectionsSection() {
                         )}
                       </div>
                     )}
-                    {profiles.length > 0 && (
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        <span className="text-xs text-muted-foreground">In:</span>
-                        {profiles.map((profile, idx) => (
-                          <span key={profile.treeId} className="inline-flex items-center">
-                            <Link
-                              href={`/tree/${profile.treeId}`}
-                              className="text-xs text-primary/70 hover:text-primary hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                              data-testid={`connection-tree-link-${profile.treeId}`}
-                            >
-                              {profile.treeName || "Tree"}
-                            </Link>
-                            {idx < profiles.length - 1 && <span className="text-xs text-muted-foreground mx-1">,</span>}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    {(() => {
+                      const namedProfiles = profiles.filter(p => p.treeName);
+                      const seen = new Set<string>();
+                      const uniqueProfiles = namedProfiles.filter(p => {
+                        if (seen.has(p.treeId)) return false;
+                        seen.add(p.treeId);
+                        return true;
+                      });
+                      if (uniqueProfiles.length === 0) return null;
+                      return (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="text-xs text-muted-foreground">Shared trees:</span>
+                          {uniqueProfiles.map((profile, idx) => (
+                            <span key={profile.treeId} className="inline-flex items-center">
+                              <Link
+                                href={`/tree/${profile.treeId}`}
+                                className="text-xs text-primary/70 hover:text-primary hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                                data-testid={`connection-tree-link-${profile.treeId}`}
+                              >
+                                {profile.treeName}
+                              </Link>
+                              {idx < uniqueProfiles.length - 1 && <span className="text-xs text-muted-foreground mx-1">,</span>}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
