@@ -8951,6 +8951,157 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/duplicates/resolve-all", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const { preferTreeId } = req.body;
+
+      const allTrees = await storage.getTrees(userId);
+      const activeTrees = allTrees.filter(t => !t.deletedAt);
+
+      const allMembersByTree: Map<string, any[]> = new Map();
+      const allRelsByTree: Map<string, any[]> = new Map();
+      for (const tree of activeTrees) {
+        const members = await storage.getMembers(tree.id);
+        const rels = await storage.getRelationships(tree.id);
+        allMembersByTree.set(tree.id, members);
+        allRelsByTree.set(tree.id, rels);
+      }
+
+      const memberIndex = new Map<string, { member: any; tree: any; relCount: number }[]>();
+      for (const tree of activeTrees) {
+        const members = allMembersByTree.get(tree.id) || [];
+        const rels = allRelsByTree.get(tree.id) || [];
+        for (const m of members) {
+          if (m.deletedAt) continue;
+          const key = `${(m.firstName || '').toLowerCase().trim()}|${(m.lastName || '').toLowerCase().trim()}`;
+          if (!memberIndex.has(key)) memberIndex.set(key, []);
+          const relCount = rels.filter(r => !r.deletedAt && (r.fromMemberId === m.id || r.toMemberId === m.id)).length;
+          memberIndex.get(key)!.push({ member: m, tree, relCount });
+        }
+      }
+
+      const duplicateGroups = Array.from(memberIndex.entries()).filter(([_, versions]) => versions.length > 1);
+
+      const results: any[] = [];
+      const alreadySoftDeleted = new Set<string>();
+
+      for (const [key, versions] of duplicateGroups) {
+        let keep: typeof versions[0];
+        if (preferTreeId) {
+          const preferredVersion = versions.find(v => v.tree.id === preferTreeId);
+          keep = preferredVersion || versions.sort((a, b) => b.relCount - a.relCount)[0];
+        } else {
+          keep = versions.sort((a, b) => b.relCount - a.relCount)[0];
+        }
+
+        const removals = versions.filter(v => v.member.id !== keep.member.id);
+        const transferred: string[] = [];
+
+        for (const rm of removals) {
+          if (alreadySoftDeleted.has(rm.member.id)) continue;
+
+          const sourceRels = (allRelsByTree.get(rm.tree.id) || []).filter(
+            r => !r.deletedAt && (r.fromMemberId === rm.member.id || r.toMemberId === rm.member.id)
+          );
+          const sourceMembers = allMembersByTree.get(rm.tree.id) || [];
+
+          const keepTreeMembers = allMembersByTree.get(keep.tree.id) || [];
+          const keepTreeRels = allRelsByTree.get(keep.tree.id) || [];
+
+          for (const rel of sourceRels) {
+            const otherIdInSource = rel.fromMemberId === rm.member.id ? rel.toMemberId : rel.fromMemberId;
+            const otherSourceMember = sourceMembers.find(m => m.id === otherIdInSource);
+            if (!otherSourceMember) continue;
+
+            const otherInKeep = keepTreeMembers.find(m => {
+              if (m.deletedAt || alreadySoftDeleted.has(m.id)) return false;
+              const fMatch = m.firstName.toLowerCase().trim() === otherSourceMember.firstName.toLowerCase().trim();
+              const lMatch = (m.lastName || '').toLowerCase().trim() === (otherSourceMember.lastName || '').toLowerCase().trim();
+              if (fMatch && lMatch) return true;
+              if (fMatch && otherSourceMember.birthDate && m.birthDate === otherSourceMember.birthDate) return true;
+              return false;
+            });
+
+            if (!otherInKeep) continue;
+
+            const fromId = rel.fromMemberId === rm.member.id ? keep.member.id : otherInKeep.id;
+            const toId = rel.toMemberId === rm.member.id ? keep.member.id : otherInKeep.id;
+
+            const alreadyExists = keepTreeRels.some(r =>
+              !r.deletedAt &&
+              r.fromMemberId === fromId && r.toMemberId === toId && r.relationshipType === rel.relationshipType
+            );
+
+            if (!alreadyExists) {
+              const newRelId = crypto.randomUUID();
+              await db.insert(relationshipsTable).values({
+                id: newRelId,
+                treeId: keep.tree.id,
+                fromMemberId: fromId,
+                toMemberId: toId,
+                relationshipType: rel.relationshipType,
+                qualifier: rel.qualifier,
+                customLabel: rel.customLabel,
+              });
+              keepTreeRels.push({
+                id: newRelId,
+                treeId: keep.tree.id,
+                fromMemberId: fromId,
+                toMemberId: toId,
+                relationshipType: rel.relationshipType,
+                qualifier: rel.qualifier,
+                customLabel: rel.customLabel,
+                deletedAt: null,
+              });
+              transferred.push(`${rel.relationshipType}: ${otherSourceMember.firstName}`);
+            }
+          }
+
+          // Sync any non-empty fields from removed version to kept version if kept version is missing them
+          const fieldsToSync = ['nickname', 'email', 'gender', 'birthDate', 'birthPlace', 'deathDate', 'photoUrl', 'notes', 'currentCity', 'currentRegion', 'currentCountry'];
+          const updates: Record<string, any> = {};
+          for (const f of fieldsToSync) {
+            if (!keep.member[f] && rm.member[f]) {
+              updates[f] = rm.member[f];
+              keep.member[f] = rm.member[f];
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            await db.update(familyMembers).set(updates).where(eq(familyMembers.id, keep.member.id));
+          }
+
+          await db.update(familyMembers).set({ deletedAt: new Date() }).where(eq(familyMembers.id, rm.member.id));
+          await db.update(relationshipsTable).set({ deletedAt: new Date() }).where(
+            and(
+              eq(relationshipsTable.treeId, rm.tree.id),
+              or(
+                eq(relationshipsTable.fromMemberId, rm.member.id),
+                eq(relationshipsTable.toMemberId, rm.member.id)
+              )
+            )
+          );
+          alreadySoftDeleted.add(rm.member.id);
+        }
+
+        results.push({
+          name: `${keep.member.firstName} ${keep.member.lastName || ''}`,
+          kept: { id: keep.member.id, tree: keep.tree.name },
+          removed: removals.map(r => ({ id: r.member.id, tree: r.tree.name })),
+          relationshipsTransferred: transferred,
+        });
+      }
+
+      res.json({
+        message: `Resolved ${results.length} duplicate groups`,
+        results,
+      });
+    } catch (error) {
+      console.error("Error resolving all duplicates:", error);
+      res.status(500).json({ message: "Failed to resolve duplicates" });
+    }
+  });
+
   app.patch("/api/admin/members/:memberId/sync-fields", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { memberId } = req.params;

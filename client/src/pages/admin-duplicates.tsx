@@ -537,9 +537,15 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
 
 export default function AdminDuplicates() {
   const { toast } = useToast();
+  const [resolveAllPending, setResolveAllPending] = useState(false);
 
   const { data: isAdmin, isLoading: checkingAdmin } = useQuery<{ isAdmin: boolean }>({
     queryKey: ["/api/admin/check"],
+  });
+
+  const { data: trees = [] } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ["/api/trees"],
+    enabled: isAdmin?.isAdmin === true,
   });
 
   const { data: duplicates = [], isLoading, refetch } = useQuery<DuplicateGroup[]>({
@@ -607,14 +613,64 @@ export default function AdminDuplicates() {
           </p>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <Badge variant="outline" className="text-sm">
               {duplicates.length} duplicate group{duplicates.length !== 1 ? 's' : ''} found
             </Badge>
             <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="button-refresh-duplicates">
               Refresh
             </Button>
+            {duplicates.length > 0 && (
+              <div className="flex items-center gap-2 ml-auto">
+                <select
+                  id="prefer-tree"
+                  className="text-xs border rounded px-2 py-1.5 bg-background"
+                  data-testid="select-prefer-tree"
+                >
+                  <option value="">Auto (most relationships)</option>
+                  {trees.filter(t => !('deletedAt' in t && (t as any).deletedAt)).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="default"
+                  disabled={resolveAllPending}
+                  onClick={async () => {
+                    const selectEl = document.getElementById('prefer-tree') as HTMLSelectElement;
+                    const preferTreeId = selectEl?.value || undefined;
+                    setResolveAllPending(true);
+                    try {
+                      const res = await apiRequest("POST", "/api/admin/duplicates/resolve-all", { preferTreeId });
+                      const data = await res.json();
+                      toast({
+                        title: "All Duplicates Resolved",
+                        description: `${data.results?.length || 0} groups resolved. No new members copied.`,
+                      });
+                      queryClient.invalidateQueries({ queryKey: ["/api/admin/duplicates"] });
+                    } catch (err: any) {
+                      toast({ title: "Failed", description: err.message, variant: "destructive" });
+                    } finally {
+                      setResolveAllPending(false);
+                    }
+                  }}
+                  data-testid="button-resolve-all"
+                >
+                  {resolveAllPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                  )}
+                  Resolve All ({duplicates.length})
+                </Button>
+              </div>
+            )}
           </div>
+          {duplicates.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              "Resolve All" keeps the preferred tree's version (or the one with most relationships), transfers only relationships where the other person already exists in the target tree (no new copies), syncs missing fields, and soft-deletes all other versions.
+            </p>
+          )}
         </CardContent>
       </Card>
 
