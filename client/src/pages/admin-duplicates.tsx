@@ -381,7 +381,22 @@ function DuplicateCard({ group, onResolved }: { group: DuplicateGroup; onResolve
                 Click a version card to select which one to keep. Click individual field values to sync them.
               </p>
               <Button
-                onClick={() => setShowConfirm(true)}
+                onClick={() => {
+                  const keepData = versions.find(v => v.id === selectedKeep);
+                  const rVersions = versions.filter(v => v.id !== selectedKeep);
+                  const allRels = rVersions.flatMap(v =>
+                    v.relationships.map((r, i) => ({
+                      key: `${v.id}|${r.type}|${r.otherName}|${i}`,
+                      type: r.type,
+                      otherName: r.otherName,
+                    }))
+                  );
+                  const newRels = allRels.filter(rel =>
+                    !keepData?.relationships.some(kr => kr.type === rel.type && kr.otherName === rel.otherName)
+                  );
+                  setSelectedRels(new Set(newRels.map(r => r.key)));
+                  setShowConfirm(true);
+                }}
                 data-testid={`button-resolve-${group.key}`}
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />

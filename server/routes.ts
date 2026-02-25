@@ -8858,10 +8858,17 @@ export async function registerRoutes(
             if (selectedRelKeys.size > 0 && !selectedRelKeys.has(relKey)) continue;
 
             const refreshedKeepMembers = await storage.getMembers(keepTreeId);
-            let otherInKeep = refreshedKeepMembers.find(m =>
-              m.firstName.toLowerCase().trim() === otherSourceMember.firstName.toLowerCase().trim() &&
-              (m.lastName || '').toLowerCase().trim() === (otherSourceMember.lastName || '').toLowerCase().trim()
-            );
+            let otherInKeep = refreshedKeepMembers.find(m => {
+              const fMatch = m.firstName.toLowerCase().trim() === otherSourceMember.firstName.toLowerCase().trim();
+              const lMatch = (m.lastName || '').toLowerCase().trim() === (otherSourceMember.lastName || '').toLowerCase().trim();
+              if (fMatch && lMatch) return true;
+              if (fMatch && otherSourceMember.birthDate && m.birthDate === otherSourceMember.birthDate) return true;
+              const srcFull = `${otherSourceMember.firstName} ${otherSourceMember.lastName || ''}`.toLowerCase().trim();
+              const keepFull = `${m.firstName} ${m.lastName || ''}`.toLowerCase().trim();
+              if (srcFull === keepFull) return true;
+              if (fMatch && otherSourceMember.email && m.email && m.email.toLowerCase() === otherSourceMember.email.toLowerCase()) return true;
+              return false;
+            });
 
             if (!otherInKeep) {
               const newId = crypto.randomUUID();
