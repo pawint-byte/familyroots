@@ -9455,6 +9455,167 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/trees/:treeId/sync-from-pool", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const [targetTree] = await db.select().from(familyTrees).where(eq(familyTrees.id, treeId));
+      if (!targetTree) return res.status(404).json({ message: "Tree not found" });
+
+      const allTrees = await db.select().from(familyTrees).where(isNull(familyTrees.deletedAt));
+      const otherTrees = allTrees.filter(t => t.id !== treeId);
+
+      const targetMembers = await storage.getMembers(treeId);
+      const targetMemberMap = new Map<string, typeof targetMembers[0]>();
+      for (const m of targetMembers) {
+        const key = `${(m.firstName || '').toLowerCase().trim()}|${(m.lastName || '').toLowerCase().trim()}`;
+        targetMemberMap.set(key, m);
+      }
+
+      type PoolCandidate = {
+        member: typeof targetMembers[0];
+        sourceTreeId: string;
+        sourceTreeName: string;
+        relCount: number;
+        filledFields: number;
+      };
+
+      const poolByName = new Map<string, PoolCandidate[]>();
+
+      for (const srcTree of otherTrees) {
+        const members = await storage.getMembers(srcTree.id);
+        const rels = await storage.getRelationships(srcTree.id);
+        for (const m of members) {
+          if (m.isUnknown) continue;
+          const key = `${(m.firstName || '').toLowerCase().trim()}|${(m.lastName || '').toLowerCase().trim()}`;
+          if (!key || key === '|') continue;
+
+          let filledFields = 0;
+          if (m.birthDate) filledFields++;
+          if (m.deathDate) filledFields++;
+          if (m.email) filledFields++;
+          if (m.gender) filledFields++;
+          if (m.birthPlace) filledFields++;
+          if (m.photoUrl) filledFields++;
+          if (m.phoneNumber) filledFields++;
+
+          const relCount = rels.filter(r => r.fromMemberId === m.id || r.toMemberId === m.id).length;
+
+          if (!poolByName.has(key)) poolByName.set(key, []);
+          poolByName.get(key)!.push({
+            member: m,
+            sourceTreeId: srcTree.id,
+            sourceTreeName: srcTree.name,
+            relCount,
+            filledFields,
+          });
+        }
+      }
+
+      const added: string[] = [];
+      const updated: string[] = [];
+      const skipped: string[] = [];
+      const idMapping = new Map<string, string>();
+      const relsToCopy: Array<{ sourceTreeId: string; rel: any; }> = [];
+
+      for (const [key, candidates] of poolByName.entries()) {
+        const best = candidates.sort((a, b) => {
+          if (b.relCount !== a.relCount) return b.relCount - a.relCount;
+          return b.filledFields - a.filledFields;
+        })[0];
+
+        const existing = targetMemberMap.get(key);
+        if (existing) {
+          let needsUpdate = false;
+          const updates: Record<string, any> = {};
+          if (!existing.birthDate && best.member.birthDate) { updates.birthDate = best.member.birthDate; needsUpdate = true; }
+          if (!existing.deathDate && best.member.deathDate) { updates.deathDate = best.member.deathDate; needsUpdate = true; }
+          if (!existing.email && best.member.email) { updates.email = best.member.email; needsUpdate = true; }
+          if (!existing.gender && best.member.gender) { updates.gender = best.member.gender; needsUpdate = true; }
+          if (!existing.birthPlace && best.member.birthPlace) { updates.birthPlace = best.member.birthPlace; needsUpdate = true; }
+          if (!existing.photoUrl && best.member.photoUrl) { updates.photoUrl = best.member.photoUrl; needsUpdate = true; }
+          if (!existing.phoneNumber && best.member.phoneNumber) { updates.phoneNumber = best.member.phoneNumber; needsUpdate = true; }
+
+          if (needsUpdate) {
+            await db.update(familyMembers).set(updates).where(eq(familyMembers.id, existing.id));
+            updated.push(`${best.member.firstName} ${best.member.lastName || ''} (filled ${Object.keys(updates).join(', ')})`);
+          } else {
+            skipped.push(`${best.member.firstName} ${best.member.lastName || ''}`);
+          }
+          idMapping.set(best.member.id, existing.id);
+        } else {
+          const newId = crypto.randomUUID();
+          idMapping.set(best.member.id, newId);
+          await db.insert(familyMembers).values({
+            id: newId,
+            treeId,
+            firstName: best.member.firstName,
+            lastName: best.member.lastName,
+            gender: best.member.gender,
+            birthDate: best.member.birthDate,
+            deathDate: best.member.deathDate,
+            birthPlace: best.member.birthPlace,
+            email: best.member.email,
+            phoneNumber: best.member.phoneNumber,
+            photoUrl: best.member.photoUrl,
+            isLiving: best.member.isLiving,
+            bio: best.member.bio,
+            nickname: best.member.nickname,
+            sharedInPool: true,
+          });
+          added.push(`${best.member.firstName} ${best.member.lastName || ''} (from ${best.sourceTreeName})`);
+        }
+
+        const sourceRels = await storage.getRelationships(best.sourceTreeId);
+        for (const r of sourceRels) {
+          if (r.fromMemberId === best.member.id || r.toMemberId === best.member.id) {
+            relsToCopy.push({ sourceTreeId: best.sourceTreeId, rel: r });
+          }
+        }
+      }
+
+      let relsAdded = 0;
+      const existingTargetRels = await storage.getRelationships(treeId);
+      const existingRelKeys = new Set(
+        existingTargetRels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`)
+      );
+
+      for (const { rel } of relsToCopy) {
+        const newFrom = idMapping.get(rel.fromMemberId);
+        const newTo = idMapping.get(rel.toMemberId);
+        if (!newFrom || !newTo) continue;
+
+        const relKey = `${newFrom}|${newTo}|${rel.relationshipType}`;
+        const reverseKey = `${newTo}|${newFrom}|${rel.relationshipType}`;
+        if (existingRelKeys.has(relKey) || existingRelKeys.has(reverseKey)) continue;
+
+        try {
+          await db.insert(relationshipsTable).values({
+            id: crypto.randomUUID(),
+            treeId,
+            fromMemberId: newFrom,
+            toMemberId: newTo,
+            relationshipType: rel.relationshipType,
+            qualifier: rel.qualifier,
+          });
+          existingRelKeys.add(relKey);
+          relsAdded++;
+        } catch (e) {}
+      }
+
+      res.json({
+        message: "Sync from pool complete",
+        added,
+        updated,
+        skipped,
+        relationshipsAdded: relsAdded,
+        summary: `Added ${added.length}, updated ${updated.length}, skipped ${skipped.length}, ${relsAdded} relationships added`,
+      });
+    } catch (error: any) {
+      console.error("Error syncing from pool:", error);
+      res.status(500).json({ message: "Failed to sync from pool" });
+    }
+  });
+
   app.post("/api/admin/trees/:treeId/smart-restore", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { treeId } = req.params;

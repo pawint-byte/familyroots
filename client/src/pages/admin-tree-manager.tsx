@@ -86,6 +86,32 @@ export default function AdminTreeManager() {
     },
   });
 
+  const [syncResult, setSyncResult] = useState<any>(null);
+  const [showSyncResult, setShowSyncResult] = useState(false);
+
+  const syncFromPoolMutation = useMutation({
+    mutationFn: async (treeId: string) => {
+      const res = await apiRequest("POST", `/api/admin/trees/${treeId}/sync-from-pool`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/all-trees"] });
+      setSyncResult(data);
+      setShowSyncResult(true);
+      toast({
+        title: "Sync Complete",
+        description: data.summary,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Could not sync from pool",
+        variant: "destructive",
+      });
+    },
+  });
+
   const shareMutation = useMutation({
     mutationFn: async (treeId: string) => {
       return apiRequest("POST", `/api/admin/trees/${treeId}/share-all-members`);
@@ -250,6 +276,23 @@ export default function AdminTreeManager() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (!confirm(`Sync "${tree.name}" from all other trees? This will add missing members and fill in empty fields.`)) return;
+                            syncFromPoolMutation.mutate(tree.id);
+                          }}
+                          disabled={syncFromPoolMutation.isPending}
+                          data-testid={`button-sync-${tree.id}`}
+                        >
+                          {syncFromPoolMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                          )}
+                          Sync from Pool
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -456,6 +499,49 @@ export default function AdminTreeManager() {
                 <CheckCircle2 className="h-4 w-4 mr-2" />
               )}
               Populate Tree
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showSyncResult} onOpenChange={(open) => {
+        if (!open) { setShowSyncResult(false); setSyncResult(null); }
+      }}>
+        <DialogContent className="max-w-lg" data-testid="dialog-sync-result">
+          <DialogHeader>
+            <DialogTitle>Sync Results</DialogTitle>
+            <DialogDescription>{syncResult?.summary}</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[400px]">
+            <div className="space-y-4 py-2">
+              {syncResult?.added?.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-green-600 mb-1">Added ({syncResult.added.length})</p>
+                  {syncResult.added.map((a: string, i: number) => (
+                    <p key={i} className="text-xs text-muted-foreground">{a}</p>
+                  ))}
+                </div>
+              )}
+              {syncResult?.updated?.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-blue-600 mb-1">Updated ({syncResult.updated.length})</p>
+                  {syncResult.updated.map((u: string, i: number) => (
+                    <p key={i} className="text-xs text-muted-foreground">{u}</p>
+                  ))}
+                </div>
+              )}
+              {syncResult?.skipped?.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Skipped ({syncResult.skipped.length})</p>
+                  {syncResult.skipped.map((s: string, i: number) => (
+                    <p key={i} className="text-xs text-muted-foreground">{s}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button onClick={() => { setShowSyncResult(false); setSyncResult(null); }} data-testid="button-close-sync">
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
