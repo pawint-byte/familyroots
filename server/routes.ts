@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { eq, and, or, inArray, desc, gte, lt, isNull } from "drizzle-orm";
+import { eq, and, or, inArray, desc, gte, lt, isNull, sql } from "drizzle-orm";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { 
@@ -8645,33 +8645,31 @@ export async function registerRoutes(
   app.get("/api/admin/all-trees", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const allTrees = await db.select({
-        id: trees.id,
-        name: trees.name,
-        ownerId: trees.ownerId,
-        treeType: trees.treeType,
-        deletedAt: trees.deletedAt,
-      }).from(trees);
+        id: familyTrees.id,
+        name: familyTrees.name,
+        ownerId: familyTrees.ownerId,
+        treeType: familyTrees.treeType,
+        deletedAt: familyTrees.deletedAt,
+      }).from(familyTrees);
 
       const ownerIds = [...new Set(allTrees.map(t => t.ownerId))];
-      const owners = await db.select({
-        id: users.id,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
-      }).from(users).where(inArray(users.id, ownerIds));
-
-      const ownerMap = new Map(owners.map(o => [o.id, o]));
+      const ownerPromises = ownerIds.map(id => storage.getUser(id));
+      const owners = await Promise.all(ownerPromises);
+      const ownerMap = new Map<string, any>();
+      owners.forEach((owner, i) => {
+        if (owner) ownerMap.set(ownerIds[i], owner);
+      });
 
       const treeIds = allTrees.filter(t => !t.deletedAt).map(t => t.id);
-      const memberCounts = await db.select({
-        treeId: treeMembers.treeId,
+      const memberCounts = treeIds.length > 0 ? await db.select({
+        treeId: familyMembers.treeId,
         count: sql<number>`count(*)::int`,
-      }).from(treeMembers)
+      }).from(familyMembers)
         .where(and(
-          inArray(treeMembers.treeId, treeIds.length > 0 ? treeIds : [""]),
-          isNull(treeMembers.deletedAt)
+          inArray(familyMembers.treeId, treeIds),
+          isNull(familyMembers.deletedAt)
         ))
-        .groupBy(treeMembers.treeId);
+        .groupBy(familyMembers.treeId) : [];
 
       const countMap = new Map(memberCounts.map(c => [c.treeId, c.count]));
 
