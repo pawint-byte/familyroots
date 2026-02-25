@@ -9622,6 +9622,20 @@ export async function registerRoutes(
           const displayLastName = otherUser?.lastName || primaryProfile?.lastName || null;
           const displayPhoto = otherUser?.profileImageUrl || primaryProfile?.photoUrl || null;
 
+          let sourceTreeName: string | null = null;
+          let sourceTreeId: string | null = null;
+          let customLabelFromThem: string | null = null;
+          let customLabelFromMe: string | null = null;
+          if (conn.sourceRequestId) {
+            const request = await storage.getUserConnectionRequest(conn.sourceRequestId);
+            if (request) {
+              sourceTreeName = request.targetTreeName || null;
+              sourceTreeId = request.targetTreeId || null;
+            }
+          }
+          customLabelFromMe = conn.userId1 === userId ? conn.customLabelFromUser1 : conn.customLabelFromUser2;
+          customLabelFromThem = conn.userId1 === userId ? conn.customLabelFromUser2 : conn.customLabelFromUser1;
+
           return {
             ...conn,
             otherUser: {
@@ -9633,6 +9647,10 @@ export async function registerRoutes(
             memberProfiles,
             myRelationshipToThem: myRelationship,
             theirRelationshipToMe: theirRelationship,
+            sourceTreeName,
+            sourceTreeId,
+            customLabelFromMe,
+            customLabelFromThem,
           };
         })
       );

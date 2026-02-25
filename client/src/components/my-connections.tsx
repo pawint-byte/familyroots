@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Users, ArrowRight, Trash2 } from "lucide-react";
+import { Users, ArrowRight, Trash2, TreePine } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +45,10 @@ interface UserConnection {
   memberProfiles?: MemberProfile[];
   myRelationshipToThem: string | null;
   theirRelationshipToMe: string | null;
+  sourceTreeName: string | null;
+  sourceTreeId: string | null;
+  customLabelFromMe: string | null;
+  customLabelFromThem: string | null;
 }
 
 const RELATIONSHIP_LABELS: Record<string, string> = {
@@ -145,6 +149,10 @@ export function MyConnectionsSection() {
               : null;
 
             const profiles = connection.memberProfiles || [];
+            const customLabelThem = connection.customLabelFromThem;
+            const customLabelMe = connection.customLabelFromMe;
+            const theirDisplayLabel = customLabelThem || theirRelationship;
+            const myDisplayLabel = customLabelMe || myRelationship;
 
             return (
               <div
@@ -161,39 +169,61 @@ export function MyConnectionsSection() {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium">{fullName}</div>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      {theirRelationship && (
-                        <Badge variant="secondary" className="text-xs">
-                          Your {theirRelationship}
+                      {theirDisplayLabel && (
+                        <Badge variant="secondary" className="text-xs" data-testid={`badge-relationship-${connection.id}`}>
+                          Your {theirDisplayLabel}
                         </Badge>
                       )}
-                      {myRelationship && theirRelationship && myRelationship !== theirRelationship && (
+                      {myDisplayLabel && theirDisplayLabel && myDisplayLabel !== theirDisplayLabel && (
                         <span className="text-xs text-muted-foreground">
-                          (You're their {myRelationship})
+                          (You're their {myDisplayLabel})
                         </span>
                       )}
-                      {!theirRelationship && myRelationship && (
+                      {!theirDisplayLabel && myDisplayLabel && (
                         <Badge variant="outline" className="text-xs">
-                          You're their {myRelationship}
+                          You're their {myDisplayLabel}
                         </Badge>
                       )}
-                      {!theirRelationship && !myRelationship && (
+                      {!theirDisplayLabel && !myDisplayLabel && (
                         <Badge variant="outline" className="text-xs">
                           Connected
                         </Badge>
                       )}
                     </div>
-                    {profiles.length > 0 && (
-                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        {profiles.map((profile) => (
-                          <Link
-                            key={profile.treeId}
-                            href={`/tree/${profile.treeId}`}
+                    {connection.sourceTreeName && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <TreePine className="h-3 w-3 text-muted-foreground shrink-0" />
+                        {connection.sourceTreeId ? (
+                          <Link 
+                            href={`/tree/${connection.sourceTreeId}`}
                             className="text-xs text-primary/70 hover:text-primary hover:underline"
                             onClick={(e) => e.stopPropagation()}
-                            data-testid={`connection-tree-link-${profile.treeId}`}
+                            data-testid={`connection-source-tree-${connection.id}`}
                           >
-                            {profile.treeName || "Tree"}
+                            Connected via {connection.sourceTreeName}
                           </Link>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Connected via {connection.sourceTreeName}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {profiles.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span className="text-xs text-muted-foreground">In:</span>
+                        {profiles.map((profile, idx) => (
+                          <span key={profile.treeId} className="inline-flex items-center">
+                            <Link
+                              href={`/tree/${profile.treeId}`}
+                              className="text-xs text-primary/70 hover:text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`connection-tree-link-${profile.treeId}`}
+                            >
+                              {profile.treeName || "Tree"}
+                            </Link>
+                            {idx < profiles.length - 1 && <span className="text-xs text-muted-foreground mx-1">,</span>}
+                          </span>
                         ))}
                       </div>
                     )}
