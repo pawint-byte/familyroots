@@ -80,12 +80,14 @@ interface OrderItem {
 
 class PrintfulService {
   private apiKey: string;
+  private storeId: string;
   private imageCache: Map<number, string> = new Map();
   private imageCacheTime: number = 0;
   private readonly IMAGE_CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
   constructor() {
     this.apiKey = process.env.PRINTFUL_API_KEY || '';
+    this.storeId = process.env.PRINTFUL_STORE_ID || '17783050';
   }
 
   async fetchCatalogImage(productId: number): Promise<string | null> {
@@ -122,17 +124,21 @@ class PrintfulService {
     console.log(`[printful] Fetched catalog images for ${this.imageCache.size}/${productIds.length} products`);
   }
 
-  private getHeaders() {
-    return {
+  private getHeaders(includeStore = false) {
+    const headers: Record<string, string> = {
       'Authorization': `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
     };
+    if (includeStore && this.storeId) {
+      headers['X-PF-Store-Id'] = this.storeId;
+    }
+    return headers;
   }
 
   async testConnection(): Promise<boolean> {
     try {
       const response = await fetch(`${PRINTFUL_API_URL}/store`, {
-        headers: this.getHeaders(),
+        headers: this.getHeaders(true),
       });
       return response.ok;
     } catch (error) {
@@ -232,7 +238,7 @@ class PrintfulService {
     try {
       const response = await fetch(`${PRINTFUL_API_URL}/shipping/rates`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(true),
         body: JSON.stringify({
           recipient: address,
           items: items.map(item => ({
@@ -263,7 +269,7 @@ class PrintfulService {
     try {
       const response = await fetch(`${PRINTFUL_API_URL}/orders${confirm ? '?confirm=true' : ''}`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(true),
         body: JSON.stringify({
           recipient: address,
           items,
@@ -290,7 +296,7 @@ class PrintfulService {
   async getOrder(orderId: number): Promise<any> {
     try {
       const response = await fetch(`${PRINTFUL_API_URL}/orders/${orderId}`, {
-        headers: this.getHeaders(),
+        headers: this.getHeaders(true),
       });
       
       if (!response.ok) {
@@ -310,7 +316,7 @@ class PrintfulService {
     try {
       const response = await fetch(`${PRINTFUL_API_URL}/orders/${orderId}/confirm`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(true),
       });
       
       return response.ok;
@@ -324,7 +330,7 @@ class PrintfulService {
     try {
       const response = await fetch(`${PRINTFUL_API_URL}/orders/${orderId}`, {
         method: 'DELETE',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(true),
       });
       
       return response.ok;
