@@ -267,7 +267,8 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
       const pos = placed.get(m.id) || { x: 0, y: 0 };
       const initials = `${m.firstName?.[0] || ""}${m.lastName?.[0] || ""}`.toUpperCase();
       const displayName = m.firstName || "?";
-      return { id: m.id, x: pos.x, y: pos.y, initials, displayName, photoUrl: m.photoUrl };
+      const absPhoto = m.photoUrl ? (m.photoUrl.startsWith('http') ? m.photoUrl : `${window.location.origin}${m.photoUrl}`) : undefined;
+      return { id: m.id, x: pos.x, y: pos.y, initials, displayName, photoUrl: absPhoto };
     });
   }, [members, relationships]);
 
@@ -439,7 +440,8 @@ function StaticTreeCapture({ members, relationships, treeName, treeType }: { mem
     const pos = placed.get(m.id) || { x: 0, y: 0 };
     const initials = `${m.firstName?.[0] || ""}${m.lastName?.[0] || ""}`.toUpperCase();
     const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || "?";
-    return { id: m.id, x: pos.x, y: pos.y, initials, name, photoUrl: m.photoUrl };
+    const absPhoto = m.photoUrl ? (m.photoUrl.startsWith('http') ? m.photoUrl : `${window.location.origin}${m.photoUrl}`) : undefined;
+    return { id: m.id, x: pos.x, y: pos.y, initials, name, photoUrl: absPhoto };
   });
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -744,13 +746,19 @@ function ProductCustomizer({
           el.style.width = `${captureW}px`;
           el.style.height = `${captureH}px`;
 
-          const dataUrl = await toPng(el, {
+          const toPngWithTimeout = (element: HTMLElement, options: any, timeoutMs: number) => {
+            return Promise.race([
+              toPng(element, options),
+              new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Tree capture timed out")), timeoutMs)),
+            ]);
+          };
+          const dataUrl = await toPngWithTimeout(el, {
             quality: 0.95,
             pixelRatio: 3,
             backgroundColor: "#ffffff",
             width: captureW,
             height: captureH,
-          });
+          }, 15000);
           const blob = await (await fetch(dataUrl)).blob();
           const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
           const res = await apiRequest("POST", "/api/uploads/request-url", {
@@ -863,7 +871,7 @@ function ProductCustomizer({
                 'inset-0 flex items-center justify-center'
               }`}>
                 <div 
-                  className={`bg-white/90 dark:bg-gray-900/90 rounded-lg shadow-lg overflow-hidden ${
+                  className={`bg-white/90 rounded-lg shadow-lg overflow-hidden ${
                     treePlacement === 'front_left' ? 'w-1/3 h-1/3' :
                     product.printArea === 'wrap' ? 'w-3/4 h-1/2' : 
                     product.printArea === 'front' ? 'w-1/2 h-1/2' : 
@@ -2313,7 +2321,7 @@ export default function MerchandisePage() {
                                       />
                                       {hasTree && item.showTree && (
                                         <div className="absolute top-[12%] left-[15%] w-[70%] h-[65%]">
-                                          <div className="w-full h-full bg-white/85 dark:bg-gray-900/85 rounded-md shadow-md overflow-hidden p-1">
+                                          <div className="w-full h-full bg-white/85 rounded-md shadow-md overflow-hidden p-1">
                                             <MiniTreePreview
                                               members={previewMembers}
                                               relationships={previewRelationships}
