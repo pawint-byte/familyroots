@@ -24,8 +24,8 @@ import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
-import { getTreeTypeConfig, getMemberRank, getRelationshipRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
-import GroupVisualization, { type GroupLayoutMode } from "@/components/group-visualization";
+import { getTreeTypeConfig, getMemberRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
+import { type GroupLayoutMode } from "@/components/group-visualization";
 
 const MERCHANDISE_DISABLED = false;
 const MERCHANDISE_DISABLED_MESSAGE = "Merchandise ordering is temporarily unavailable while we complete setup with our print partner. We'll notify you when it's back. Any previous charges have been fully refunded.";
@@ -195,98 +195,92 @@ function ProductCard({
   );
 }
 
-function MiniTreePreview({ members, relationships, treeName, treeType, layoutOverride }: { members: any[]; relationships: any[]; treeName: string; treeType: string; layoutOverride?: GroupLayoutMode }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const innerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.15);
-  const [contentSize, setContentSize] = useState({ w: 1200, h: 1200 });
-  const [offsetAdjust, setOffsetAdjust] = useState({ x: 0, y: 0 });
+function MiniTreePreview({ members, relationships, treeName, treeType }: { members: any[]; relationships: any[]; treeName: string; treeType: string; layoutOverride?: GroupLayoutMode }) {
   const config = getTreeTypeConfig((treeType || "custom") as TreeType);
+  const accentColor = config.visual.accentColor || "#10b981";
 
-  const focusMemberId = useMemo(() => {
-    const tt = (treeType || "custom") as TreeType;
-    for (const m of members) {
-      for (const rel of relationships) {
-        if (rel.fromMemberId === m.id) {
-          const rank = getRelationshipRank(tt, rel.relationshipType);
-          if (rank <= 2) return m.id;
-        }
+  const nodePositions = useMemo(() => {
+    if (members.length === 0) return [];
+
+    const memberMap = new Map<string, any>();
+    members.forEach(m => memberMap.set(m.id, m));
+
+    const adjacency = new Map<string, Set<string>>();
+    members.forEach(m => adjacency.set(m.id, new Set()));
+    relationships.forEach(r => {
+      if (adjacency.has(r.fromMemberId) && adjacency.has(r.toMemberId)) {
+        adjacency.get(r.fromMemberId)!.add(r.toMemberId);
+        adjacency.get(r.toMemberId)!.add(r.fromMemberId);
+      }
+    });
+
+    let rootId = members[0]?.id;
+    let maxConnections = 0;
+    for (const [id, neighbors] of adjacency) {
+      if (neighbors.size > maxConnections) {
+        maxConnections = neighbors.size;
+        rootId = id;
       }
     }
-    return members[0]?.id || "";
-  }, [members, relationships, treeType]);
 
-  useEffect(() => {
-    if (!containerRef.current || !innerRef.current) return;
+    const placed = new Map<string, { x: number; y: number }>();
+    const queue: string[] = [rootId];
+    const visited = new Set<string>([rootId]);
 
-    const measureAndScale = () => {
-      if (!containerRef.current || !innerRef.current) return;
-      const svgEl = innerRef.current.querySelector('svg');
-      let treeW = 800, treeH = 600;
-      if (svgEl) {
-        const vb = svgEl.getAttribute('viewBox');
-        if (vb) {
-          const parts = vb.split(/\s+/).map(Number);
-          if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-            treeW = parts[2];
-            treeH = parts[3];
+    const nodeSpacingX = 140;
+    const nodeSpacingY = 120;
+    const levels: string[][] = [];
+
+    while (queue.length > 0) {
+      const levelSize = queue.length;
+      const level: string[] = [];
+      for (let i = 0; i < levelSize; i++) {
+        const current = queue.shift()!;
+        level.push(current);
+        const neighbors = adjacency.get(current) || new Set();
+        for (const n of neighbors) {
+          if (!visited.has(n)) {
+            visited.add(n);
+            queue.push(n);
           }
         }
-        try {
-          const bbox = (svgEl as SVGSVGElement).getBBox?.();
-          if (bbox && bbox.width > 0 && bbox.height > 0) {
-            treeW = Math.max(treeW, bbox.width + 40);
-            treeH = Math.max(treeH, bbox.height + 40);
-          }
-        } catch (_) {}
       }
-      if (treeW <= 0 || treeH <= 0) {
-        const canvas = innerRef.current.querySelector('[data-testid="group-visualization-canvas"]');
-        if (canvas) {
-          treeW = Math.max((canvas as HTMLElement).scrollWidth, 400);
-          treeH = Math.max((canvas as HTMLElement).scrollHeight, 400);
-        }
+      levels.push(level);
+    }
+
+    for (const m of members) {
+      if (!visited.has(m.id)) {
+        levels[levels.length - 1] = levels[levels.length - 1] || [];
+        levels[levels.length - 1].push(m.id);
       }
+    }
 
-      setContentSize({ w: treeW, h: treeH });
+    levels.forEach((level, depth) => {
+      const totalWidth = (level.length - 1) * nodeSpacingX;
+      const startX = -totalWidth / 2;
+      level.forEach((id, i) => {
+        placed.set(id, { x: startX + i * nodeSpacingX, y: depth * nodeSpacingY });
+      });
+    });
 
-      const canvas = innerRef.current.querySelector('[data-testid="group-visualization-canvas"]');
-      if (canvas) {
-        const transformDiv = canvas.firstElementChild as HTMLElement;
-        if (transformDiv) {
-          transformDiv.style.transform = 'scale(1)';
-          transformDiv.style.transformOrigin = '0 0';
-        }
-      }
+    return members.map(m => {
+      const pos = placed.get(m.id) || { x: 0, y: 0 };
+      const initials = `${m.firstName?.[0] || ""}${m.lastName?.[0] || ""}`.toUpperCase();
+      const displayName = m.firstName || "?";
+      return { id: m.id, x: pos.x, y: pos.y, initials, displayName, photoUrl: m.photoUrl };
+    });
+  }, [members, relationships]);
 
-      const cw = containerRef.current.clientWidth;
-      const ch = containerRef.current.clientHeight - 24;
-      if (treeW > 0 && treeH > 0 && cw > 0 && ch > 0) {
-        const s = Math.min(cw / treeW, ch / treeH) * 0.88;
-        setScale(s);
-        const scaledW = treeW * s;
-        const scaledH = treeH * s;
-        setOffsetAdjust({
-          x: Math.max(0, (cw - scaledW) / 2),
-          y: Math.max(0, (ch - scaledH) / 2),
-        });
-      }
-    };
-
-    const timers = [
-      setTimeout(measureAndScale, 150),
-      setTimeout(measureAndScale, 400),
-      setTimeout(measureAndScale, 800),
-    ];
-
-    const observer = new ResizeObserver(() => measureAndScale());
-    observer.observe(containerRef.current);
-
-    return () => {
-      timers.forEach(clearTimeout);
-      observer.disconnect();
-    };
-  }, [members, relationships, treeType, layoutOverride]);
+  const connectionLines = useMemo(() => {
+    const posMap = new Map(nodePositions.map(n => [n.id, n]));
+    return relationships
+      .filter(r => posMap.has(r.fromMemberId) && posMap.has(r.toMemberId))
+      .map(r => {
+        const from = posMap.get(r.fromMemberId)!;
+        const to = posMap.get(r.toMemberId)!;
+        return { x1: from.x, y1: from.y, x2: to.x, y2: to.y, key: `${r.fromMemberId}-${r.toMemberId}` };
+      });
+  }, [nodePositions, relationships]);
 
   if (members.length === 0) {
     return (
@@ -296,37 +290,214 @@ function MiniTreePreview({ members, relationships, treeName, treeType, layoutOve
     );
   }
 
+  const padding = 50;
+  const nodeRadius = 22;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  nodePositions.forEach(n => {
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+    if (n.x > maxX) maxX = n.x;
+    if (n.y > maxY) maxY = n.y;
+  });
+  const svgW = maxX - minX + padding * 2 + nodeRadius * 2;
+  const svgH = maxY - minY + padding * 2 + nodeRadius * 2 + 30;
+  const offsetX = -minX + padding + nodeRadius;
+  const offsetY = -minY + padding + nodeRadius + 20;
+
+  const uniqueLines = new Map<string, typeof connectionLines[0]>();
+  connectionLines.forEach(line => {
+    const sortedKey = [line.x1, line.y1, line.x2, line.y2].sort().join(',');
+    if (!uniqueLines.has(sortedKey)) uniqueLines.set(sortedKey, line);
+  });
+
   return (
-    <div ref={containerRef} className="w-full h-full overflow-hidden relative bg-white dark:bg-gray-900" data-testid="mini-tree-preview">
-      <div className="text-center pt-0.5 pb-0.5 relative z-10">
-        <span className="text-[9px] font-bold text-gray-700 dark:text-gray-200 leading-none">{treeName}</span>
-      </div>
-      <div className="absolute inset-0 top-3 bottom-3 overflow-hidden">
-        <div
-          ref={innerRef}
-          style={{
-            transform: `translate(${offsetAdjust.x}px, ${offsetAdjust.y}px) scale(${scale})`,
-            transformOrigin: "top left",
-            pointerEvents: "none",
-            width: `${contentSize.w}px`,
-            height: `${contentSize.h}px`,
-          }}
-        >
-          <GroupVisualization
-            members={members as any}
-            relationships={relationships as any}
-            zoom={1}
-            onMemberClick={() => {}}
-            focusMemberId={focusMemberId}
-            treeType={(treeType || "custom") as TreeType}
-            layoutOverride={layoutOverride}
+    <div className="w-full h-full overflow-hidden flex items-center justify-center bg-white" data-testid="mini-tree-preview">
+      <svg
+        viewBox={`0 0 ${svgW} ${svgH}`}
+        width="100%"
+        height="100%"
+        style={{ maxWidth: '100%', maxHeight: '100%' }}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <rect width={svgW} height={svgH} fill="white" />
+        <text x={svgW / 2} y={14} textAnchor="middle" fontSize={12} fontWeight="bold" fill="#374151">{treeName}</text>
+
+        {Array.from(uniqueLines.values()).map(line => (
+          <line
+            key={line.key}
+            x1={line.x1 + offsetX}
+            y1={line.y1 + offsetY}
+            x2={line.x2 + offsetX}
+            y2={line.y2 + offsetY}
+            stroke={accentColor}
+            strokeWidth={1.5}
+            strokeOpacity={0.5}
           />
-        </div>
-      </div>
-      <div className="absolute bottom-0.5 left-0 right-0 text-center z-10">
-        <span className="text-[7px] text-gray-500 dark:text-gray-400">{config.visual.shapeName}</span>
-      </div>
+        ))}
+
+        {nodePositions.map(node => {
+          const cx = node.x + offsetX;
+          const cy = node.y + offsetY;
+          return (
+            <g key={node.id}>
+              <circle cx={cx} cy={cy} r={nodeRadius} fill="white" stroke={accentColor} strokeWidth={2} />
+              {node.photoUrl ? (
+                <>
+                  <clipPath id={`clip-${node.id}`}>
+                    <circle cx={cx} cy={cy} r={nodeRadius - 2} />
+                  </clipPath>
+                  <image
+                    href={node.photoUrl}
+                    x={cx - nodeRadius + 2}
+                    y={cy - nodeRadius + 2}
+                    width={(nodeRadius - 2) * 2}
+                    height={(nodeRadius - 2) * 2}
+                    clipPath={`url(#clip-${node.id})`}
+                    preserveAspectRatio="xMidYMid slice"
+                  />
+                </>
+              ) : (
+                <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="bold" fill={accentColor}>
+                  {node.initials}
+                </text>
+              )}
+              <text x={cx} y={cy + nodeRadius + 11} textAnchor="middle" fontSize={7} fill="#4b5563">
+                {node.displayName}
+              </text>
+            </g>
+          );
+        })}
+
+        <text x={svgW / 2} y={svgH - 4} textAnchor="middle" fontSize={8} fill="#9ca3af">{config.visual.shapeName}</text>
+      </svg>
     </div>
+  );
+}
+
+function StaticTreeCapture({ members, relationships, treeName, treeType }: { members: any[]; relationships: any[]; treeName: string; treeType: string }) {
+  const config = getTreeTypeConfig((treeType || "custom") as TreeType);
+  const accentColor = config.visual.accentColor || "#10b981";
+
+  const adjacency = new Map<string, Set<string>>();
+  members.forEach(m => adjacency.set(m.id, new Set()));
+  relationships.forEach(r => {
+    if (adjacency.has(r.fromMemberId) && adjacency.has(r.toMemberId)) {
+      adjacency.get(r.fromMemberId)!.add(r.toMemberId);
+      adjacency.get(r.toMemberId)!.add(r.fromMemberId);
+    }
+  });
+
+  let rootId = members[0]?.id;
+  let maxConn = 0;
+  for (const [id, neighbors] of adjacency) {
+    if (neighbors.size > maxConn) { maxConn = neighbors.size; rootId = id; }
+  }
+
+  const queue: string[] = [rootId];
+  const visited = new Set<string>([rootId]);
+  const levels: string[][] = [];
+  while (queue.length > 0) {
+    const size = queue.length;
+    const level: string[] = [];
+    for (let i = 0; i < size; i++) {
+      const cur = queue.shift()!;
+      level.push(cur);
+      for (const n of (adjacency.get(cur) || new Set())) {
+        if (!visited.has(n)) { visited.add(n); queue.push(n); }
+      }
+    }
+    levels.push(level);
+  }
+  for (const m of members) {
+    if (!visited.has(m.id)) {
+      levels[levels.length - 1] = levels[levels.length - 1] || [];
+      levels[levels.length - 1].push(m.id);
+    }
+  }
+
+  const nodeSpacingX = 220;
+  const nodeSpacingY = 200;
+  const nodeRadius = 40;
+  const padding = 80;
+
+  const placed = new Map<string, { x: number; y: number }>();
+  levels.forEach((level, depth) => {
+    const totalWidth = (level.length - 1) * nodeSpacingX;
+    const startX = -totalWidth / 2;
+    level.forEach((id, i) => {
+      placed.set(id, { x: startX + i * nodeSpacingX, y: depth * nodeSpacingY });
+    });
+  });
+
+  const nodes = members.map(m => {
+    const pos = placed.get(m.id) || { x: 0, y: 0 };
+    const initials = `${m.firstName?.[0] || ""}${m.lastName?.[0] || ""}`.toUpperCase();
+    const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || "?";
+    return { id: m.id, x: pos.x, y: pos.y, initials, name, photoUrl: m.photoUrl };
+  });
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  nodes.forEach(n => {
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+    if (n.x > maxX) maxX = n.x;
+    if (n.y > maxY) maxY = n.y;
+  });
+  const svgW = maxX - minX + padding * 2 + nodeRadius * 2;
+  const svgH = maxY - minY + padding * 2 + nodeRadius * 2 + 60;
+  const offsetX = -minX + padding + nodeRadius;
+  const offsetY = -minY + padding + nodeRadius + 40;
+
+  const posMap = new Map(nodes.map(n => [n.id, n]));
+  const uniqueLines = new Map<string, { x1: number; y1: number; x2: number; y2: number }>();
+  relationships.forEach(r => {
+    const from = posMap.get(r.fromMemberId);
+    const to = posMap.get(r.toMemberId);
+    if (from && to) {
+      const key = [from.x, from.y, to.x, to.y].sort().join(',');
+      if (!uniqueLines.has(key)) uniqueLines.set(key, { x1: from.x, y1: from.y, x2: to.x, y2: to.y });
+    }
+  });
+
+  return (
+    <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} xmlns="http://www.w3.org/2000/svg">
+      <rect width={svgW} height={svgH} fill="white" />
+      <text x={svgW / 2} y={30} textAnchor="middle" fontSize={24} fontWeight="bold" fill="#1f2937">{treeName}</text>
+
+      {Array.from(uniqueLines.values()).map((line, i) => (
+        <line key={i} x1={line.x1 + offsetX} y1={line.y1 + offsetY} x2={line.x2 + offsetX} y2={line.y2 + offsetY}
+          stroke={accentColor} strokeWidth={3} strokeOpacity={0.6} />
+      ))}
+
+      {nodes.map(node => {
+        const cx = node.x + offsetX;
+        const cy = node.y + offsetY;
+        return (
+          <g key={node.id}>
+            <circle cx={cx} cy={cy} r={nodeRadius} fill="white" stroke={accentColor} strokeWidth={3} />
+            {node.photoUrl ? (
+              <>
+                <clipPath id={`print-clip-${node.id}`}>
+                  <circle cx={cx} cy={cy} r={nodeRadius - 3} />
+                </clipPath>
+                <image href={node.photoUrl} x={cx - nodeRadius + 3} y={cy - nodeRadius + 3}
+                  width={(nodeRadius - 3) * 2} height={(nodeRadius - 3) * 2}
+                  clipPath={`url(#print-clip-${node.id})`} preserveAspectRatio="xMidYMid slice" />
+              </>
+            ) : (
+              <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle" fontSize={18} fontWeight="bold" fill={accentColor}>
+                {node.initials}
+              </text>
+            )}
+            <text x={cx} y={cy + nodeRadius + 18} textAnchor="middle" fontSize={13} fontWeight="500" fill="#374151">
+              {node.name}
+            </text>
+          </g>
+        );
+      })}
+
+      <text x={svgW / 2} y={svgH - 10} textAnchor="middle" fontSize={14} fill="#9ca3af">{config.visual.shapeName}</text>
+    </svg>
   );
 }
 
@@ -553,60 +724,14 @@ function ProductCustomizer({
       if (includeTree && selectedTreeId && treePreviewRef.current) {
         setIsCapturingTree(true);
         try {
-          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 200));
           const el = treePreviewRef.current;
           const svgEl = el.querySelector('svg');
-          const canvas = el.querySelector('[data-testid="group-visualization-canvas"]');
-          const transformDiv = canvas?.firstElementChild as HTMLElement | null;
-
-          let treeW = 800, treeH = 600;
-          if (svgEl) {
-            const vb = svgEl.getAttribute('viewBox');
-            if (vb) {
-              const parts = vb.split(/\s+/).map(Number);
-              if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-                treeW = parts[2];
-                treeH = parts[3];
-              }
-            }
-            try {
-              const bbox = (svgEl as SVGSVGElement).getBBox?.();
-              if (bbox && bbox.width > 0 && bbox.height > 0) {
-                treeW = Math.max(treeW, bbox.width + 40);
-                treeH = Math.max(treeH, bbox.height + 40);
-              }
-            } catch (_) {}
-          }
-          if (treeW <= 0 || treeH <= 0) {
-            if (canvas) {
-              treeW = Math.max((canvas as HTMLElement).scrollWidth, 400);
-              treeH = Math.max((canvas as HTMLElement).scrollHeight, 400);
-            }
-          }
-
-          const padding = 60;
-          const captureW = treeW + padding * 2;
-          const captureH = treeH + padding * 2;
-
+          const captureW = svgEl ? (parseInt(svgEl.getAttribute('width') || '800')) : 800;
+          const captureH = svgEl ? (parseInt(svgEl.getAttribute('height') || '600')) : 600;
           el.style.width = `${captureW}px`;
           el.style.height = `${captureH}px`;
-          el.style.padding = `${padding}px`;
-          el.style.overflow = 'hidden';
 
-          if (canvas) {
-            (canvas as HTMLElement).style.width = `${treeW}px`;
-            (canvas as HTMLElement).style.height = `${treeH}px`;
-            (canvas as HTMLElement).style.overflow = 'visible';
-          }
-          if (transformDiv) {
-            transformDiv.style.transform = 'scale(1)';
-            transformDiv.style.transformOrigin = '0 0';
-            transformDiv.style.width = `${treeW}px`;
-            transformDiv.style.height = `${treeH}px`;
-          }
-
-          await new Promise(resolve => setTimeout(resolve, 300));
           const dataUrl = await toPng(el, {
             quality: 0.95,
             pixelRatio: 3,
@@ -818,16 +943,13 @@ function ProductCustomizer({
           {includeTree && selectedTree && selectedTreeId && !loadingTreeDetail && treeMemberCount > 0 && (
             <div 
               ref={treePreviewRef}
-              style={{ position: "absolute", left: "-9999px", top: "-9999px", background: "#ffffff", padding: "40px", overflow: "visible" }}
+              style={{ position: "absolute", left: "-9999px", top: "-9999px", background: "#ffffff" }}
             >
-              <GroupVisualization
-                members={treeMembers as any}
-                relationships={treeDetail?.relationships as any ?? []}
-                zoom={1}
-                onMemberClick={() => {}}
-                focusMemberId={treeMembers[0]?.id || ""}
-                treeType={(selectedTree.treeType || "custom") as TreeType}
-                layoutOverride={(treeDetail?.tree?.preferredLayout as GroupLayoutMode) || layoutOverride}
+              <StaticTreeCapture
+                members={treeMembers}
+                relationships={treeDetail?.relationships ?? []}
+                treeName={selectedTree.name}
+                treeType={selectedTree.treeType || "family"}
               />
             </div>
           )}
