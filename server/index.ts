@@ -8,6 +8,7 @@ import { WebhookHandlers } from './webhookHandlers';
 import { getVideoById } from './heygen';
 import { storage } from './storage';
 import { sendCustodianshipApproval, sendCustodianshipReminder, sendRegistryReminderEmail } from './lib/email';
+import { runProdDataMigration } from './prodDataMigration';
 
 const app = express();
 const httpServer = createServer(app);
@@ -243,6 +244,11 @@ app.use((req, res, next) => {
       // Initialize Stripe after server is listening (non-blocking)
       initStripe().catch(err => {
         console.error('Stripe initialization error:', err);
+      });
+      
+      // Run data migration to ensure production has consolidated data
+      runProdDataMigration().catch(err => {
+        console.error('Data migration error:', err);
       });
       
       // Start scheduled tasks
