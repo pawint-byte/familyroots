@@ -16,8 +16,10 @@ import {
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
   AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
-  Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy, Type, Upload
+  Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy, Type, Upload,
+  RotateCcw
 } from "lucide-react";
+import { toPng } from "html-to-image";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -25,7 +27,7 @@ import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
 import { getTreeTypeConfig, getMemberRank, getRelationshipRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
 import GroupVisualization, { type GroupLayoutMode } from "@/components/group-visualization";
 
-const MERCHANDISE_DISABLED = true;
+const MERCHANDISE_DISABLED = false;
 const MERCHANDISE_DISABLED_MESSAGE = "Merchandise ordering is temporarily unavailable while we complete setup with our print partner. We'll notify you when it's back. Any previous charges have been fully refunded.";
 
 interface PrintPlacement {
@@ -326,6 +328,8 @@ function ProductCustomizer({
   const [customText, setCustomText] = useState<string>("");
   const [customTextPlacement, setCustomTextPlacement] = useState<string>("front");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const treePreviewRef = useRef<HTMLDivElement>(null);
+  const [isCapturingTree, setIsCapturingTree] = useState(false);
   const [showShipping, setShowShipping] = useState(false);
   const [treePlacement, setTreePlacement] = useState<string>(product.placements?.[0]?.id || "front");
   const [qrPlacement, setQrPlacement] = useState<string>("");
@@ -499,8 +503,40 @@ function ProductCustomizer({
         throw new Error("Please complete all required shipping fields");
       }
 
-      const baseUrl = window.location.origin;
-      const treeImageUrl = includeTree && selectedTreeId ? `${baseUrl}/tree/${selectedTreeId}` : '';
+      let treeImageUrl = '';
+      if (includeTree && selectedTreeId && treePreviewRef.current) {
+        setIsCapturingTree(true);
+        try {
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const dataUrl = await toPng(treePreviewRef.current, {
+            quality: 0.95,
+            pixelRatio: 3,
+            backgroundColor: "#ffffff",
+            width: 1200,
+            height: 1200,
+          });
+          const blob = await (await fetch(dataUrl)).blob();
+          const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
+          const res = await apiRequest("POST", "/api/uploads/request-url", {
+            name: filename,
+            size: blob.size,
+            contentType: "image/png",
+          });
+          const { uploadURL, objectPath } = await res.json();
+          await fetch(uploadURL, {
+            method: "PUT",
+            body: blob,
+            headers: { "Content-Type": "image/png" },
+          });
+          treeImageUrl = objectPath;
+        } catch (captureError) {
+          console.error("Tree capture failed:", captureError);
+          throw new Error("Failed to capture tree image for printing. Please try again.");
+        } finally {
+          setIsCapturingTree(false);
+        }
+      }
 
       const treePrintPlacement = product.placements?.find(p => p.id === treePlacement);
       const qrPrintPlacement = qrPlacement ? product.placements?.find(p => p.id === qrPlacement) : null;
@@ -681,6 +717,23 @@ function ProductCustomizer({
             )}
           </div>
           
+          {includeTree && selectedTree && selectedTreeId && !loadingTreeDetail && treeMemberCount > 0 && (
+            <div 
+              ref={treePreviewRef}
+              style={{ position: "absolute", left: "-9999px", top: "-9999px", width: "1200px", height: "1200px", background: "#ffffff" }}
+            >
+              <GroupVisualization
+                members={treeMembers as any}
+                relationships={treeDetail?.relationships as any ?? []}
+                zoom={1}
+                onMemberClick={() => {}}
+                focusMemberId={treeMembers[0]?.id || ""}
+                treeType={(selectedTree.treeType || "custom") as TreeType}
+                layoutOverride={(treeDetail?.tree?.preferredLayout as GroupLayoutMode) || layoutOverride}
+              />
+            </div>
+          )}
+
           {includeTree && selectedTree && product.maxMembers && (
             <Alert variant={treeMemberCount > product.maxMembers ? "destructive" : "default"}>
               {treeMemberCount > product.maxMembers ? (
@@ -1413,10 +1466,15 @@ function ProductCustomizer({
                   className="flex-1"
                   size="lg"
                   onClick={() => createOrderMutation.mutate()}
-                  disabled={!isShippingValid() || createOrderMutation.isPending}
+                  disabled={!isShippingValid() || createOrderMutation.isPending || isCapturingTree}
                   data-testid="button-place-order"
                 >
-                  {createOrderMutation.isPending ? (
+                  {isCapturingTree ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Capturing Tree Image...
+                    </>
+                  ) : createOrderMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Creating Order...
@@ -1441,6 +1499,7 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
   const { toast } = useToast();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const handleCheckout = async () => {
     setIsCheckingOut(true);
@@ -1478,6 +1537,24 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
     }
   };
 
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      const response = await apiRequest("POST", `/api/merchandise/orders/${order.id}/retry`);
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: "Order Resubmitted", description: "Your order has been sent to our print partner." });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
+    } catch (error: any) {
+      toast({ title: "Retry Failed", description: error.message || "Failed to retry order", variant: "destructive" });
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const taxAmount = (order as any).taxAmount || 0;
+
   return (
     <Card data-testid={`card-order-${order.id}`}>
       <CardHeader className="pb-2">
@@ -1507,9 +1584,29 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
         </div>
       </CardHeader>
       <CardContent className="pb-2 space-y-3">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Quantity: {order.quantity}</span>
-          <span className="font-medium">${(order.totalAmount / 100).toFixed(2)}</span>
+        <div className="space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Quantity</span>
+            <span>{order.quantity}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>${((order.subtotal || 0) / 100).toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Shipping</span>
+            <span>${((order.shippingCost || 0) / 100).toFixed(2)}</span>
+          </div>
+          {taxAmount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Tax</span>
+              <span>${(taxAmount / 100).toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-medium border-t pt-1">
+            <span>Total</span>
+            <span>${(order.totalAmount / 100).toFixed(2)}</span>
+          </div>
         </div>
         
         {order.status === "pending" && (
@@ -1543,6 +1640,37 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
                 )}
               </Button>
             )}
+          </div>
+        )}
+
+        {order.status === "failed" && (
+          <div className="space-y-2">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Order Failed</AlertTitle>
+              <AlertDescription>
+                {(order as any).printfulError || "There was an issue sending your order to our print partner."}
+              </AlertDescription>
+            </Alert>
+            <Button
+              onClick={handleRetry}
+              disabled={isRetrying}
+              variant="outline"
+              className="w-full"
+              data-testid={`button-retry-${order.id}`}
+            >
+              {isRetrying ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Retrying...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Retry Submission
+                </>
+              )}
+            </Button>
           </div>
         )}
         

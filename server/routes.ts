@@ -10453,13 +10453,19 @@ export async function registerRoutes(
       // Calculate commission (10% markup on subtotal)
       const commission = Math.round(subtotal * 0.10);
 
-      // Calculate total: subtotal + shipping + commission
-      const totalAmount = subtotal + shippingCost + commission;
+      // Estimate tax from Printful
+      const taxRate = await printfulService.estimateTax(
+        printfulAddress,
+        [{ variant_id: variantId, quantity: orderQuantity }]
+      );
+      const taxableAmount = subtotal + shippingCost;
+      const taxAmount = Math.round(taxableAmount * taxRate);
 
-      const qrProfileUrl = includeQR ? `${req.protocol}://${req.get('host')}/profile/${userId}` : null;
-      const finalTreeImageUrl = treeImageUrl 
-        ? (includeQR ? `${treeImageUrl}?includeQR=true&qrUrl=${encodeURIComponent(qrProfileUrl || '')}` : treeImageUrl)
-        : null;
+      // Calculate total: subtotal + shipping + tax + commission
+      const totalAmount = subtotal + shippingCost + taxAmount + commission;
+
+      const qrUrl = req.body.qrUrl || null;
+      const qrProfileUrl = includeQR ? (qrUrl || `${req.protocol}://${req.get('host')}/profile/${userId}`) : null;
 
       const placementConfig: Record<string, any> = {
         treePlacement: treePlacement || 'default',
@@ -10485,9 +10491,10 @@ export async function registerRoutes(
         productName: verifiedProductName,
         variantName: verifiedVariantName || variantName || null,
         quantity: orderQuantity,
-        treeImageUrl: finalTreeImageUrl || '',
+        treeImageUrl: treeImageUrl || '',
         subtotal,
         shippingCost,
+        taxAmount,
         totalAmount,
         commission,
         shippingAddress: addressValidation.data,
@@ -10558,21 +10565,18 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Shipping address is required" });
       }
 
-      // Build Printful files array based on placement configuration
-      const placement = order.placementConfig as { treePlacement?: string; qrPlacement?: string | null; qrProfileUrl?: string | null } | null;
-      const printfulFiles: Array<{ type: string; url: string }> = [{
-        type: placement?.treePlacement || "default",
-        url: order.treeImageUrl,
-      }];
+      const { buildPrintfulFiles, sendOrderConfirmationEmail } = await import("./merchandiseHelpers");
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const printfulFiles = await buildPrintfulFiles(order, baseUrl);
 
-      if (placement?.qrPlacement && placement?.qrProfileUrl) {
-        printfulFiles.push({
-          type: placement.qrPlacement,
-          url: `${req.protocol}://${req.get('host')}/api/qr-image?url=${encodeURIComponent(placement.qrProfileUrl)}`,
+      if (printfulFiles.length === 0) {
+        await storage.updateMerchandiseOrder(order.id, {
+          status: "failed",
+          printfulError: "No print files configured for this order",
         });
+        return res.status(400).json({ message: "No print files configured for this order" });
       }
 
-      // Create order in Printful
       const printfulOrder = await printfulService.createOrder(
         shippingAddress,
         [{
@@ -10580,24 +10584,106 @@ export async function registerRoutes(
           quantity: order.quantity,
           files: printfulFiles,
         }],
-        true // confirm the order
+        true
       );
 
       if (!printfulOrder) {
-        return res.status(500).json({ message: "Failed to submit order to Printful" });
+        await storage.updateMerchandiseOrder(order.id, {
+          status: "failed",
+          printfulError: "Printful rejected the order — check print files and address",
+        });
+        return res.status(500).json({ message: "Failed to submit order to print partner" });
       }
 
-      // Update order with Printful details
       const updated = await storage.updateMerchandiseOrder(order.id, {
         printfulOrderId: printfulOrder.orderId.toString(),
         status: "submitted",
         shippingAddress,
       });
 
+      await sendOrderConfirmationEmail(order, userId);
       res.json(updated);
     } catch (error: any) {
       console.error("Error submitting order:", error);
       res.status(500).json({ message: "Failed to submit order" });
+    }
+  });
+
+  // Retry failed merchandise order
+  app.post("/api/merchandise/orders/:id/retry", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const order = await storage.getMerchandiseOrder(req.params.id);
+
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      if (order.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (order.status !== "failed") {
+        return res.status(400).json({ message: "Only failed orders can be retried" });
+      }
+
+      if (order.printfulOrderId) {
+        return res.status(400).json({ message: "This order already has a Printful order ID — contact support if there's an issue" });
+      }
+
+      if (!order.shippingAddress) {
+        return res.status(400).json({ message: "Order has no shipping address" });
+      }
+
+      const shippingAddr = order.shippingAddress as any;
+      const printfulAddress = {
+        name: shippingAddr.name,
+        address1: shippingAddr.address1,
+        address2: shippingAddr.address2 || '',
+        city: shippingAddr.city,
+        state_code: shippingAddr.stateCode,
+        country_code: shippingAddr.countryCode,
+        zip: shippingAddr.zip,
+        email: shippingAddr.email,
+        phone: shippingAddr.phone,
+      };
+
+      const { buildPrintfulFiles, sendOrderConfirmationEmail } = await import("./merchandiseHelpers");
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const printfulFiles = await buildPrintfulFiles(order, baseUrl);
+
+      if (printfulFiles.length === 0) {
+        return res.status(400).json({ message: "No print files configured for this order" });
+      }
+
+      const printfulResult = await printfulService.createOrder(
+        printfulAddress,
+        [{
+          variant_id: order.variantId,
+          quantity: order.quantity,
+          files: printfulFiles,
+        }],
+        true
+      );
+
+      if (printfulResult) {
+        await storage.updateMerchandiseOrder(order.id, {
+          status: "submitted",
+          printfulOrderId: String(printfulResult.orderId),
+          printfulError: null,
+        });
+        await sendOrderConfirmationEmail(order, userId);
+        return res.json({ success: true, status: "submitted", printfulOrderId: printfulResult.orderId });
+      } else {
+        await storage.updateMerchandiseOrder(order.id, {
+          status: "failed",
+          printfulError: "Retry failed — Printful rejected the order",
+        });
+        return res.status(500).json({ message: "Retry failed — print partner rejected the order" });
+      }
+    } catch (error: any) {
+      console.error("Error retrying order:", error);
+      res.status(500).json({ message: "Failed to retry order" });
     }
   });
 
@@ -10797,17 +10883,26 @@ export async function registerRoutes(
                 phone: shippingAddr.phone,
               };
 
+              const { buildPrintfulFiles, sendOrderConfirmationEmail } = await import("./merchandiseHelpers");
+              const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+              const printfulFiles = await buildPrintfulFiles(order, baseUrl);
+
+              if (printfulFiles.length === 0) {
+                await storage.updateMerchandiseOrder(order.id, {
+                  status: "failed",
+                  printfulError: "No print files configured for this order",
+                });
+                return res.json({ success: true, status: "failed", printfulError: "No print files configured" });
+              }
+
               const printfulResult = await printfulService.createOrder(
                 printfulAddress,
                 [{
                   variant_id: order.variantId,
                   quantity: order.quantity,
-                  files: [{
-                    type: 'default',
-                    url: order.treeImageUrl,
-                  }],
+                  files: printfulFiles,
                 }],
-                true // confirm order immediately
+                true
               );
 
               if (printfulResult) {
@@ -10815,144 +10910,14 @@ export async function registerRoutes(
                   status: "submitted",
                   printfulOrderId: String(printfulResult.orderId),
                 });
-
-                // Send order confirmation email
-                try {
-                  const orderUser = await storage.getUser(userId);
-                  if (orderUser?.email) {
-                    const { sendEmail } = await import("./lib/email");
-                    const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
-                    const shippingAddr = order.shippingAddress as any;
-                    const orderDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-                    const subtotalDisplay = ((order.subtotal || 0) / 100).toFixed(2);
-                    const shippingDisplay = ((order.shippingCost || 0) / 100).toFixed(2);
-                    const totalDisplay = ((order.totalAmount || 0) / 100).toFixed(2);
-
-                    const confirmationHtml = `
-                      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 32px; border-radius: 12px 12px 0 0; text-align: center;">
-                          <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Order Confirmed!</h1>
-                          <p style="color: #e0e7ff; margin: 8px 0 0; font-size: 14px;">Thank you for your FamilyRoots merchandise order</p>
-                        </div>
-                        <div style="padding: 24px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none;">
-                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px;">Hi ${orderUser.firstName || 'there'},</p>
-                          <p style="margin: 0 0 20px; color: #374151; font-size: 14px;">Your order has been placed successfully and is being prepared. Here are your order details:</p>
-
-                          <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                            <h3 style="margin: 0 0 12px; color: #111827; font-size: 16px;">Order Summary</h3>
-                            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Order ID</td><td style="padding: 4px 0; text-align: right; color: #111827; font-weight: 500;">${order.id.slice(0, 8).toUpperCase()}</td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Date</td><td style="padding: 4px 0; text-align: right; color: #111827;">${orderDate}</td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Item</td><td style="padding: 4px 0; text-align: right; color: #111827;">${order.productName}${order.variantName ? ` - ${order.variantName}` : ''}</td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Quantity</td><td style="padding: 4px 0; text-align: right; color: #111827;">${order.quantity}</td></tr>
-                              <tr><td colspan="2" style="padding: 8px 0 4px;"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;"></td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Subtotal</td><td style="padding: 4px 0; text-align: right; color: #111827;">$${subtotalDisplay}</td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Shipping</td><td style="padding: 4px 0; text-align: right; color: #111827;">$${shippingDisplay}</td></tr>
-                              <tr><td colspan="2" style="padding: 8px 0 4px;"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;"></td></tr>
-                              <tr><td style="padding: 4px 0; color: #111827; font-weight: 600;">Total</td><td style="padding: 4px 0; text-align: right; color: #111827; font-weight: 600;">$${totalDisplay}</td></tr>
-                            </table>
-                          </div>
-
-                          ${shippingAddr ? `
-                          <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                            <h3 style="margin: 0 0 8px; color: #111827; font-size: 16px;">Shipping To</h3>
-                            <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6;">
-                              ${shippingAddr.name || ''}<br>
-                              ${shippingAddr.address1 || ''}${shippingAddr.address2 ? '<br>' + shippingAddr.address2 : ''}<br>
-                              ${shippingAddr.city || ''}, ${shippingAddr.stateCode || ''} ${shippingAddr.zip || ''}<br>
-                              ${shippingAddr.countryCode || ''}
-                            </p>
-                          </div>` : ''}
-
-                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px;">You'll receive another email with tracking information once your order ships.</p>
-
-                          <div style="text-align: center; margin: 24px 0 16px;">
-                            <a href="${baseUrl}/merchandise?tab=orders" style="display: inline-block; background: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 500; font-size: 14px;">View My Orders</a>
-                          </div>
-                        </div>
-                        <div style="padding: 16px 24px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; text-align: center;">
-                          <p style="margin: 0; color: #9ca3af; font-size: 12px;">FamilyRoots - Preserving Your Family Legacy</p>
-                        </div>
-                      </div>
-                    `;
-
-                    await sendEmail(orderUser.email, `Order Confirmed - ${order.productName} #${order.id.slice(0, 8).toUpperCase()}`, confirmationHtml);
-                    console.log(`Order confirmation email sent to ${orderUser.email} for order ${order.id}`);
-                  }
-                } catch (emailError) {
-                  console.error("Failed to send order confirmation email:", emailError);
-                }
-
+                await sendOrderConfirmationEmail(order, userId);
                 return res.json({ success: true, status: "submitted", printfulOrderId: printfulResult.orderId });
               } else {
-                console.error("Failed to submit order to Printful, keeping as paid");
-
-                // Still send confirmation email even if Printful submission fails
-                try {
-                  const orderUser = await storage.getUser(userId);
-                  if (orderUser?.email) {
-                    const { sendEmail } = await import("./lib/email");
-                    const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
-                    const shippingAddr = order.shippingAddress as any;
-                    const orderDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-                    const subtotalDisplay = ((order.subtotal || 0) / 100).toFixed(2);
-                    const shippingDisplay = ((order.shippingCost || 0) / 100).toFixed(2);
-                    const totalDisplay = ((order.totalAmount || 0) / 100).toFixed(2);
-
-                    const confirmationHtml = `
-                      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 32px; border-radius: 12px 12px 0 0; text-align: center;">
-                          <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Payment Received!</h1>
-                          <p style="color: #e0e7ff; margin: 8px 0 0; font-size: 14px;">Your FamilyRoots merchandise order is being processed</p>
-                        </div>
-                        <div style="padding: 24px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none;">
-                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px;">Hi ${orderUser.firstName || 'there'},</p>
-                          <p style="margin: 0 0 20px; color: #374151; font-size: 14px;">We received your payment and your order is being processed. Here are your order details:</p>
-
-                          <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                            <h3 style="margin: 0 0 12px; color: #111827; font-size: 16px;">Order Summary</h3>
-                            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Order ID</td><td style="padding: 4px 0; text-align: right; color: #111827; font-weight: 500;">${order.id.slice(0, 8).toUpperCase()}</td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Date</td><td style="padding: 4px 0; text-align: right; color: #111827;">${orderDate}</td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Item</td><td style="padding: 4px 0; text-align: right; color: #111827;">${order.productName}${order.variantName ? ` - ${order.variantName}` : ''}</td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Quantity</td><td style="padding: 4px 0; text-align: right; color: #111827;">${order.quantity}</td></tr>
-                              <tr><td colspan="2" style="padding: 8px 0 4px;"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;"></td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Subtotal</td><td style="padding: 4px 0; text-align: right; color: #111827;">$${subtotalDisplay}</td></tr>
-                              <tr><td style="padding: 4px 0; color: #6b7280;">Shipping</td><td style="padding: 4px 0; text-align: right; color: #111827;">$${shippingDisplay}</td></tr>
-                              <tr><td colspan="2" style="padding: 8px 0 4px;"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;"></td></tr>
-                              <tr><td style="padding: 4px 0; color: #111827; font-weight: 600;">Total</td><td style="padding: 4px 0; text-align: right; color: #111827; font-weight: 600;">$${totalDisplay}</td></tr>
-                            </table>
-                          </div>
-
-                          ${shippingAddr ? `
-                          <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                            <h3 style="margin: 0 0 8px; color: #111827; font-size: 16px;">Shipping To</h3>
-                            <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6;">
-                              ${shippingAddr.name || ''}<br>
-                              ${shippingAddr.address1 || ''}${shippingAddr.address2 ? '<br>' + shippingAddr.address2 : ''}<br>
-                              ${shippingAddr.city || ''}, ${shippingAddr.stateCode || ''} ${shippingAddr.zip || ''}<br>
-                              ${shippingAddr.countryCode || ''}
-                            </p>
-                          </div>` : ''}
-
-                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px;">You'll receive another email with tracking information once your order ships.</p>
-
-                          <div style="text-align: center; margin: 24px 0 16px;">
-                            <a href="${baseUrl}/merchandise?tab=orders" style="display: inline-block; background: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 500; font-size: 14px;">View My Orders</a>
-                          </div>
-                        </div>
-                        <div style="padding: 16px 24px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; text-align: center;">
-                          <p style="margin: 0; color: #9ca3af; font-size: 12px;">FamilyRoots - Preserving Your Family Legacy</p>
-                        </div>
-                      </div>
-                    `;
-                    await sendEmail(orderUser.email, `Payment Received - ${order.productName} #${order.id.slice(0, 8).toUpperCase()}`, confirmationHtml);
-                  }
-                } catch (emailError) {
-                  console.error("Failed to send payment confirmation email:", emailError);
-                }
-
-                return res.json({ success: true, status: "paid", printfulError: true });
+                await storage.updateMerchandiseOrder(order.id, {
+                  status: "failed",
+                  printfulError: "Printful rejected the order — check print files and address",
+                });
+                return res.json({ success: true, status: "failed", printfulError: "Order submission to print partner failed" });
               }
             }
 
