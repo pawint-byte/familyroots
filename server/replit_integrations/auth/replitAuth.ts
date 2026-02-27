@@ -58,17 +58,19 @@ async function upsertUser(claims: any): Promise<{ id: string }> {
   if (claims["email"]) {
     userData.email = claims["email"];
   }
-  if (claims["first_name"]) {
-    userData.firstName = claims["first_name"];
-  }
-  if (claims["last_name"]) {
-    userData.lastName = claims["last_name"];
+  const existingUser = await authStorage.getUser(claims["sub"]);
+
+  if (!existingUser) {
+    if (claims["first_name"]) {
+      userData.firstName = claims["first_name"];
+    }
+    if (claims["last_name"]) {
+      userData.lastName = claims["last_name"];
+    }
   }
   if (claims["profile_image_url"]) {
     userData.profileImageUrl = claims["profile_image_url"];
   }
-
-  const existingUser = await authStorage.getUser(claims["sub"]);
   
   const user = await authStorage.upsertUser(userData);
 
