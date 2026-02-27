@@ -2,6 +2,7 @@ import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { subscriptionService } from './subscriptionService';
 import { storage } from './storage';
 import { printfulService } from './printful';
+import { buildPrintfulFiles, sendOrderConfirmationEmail } from './merchandiseHelpers';
 
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
@@ -14,11 +15,9 @@ export class WebhookHandlers {
       );
     }
 
-    // Process with stripe-replit-sync first
     const sync = await getStripeSync();
     await sync.processWebhook(payload, signature);
 
-    // Also handle our custom payment types
     try {
       const stripe = await getUncachableStripeClient();
       const event = JSON.parse(payload.toString());
@@ -86,15 +85,24 @@ export class WebhookHandlers {
                   phone: shippingAddr.phone,
                 };
 
+                const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+                const printfulFiles = await buildPrintfulFiles(order, baseUrl);
+
+                if (printfulFiles.length === 0) {
+                  await storage.updateMerchandiseOrder(order.id, {
+                    status: "failed",
+                    printfulError: "No print files configured for this order",
+                  });
+                  console.error(`Merchandise order ${order.id} has no print files`);
+                  return;
+                }
+
                 const printfulResult = await printfulService.createOrder(
                   printfulAddress,
                   [{
                     variant_id: order.variantId,
                     quantity: order.quantity,
-                    files: [{
-                      type: 'default',
-                      url: order.treeImageUrl,
-                    }],
+                    files: printfulFiles,
                   }],
                   true
                 );
@@ -105,15 +113,28 @@ export class WebhookHandlers {
                     printfulOrderId: String(printfulResult.orderId),
                   });
                   console.log(`Merchandise order ${order.id} submitted to Printful: ${printfulResult.orderId}`);
+                  await sendOrderConfirmationEmail(order, order.userId);
                 } else {
-                  console.error(`Failed to submit merchandise order ${order.id} to Printful, keeping as paid`);
+                  await storage.updateMerchandiseOrder(order.id, {
+                    status: "failed",
+                    printfulError: "Printful rejected the order — check print files and address",
+                  });
+                  console.error(`Failed to submit merchandise order ${order.id} to Printful`);
                 }
               }
             } else if (order) {
               console.log(`Merchandise order ${order.id} already processed (status: ${order.status})`);
             }
-          } catch (merchError) {
+          } catch (merchError: any) {
             console.error('Error processing merchandise webhook:', merchError);
+            if (metadata.orderId) {
+              try {
+                await storage.updateMerchandiseOrder(metadata.orderId, {
+                  status: "failed",
+                  printfulError: merchError.message || "Unexpected error during order submission",
+                });
+              } catch {}
+            }
           }
         }
       } else if (event.type === 'customer.subscription.deleted') {

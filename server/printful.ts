@@ -261,6 +261,39 @@ class PrintfulService {
     }
   }
 
+  async estimateTax(
+    address: ShippingAddress,
+    items: Array<{ variant_id: number; quantity: number }>
+  ): Promise<number> {
+    try {
+      const response = await fetch(`${PRINTFUL_API_URL}/tax/rates`, {
+        method: 'POST',
+        headers: this.getHeaders(true),
+        body: JSON.stringify({
+          recipient: {
+            country_code: address.country_code,
+            state_code: address.state_code,
+            city: address.city,
+            zip: address.zip,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('[printful] Tax estimation failed:', await response.text());
+        return 0;
+      }
+
+      const data = await response.json() as { result: { required: boolean; rate: number; shipping_taxable: boolean } };
+      if (!data.result.required) return 0;
+
+      return data.result.rate;
+    } catch (error) {
+      console.error('[printful] Error estimating tax:', error);
+      return 0;
+    }
+  }
+
   async createOrder(
     address: ShippingAddress,
     items: OrderItem[],
