@@ -1,0 +1,75 @@
+Hi Andrew! Thank you for contacting Replit Support.
+
+I can help you recover your deleted data. Here are the recovery options available:
+
+Option 1: Checkpoint Rollback (Recommended for recovering both code and data)
+
+1. Look for Agent checkpoints in your workspace - Agent automatically creates checkpoints at logical points
+
+2. Select the checkpoint from before the data was deleted
+
+3. Click Rollback to here
+
+4. IMPORTANT: Under Additional rollback options, make sure to check the box for Database to restore your database state alongside your code
+
+5. This will restore both your code and data to that checkpoint
+
+Critical limitation to be aware of: If you rollback to 3 days ago and then decide you actually wanted to restore to yesterday, you cannot restore to yesterday. Once you rollback to a specific point, you cannot move forward from there - this is a limitation of database rollbacks that you should be aware of when using this tool.
+
+I strongly recommend doing incremental rollbacks - don't rollback too far at once. For example, restore to yesterday first, then if needed, go further back. This gives you more control.
+
+Option 2: Point-in-Time Restore (For database-only recovery)
+
+If you only need to restore your database:
+
+1. Go to the Database pane in your workspace
+
+2. Navigate to the Settings tab
+
+3. Look for the Restore section
+
+4. Choose a recent date/time to restore from
+
+Option 3: Git Rollback (For code recovery)
+
+For code recovery using version control:
+
+1. Click the Git icon in the Tools sidebar
+
+2. View your commit history
+
+3. Find the commit from before the data was deleted
+
+4. Restore to that commit
+
+Option 4: File History (For individual files)
+
+For recovering specific files:
+
+1. Right-click on the file in your file tree
+
+2. Select File History
+
+3. Choose a previous version to restore
+
+Try the checkpoint rollback first (Option 1) as it's the most comprehensive recovery method. Let me know if you need any help with these steps or if you have questions!
+
+Regards,
+
+Quinn
+
+
+This email is a service from Replit. Delivered by Zendesk
+
+On February 25, 2026 at 6:47:27 PM UTC, Andrew pawint@me.com wrote:
+# Title
+Lost data
+
+# Description
+the AI wrote a tool that deleted my data. I have been trying to resolve this matter all day and I am stuck. I need some assistance in this matter.
+
+Username: pawint
+Email: pawint@me.com
+User ID: 52852375
+
+[497J3V-V431Y]
