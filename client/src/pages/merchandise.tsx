@@ -198,7 +198,9 @@ function ProductCard({
 function MiniTreePreview({ members, relationships, treeName, treeType, layoutOverride }: { members: any[]; relationships: any[]; treeName: string; treeType: string; layoutOverride?: GroupLayoutMode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.2);
+  const [scale, setScale] = useState(0.15);
+  const [contentSize, setContentSize] = useState({ w: 1200, h: 1200 });
+  const [offsetAdjust, setOffsetAdjust] = useState({ x: 0, y: 0 });
   const config = getTreeTypeConfig((treeType || "custom") as TreeType);
 
   const focusMemberId = useMemo(() => {
@@ -216,30 +218,74 @@ function MiniTreePreview({ members, relationships, treeName, treeType, layoutOve
 
   useEffect(() => {
     if (!containerRef.current || !innerRef.current) return;
-    const observer = new ResizeObserver(() => {
+
+    const measureAndScale = () => {
       if (!containerRef.current || !innerRef.current) return;
-      const cw = containerRef.current.clientWidth;
-      const ch = containerRef.current.clientHeight;
-      const iw = innerRef.current.scrollWidth;
-      const ih = innerRef.current.scrollHeight;
-      if (iw > 0 && ih > 0) {
-        const s = Math.min(cw / iw, ch / ih, 0.35) * 0.9;
-        setScale(s);
+      const svgEl = innerRef.current.querySelector('svg');
+      let treeW = 800, treeH = 600;
+      if (svgEl) {
+        const vb = svgEl.getAttribute('viewBox');
+        if (vb) {
+          const parts = vb.split(/\s+/).map(Number);
+          if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+            treeW = parts[2];
+            treeH = parts[3];
+          }
+        }
+        try {
+          const bbox = (svgEl as SVGSVGElement).getBBox?.();
+          if (bbox && bbox.width > 0 && bbox.height > 0) {
+            treeW = Math.max(treeW, bbox.width + 40);
+            treeH = Math.max(treeH, bbox.height + 40);
+          }
+        } catch (_) {}
       }
-    });
-    observer.observe(innerRef.current);
-    const timer = setTimeout(() => {
-      if (!containerRef.current || !innerRef.current) return;
-      const cw = containerRef.current.clientWidth;
-      const ch = containerRef.current.clientHeight;
-      const iw = innerRef.current.scrollWidth;
-      const ih = innerRef.current.scrollHeight;
-      if (iw > 0 && ih > 0) {
-        const s = Math.min(cw / iw, ch / ih, 0.35) * 0.9;
-        setScale(s);
+      if (treeW <= 0 || treeH <= 0) {
+        const canvas = innerRef.current.querySelector('[data-testid="group-visualization-canvas"]');
+        if (canvas) {
+          treeW = Math.max((canvas as HTMLElement).scrollWidth, 400);
+          treeH = Math.max((canvas as HTMLElement).scrollHeight, 400);
+        }
       }
-    }, 100);
-    return () => { observer.disconnect(); clearTimeout(timer); };
+
+      setContentSize({ w: treeW, h: treeH });
+
+      const canvas = innerRef.current.querySelector('[data-testid="group-visualization-canvas"]');
+      if (canvas) {
+        const transformDiv = canvas.firstElementChild as HTMLElement;
+        if (transformDiv) {
+          transformDiv.style.transform = 'scale(1)';
+          transformDiv.style.transformOrigin = '0 0';
+        }
+      }
+
+      const cw = containerRef.current.clientWidth;
+      const ch = containerRef.current.clientHeight - 24;
+      if (treeW > 0 && treeH > 0 && cw > 0 && ch > 0) {
+        const s = Math.min(cw / treeW, ch / treeH) * 0.88;
+        setScale(s);
+        const scaledW = treeW * s;
+        const scaledH = treeH * s;
+        setOffsetAdjust({
+          x: Math.max(0, (cw - scaledW) / 2),
+          y: Math.max(0, (ch - scaledH) / 2),
+        });
+      }
+    };
+
+    const timers = [
+      setTimeout(measureAndScale, 150),
+      setTimeout(measureAndScale, 400),
+      setTimeout(measureAndScale, 800),
+    ];
+
+    const observer = new ResizeObserver(() => measureAndScale());
+    observer.observe(containerRef.current);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      observer.disconnect();
+    };
   }, [members, relationships, treeType, layoutOverride]);
 
   if (members.length === 0) {
@@ -251,19 +297,19 @@ function MiniTreePreview({ members, relationships, treeName, treeType, layoutOve
   }
 
   return (
-    <div ref={containerRef} className="w-full h-full overflow-hidden relative" data-testid="mini-tree-preview">
+    <div ref={containerRef} className="w-full h-full overflow-hidden relative bg-white dark:bg-gray-900" data-testid="mini-tree-preview">
       <div className="text-center pt-0.5 pb-0.5 relative z-10">
         <span className="text-[9px] font-bold text-gray-700 dark:text-gray-200 leading-none">{treeName}</span>
       </div>
-      <div className="absolute inset-0 top-3 overflow-hidden">
+      <div className="absolute inset-0 top-3 bottom-3 overflow-hidden">
         <div
           ref={innerRef}
           style={{
-            transform: `scale(${scale})`,
+            transform: `translate(${offsetAdjust.x}px, ${offsetAdjust.y}px) scale(${scale})`,
             transformOrigin: "top left",
             pointerEvents: "none",
-            width: "1200px",
-            height: "1200px",
+            width: `${contentSize.w}px`,
+            height: `${contentSize.h}px`,
           }}
         >
           <GroupVisualization
@@ -510,49 +556,63 @@ function ProductCustomizer({
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
           await new Promise(resolve => setTimeout(resolve, 500));
           const el = treePreviewRef.current;
-          const innerDiv = el.querySelector('[data-testid="group-visualization-canvas"]');
-          const contentDiv = innerDiv?.firstElementChild as HTMLElement | null;
           const svgEl = el.querySelector('svg');
-          
-          let contentW = 800, contentH = 800;
+          const canvas = el.querySelector('[data-testid="group-visualization-canvas"]');
+          const transformDiv = canvas?.firstElementChild as HTMLElement | null;
+
+          let treeW = 800, treeH = 600;
           if (svgEl) {
             const vb = svgEl.getAttribute('viewBox');
             if (vb) {
               const parts = vb.split(/\s+/).map(Number);
-              if (parts.length === 4) {
-                contentW = Math.max(parts[2], 400);
-                contentH = Math.max(parts[3], 400);
+              if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+                treeW = parts[2];
+                treeH = parts[3];
               }
-            } else {
-              contentW = Math.max(svgEl.scrollWidth, svgEl.clientWidth, 400);
-              contentH = Math.max(svgEl.scrollHeight, svgEl.clientHeight, 400);
             }
-          } else if (contentDiv) {
-            contentW = Math.max(contentDiv.scrollWidth, 400);
-            contentH = Math.max(contentDiv.scrollHeight, 400);
+            try {
+              const bbox = (svgEl as SVGSVGElement).getBBox?.();
+              if (bbox && bbox.width > 0 && bbox.height > 0) {
+                treeW = Math.max(treeW, bbox.width + 40);
+                treeH = Math.max(treeH, bbox.height + 40);
+              }
+            } catch (_) {}
+          }
+          if (treeW <= 0 || treeH <= 0) {
+            if (canvas) {
+              treeW = Math.max((canvas as HTMLElement).scrollWidth, 400);
+              treeH = Math.max((canvas as HTMLElement).scrollHeight, 400);
+            }
           }
 
           const padding = 60;
-          const fitW = contentW + padding * 2;
-          const fitH = contentH + padding * 2;
-          
-          el.style.width = `${fitW}px`;
-          el.style.height = `${fitH}px`;
+          const captureW = treeW + padding * 2;
+          const captureH = treeH + padding * 2;
+
+          el.style.width = `${captureW}px`;
+          el.style.height = `${captureH}px`;
           el.style.padding = `${padding}px`;
-          
-          if (innerDiv) {
-            (innerDiv as HTMLElement).style.width = `${contentW}px`;
-            (innerDiv as HTMLElement).style.height = `${contentH}px`;
-            (innerDiv as HTMLElement).style.overflow = "visible";
+          el.style.overflow = 'hidden';
+
+          if (canvas) {
+            (canvas as HTMLElement).style.width = `${treeW}px`;
+            (canvas as HTMLElement).style.height = `${treeH}px`;
+            (canvas as HTMLElement).style.overflow = 'visible';
           }
-          
-          await new Promise(resolve => setTimeout(resolve, 500));
+          if (transformDiv) {
+            transformDiv.style.transform = 'scale(1)';
+            transformDiv.style.transformOrigin = '0 0';
+            transformDiv.style.width = `${treeW}px`;
+            transformDiv.style.height = `${treeH}px`;
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 300));
           const dataUrl = await toPng(el, {
             quality: 0.95,
             pixelRatio: 3,
             backgroundColor: "#ffffff",
-            width: fitW,
-            height: fitH,
+            width: captureW,
+            height: captureH,
           });
           const blob = await (await fetch(dataUrl)).blob();
           const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
