@@ -320,6 +320,17 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
         preserveAspectRatio="xMidYMid meet"
       >
         <rect width={svgW} height={svgH} fill="white" />
+        <defs>
+          {nodePositions.map(node => {
+            const cx = node.x + offsetX;
+            const cy = node.y + offsetY;
+            return node.photoUrl ? (
+              <clipPath key={`clip-${node.id}`} id={`mini-clip-${node.id}`}>
+                <circle cx={cx} cy={cy} r={nodeRadius - 2} />
+              </clipPath>
+            ) : null;
+          })}
+        </defs>
         <text x={svgW / 2} y={14} textAnchor="middle" fontSize={12} fontWeight="bold" fill="#374151">{treeName}</text>
 
         {Array.from(uniqueLines.values()).map(line => (
@@ -342,20 +353,15 @@ function MiniTreePreview({ members, relationships, treeName, treeType }: { membe
             <g key={node.id}>
               <circle cx={cx} cy={cy} r={nodeRadius} fill="white" stroke={accentColor} strokeWidth={2} />
               {node.photoUrl ? (
-                <>
-                  <clipPath id={`clip-${node.id}`}>
-                    <circle cx={cx} cy={cy} r={nodeRadius - 2} />
-                  </clipPath>
-                  <image
-                    href={node.photoUrl}
-                    x={cx - nodeRadius + 2}
-                    y={cy - nodeRadius + 2}
-                    width={(nodeRadius - 2) * 2}
-                    height={(nodeRadius - 2) * 2}
-                    clipPath={`url(#clip-${node.id})`}
-                    preserveAspectRatio="xMidYMid slice"
-                  />
-                </>
+                <image
+                  href={node.photoUrl}
+                  x={cx - nodeRadius + 2}
+                  y={cy - nodeRadius + 2}
+                  width={(nodeRadius - 2) * 2}
+                  height={(nodeRadius - 2) * 2}
+                  clipPath={`url(#mini-clip-${node.id})`}
+                  preserveAspectRatio="xMidYMid slice"
+                />
               ) : (
                 <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="bold" fill={accentColor}>
                   {node.initials}
@@ -462,6 +468,17 @@ function StaticTreeCapture({ members, relationships, treeName, treeType }: { mem
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} xmlns="http://www.w3.org/2000/svg">
       <rect width={svgW} height={svgH} fill="white" />
+      <defs>
+        {nodes.map(node => {
+          const cx = node.x + offsetX;
+          const cy = node.y + offsetY;
+          return node.photoUrl ? (
+            <clipPath key={`clip-${node.id}`} id={`print-clip-${node.id}`}>
+              <circle cx={cx} cy={cy} r={nodeRadius - 3} />
+            </clipPath>
+          ) : null;
+        })}
+      </defs>
       <text x={svgW / 2} y={30} textAnchor="middle" fontSize={24} fontWeight="bold" fill="#1f2937">{treeName}</text>
 
       {Array.from(uniqueLines.values()).map((line, i) => (
@@ -476,14 +493,9 @@ function StaticTreeCapture({ members, relationships, treeName, treeType }: { mem
           <g key={node.id}>
             <circle cx={cx} cy={cy} r={nodeRadius} fill="white" stroke={accentColor} strokeWidth={3} />
             {node.photoUrl ? (
-              <>
-                <clipPath id={`print-clip-${node.id}`}>
-                  <circle cx={cx} cy={cy} r={nodeRadius - 3} />
-                </clipPath>
-                <image href={node.photoUrl} x={cx - nodeRadius + 3} y={cy - nodeRadius + 3}
-                  width={(nodeRadius - 3) * 2} height={(nodeRadius - 3) * 2}
-                  clipPath={`url(#print-clip-${node.id})`} preserveAspectRatio="xMidYMid slice" />
-              </>
+              <image href={node.photoUrl} x={cx - nodeRadius + 3} y={cy - nodeRadius + 3}
+                width={(nodeRadius - 3) * 2} height={(nodeRadius - 3) * 2}
+                clipPath={`url(#print-clip-${node.id})`} preserveAspectRatio="xMidYMid slice" />
             ) : (
               <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle" fontSize={18} fontWeight="bold" fill={accentColor}>
                 {node.initials}
