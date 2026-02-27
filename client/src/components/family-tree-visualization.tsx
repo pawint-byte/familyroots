@@ -234,15 +234,6 @@ export default function FamilyTreeVisualization({
 
     const result: FamilyMember[] = [...knownParents];
 
-    if (knownParents.length === 1) {
-      const existingGender = knownParents[0].gender;
-      const missingGender = existingGender === 'female' ? 'male' : 'female';
-      result.push(createPlaceholderParent(childId, missingGender as 'male' | 'female', knownParents));
-    } else {
-      result.push(createPlaceholderParent(childId, 'male', []));
-      result.push(createPlaceholderParent(childId, 'female', []));
-    }
-
     const fatherIdx = result.findIndex(p => p.gender === 'male');
     const motherIdx = result.findIndex(p => p.gender === 'female');
     if (fatherIdx >= 0 && motherIdx >= 0 && fatherIdx > motherIdx) {
@@ -250,7 +241,7 @@ export default function FamilyTreeVisualization({
     }
 
     return result;
-  }, [createPlaceholderParent]);
+  }, []);
 
   const calculateHierarchicalPositions = useCallback(() => {
     if (deduplicatedMembers.length === 0) return { positions: [], labels: [] };
