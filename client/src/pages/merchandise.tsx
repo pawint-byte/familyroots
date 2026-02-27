@@ -25,6 +25,9 @@ import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
 import { getTreeTypeConfig, getMemberRank, getRelationshipRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
 import GroupVisualization, { type GroupLayoutMode } from "@/components/group-visualization";
 
+const MERCHANDISE_DISABLED = true;
+const MERCHANDISE_DISABLED_MESSAGE = "Merchandise ordering is temporarily unavailable while we complete setup with our print partner. We'll notify you when it's back. Any previous charges have been fully refunded.";
+
 interface PrintPlacement {
   id: string;
   label: string;
@@ -1699,6 +1702,30 @@ export default function MerchandisePage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (MERCHANDISE_DISABLED) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="max-w-md mx-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Merchandise Temporarily Unavailable
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground" data-testid="text-merch-disabled">{MERCHANDISE_DISABLED_MESSAGE}</p>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={() => navigate(user ? "/dashboard" : "/")} data-testid="button-back-dashboard">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     );
   }
