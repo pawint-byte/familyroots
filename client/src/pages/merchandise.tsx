@@ -510,18 +510,49 @@ function ProductCustomizer({
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
           await new Promise(resolve => setTimeout(resolve, 500));
           const el = treePreviewRef.current;
+          const innerDiv = el.querySelector('[data-testid="group-visualization-canvas"]');
+          const contentDiv = innerDiv?.firstElementChild as HTMLElement | null;
           const svgEl = el.querySelector('svg');
-          const contentEl = svgEl || el.firstElementChild || el;
-          const contentWidth = Math.max(contentEl.scrollWidth || el.scrollWidth, 400);
-          const contentHeight = Math.max(contentEl.scrollHeight || el.scrollHeight, 400);
-          const captureSize = Math.max(contentWidth, contentHeight);
-          el.style.width = `${captureSize + 80}px`;
-          el.style.height = `${captureSize + 80}px`;
-          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          let contentW = 800, contentH = 800;
+          if (svgEl) {
+            const vb = svgEl.getAttribute('viewBox');
+            if (vb) {
+              const parts = vb.split(/\s+/).map(Number);
+              if (parts.length === 4) {
+                contentW = Math.max(parts[2], 400);
+                contentH = Math.max(parts[3], 400);
+              }
+            } else {
+              contentW = Math.max(svgEl.scrollWidth, svgEl.clientWidth, 400);
+              contentH = Math.max(svgEl.scrollHeight, svgEl.clientHeight, 400);
+            }
+          } else if (contentDiv) {
+            contentW = Math.max(contentDiv.scrollWidth, 400);
+            contentH = Math.max(contentDiv.scrollHeight, 400);
+          }
+
+          const padding = 60;
+          const fitW = contentW + padding * 2;
+          const fitH = contentH + padding * 2;
+          
+          el.style.width = `${fitW}px`;
+          el.style.height = `${fitH}px`;
+          el.style.padding = `${padding}px`;
+          
+          if (innerDiv) {
+            (innerDiv as HTMLElement).style.width = `${contentW}px`;
+            (innerDiv as HTMLElement).style.height = `${contentH}px`;
+            (innerDiv as HTMLElement).style.overflow = "visible";
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 500));
           const dataUrl = await toPng(el, {
             quality: 0.95,
             pixelRatio: 3,
             backgroundColor: "#ffffff",
+            width: fitW,
+            height: fitH,
           });
           const blob = await (await fetch(dataUrl)).blob();
           const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
@@ -727,7 +758,7 @@ function ProductCustomizer({
           {includeTree && selectedTree && selectedTreeId && !loadingTreeDetail && treeMemberCount > 0 && (
             <div 
               ref={treePreviewRef}
-              style={{ position: "absolute", left: "-9999px", top: "-9999px", width: "auto", height: "auto", minWidth: "800px", minHeight: "800px", background: "#ffffff", padding: "40px" }}
+              style={{ position: "absolute", left: "-9999px", top: "-9999px", background: "#ffffff", padding: "40px", overflow: "visible" }}
             >
               <GroupVisualization
                 members={treeMembers as any}
@@ -737,7 +768,6 @@ function ProductCustomizer({
                 focusMemberId={treeMembers[0]?.id || ""}
                 treeType={(selectedTree.treeType || "custom") as TreeType}
                 layoutOverride={(treeDetail?.tree?.preferredLayout as GroupLayoutMode) || layoutOverride}
-                printMode={true}
               />
             </div>
           )}
