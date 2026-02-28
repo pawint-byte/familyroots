@@ -614,180 +614,60 @@ function ProductCustomizer({
     setIsCapturingTree(true);
     setSavedTreeImageUrl("");
     try {
-      const treeConfig = getTreeTypeConfig((selectedTree?.treeType || "custom") as TreeType);
-      const accentColor = treeConfig.visual.accentColor || "#10b981";
-      const rels = treeDetail?.relationships ?? [];
-
-      const adjacency = new Map<string, Set<string>>();
-      treeMembers.forEach(m => adjacency.set(m.id, new Set()));
-      const parentOf = new Map<string, Set<string>>();
-      const childOf = new Map<string, Set<string>>();
-      treeMembers.forEach(m => { parentOf.set(m.id, new Set()); childOf.set(m.id, new Set()); });
-      rels.forEach(r => {
-        if (adjacency.has(r.fromMemberId) && adjacency.has(r.toMemberId)) {
-          adjacency.get(r.fromMemberId)!.add(r.toMemberId);
-          adjacency.get(r.toMemberId)!.add(r.fromMemberId);
-          const rt = (r.relationshipType || '').toLowerCase();
-          if (rt === 'parent' || rt === 'co-parent') {
-            parentOf.get(r.fromMemberId)?.add(r.toMemberId);
-            childOf.get(r.toMemberId)?.add(r.fromMemberId);
-          } else if (rt === 'child') {
-            childOf.get(r.fromMemberId)?.add(r.toMemberId);
-            parentOf.get(r.toMemberId)?.add(r.fromMemberId);
-          }
-        }
-      });
-      let rootId = treeDetail?.tree?.rootMemberId || treeMembers[0]?.id;
-      if (!adjacency.has(rootId)) {
-        let maxConn = 0;
-        for (const [id, neighbors] of adjacency) {
-          if (neighbors.size > maxConn) { maxConn = neighbors.size; rootId = id; }
-        }
-      }
-      const topParents = treeMembers.filter(m => {
-        const parents = childOf.get(m.id);
-        return !parents || parents.size === 0;
-      });
-      const startNodes = topParents.length > 0 ? topParents.map(m => m.id) : [rootId];
-
-      const visited = new Set<string>();
-      const levels: string[][] = [];
-      levels.push(startNodes);
-      startNodes.forEach(id => visited.add(id));
-
-      let currentLevel = startNodes;
-      while (currentLevel.length > 0) {
-        const nextLevel: string[] = [];
-        for (const cur of currentLevel) {
-          for (const n of (adjacency.get(cur) || new Set())) {
-            if (!visited.has(n)) {
-              visited.add(n);
-              nextLevel.push(n);
-            }
-          }
-        }
-        if (nextLevel.length > 0) levels.push(nextLevel);
-        currentLevel = nextLevel;
-      }
-      for (const m of treeMembers) {
-        if (!visited.has(m.id)) {
-          levels[levels.length - 1] = levels[levels.length - 1] || [];
-          levels[levels.length - 1].push(m.id);
-        }
-      }
-
-      const nodeSpacingX = 220, nodeSpacingY = 200, nodeRadius = 40, capPadding = 80;
-      const placed = new Map<string, { x: number; y: number }>();
-      levels.forEach((level, depth) => {
-        const totalW = (level.length - 1) * nodeSpacingX;
-        const startX = -totalW / 2;
-        level.forEach((id, i) => placed.set(id, { x: startX + i * nodeSpacingX, y: depth * nodeSpacingY }));
-      });
-      const nodes = treeMembers.map(m => {
-        const pos = placed.get(m.id) || { x: 0, y: 0 };
-        const initials = `${m.firstName?.[0] || ""}${m.lastName?.[0] || ""}`.toUpperCase();
-        const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || "?";
-        return { id: m.id, x: pos.x, y: pos.y, initials, name, photoUrl: m.photoUrl };
-      });
-
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      nodes.forEach(n => { if (n.x < minX) minX = n.x; if (n.y < minY) minY = n.y; if (n.x > maxX) maxX = n.x; if (n.y > maxY) maxY = n.y; });
-      const canvasW = maxX - minX + capPadding * 2 + nodeRadius * 2;
-      const canvasH = maxY - minY + capPadding * 2 + nodeRadius * 2 + 60;
-      const offX = -minX + capPadding + nodeRadius;
-      const offY = -minY + capPadding + nodeRadius + 40;
-
-      const posMap = new Map(nodes.map(n => [n.id, n]));
-      const uniqueLines: { x1: number; y1: number; x2: number; y2: number }[] = [];
-      const lineKeys = new Set<string>();
-      rels.forEach(r => {
-        const from = posMap.get(r.fromMemberId);
-        const to = posMap.get(r.toMemberId);
-        if (from && to) {
-          const key = [from.x, from.y, to.x, to.y].sort().join(',');
-          if (!lineKeys.has(key)) { lineKeys.add(key); uniqueLines.push({ x1: from.x, y1: from.y, x2: to.x, y2: to.y }); }
-        }
-      });
-
-      const photoImages = new Map<string, HTMLImageElement>();
-      const blobUrls: string[] = [];
-      await Promise.all(nodes.filter(n => n.photoUrl).map(async (n) => {
+      const photoDataUrls = new Map<string, string>();
+      await Promise.all(treeMembers.filter(m => m.photoUrl).map(async (m) => {
         try {
-          const absUrl = n.photoUrl!.startsWith('http') ? n.photoUrl! : `${window.location.origin}${n.photoUrl}`;
+          const absUrl = m.photoUrl!.startsWith('http') ? m.photoUrl! : `${window.location.origin}${m.photoUrl}`;
           const resp = await fetch(absUrl);
           const blob = await resp.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          blobUrls.push(blobUrl);
-          const img = new Image();
-          await new Promise<void>((resolve) => {
-            img.onload = () => { photoImages.set(n.id, img); resolve(); };
-            img.onerror = () => { resolve(); };
-            img.src = blobUrl;
+          const dataUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
           });
+          photoDataUrls.set(m.id, dataUrl);
         } catch (e) {
-          console.warn("Failed to load photo for capture:", n.id, e);
+          console.warn("Failed to load photo for member:", m.id, e);
         }
       }));
 
-      const scale = 3;
-      const canvas = document.createElement('canvas');
-      canvas.width = canvasW * scale;
-      canvas.height = canvasH * scale;
-      const ctx = canvas.getContext('2d')!;
-      ctx.scale(scale, scale);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvasW, canvasH);
+      const membersWithDataUrls = treeMembers.map(m => ({
+        ...m,
+        photoUrl: photoDataUrls.get(m.id) || m.photoUrl
+      }));
 
-      ctx.font = 'bold 24px Inter, sans-serif';
-      ctx.fillStyle = '#1f2937';
-      ctx.textAlign = 'center';
-      ctx.fillText(selectedTree?.name || '', canvasW / 2, 30);
+      const captureDiv = document.createElement('div');
+      captureDiv.style.position = 'absolute';
+      captureDiv.style.left = '-9999px';
+      captureDiv.style.top = '-9999px';
+      captureDiv.style.width = '800px';
+      captureDiv.style.height = '600px';
+      captureDiv.style.background = '#ffffff';
+      document.body.appendChild(captureDiv);
 
-      uniqueLines.forEach(line => {
-        ctx.beginPath();
-        ctx.moveTo(line.x1 + offX, line.y1 + offY);
-        ctx.lineTo(line.x2 + offX, line.y2 + offY);
-        ctx.strokeStyle = accentColor;
-        ctx.lineWidth = 3;
-        ctx.globalAlpha = 0.6;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+      const { createRoot } = await import('react-dom/client');
+      const root = createRoot(captureDiv);
+      root.render(
+        <MiniTreePreview
+          members={membersWithDataUrls}
+          relationships={treeDetail?.relationships ?? []}
+          treeName={selectedTree?.name || ''}
+          treeType={selectedTree?.treeType || 'family'}
+        />
+      );
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const { toPng } = await import('html-to-image');
+      const dataUrl = await toPng(captureDiv, {
+        quality: 0.95,
+        pixelRatio: 3,
+        backgroundColor: '#ffffff',
       });
 
-      nodes.forEach(node => {
-        const cx = node.x + offX;
-        const cy = node.y + offY;
-        ctx.beginPath();
-        ctx.arc(cx, cy, nodeRadius, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        ctx.strokeStyle = accentColor;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        const photo = photoImages.get(node.id);
-        if (photo) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(cx, cy, nodeRadius - 3, 0, Math.PI * 2);
-          ctx.clip();
-          const size = (nodeRadius - 3) * 2;
-          ctx.drawImage(photo, cx - nodeRadius + 3, cy - nodeRadius + 3, size, size);
-          ctx.restore();
-        } else {
-          ctx.font = 'bold 18px Inter, sans-serif';
-          ctx.fillStyle = accentColor;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(node.initials, cx, cy + 1);
-        }
-        ctx.font = '500 13px Inter, sans-serif';
-        ctx.fillStyle = '#374151';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText(node.name, cx, cy + nodeRadius + 5);
-      });
+      root.unmount();
+      document.body.removeChild(captureDiv);
 
-      const dataUrl = canvas.toDataURL('image/png', 0.95);
       const captureBlob = await (await fetch(dataUrl)).blob();
       const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
       const res = await apiRequest("POST", "/api/uploads/request-url", {
@@ -801,7 +681,6 @@ function ProductCustomizer({
         body: captureBlob,
         headers: { "Content-Type": "image/png" },
       });
-      blobUrls.forEach(u => URL.revokeObjectURL(u));
       setSavedTreeImageUrl(objectPath);
       toast({ title: "Tree image captured", description: "Your tree image is ready for printing." });
     } catch (err: any) {
