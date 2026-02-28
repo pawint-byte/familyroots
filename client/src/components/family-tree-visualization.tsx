@@ -99,6 +99,7 @@ export default function FamilyTreeVisualization({
   const [nodeDragStart, setNodeDragStart] = useState({ x: 0, y: 0 });
   const [nodeDragOffsets, setNodeDragOffsets] = useState<Map<string, { x: number; y: number }>>(new Map());
   const [wasDragged, setWasDragged] = useState(false);
+  const [collapsedParents, setCollapsedParents] = useState<Set<string>>(new Set());
   
   // Dedupe members at the input level to handle any edge cases
   const deduplicatedMembers = useMemo(() => {
@@ -124,6 +125,90 @@ export default function FamilyTreeVisualization({
     }
     return map;
   }, [upcomingEvents]);
+
+  const membersWithChildren = useMemo(() => {
+    const parents = new Set<string>();
+    for (const rel of relationships) {
+      if (rel.relationshipType === "parent" || rel.relationshipType === "parent-child") {
+        parents.add(rel.fromMemberId);
+      } else if (rel.relationshipType === "child") {
+        parents.add(rel.toMemberId);
+      }
+    }
+    return parents;
+  }, [relationships]);
+
+  const parentToChildrenMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const rel of relationships) {
+      if (rel.relationshipType === "parent" || rel.relationshipType === "parent-child") {
+        if (!map.has(rel.fromMemberId)) map.set(rel.fromMemberId, []);
+        const arr = map.get(rel.fromMemberId)!;
+        if (!arr.includes(rel.toMemberId)) arr.push(rel.toMemberId);
+      } else if (rel.relationshipType === "child") {
+        if (!map.has(rel.toMemberId)) map.set(rel.toMemberId, []);
+        const arr = map.get(rel.toMemberId)!;
+        if (!arr.includes(rel.fromMemberId)) arr.push(rel.fromMemberId);
+      }
+    }
+    return map;
+  }, [relationships]);
+
+  const childToParentsMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const rel of relationships) {
+      if (rel.relationshipType === "parent" || rel.relationshipType === "parent-child") {
+        if (!map.has(rel.toMemberId)) map.set(rel.toMemberId, []);
+        const arr = map.get(rel.toMemberId)!;
+        if (!arr.includes(rel.fromMemberId)) arr.push(rel.fromMemberId);
+      } else if (rel.relationshipType === "child") {
+        if (!map.has(rel.fromMemberId)) map.set(rel.fromMemberId, []);
+        const arr = map.get(rel.fromMemberId)!;
+        if (!arr.includes(rel.toMemberId)) arr.push(rel.toMemberId);
+      }
+    }
+    return map;
+  }, [relationships]);
+
+  const collapsedDescendants = useMemo(() => {
+    const hidden = new Set<string>();
+    const isHidden = (memberId: string, visited: Set<string>): boolean => {
+      if (visited.has(memberId)) return false;
+      visited.add(memberId);
+      const parents = childToParentsMap.get(memberId) || [];
+      if (parents.length === 0) return false;
+      return parents.every(pid => collapsedParents.has(pid) || hidden.has(pid));
+    };
+
+    let changed = true;
+    const allMembers = new Set<string>();
+    for (const [, children] of parentToChildrenMap) {
+      for (const c of children) allMembers.add(c);
+    }
+    while (changed) {
+      changed = false;
+      for (const memberId of allMembers) {
+        if (hidden.has(memberId)) continue;
+        if (isHidden(memberId, new Set())) {
+          hidden.add(memberId);
+          changed = true;
+        }
+      }
+    }
+    return hidden;
+  }, [collapsedParents, parentToChildrenMap, childToParentsMap]);
+
+  const toggleCollapse = useCallback((memberId: string) => {
+    setCollapsedParents(prev => {
+      const next = new Set(prev);
+      if (next.has(memberId)) {
+        next.delete(memberId);
+      } else {
+        next.add(memberId);
+      }
+      return next;
+    });
+  }, []);
 
   const nodeWidth = 140;
   const nodeHeight = 160;
@@ -1442,6 +1527,7 @@ export default function FamilyTreeVisualization({
     const SYMMETRIC_TYPES = new Set(["spouse", "sibling", "coparent"]);
 
     for (const rel of relationships) {
+      if (collapsedDescendants.has(rel.fromMemberId) || collapsedDescendants.has(rel.toMemberId)) continue;
       const fromPos = posMap.get(rel.fromMemberId);
       const toPos = posMap.get(rel.toMemberId);
       if (!fromPos || !toPos) continue;
@@ -1741,7 +1827,7 @@ export default function FamilyTreeVisualization({
           })}
         </svg>
 
-        {positions.map((pos) => {
+        {positions.filter(pos => !collapsedDescendants.has(pos.member.id)).map((pos) => {
           const isFocusPerson = pos.branchType === 'focus';
           const styles = getBranchStyles(pos.branchType);
           const dragOff = nodeDragOffsets.get(pos.member.id) || { x: 0, y: 0 };
@@ -1856,6 +1942,25 @@ export default function FamilyTreeVisualization({
                     </button>
                   )}
                 </div>
+                {membersWithChildren.has(pos.member.id) && !pos.member.isUnknown && (
+                  <button
+                    className="absolute -bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-muted/80 hover:bg-muted border border-border shadow-sm cursor-pointer transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleCollapse(pos.member.id);
+                    }}
+                    title={collapsedParents.has(pos.member.id) ? "Expand descendants" : "Collapse descendants"}
+                    data-testid={`descendant-toggle-${pos.member.id}`}
+                  >
+                    <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                      {collapsedParents.has(pos.member.id) ? (
+                        <path d="M1 1L6 6L11 1" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      ) : (
+                        <path d="M1 6L6 1L11 6" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      )}
+                    </svg>
+                  </button>
+                )}
                 {(() => {
                   const events = memberEventsMap.get(pos.member.id) || [];
                   const bdEvt = events.find(e => e.type === "birthday");
