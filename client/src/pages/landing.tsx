@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
+import { PWAInstallBanner } from "@/components/pwa-install-banner";
 
 export default function Landing() {
   const [, navigate] = useLocation();
@@ -68,6 +69,7 @@ export default function Landing() {
       </header>
 
       <main className="pt-16">
+        <PWAInstallBanner />
         {/* Hero Section */}
         <section className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/10" />
