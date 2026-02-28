@@ -810,15 +810,23 @@ function ProductCustomizer({
           });
 
           const photoImages = new Map<string, HTMLImageElement>();
-          await Promise.all(nodes.filter(n => n.photoUrl).map(n => {
-            return new Promise<void>((resolve) => {
+          const blobUrls: string[] = [];
+          await Promise.all(nodes.filter(n => n.photoUrl).map(async (n) => {
+            try {
               const absUrl = n.photoUrl!.startsWith('http') ? n.photoUrl! : `${window.location.origin}${n.photoUrl}`;
+              const resp = await fetch(absUrl);
+              const blob = await resp.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              blobUrls.push(blobUrl);
               const img = new Image();
-              img.crossOrigin = 'anonymous';
-              img.onload = () => { photoImages.set(n.id, img); resolve(); };
-              img.onerror = () => { resolve(); };
-              img.src = absUrl;
-            });
+              await new Promise<void>((resolve) => {
+                img.onload = () => { photoImages.set(n.id, img); resolve(); };
+                img.onerror = () => { resolve(); };
+                img.src = blobUrl;
+              });
+            } catch (e) {
+              console.warn("Failed to load photo for capture:", n.id, e);
+            }
           }));
 
           const scale = 3;
@@ -903,7 +911,9 @@ function ProductCustomizer({
             headers: { "Content-Type": "image/png" },
           });
           treeImageUrl = objectPath;
+          blobUrls.forEach(u => URL.revokeObjectURL(u));
         } catch (captureError) {
+          blobUrls.forEach(u => URL.revokeObjectURL(u));
           console.error("Tree capture failed:", captureError);
           throw new Error("Failed to capture tree image for printing. Please try again.");
         } finally {
