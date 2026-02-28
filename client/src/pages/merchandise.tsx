@@ -615,25 +615,37 @@ function ProductCustomizer({
     setSavedTreeImageUrl("");
     try {
       const photoDataUrls = new Map<string, string>();
-      await Promise.all(treeMembers.filter(m => m.photoUrl).map(async (m) => {
+      const photoMembers = treeMembers.filter(m => m.photoUrl);
+      for (const m of photoMembers) {
         try {
           const absUrl = m.photoUrl!.startsWith('http') ? m.photoUrl! : `${window.location.origin}${m.photoUrl}`;
-          const resp = await fetch(absUrl);
+          const resp = await fetch(absUrl, { credentials: 'include' });
+          if (!resp.ok) {
+            console.warn(`Photo fetch failed for ${m.id}: HTTP ${resp.status}`);
+            continue;
+          }
           const blob = await resp.blob();
-          const dataUrl = await new Promise<string>((resolve) => {
+          if (blob.size === 0) {
+            console.warn(`Photo blob empty for ${m.id}`);
+            continue;
+          }
+          const dataUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('FileReader failed'));
             reader.readAsDataURL(blob);
           });
-          photoDataUrls.set(m.id, dataUrl);
+          if (dataUrl && dataUrl.startsWith('data:')) {
+            photoDataUrls.set(m.id, dataUrl);
+          }
         } catch (e) {
           console.warn("Failed to load photo for member:", m.id, e);
         }
-      }));
+      }
 
       const membersWithDataUrls = treeMembers.map(m => ({
         ...m,
-        photoUrl: photoDataUrls.get(m.id) || m.photoUrl
+        photoUrl: photoDataUrls.has(m.id) ? photoDataUrls.get(m.id) : null
       }));
 
       const captureDiv = document.createElement('div');
