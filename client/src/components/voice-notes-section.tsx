@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Mic, Square, Play, Pause, Trash2, Upload, Clock } from "lucide-react";
+import { PremiumContentLocked } from "@/components/premium-content-locked";
 import type { VoiceNote } from "@shared/schema";
 
 interface VoiceNotesSectionProps {
@@ -28,6 +29,12 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
   const [title, setTitle] = useState("");
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
+
+  const { data: pricingStatus } = useQuery<any>({
+    queryKey: ["/api/pricing/status"],
+  });
+  const userTier = pricingStatus?.featureTier || 'explorer';
+  const isVoiceVideoLocked = userTier === 'explorer';
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -233,7 +240,16 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
             </div>
           )}
 
-          {canEdit && (
+          {canEdit && isVoiceVideoLocked && (
+            <PremiumContentLocked
+              type="voice_note"
+              title="Voice notes require a subscription"
+              isCreator={canEdit}
+              compact
+            />
+          )}
+
+          {canEdit && !isVoiceVideoLocked && (
             <div className="space-y-2">
               {recordedBlob ? (
                 <Card className="border-primary/30 bg-primary/5">

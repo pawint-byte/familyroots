@@ -12645,11 +12645,13 @@ export async function registerRoutes(
         if (!collab || collab.role === "viewer") return res.status(403).json({ message: "Access denied" });
       }
 
-      const access = await subscriptionService.checkFeatureAccess(userId, 'media_upload');
+      const access = await subscriptionService.checkFeatureAccess(userId, 'voice_video_upload');
       if (!access.allowed) {
         return res.status(403).json({
           error: 'tier_limit_reached',
-          message: `You've reached your media upload limit (${access.used}/${access.limit}) for this month.`,
+          message: access.limit === 0
+            ? 'Voice notes require a Cultivator subscription or above.'
+            : `You've reached your voice & video upload limit (${access.used}/${access.limit}) for this month.`,
           tier: access.tier,
           nextTier: access.nextTier,
         });
@@ -12666,7 +12668,7 @@ export async function registerRoutes(
       }
 
       const [note] = await db.insert(voiceNotes).values(parsed.data).returning();
-      await subscriptionService.incrementFeatureUsage(userId, 'media_upload');
+      await subscriptionService.incrementFeatureUsage(userId, 'voice_video_upload');
       res.status(201).json(note);
     } catch (error: any) {
       console.error("Error creating voice note:", error);
@@ -12742,11 +12744,23 @@ export async function registerRoutes(
         if (!collab || collab.role === "viewer") return res.status(403).json({ message: "Access denied" });
       }
 
-      const access = await subscriptionService.checkFeatureAccess(userId, 'media_upload');
+      const AUDIO_VIDEO_PATTERNS = /\.(mp4|webm|mov|avi|mkv|mp3|wav|ogg|m4a|flac|aac)$/i;
+      const AUDIO_VIDEO_MIMES = /^(video\/|audio\/)/i;
+      const attachments: any[] = Array.isArray(req.body.mediaAttachments) ? req.body.mediaAttachments : [];
+      const hasAudioVideo = attachments.some((a: any) => {
+        const url = typeof a === 'string' ? a : a?.url || '';
+        const type = typeof a === 'object' ? a?.type || '' : '';
+        return AUDIO_VIDEO_PATTERNS.test(url) || AUDIO_VIDEO_MIMES.test(type);
+      });
+
+      const featureKey = hasAudioVideo ? 'voice_video_upload' as const : 'media_upload' as const;
+      const access = await subscriptionService.checkFeatureAccess(userId, featureKey);
       if (!access.allowed) {
         return res.status(403).json({
           error: 'tier_limit_reached',
-          message: `You've reached your media upload limit (${access.used}/${access.limit}) for this month.`,
+          message: hasAudioVideo && access.limit === 0
+            ? 'Video and audio attachments require a Cultivator subscription or above.'
+            : `You've reached your ${hasAudioVideo ? 'voice & video' : 'media'} upload limit (${access.used}/${access.limit}) for this month.`,
           tier: access.tier,
           nextTier: access.nextTier,
         });
@@ -12762,7 +12776,7 @@ export async function registerRoutes(
       }
 
       const [mem] = await db.insert(memories).values(parsed.data).returning();
-      await subscriptionService.incrementFeatureUsage(userId, 'media_upload');
+      await subscriptionService.incrementFeatureUsage(userId, featureKey);
       res.status(201).json(mem);
     } catch (error: any) {
       console.error("Error creating memory:", error);
