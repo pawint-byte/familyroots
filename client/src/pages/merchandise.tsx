@@ -620,31 +620,54 @@ function ProductCustomizer({
 
       const adjacency = new Map<string, Set<string>>();
       treeMembers.forEach(m => adjacency.set(m.id, new Set()));
+      const parentOf = new Map<string, Set<string>>();
+      const childOf = new Map<string, Set<string>>();
+      treeMembers.forEach(m => { parentOf.set(m.id, new Set()); childOf.set(m.id, new Set()); });
       rels.forEach(r => {
         if (adjacency.has(r.fromMemberId) && adjacency.has(r.toMemberId)) {
           adjacency.get(r.fromMemberId)!.add(r.toMemberId);
           adjacency.get(r.toMemberId)!.add(r.fromMemberId);
-        }
-      });
-      let rootId = treeMembers[0]?.id;
-      let maxConn = 0;
-      for (const [id, neighbors] of adjacency) {
-        if (neighbors.size > maxConn) { maxConn = neighbors.size; rootId = id; }
-      }
-      const bfsQueue: string[] = [rootId];
-      const visited = new Set<string>([rootId]);
-      const levels: string[][] = [];
-      while (bfsQueue.length > 0) {
-        const sz = bfsQueue.length;
-        const level: string[] = [];
-        for (let i = 0; i < sz; i++) {
-          const cur = bfsQueue.shift()!;
-          level.push(cur);
-          for (const n of (adjacency.get(cur) || new Set())) {
-            if (!visited.has(n)) { visited.add(n); bfsQueue.push(n); }
+          const rt = (r.relationshipType || '').toLowerCase();
+          if (rt === 'parent' || rt === 'co-parent') {
+            parentOf.get(r.fromMemberId)?.add(r.toMemberId);
+            childOf.get(r.toMemberId)?.add(r.fromMemberId);
+          } else if (rt === 'child') {
+            childOf.get(r.fromMemberId)?.add(r.toMemberId);
+            parentOf.get(r.toMemberId)?.add(r.fromMemberId);
           }
         }
-        levels.push(level);
+      });
+      let rootId = treeDetail?.tree?.rootMemberId || treeMembers[0]?.id;
+      if (!adjacency.has(rootId)) {
+        let maxConn = 0;
+        for (const [id, neighbors] of adjacency) {
+          if (neighbors.size > maxConn) { maxConn = neighbors.size; rootId = id; }
+        }
+      }
+      const topParents = treeMembers.filter(m => {
+        const parents = childOf.get(m.id);
+        return !parents || parents.size === 0;
+      });
+      const startNodes = topParents.length > 0 ? topParents.map(m => m.id) : [rootId];
+
+      const visited = new Set<string>();
+      const levels: string[][] = [];
+      levels.push(startNodes);
+      startNodes.forEach(id => visited.add(id));
+
+      let currentLevel = startNodes;
+      while (currentLevel.length > 0) {
+        const nextLevel: string[] = [];
+        for (const cur of currentLevel) {
+          for (const n of (adjacency.get(cur) || new Set())) {
+            if (!visited.has(n)) {
+              visited.add(n);
+              nextLevel.push(n);
+            }
+          }
+        }
+        if (nextLevel.length > 0) levels.push(nextLevel);
+        currentLevel = nextLevel;
       }
       for (const m of treeMembers) {
         if (!visited.has(m.id)) {
