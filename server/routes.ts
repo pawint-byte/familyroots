@@ -10354,6 +10354,19 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/merchandise/generate-qr", isAuthenticated, async (req: any, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ message: "URL is required" });
+      const { generateAndUploadQR } = await import("./merchandiseHelpers");
+      const objectPath = await generateAndUploadQR(url);
+      res.json({ objectPath });
+    } catch (error: any) {
+      console.error("Error generating QR:", error);
+      res.status(500).json({ message: "Failed to generate QR code" });
+    }
+  });
+
   // Create merchandise order (with Stripe payment)
   app.post("/api/merchandise/orders", isAuthenticated, async (req: any, res) => {
     try {

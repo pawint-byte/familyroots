@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
-  ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, 
+  ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, Camera,
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
   AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
   Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy, Type, Upload,
@@ -560,6 +560,9 @@ function ProductCustomizer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const treePreviewRef = useRef<HTMLDivElement>(null);
   const [isCapturingTree, setIsCapturingTree] = useState(false);
+  const [savedTreeImageUrl, setSavedTreeImageUrl] = useState<string>("");
+  const [savedQRImageUrl, setSavedQRImageUrl] = useState<string>("");
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
   const [showShipping, setShowShipping] = useState(false);
   const [treePlacement, setTreePlacement] = useState<string>(product.placements?.[0]?.id || "front");
   const [qrPlacement, setQrPlacement] = useState<string>("");
@@ -605,6 +608,207 @@ function ProductCustomizer({
     staleTime: Infinity,
   });
   const treeInviteCode = inviteLinkData?.inviteCode;
+
+  const captureTreeImage = async () => {
+    if (!selectedTreeId || treeMembers.length === 0) return;
+    setIsCapturingTree(true);
+    setSavedTreeImageUrl("");
+    try {
+      const treeConfig = getTreeTypeConfig((selectedTree?.treeType || "custom") as TreeType);
+      const accentColor = treeConfig.visual.accentColor || "#10b981";
+      const rels = treeDetail?.relationships ?? [];
+
+      const adjacency = new Map<string, Set<string>>();
+      treeMembers.forEach(m => adjacency.set(m.id, new Set()));
+      rels.forEach(r => {
+        if (adjacency.has(r.fromMemberId) && adjacency.has(r.toMemberId)) {
+          adjacency.get(r.fromMemberId)!.add(r.toMemberId);
+          adjacency.get(r.toMemberId)!.add(r.fromMemberId);
+        }
+      });
+      let rootId = treeMembers[0]?.id;
+      let maxConn = 0;
+      for (const [id, neighbors] of adjacency) {
+        if (neighbors.size > maxConn) { maxConn = neighbors.size; rootId = id; }
+      }
+      const bfsQueue: string[] = [rootId];
+      const visited = new Set<string>([rootId]);
+      const levels: string[][] = [];
+      while (bfsQueue.length > 0) {
+        const sz = bfsQueue.length;
+        const level: string[] = [];
+        for (let i = 0; i < sz; i++) {
+          const cur = bfsQueue.shift()!;
+          level.push(cur);
+          for (const n of (adjacency.get(cur) || new Set())) {
+            if (!visited.has(n)) { visited.add(n); bfsQueue.push(n); }
+          }
+        }
+        levels.push(level);
+      }
+      for (const m of treeMembers) {
+        if (!visited.has(m.id)) {
+          levels[levels.length - 1] = levels[levels.length - 1] || [];
+          levels[levels.length - 1].push(m.id);
+        }
+      }
+
+      const nodeSpacingX = 220, nodeSpacingY = 200, nodeRadius = 40, capPadding = 80;
+      const placed = new Map<string, { x: number; y: number }>();
+      levels.forEach((level, depth) => {
+        const totalW = (level.length - 1) * nodeSpacingX;
+        const startX = -totalW / 2;
+        level.forEach((id, i) => placed.set(id, { x: startX + i * nodeSpacingX, y: depth * nodeSpacingY }));
+      });
+      const nodes = treeMembers.map(m => {
+        const pos = placed.get(m.id) || { x: 0, y: 0 };
+        const initials = `${m.firstName?.[0] || ""}${m.lastName?.[0] || ""}`.toUpperCase();
+        const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || "?";
+        return { id: m.id, x: pos.x, y: pos.y, initials, name, photoUrl: m.photoUrl };
+      });
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      nodes.forEach(n => { if (n.x < minX) minX = n.x; if (n.y < minY) minY = n.y; if (n.x > maxX) maxX = n.x; if (n.y > maxY) maxY = n.y; });
+      const canvasW = maxX - minX + capPadding * 2 + nodeRadius * 2;
+      const canvasH = maxY - minY + capPadding * 2 + nodeRadius * 2 + 60;
+      const offX = -minX + capPadding + nodeRadius;
+      const offY = -minY + capPadding + nodeRadius + 40;
+
+      const posMap = new Map(nodes.map(n => [n.id, n]));
+      const uniqueLines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+      const lineKeys = new Set<string>();
+      rels.forEach(r => {
+        const from = posMap.get(r.fromMemberId);
+        const to = posMap.get(r.toMemberId);
+        if (from && to) {
+          const key = [from.x, from.y, to.x, to.y].sort().join(',');
+          if (!lineKeys.has(key)) { lineKeys.add(key); uniqueLines.push({ x1: from.x, y1: from.y, x2: to.x, y2: to.y }); }
+        }
+      });
+
+      const photoImages = new Map<string, HTMLImageElement>();
+      const blobUrls: string[] = [];
+      await Promise.all(nodes.filter(n => n.photoUrl).map(async (n) => {
+        try {
+          const absUrl = n.photoUrl!.startsWith('http') ? n.photoUrl! : `${window.location.origin}${n.photoUrl}`;
+          const resp = await fetch(absUrl);
+          const blob = await resp.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          blobUrls.push(blobUrl);
+          const img = new Image();
+          await new Promise<void>((resolve) => {
+            img.onload = () => { photoImages.set(n.id, img); resolve(); };
+            img.onerror = () => { resolve(); };
+            img.src = blobUrl;
+          });
+        } catch (e) {
+          console.warn("Failed to load photo for capture:", n.id, e);
+        }
+      }));
+
+      const scale = 3;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasW * scale;
+      canvas.height = canvasH * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
+      ctx.font = 'bold 24px Inter, sans-serif';
+      ctx.fillStyle = '#1f2937';
+      ctx.textAlign = 'center';
+      ctx.fillText(selectedTree?.name || '', canvasW / 2, 30);
+
+      uniqueLines.forEach(line => {
+        ctx.beginPath();
+        ctx.moveTo(line.x1 + offX, line.y1 + offY);
+        ctx.lineTo(line.x2 + offX, line.y2 + offY);
+        ctx.strokeStyle = accentColor;
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.6;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      });
+
+      nodes.forEach(node => {
+        const cx = node.x + offX;
+        const cy = node.y + offY;
+        ctx.beginPath();
+        ctx.arc(cx, cy, nodeRadius, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = accentColor;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        const photo = photoImages.get(node.id);
+        if (photo) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, nodeRadius - 3, 0, Math.PI * 2);
+          ctx.clip();
+          const size = (nodeRadius - 3) * 2;
+          ctx.drawImage(photo, cx - nodeRadius + 3, cy - nodeRadius + 3, size, size);
+          ctx.restore();
+        } else {
+          ctx.font = 'bold 18px Inter, sans-serif';
+          ctx.fillStyle = accentColor;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(node.initials, cx, cy + 1);
+        }
+        ctx.font = '500 13px Inter, sans-serif';
+        ctx.fillStyle = '#374151';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(node.name, cx, cy + nodeRadius + 5);
+      });
+
+      const dataUrl = canvas.toDataURL('image/png', 0.95);
+      const captureBlob = await (await fetch(dataUrl)).blob();
+      const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
+      const res = await apiRequest("POST", "/api/uploads/request-url", {
+        name: filename,
+        size: captureBlob.size,
+        contentType: "image/png",
+      });
+      const { uploadURL, objectPath } = await res.json();
+      await fetch(uploadURL, {
+        method: "PUT",
+        body: captureBlob,
+        headers: { "Content-Type": "image/png" },
+      });
+      blobUrls.forEach(u => URL.revokeObjectURL(u));
+      setSavedTreeImageUrl(objectPath);
+      toast({ title: "Tree image captured", description: "Your tree image is ready for printing." });
+    } catch (err: any) {
+      console.error("Tree capture failed:", err);
+      toast({ title: "Capture failed", description: err.message || "Failed to capture tree image. Please try again.", variant: "destructive" });
+    } finally {
+      setIsCapturingTree(false);
+    }
+  };
+
+  const generateQRImage = async () => {
+    setIsGeneratingQR(true);
+    setSavedQRImageUrl("");
+    try {
+      const baseUrl = `${window.location.protocol}//${window.location.host}`;
+      let qrValue = baseUrl;
+      if (selectedQRType === 'profile' && userId) qrValue = `${baseUrl}/profile/${userId}`;
+      else if (selectedQRType === 'tree' && treeInviteCode) qrValue = `${baseUrl}/join/${treeInviteCode}`;
+
+      const res = await apiRequest("POST", "/api/merchandise/generate-qr", { url: qrValue });
+      const { objectPath } = await res.json();
+      setSavedQRImageUrl(objectPath);
+      toast({ title: "QR code generated", description: "Your QR code is ready for printing." });
+    } catch (err: any) {
+      console.error("QR generation failed:", err);
+      toast({ title: "QR generation failed", description: err.message || "Failed to generate QR code. Please try again.", variant: "destructive" });
+    } finally {
+      setIsGeneratingQR(false);
+    }
+  };
 
   const handleImageUpload = async (file: File) => {
     if (!file) return;
@@ -727,6 +931,9 @@ function ProductCustomizer({
         if (selectedQRType === 'tree' && !treeInviteCode) {
           throw new Error("Still generating invite link — please wait a moment and try again");
         }
+        if (!savedQRImageUrl) {
+          throw new Error("Please generate your QR code first using the 'Generate QR Code' button before placing an order.");
+        }
       }
 
       if (!isShippingValid()) {
@@ -735,190 +942,10 @@ function ProductCustomizer({
 
       let treeImageUrl = '';
       if (includeTree && selectedTreeId && treeMembers.length > 0) {
-        setIsCapturingTree(true);
-        try {
-          const treeConfig = getTreeTypeConfig((selectedTree?.treeType || "custom") as TreeType);
-          const accentColor = treeConfig.visual.accentColor || "#10b981";
-          const rels = treeDetail?.relationships ?? [];
-
-          const adjacency = new Map<string, Set<string>>();
-          treeMembers.forEach(m => adjacency.set(m.id, new Set()));
-          rels.forEach(r => {
-            if (adjacency.has(r.fromMemberId) && adjacency.has(r.toMemberId)) {
-              adjacency.get(r.fromMemberId)!.add(r.toMemberId);
-              adjacency.get(r.toMemberId)!.add(r.fromMemberId);
-            }
-          });
-          let rootId = treeMembers[0]?.id;
-          let maxConn = 0;
-          for (const [id, neighbors] of adjacency) {
-            if (neighbors.size > maxConn) { maxConn = neighbors.size; rootId = id; }
-          }
-          const bfsQueue: string[] = [rootId];
-          const visited = new Set<string>([rootId]);
-          const levels: string[][] = [];
-          while (bfsQueue.length > 0) {
-            const sz = bfsQueue.length;
-            const level: string[] = [];
-            for (let i = 0; i < sz; i++) {
-              const cur = bfsQueue.shift()!;
-              level.push(cur);
-              for (const n of (adjacency.get(cur) || new Set())) {
-                if (!visited.has(n)) { visited.add(n); bfsQueue.push(n); }
-              }
-            }
-            levels.push(level);
-          }
-          for (const m of treeMembers) {
-            if (!visited.has(m.id)) {
-              levels[levels.length - 1] = levels[levels.length - 1] || [];
-              levels[levels.length - 1].push(m.id);
-            }
-          }
-
-          const nodeSpacingX = 220, nodeSpacingY = 200, nodeRadius = 40, capPadding = 80;
-          const placed = new Map<string, { x: number; y: number }>();
-          levels.forEach((level, depth) => {
-            const totalW = (level.length - 1) * nodeSpacingX;
-            const startX = -totalW / 2;
-            level.forEach((id, i) => placed.set(id, { x: startX + i * nodeSpacingX, y: depth * nodeSpacingY }));
-          });
-          const nodes = treeMembers.map(m => {
-            const pos = placed.get(m.id) || { x: 0, y: 0 };
-            const initials = `${m.firstName?.[0] || ""}${m.lastName?.[0] || ""}`.toUpperCase();
-            const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || "?";
-            return { id: m.id, x: pos.x, y: pos.y, initials, name, photoUrl: m.photoUrl };
-          });
-
-          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-          nodes.forEach(n => { if (n.x < minX) minX = n.x; if (n.y < minY) minY = n.y; if (n.x > maxX) maxX = n.x; if (n.y > maxY) maxY = n.y; });
-          const canvasW = maxX - minX + capPadding * 2 + nodeRadius * 2;
-          const canvasH = maxY - minY + capPadding * 2 + nodeRadius * 2 + 60;
-          const offX = -minX + capPadding + nodeRadius;
-          const offY = -minY + capPadding + nodeRadius + 40;
-
-          const posMap = new Map(nodes.map(n => [n.id, n]));
-          const uniqueLines: { x1: number; y1: number; x2: number; y2: number }[] = [];
-          const lineKeys = new Set<string>();
-          rels.forEach(r => {
-            const from = posMap.get(r.fromMemberId);
-            const to = posMap.get(r.toMemberId);
-            if (from && to) {
-              const key = [from.x, from.y, to.x, to.y].sort().join(',');
-              if (!lineKeys.has(key)) { lineKeys.add(key); uniqueLines.push({ x1: from.x, y1: from.y, x2: to.x, y2: to.y }); }
-            }
-          });
-
-          const photoImages = new Map<string, HTMLImageElement>();
-          const blobUrls: string[] = [];
-          await Promise.all(nodes.filter(n => n.photoUrl).map(async (n) => {
-            try {
-              const absUrl = n.photoUrl!.startsWith('http') ? n.photoUrl! : `${window.location.origin}${n.photoUrl}`;
-              const resp = await fetch(absUrl);
-              const blob = await resp.blob();
-              const blobUrl = URL.createObjectURL(blob);
-              blobUrls.push(blobUrl);
-              const img = new Image();
-              await new Promise<void>((resolve) => {
-                img.onload = () => { photoImages.set(n.id, img); resolve(); };
-                img.onerror = () => { resolve(); };
-                img.src = blobUrl;
-              });
-            } catch (e) {
-              console.warn("Failed to load photo for capture:", n.id, e);
-            }
-          }));
-
-          const scale = 3;
-          const canvas = document.createElement('canvas');
-          canvas.width = canvasW * scale;
-          canvas.height = canvasH * scale;
-          const ctx = canvas.getContext('2d')!;
-          ctx.scale(scale, scale);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, canvasW, canvasH);
-
-          ctx.font = 'bold 24px Inter, sans-serif';
-          ctx.fillStyle = '#1f2937';
-          ctx.textAlign = 'center';
-          ctx.fillText(selectedTree?.name || treeName || '', canvasW / 2, 30);
-
-          uniqueLines.forEach(line => {
-            ctx.beginPath();
-            ctx.moveTo(line.x1 + offX, line.y1 + offY);
-            ctx.lineTo(line.x2 + offX, line.y2 + offY);
-            ctx.strokeStyle = accentColor;
-            ctx.lineWidth = 3;
-            ctx.globalAlpha = 0.6;
-            ctx.stroke();
-            ctx.globalAlpha = 1;
-          });
-
-          nodes.forEach(node => {
-            const cx = node.x + offX;
-            const cy = node.y + offY;
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, nodeRadius, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
-            ctx.fill();
-            ctx.strokeStyle = accentColor;
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            const photo = photoImages.get(node.id);
-            if (photo) {
-              ctx.save();
-              ctx.beginPath();
-              ctx.arc(cx, cy, nodeRadius - 3, 0, Math.PI * 2);
-              ctx.clip();
-              const size = (nodeRadius - 3) * 2;
-              ctx.drawImage(photo, cx - nodeRadius + 3, cy - nodeRadius + 3, size, size);
-              ctx.restore();
-            } else {
-              ctx.font = 'bold 18px Inter, sans-serif';
-              ctx.fillStyle = accentColor;
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(node.initials, cx, cy + 1);
-            }
-
-            ctx.font = '500 13px Inter, sans-serif';
-            ctx.fillStyle = '#374151';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'top';
-            ctx.fillText(node.name, cx, cy + nodeRadius + 5);
-          });
-
-          ctx.font = '14px Inter, sans-serif';
-          ctx.fillStyle = '#9ca3af';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText(treeConfig.visual.shapeName || '', canvasW / 2, canvasH - 10);
-
-          const dataUrl = canvas.toDataURL('image/png', 0.95);
-          const blob = await (await fetch(dataUrl)).blob();
-          const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
-          const res = await apiRequest("POST", "/api/uploads/request-url", {
-            name: filename,
-            size: blob.size,
-            contentType: "image/png",
-          });
-          const { uploadURL, objectPath } = await res.json();
-          await fetch(uploadURL, {
-            method: "PUT",
-            body: blob,
-            headers: { "Content-Type": "image/png" },
-          });
-          treeImageUrl = objectPath;
-          blobUrls.forEach(u => URL.revokeObjectURL(u));
-        } catch (captureError) {
-          blobUrls.forEach(u => URL.revokeObjectURL(u));
-          console.error("Tree capture failed:", captureError);
-          throw new Error("Failed to capture tree image for printing. Please try again.");
-        } finally {
-          setIsCapturingTree(false);
+        if (!savedTreeImageUrl) {
+          throw new Error("Please capture your tree image first using the 'Capture Tree Image' button before placing an order.");
         }
+        treeImageUrl = savedTreeImageUrl;
       }
 
       const treePrintPlacement = product.placements?.find(p => p.id === treePlacement);
@@ -942,6 +969,7 @@ function ProductCustomizer({
         includeTree,
         includeQR: includeQR,
         qrUrl,
+        qrImageUrl: savedQRImageUrl || undefined,
         treeImageUrl: treeImageUrl || undefined,
         treePlacement: treePrintPlacement?.printfulType || 'default',
         qrPlacement: qrPrintPlacement?.printfulType || null,
@@ -1004,53 +1032,57 @@ function ProductCustomizer({
                 </div>
               </div>
             )}
-            {includeTree && selectedTree && selectedTreeId && !loadingTreeDetail && treeMemberCount > 0 && (
+            {includeTree && savedTreeImageUrl && (
               <div className={`absolute p-4 ${
                 treePlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
                 treePlacement === 'front_left' ? 'top-4 left-4' :
                 'inset-0 flex items-center justify-center'
               }`}>
-                <div 
-                  className={`bg-white/90 rounded-lg shadow-lg overflow-hidden ${
+                <img
+                  src={savedTreeImageUrl}
+                  alt="Tree print preview"
+                  className={`rounded-lg shadow-lg object-contain bg-white ${
                     treePlacement === 'front_left' ? 'w-1/3 h-1/3' :
                     product.printArea === 'wrap' ? 'w-3/4 h-1/2' : 
                     product.printArea === 'front' ? 'w-1/2 h-1/2' : 
                     'w-3/4 h-3/4'
                   }`}
-                >
-                  <MiniTreePreview members={treeMembers} relationships={treeDetail?.relationships ?? []} treeName={selectedTree.name} treeType={selectedTree.treeType || "family"} layoutOverride={(treeDetail?.tree?.preferredLayout as GroupLayoutMode) || layoutOverride} />
+                  data-testid="tree-image-preview-overlay"
+                />
+              </div>
+            )}
+            {includeTree && selectedTree && !savedTreeImageUrl && !loadingTreeDetail && treeMemberCount > 0 && (
+              <div className="absolute inset-0 flex items-center justify-center p-4">
+                <div className="bg-white/90 rounded-lg shadow-lg p-4 text-center">
+                  <Camera className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">Capture tree image to preview</p>
                 </div>
               </div>
             )}
-            {includeQR && (() => {
-              const baseUrl = `${window.location.protocol}//${window.location.host}`;
-              const qrValue = selectedQRType === 'site' ? baseUrl
-                : selectedQRType === 'profile' && userId ? `${baseUrl}/profile/${userId}`
-                : selectedQRType === 'tree' && treeInviteCode ? `${baseUrl}/join/${treeInviteCode}`
-                : baseUrl;
-              const qrLabel = selectedQRType === 'site' ? 'Scan to sign up'
-                : selectedQRType === 'profile' ? 'Scan to connect'
-                : selectedQRType === 'tree' ? 'Scan to join'
-                : 'Scan to sign up';
-              return (
-                <div 
-                  className={`absolute bg-white p-1.5 rounded shadow-lg border ${
-                    qrPlacement === 'front_left' ? 'top-4 left-4' :
-                    qrPlacement === 'back' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-60' :
-                    qrPlacement === 'front' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
-                    'bottom-12 right-3'
-                  }`}
-                  data-testid="qr-preview-overlay"
-                >
-                  <QRCodeSVG
-                    value={qrValue}
-                    size={qrPlacement === 'front_left' ? 40 : 48}
-                    level="M"
-                  />
-                  <p className="text-[6px] text-center text-gray-500 mt-0.5">{qrLabel}</p>
-                </div>
-              );
-            })()}
+            {includeQR && savedQRImageUrl && (
+              <div 
+                className={`absolute bg-white p-1.5 rounded shadow-lg border ${
+                  qrPlacement === 'front_left' ? 'top-4 left-4' :
+                  qrPlacement === 'back' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-60' :
+                  qrPlacement === 'front' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
+                  'bottom-12 right-3'
+                }`}
+                data-testid="qr-preview-overlay"
+              >
+                <img src={savedQRImageUrl} alt="QR code preview" className={`object-contain ${qrPlacement === 'front_left' ? 'w-10 h-10' : 'w-12 h-12'}`} />
+                <p className="text-[6px] text-center text-gray-500 mt-0.5">
+                  {selectedQRType === 'site' ? 'Scan to sign up' : selectedQRType === 'profile' ? 'Scan to connect' : 'Scan to join'}
+                </p>
+              </div>
+            )}
+            {includeQR && !savedQRImageUrl && (
+              <div className={`absolute bg-white/80 p-2 rounded shadow-lg border border-dashed ${
+                qrPlacement === 'front_left' ? 'top-4 left-4' : 'bottom-12 right-3'
+              }`}>
+                <QrCode className="h-8 w-8 text-muted-foreground/50" />
+                <p className="text-[6px] text-center text-muted-foreground">Generate QR</p>
+              </div>
+            )}
             {includeCustomImage && customImageUrl && (
               <div
                 className={`absolute ${
@@ -1100,19 +1132,6 @@ function ProductCustomizer({
             )}
           </div>
           
-          {includeTree && selectedTree && selectedTreeId && !loadingTreeDetail && treeMemberCount > 0 && (
-            <div 
-              ref={treePreviewRef}
-              style={{ position: "absolute", left: "-9999px", top: "-9999px", background: "#ffffff" }}
-            >
-              <StaticTreeCapture
-                members={treeMembers}
-                relationships={treeDetail?.relationships ?? []}
-                treeName={selectedTree.name}
-                treeType={selectedTree.treeType || "family"}
-              />
-            </div>
-          )}
 
           {includeTree && selectedTree && product.maxMembers && (
             <Alert variant={treeMemberCount > product.maxMembers ? "destructive" : "default"}>
@@ -1260,9 +1279,9 @@ function ProductCustomizer({
             </div>
 
             {includeTree && (
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="tree-select">Select Tree / Group</Label>
-              <Select value={selectedTreeId} onValueChange={setSelectedTreeId}>
+              <Select value={selectedTreeId} onValueChange={(v) => { setSelectedTreeId(v); setSavedTreeImageUrl(""); }}>
                 <SelectTrigger id="tree-select" data-testid="select-tree">
                   <SelectValue placeholder="Choose a tree or group" />
                 </SelectTrigger>
@@ -1274,6 +1293,40 @@ function ProductCustomizer({
                   ))}
                 </SelectContent>
               </Select>
+              {selectedTreeId && treeMembers.length > 0 && (
+                <div className="space-y-2">
+                  {savedTreeImageUrl ? (
+                    <div className="border rounded-lg p-3 bg-green-50 dark:bg-green-950/30 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                        <span className="text-sm font-medium text-green-700 dark:text-green-400">Tree image captured</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <img src={savedTreeImageUrl} alt="Captured tree" className="w-20 h-20 rounded object-contain border" data-testid="img-captured-tree" />
+                        <Button variant="outline" size="sm" onClick={captureTreeImage} disabled={isCapturingTree} data-testid="button-recapture-tree">
+                          {isCapturingTree ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Recapturing...</> : "Recapture"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={captureTreeImage}
+                      disabled={isCapturingTree || loadingTreeDetail}
+                      data-testid="button-capture-tree"
+                    >
+                      {isCapturingTree ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Capturing Tree Image...</>
+                      ) : loadingTreeDetail ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Loading tree data...</>
+                      ) : (
+                        <><Camera className="h-4 w-4 mr-2" />Capture Tree Image</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
             )}
 
@@ -1478,7 +1531,7 @@ function ProductCustomizer({
                 <p className="text-xs text-muted-foreground -mt-1">Pick what happens when someone scans the code on your product</p>
                 <div className="grid grid-cols-1 gap-2">
                   <button
-                    onClick={() => { setSelectedQRType('site'); setSelectedQRTreeId(''); }}
+                    onClick={() => { setSelectedQRType('site'); setSelectedQRTreeId(''); setSavedQRImageUrl(''); }}
                     className={`text-left p-3 rounded-lg border transition-all ${
                       selectedQRType === 'site'
                         ? "border-primary bg-primary/5 ring-1 ring-primary/30"
@@ -1497,7 +1550,7 @@ function ProductCustomizer({
                     </div>
                   </button>
                   <button
-                    onClick={() => { setSelectedQRType('profile'); setSelectedQRTreeId(''); }}
+                    onClick={() => { setSelectedQRType('profile'); setSelectedQRTreeId(''); setSavedQRImageUrl(''); }}
                     className={`text-left p-3 rounded-lg border transition-all ${
                       selectedQRType === 'profile'
                         ? "border-primary bg-primary/5 ring-1 ring-primary/30"
@@ -1520,7 +1573,7 @@ function ProductCustomizer({
                     return (
                       <button
                         key={tree.id}
-                        onClick={() => { setSelectedQRType('tree'); setSelectedQRTreeId(tree.id); }}
+                        onClick={() => { setSelectedQRType('tree'); setSelectedQRTreeId(tree.id); setSavedQRImageUrl(''); }}
                         className={`text-left p-3 rounded-lg border transition-all ${
                           selectedQRType === 'tree' && selectedQRTreeId === tree.id
                             ? "border-primary bg-primary/5 ring-1 ring-primary/30"
@@ -1611,6 +1664,34 @@ function ProductCustomizer({
                     </div>
                   )}
                 </div>
+                {savedQRImageUrl ? (
+                  <div className="border rounded-lg p-3 bg-green-50 dark:bg-green-950/30 space-y-2 mt-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                      <span className="text-sm font-medium text-green-700 dark:text-green-400">QR code generated</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <img src={savedQRImageUrl} alt="Generated QR code" className="w-16 h-16 rounded object-contain border bg-white" data-testid="img-generated-qr" />
+                      <Button variant="outline" size="sm" onClick={generateQRImage} disabled={isGeneratingQR} data-testid="button-regenerate-qr">
+                        {isGeneratingQR ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Regenerating...</> : "Regenerate"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full mt-2"
+                    onClick={generateQRImage}
+                    disabled={isGeneratingQR || (selectedQRType === 'tree' && !treeInviteCode)}
+                    data-testid="button-generate-qr"
+                  >
+                    {isGeneratingQR ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating QR Code...</>
+                    ) : (
+                      <><QrCode className="h-4 w-4 mr-2" />Generate QR Code</>
+                    )}
+                  </Button>
+                )}
               </div>
             )}
 
@@ -1846,15 +1927,10 @@ function ProductCustomizer({
                   className="flex-1"
                   size="lg"
                   onClick={() => createOrderMutation.mutate()}
-                  disabled={!isShippingValid() || createOrderMutation.isPending || isCapturingTree}
+                  disabled={!isShippingValid() || createOrderMutation.isPending || (includeTree && !savedTreeImageUrl) || (includeQR && !savedQRImageUrl)}
                   data-testid="button-place-order"
                 >
-                  {isCapturingTree ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Capturing Tree Image...
-                    </>
-                  ) : createOrderMutation.isPending ? (
+                  {createOrderMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Creating Order...
@@ -1866,6 +1942,15 @@ function ProductCustomizer({
                     </>
                   )}
                 </Button>
+                {((includeTree && !savedTreeImageUrl) || (includeQR && !savedQRImageUrl)) && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 text-center mt-1">
+                    {includeTree && !savedTreeImageUrl && includeQR && !savedQRImageUrl
+                      ? "Capture your tree image and generate your QR code first"
+                      : includeTree && !savedTreeImageUrl
+                      ? "Capture your tree image first"
+                      : "Generate your QR code first"}
+                  </p>
+                )}
               </div>
             </>
           )}
