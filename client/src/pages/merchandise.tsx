@@ -17,7 +17,7 @@ import {
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
   AlertTriangle, AlertCircle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
   Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy, Type, Upload,
-  RotateCcw, ShoppingCart, Trash2, Tag, X, Minus
+  RotateCcw, ShoppingCart, Trash2, Tag, X, Minus, Maximize2
 } from "lucide-react";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
@@ -25,6 +25,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
 import { getTreeTypeConfig, getMemberRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
 import { type GroupLayoutMode } from "@/components/group-visualization";
+import PrintDesigner from "@/components/print-designer";
 
 const MERCHANDISE_DISABLED = false;
 const MERCHANDISE_DISABLED_MESSAGE = "Merchandise ordering is temporarily unavailable while we complete setup with our print partner. We'll notify you when it's back. Any previous charges have been fully refunded.";
@@ -78,6 +79,7 @@ interface CartItem {
   includeCustomText?: boolean;
   customText?: string;
   customTextPlacement?: string;
+  isComposited?: boolean;
 }
 
 type QRCodeType = 'site' | 'profile' | 'tree';
@@ -597,6 +599,15 @@ function ProductCustomizer({
   const [selectedQRType, setSelectedQRType] = useState<QRCodeType>('site');
   const [selectedQRTreeId, setSelectedQRTreeId] = useState<string>("");
 
+  const [compositedImageUrl, setCompositedImageUrl] = useState<string>("");
+  const [showDesigner, setShowDesigner] = useState(false);
+
+  useEffect(() => {
+    if (compositedImageUrl) {
+      setCompositedImageUrl("");
+    }
+  }, [savedTreeImageUrl, savedQRImageUrl, customImageUrl, customText, includeTree, includeQR, includeCustomImage, includeCustomText]);
+
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupType, setNewGroupType] = useState<string>("custom");
@@ -951,11 +962,11 @@ function ProductCustomizer({
         throw new Error("Please select a product variant");
       }
 
-      if (!includeTree && !includeQR && !includeCustomImage && !includeCustomText) {
+      if (!compositedImageUrl && !includeTree && !includeQR && !includeCustomImage && !includeCustomText) {
         throw new Error("Please include at least one element on your product (tree print, QR code, custom image, or text)");
       }
 
-      if (includeTree && !selectedTreeId) {
+      if (!compositedImageUrl && includeTree && !selectedTreeId) {
         throw new Error("Please select a tree");
       }
 
@@ -1006,7 +1017,7 @@ function ProductCustomizer({
         else qrUrl = orderBaseUrl;
       }
 
-      return apiRequest("POST", "/api/merchandise/orders", {
+      const orderPayload: Record<string, any> = {
         treeId: selectedTreeId || undefined,
         productId: product.id,
         variantId: selectedVariantId,
@@ -1015,17 +1026,6 @@ function ProductCustomizer({
         quantity,
         includeTree,
         includeQR: includeQR,
-        qrUrl,
-        qrImageUrl: savedQRImageUrl || undefined,
-        treeImageUrl: treeImageUrl || undefined,
-        treePlacement: treePrintPlacement?.printfulType || 'default',
-        qrPlacement: qrPrintPlacement?.printfulType || null,
-        includeCustomImage,
-        customImageUrl: includeCustomImage ? customImageUrl : undefined,
-        customImagePlacement: includeCustomImage ? customImagePlacement : undefined,
-        includeCustomText,
-        customText: includeCustomText ? customText.trim() : undefined,
-        customTextPlacement: includeCustomText ? customTextPlacement : undefined,
         shippingAddress: {
           name: shippingAddress.name.trim(),
           address1: shippingAddress.address1.trim(),
@@ -1037,7 +1037,27 @@ function ProductCustomizer({
           phone: shippingAddress.phone.trim() || undefined,
           email: shippingAddress.email.trim() || undefined,
         },
-      });
+      };
+
+      if (compositedImageUrl) {
+        orderPayload.treeImageUrl = compositedImageUrl;
+        orderPayload.treePlacement = treePrintPlacement?.printfulType || 'default';
+        orderPayload.isComposited = true;
+      } else {
+        orderPayload.qrUrl = qrUrl;
+        orderPayload.qrImageUrl = savedQRImageUrl || undefined;
+        orderPayload.treeImageUrl = treeImageUrl || undefined;
+        orderPayload.treePlacement = treePrintPlacement?.printfulType || 'default';
+        orderPayload.qrPlacement = qrPrintPlacement?.printfulType || null;
+        orderPayload.includeCustomImage = includeCustomImage;
+        orderPayload.customImageUrl = includeCustomImage ? customImageUrl : undefined;
+        orderPayload.customImagePlacement = includeCustomImage ? customImagePlacement : undefined;
+        orderPayload.includeCustomText = includeCustomText;
+        orderPayload.customText = includeCustomText ? customText.trim() : undefined;
+        orderPayload.customTextPlacement = includeCustomText ? customTextPlacement : undefined;
+      }
+
+      return apiRequest("POST", "/api/merchandise/orders", orderPayload);
     },
     onSuccess: async (response: any) => {
       const data = await response.json();
@@ -1070,119 +1090,173 @@ function ProductCustomizer({
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         <div className="space-y-4">
-          <div className="aspect-square bg-muted rounded-lg overflow-hidden relative">
-            <img 
-              src={selectedVariant?.image || product.image}
-              alt={product.name}
-              className="w-full h-full object-cover"
+          {showDesigner ? (
+            <PrintDesigner
+              productId={product.id}
+              variantName={selectedVariant?.name || ""}
+              printArea={product.printArea}
+              category={product.category}
+              treeImageUrl={includeTree ? savedTreeImageUrl : undefined}
+              qrImageUrl={includeQR ? savedQRImageUrl : undefined}
+              customImageUrl={includeCustomImage ? customImageUrl : undefined}
+              customText={includeCustomText ? customText.trim() : undefined}
+              onSave={(objectPath) => {
+                setCompositedImageUrl(objectPath);
+                setShowDesigner(false);
+              }}
+              onCancel={() => setShowDesigner(false)}
             />
-            {includeTree && selectedTree && selectedTreeId && loadingTreeDetail && (
-              <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/20">
-                <div className="bg-white/90 rounded-lg shadow-lg p-6 flex flex-col items-center gap-2">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  <span className="text-xs text-gray-500">Loading tree preview...</span>
-                </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="aspect-square bg-muted rounded-lg overflow-hidden relative">
+                {compositedImageUrl ? (
+                  <>
+                    <img
+                      src={compositedImageUrl}
+                      alt="Your composited design"
+                      className="w-full h-full object-contain bg-white"
+                      data-testid="composited-preview"
+                    />
+                    <div className="absolute top-2 left-2">
+                      <Badge className="bg-green-600 text-white text-xs">
+                        <Check className="h-3 w-3 mr-1" />
+                        Layout Saved
+                      </Badge>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <img 
+                      src={selectedVariant?.image || product.image}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                    {includeTree && selectedTree && selectedTreeId && loadingTreeDetail && (
+                      <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/20">
+                        <div className="bg-white/90 rounded-lg shadow-lg p-6 flex flex-col items-center gap-2">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                          <span className="text-xs text-gray-500">Loading tree preview...</span>
+                        </div>
+                      </div>
+                    )}
+                    {includeTree && savedTreeImageUrl && (
+                      <div className={`absolute p-4 ${
+                        treePlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
+                        treePlacement === 'front_left' ? 'top-4 left-4' :
+                        'inset-0 flex items-center justify-center'
+                      }`}>
+                        <img
+                          src={savedTreeImageUrl}
+                          alt="Tree print preview"
+                          className={`rounded-lg shadow-lg object-contain bg-white ${
+                            treePlacement === 'front_left' ? 'w-1/3 h-1/3' :
+                            product.printArea === 'wrap' ? 'w-3/4 h-1/2' : 
+                            product.printArea === 'front' ? 'w-1/2 h-1/2' : 
+                            'w-3/4 h-3/4'
+                          }`}
+                          data-testid="tree-image-preview-overlay"
+                        />
+                      </div>
+                    )}
+                    {includeTree && selectedTree && !savedTreeImageUrl && !loadingTreeDetail && treeMemberCount > 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center p-4">
+                        <div className="bg-white/90 rounded-lg shadow-lg p-4 text-center">
+                          <Camera className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground">Capture tree image to preview</p>
+                        </div>
+                      </div>
+                    )}
+                    {includeQR && savedQRImageUrl && (
+                      <div 
+                        className={`absolute bg-white p-1.5 rounded shadow-lg border ${
+                          qrPlacement === 'front_left' ? 'top-4 left-4' :
+                          qrPlacement === 'back' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-60' :
+                          qrPlacement === 'front' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
+                          'bottom-12 right-3'
+                        }`}
+                        data-testid="qr-preview-overlay"
+                      >
+                        <img src={savedQRImageUrl} alt="QR code preview" className={`object-contain ${qrPlacement === 'front_left' ? 'w-10 h-10' : 'w-12 h-12'}`} />
+                        <p className="text-[6px] text-center text-gray-500 mt-0.5">
+                          {selectedQRType === 'site' ? 'Scan to sign up' : selectedQRType === 'profile' ? 'Scan to connect' : 'Scan to join'}
+                        </p>
+                      </div>
+                    )}
+                    {includeQR && !savedQRImageUrl && (
+                      <div className={`absolute bg-white/80 p-2 rounded shadow-lg border border-dashed ${
+                        qrPlacement === 'front_left' ? 'top-4 left-4' : 'bottom-12 right-3'
+                      }`}>
+                        <QrCode className="h-8 w-8 text-muted-foreground/50" />
+                        <p className="text-[6px] text-center text-muted-foreground">Generate QR</p>
+                      </div>
+                    )}
+                    {includeCustomImage && customImageUrl && (
+                      <div
+                        className={`absolute ${
+                          customImagePlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
+                          customImagePlacement === 'front_left' ? 'top-4 left-4' :
+                          'inset-0 flex items-center justify-center'
+                        }`}
+                        data-testid="custom-image-preview-overlay"
+                      >
+                        <img
+                          src={customImageUrl}
+                          alt="Custom print"
+                          className={`rounded shadow-lg object-contain ${
+                            customImagePlacement === 'front_left' ? 'w-1/4 h-1/4' :
+                            'w-1/2 h-1/2'
+                          }`}
+                        />
+                      </div>
+                    )}
+                    {includeCustomText && customText.trim() && (
+                      <div
+                        className={`absolute ${
+                          customTextPlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
+                          customTextPlacement === 'front_left' ? 'top-4 left-4' :
+                          'bottom-16 left-4 right-4 flex items-center justify-center'
+                        }`}
+                        data-testid="custom-text-preview-overlay"
+                      >
+                        <div className="bg-white/90 rounded px-3 py-1.5 shadow-lg">
+                          <p className="text-sm font-bold text-gray-800 text-center whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
+                            {customText}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {(includeTree || includeQR || includeCustomImage || includeCustomText) && (
+                      <div className="absolute bottom-2 left-2 right-2">
+                        <Badge variant="secondary" className="text-xs truncate block text-center">
+                          {[
+                            includeTree && selectedTree && `${product.placements?.find(p => p.id === treePlacement)?.label || 'Front'}: Tree`,
+                            includeQR && `QR: ${selectedQRType === 'site' ? 'Signup' : selectedQRType === 'profile' ? 'Profile' : 'Invite'}`,
+                            includeCustomImage && customImageUrl && `${product.placements?.find(p => p.id === customImagePlacement)?.label || 'Front'}: Image`,
+                            includeCustomText && customText.trim() && `Text`,
+                          ].filter(Boolean).join(' | ')}
+                        </Badge>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-            )}
-            {includeTree && savedTreeImageUrl && (
-              <div className={`absolute p-4 ${
-                treePlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
-                treePlacement === 'front_left' ? 'top-4 left-4' :
-                'inset-0 flex items-center justify-center'
-              }`}>
-                <img
-                  src={savedTreeImageUrl}
-                  alt="Tree print preview"
-                  className={`rounded-lg shadow-lg object-contain bg-white ${
-                    treePlacement === 'front_left' ? 'w-1/3 h-1/3' :
-                    product.printArea === 'wrap' ? 'w-3/4 h-1/2' : 
-                    product.printArea === 'front' ? 'w-1/2 h-1/2' : 
-                    'w-3/4 h-3/4'
-                  }`}
-                  data-testid="tree-image-preview-overlay"
-                />
-              </div>
-            )}
-            {includeTree && selectedTree && !savedTreeImageUrl && !loadingTreeDetail && treeMemberCount > 0 && (
-              <div className="absolute inset-0 flex items-center justify-center p-4">
-                <div className="bg-white/90 rounded-lg shadow-lg p-4 text-center">
-                  <Camera className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground">Capture tree image to preview</p>
-                </div>
-              </div>
-            )}
-            {includeQR && savedQRImageUrl && (
-              <div 
-                className={`absolute bg-white p-1.5 rounded shadow-lg border ${
-                  qrPlacement === 'front_left' ? 'top-4 left-4' :
-                  qrPlacement === 'back' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-60' :
-                  qrPlacement === 'front' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
-                  'bottom-12 right-3'
-                }`}
-                data-testid="qr-preview-overlay"
-              >
-                <img src={savedQRImageUrl} alt="QR code preview" className={`object-contain ${qrPlacement === 'front_left' ? 'w-10 h-10' : 'w-12 h-12'}`} />
-                <p className="text-[6px] text-center text-gray-500 mt-0.5">
-                  {selectedQRType === 'site' ? 'Scan to sign up' : selectedQRType === 'profile' ? 'Scan to connect' : 'Scan to join'}
-                </p>
-              </div>
-            )}
-            {includeQR && !savedQRImageUrl && (
-              <div className={`absolute bg-white/80 p-2 rounded shadow-lg border border-dashed ${
-                qrPlacement === 'front_left' ? 'top-4 left-4' : 'bottom-12 right-3'
-              }`}>
-                <QrCode className="h-8 w-8 text-muted-foreground/50" />
-                <p className="text-[6px] text-center text-muted-foreground">Generate QR</p>
-              </div>
-            )}
-            {includeCustomImage && customImageUrl && (
-              <div
-                className={`absolute ${
-                  customImagePlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
-                  customImagePlacement === 'front_left' ? 'top-4 left-4' :
-                  'inset-0 flex items-center justify-center'
-                }`}
-                data-testid="custom-image-preview-overlay"
-              >
-                <img
-                  src={customImageUrl}
-                  alt="Custom print"
-                  className={`rounded shadow-lg object-contain ${
-                    customImagePlacement === 'front_left' ? 'w-1/4 h-1/4' :
-                    'w-1/2 h-1/2'
-                  }`}
-                />
-              </div>
-            )}
-            {includeCustomText && customText.trim() && (
-              <div
-                className={`absolute ${
-                  customTextPlacement === 'back' ? 'inset-0 flex items-center justify-center opacity-60' :
-                  customTextPlacement === 'front_left' ? 'top-4 left-4' :
-                  'bottom-16 left-4 right-4 flex items-center justify-center'
-                }`}
-                data-testid="custom-text-preview-overlay"
-              >
-                <div className="bg-white/90 rounded px-3 py-1.5 shadow-lg">
-                  <p className="text-sm font-bold text-gray-800 text-center whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
-                    {customText}
-                  </p>
-                </div>
-              </div>
-            )}
-            {(includeTree || includeQR || includeCustomImage || includeCustomText) && (
-              <div className="absolute bottom-2 left-2 right-2">
-                <Badge variant="secondary" className="text-xs truncate block text-center">
-                  {[
-                    includeTree && selectedTree && `${product.placements?.find(p => p.id === treePlacement)?.label || 'Front'}: Tree`,
-                    includeQR && `QR: ${selectedQRType === 'site' ? 'Signup' : selectedQRType === 'profile' ? 'Profile' : 'Invite'}`,
-                    includeCustomImage && customImageUrl && `${product.placements?.find(p => p.id === customImagePlacement)?.label || 'Front'}: Image`,
-                    includeCustomText && customText.trim() && `Text`,
-                  ].filter(Boolean).join(' | ')}
-                </Badge>
-              </div>
-            )}
-          </div>
+              {((includeTree && savedTreeImageUrl) || (includeQR && savedQRImageUrl) || (includeCustomImage && customImageUrl) || (includeCustomText && customText.trim())) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => {
+                    setCompositedImageUrl("");
+                    setShowDesigner(true);
+                  }}
+                  data-testid="button-open-designer"
+                >
+                  <Maximize2 className="h-3 w-3 mr-1" />
+                  {compositedImageUrl ? "Edit Design Layout" : "Open Print Designer"}
+                </Button>
+              )}
+            </div>
+          )}
           
 
           {includeTree && selectedTree && product.maxMembers && (
@@ -1865,7 +1939,7 @@ function ProductCustomizer({
                         else if (selectedQRType === 'tree' && treeInviteCode) qrUrl = `${orderBaseUrl}/join/${treeInviteCode}`;
                         else qrUrl = orderBaseUrl;
                       }
-                      onAddToCart({
+                      const cartItem: CartItem = {
                         productId: product.id,
                         variantId: selectedVariantId,
                         productName: product.name,
@@ -1874,22 +1948,29 @@ function ProductCustomizer({
                         unitPriceCents: unitPriceCents,
                         productImage: selectedVariant.image || product.image,
                         treeId: selectedTreeId || undefined,
-                        treeImageUrl: savedTreeImageUrl || undefined,
                         includeTree,
                         includeQR,
-                        qrUrl,
-                        qrImageUrl: savedQRImageUrl || undefined,
-                        treePlacement: treePrintPlacement?.printfulType || 'default',
-                        qrPlacement: qrPrintPlacement?.printfulType || undefined,
-                        includeCustomImage,
-                        customImageUrl: includeCustomImage ? customImageUrl : undefined,
-                        customImagePlacement: includeCustomImage ? customImagePlacement : undefined,
-                        includeCustomText,
-                        customText: includeCustomText ? customText.trim() : undefined,
-                        customTextPlacement: includeCustomText ? customTextPlacement : undefined,
-                      });
+                      };
+                      if (compositedImageUrl) {
+                        cartItem.treeImageUrl = compositedImageUrl;
+                        cartItem.treePlacement = treePrintPlacement?.printfulType || 'default';
+                        cartItem.isComposited = true;
+                      } else {
+                        cartItem.treeImageUrl = savedTreeImageUrl || undefined;
+                        cartItem.qrUrl = qrUrl;
+                        cartItem.qrImageUrl = savedQRImageUrl || undefined;
+                        cartItem.treePlacement = treePrintPlacement?.printfulType || 'default';
+                        cartItem.qrPlacement = qrPrintPlacement?.printfulType || undefined;
+                        cartItem.includeCustomImage = includeCustomImage;
+                        cartItem.customImageUrl = includeCustomImage ? customImageUrl : undefined;
+                        cartItem.customImagePlacement = includeCustomImage ? customImagePlacement : undefined;
+                        cartItem.includeCustomText = includeCustomText;
+                        cartItem.customText = includeCustomText ? customText.trim() : undefined;
+                        cartItem.customTextPlacement = includeCustomText ? customTextPlacement : undefined;
+                      }
+                      onAddToCart(cartItem);
                     }}
-                    disabled={(!includeTree && !includeQR && !includeCustomImage && !includeCustomText) || (includeTree && !selectedTreeId) || (includeCustomImage && !customImageUrl) || (includeCustomText && !customText.trim()) || !selectedVariantId || (includeTree && !savedTreeImageUrl) || (includeQR && !savedQRImageUrl)}
+                    disabled={!selectedVariantId || (!compositedImageUrl && ((!includeTree && !includeQR && !includeCustomImage && !includeCustomText) || (includeTree && !selectedTreeId) || (includeCustomImage && !customImageUrl) || (includeCustomText && !customText.trim()) || (includeTree && !savedTreeImageUrl) || (includeQR && !savedQRImageUrl)))}
                     data-testid="button-add-to-cart"
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" />
@@ -1900,7 +1981,7 @@ function ProductCustomizer({
                   className="flex-1"
                   size="lg"
                   onClick={() => setShowShipping(true)}
-                  disabled={(!includeTree && !includeQR && !includeCustomImage && !includeCustomText) || (includeTree && !selectedTreeId) || (includeCustomImage && !customImageUrl) || (includeCustomText && !customText.trim()) || !selectedVariantId}
+                  disabled={!selectedVariantId || (!compositedImageUrl && ((!includeTree && !includeQR && !includeCustomImage && !includeCustomText) || (includeTree && !selectedTreeId) || (includeCustomImage && !customImageUrl) || (includeCustomText && !customText.trim())))}
                   data-testid="button-continue-shipping"
                 >
                   <CreditCard className="h-4 w-4 mr-2" />

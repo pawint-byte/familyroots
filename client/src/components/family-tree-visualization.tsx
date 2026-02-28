@@ -56,7 +56,7 @@ interface BranchLabel {
   x: number;
   y: number;
   text: string;
-  type: 'parent' | 'sibling' | 'child' | 'unconnected';
+  type: 'parent' | 'grandparent' | 'greatgrandparent' | 'sibling' | 'child' | 'grandchild' | 'auntuncle' | 'cousin' | 'unconnected';
 }
 
 const BRANCH_COLORS = {

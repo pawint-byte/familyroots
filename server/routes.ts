@@ -10381,7 +10381,8 @@ export async function registerRoutes(
         quantity, treeImageUrl, shippingAddress, includeTree, includeQR,
         treePlacement, qrPlacement,
         includeCustomImage, customImageUrl, customImagePlacement,
-        includeCustomText, customText, customTextPlacement
+        includeCustomText, customText, customTextPlacement,
+        isComposited
       } = req.body;
 
       // Validate required fields
@@ -10389,8 +10390,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Missing required order fields" });
       }
 
-      // Must include at least one print element
-      if (!includeTree && !includeQR && !includeCustomImage && !includeCustomText) {
+      if (!isComposited && !includeTree && !includeQR && !includeCustomImage && !includeCustomText) {
         return res.status(400).json({ message: "Please include at least one element on your product" });
       }
 
@@ -10484,12 +10484,16 @@ export async function registerRoutes(
         qrProfileUrl,
       };
 
-      if (includeCustomImage && customImageUrl) {
+      if (isComposited) {
+        placementConfig.isComposited = true;
+      }
+
+      if (!isComposited && includeCustomImage && customImageUrl) {
         placementConfig.customImageUrl = customImageUrl;
         placementConfig.customImagePlacement = customImagePlacement || 'front';
       }
 
-      if (includeCustomText && customText) {
+      if (!isComposited && includeCustomText && customText) {
         placementConfig.customText = customText;
         placementConfig.customTextPlacement = customTextPlacement || 'front';
       }
@@ -11062,11 +11066,15 @@ export async function registerRoutes(
           qrProfileUrl: item.includeQR ? (item.qrUrl || null) : null,
         };
 
-        if (item.includeCustomImage && item.customImageUrl) {
+        if (item.isComposited) {
+          placementConfig.isComposited = true;
+        }
+
+        if (!item.isComposited && item.includeCustomImage && item.customImageUrl) {
           placementConfig.customImageUrl = item.customImageUrl;
           placementConfig.customImagePlacement = item.customImagePlacement || 'front';
         }
-        if (item.includeCustomText && item.customText) {
+        if (!item.isComposited && item.includeCustomText && item.customText) {
           placementConfig.customText = item.customText;
           placementConfig.customTextPlacement = item.customTextPlacement || 'front';
         }

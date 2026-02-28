@@ -84,6 +84,15 @@ export async function buildPrintfulFiles(
   const files: Array<{ type: string; url: string }> = [];
   const placement = order.placementConfig as Record<string, any> | null;
 
+  if (placement?.isComposited && order.treeImageUrl) {
+    const compositedUrl = getPublicFileUrl(order.treeImageUrl, baseUrl);
+    files.push({
+      type: placement?.treePlacement || "default",
+      url: compositedUrl,
+    });
+    return files;
+  }
+
   if (order.treeImageUrl) {
     const treeUrl = getPublicFileUrl(order.treeImageUrl, baseUrl);
     files.push({
