@@ -15,7 +15,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { trackTreeCreation } from "@/lib/tracking";
-import { PWAInstallBanner } from "@/components/pwa-install-banner";
 import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe, BookOpen, GitBranch, Undo2, Clock, AlertTriangle, School, Radio } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
@@ -1044,7 +1043,6 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <PWAInstallBanner />
         {/* Pending connection banner - shows if user has a pending connection to complete */}
         {pendingConnectionInfo && (
           <div className="mb-6 p-4 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-between gap-4">

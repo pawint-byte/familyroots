@@ -472,19 +472,6 @@ export class DatabaseStorage implements IStorage {
 
     const memberIdSet = new Set(params.memberIds);
 
-    const sourceMembers = await db.select().from(familyMembers)
-      .where(and(
-        eq(familyMembers.treeId, sourceTreeId),
-        inArray(familyMembers.id, params.memberIds),
-        isNull(familyMembers.deletedAt),
-      ));
-
-    const sourceRels = await db.select().from(relationships)
-      .where(eq(relationships.treeId, sourceTreeId));
-
-    const sourceTags = await this.getTreeTags(sourceTreeId);
-    const sourceMemberTags = await this.getMemberTagsByTree(sourceTreeId);
-
     return await db.transaction(async (tx) => {
       const [newTree] = await tx.insert(familyTrees).values({
         name: params.name,
@@ -493,84 +480,115 @@ export class DatabaseStorage implements IStorage {
         treeTypeLabel: params.treeTypeLabel || sourceTree.treeTypeLabel,
         privacy: (params.privacy || sourceTree.privacy) as any,
         parentTreeId: params.parentTreeId !== undefined ? params.parentTreeId : null,
-        rootMemberId: null,
+        rootMemberId: params.rootMemberId || null,
         customRelationshipTypes: sourceTree.customRelationshipTypes,
         preferredLayout: sourceTree.preferredLayout,
       }).returning();
 
-      const oldToNewMemberMap = new Map<string, string>();
+      await tx.update(familyMembers)
+        .set({ treeId: newTree.id, updatedAt: new Date() })
+        .where(and(
+          eq(familyMembers.treeId, sourceTreeId),
+          inArray(familyMembers.id, params.memberIds)
+        ));
 
-      for (const member of sourceMembers) {
-        const [copied] = await tx.insert(familyMembers).values({
-          treeId: newTree.id,
-          firstName: member.firstName,
-          lastName: member.lastName,
-          suffix: member.suffix,
-          nickname: member.nickname,
-          email: member.email,
-          gender: member.gender,
-          birthDate: member.birthDate,
-          birthPlace: member.birthPlace,
-          deathDate: member.deathDate,
-          isLiving: member.isLiving,
-          photoUrl: member.photoUrl,
-          notes: member.notes,
-          isUnknown: member.isUnknown,
-          unknownLabel: member.unknownLabel,
-          currentCity: member.currentCity,
-          currentRegion: member.currentRegion,
-          currentCountry: member.currentCountry,
-          locationVisible: member.locationVisible,
-          customPosition: member.customPosition,
-        } as any).returning();
-        oldToNewMemberMap.set(member.id, copied.id);
-      }
+      const allRels = await tx.select().from(relationships)
+        .where(eq(relationships.treeId, sourceTreeId));
 
-      for (const rel of sourceRels) {
-        const fromInSplit = memberIdSet.has(rel.fromMemberId);
-        const toInSplit = memberIdSet.has(rel.toMemberId);
-        if (fromInSplit && toInSplit) {
-          const newFromId = oldToNewMemberMap.get(rel.fromMemberId);
-          const newToId = oldToNewMemberMap.get(rel.toMemberId);
-          if (newFromId && newToId) {
-            await tx.insert(relationships).values({
-              treeId: newTree.id,
-              fromMemberId: newFromId,
-              toMemberId: newToId,
-              relationshipType: rel.relationshipType,
-              qualifier: rel.qualifier,
-              customLabel: rel.customLabel,
-            });
-          }
+      const relsToMove: string[] = [];
+      const relsToDelete: string[] = [];
+
+      for (const rel of allRels) {
+        const fromMoved = memberIdSet.has(rel.fromMemberId);
+        const toMoved = memberIdSet.has(rel.toMemberId);
+        if (fromMoved && toMoved) {
+          relsToMove.push(rel.id);
+        } else if (fromMoved || toMoved) {
+          relsToDelete.push(rel.id);
         }
       }
 
-      const oldToNewTagMap = new Map<string, string>();
-      for (const tag of sourceTags) {
-        const [copiedTag] = await tx.insert(treeTags).values({
-          treeId: newTree.id,
-          label: tag.label,
-          color: tag.color,
-        }).returning();
-        oldToNewTagMap.set(tag.id, copiedTag.id);
+      if (relsToMove.length > 0) {
+        await tx.update(relationships)
+          .set({ treeId: newTree.id })
+          .where(inArray(relationships.id, relsToMove));
+      }
+      if (relsToDelete.length > 0) {
+        await tx.delete(relationships)
+          .where(inArray(relationships.id, relsToDelete));
       }
 
-      for (const mt of sourceMemberTags) {
-        const newTagId = oldToNewTagMap.get(mt.tagId);
-        const newMemberId = oldToNewMemberMap.get(mt.memberId);
-        if (newTagId && newMemberId) {
-          await tx.insert(memberTags).values({
-            tagId: newTagId,
-            memberId: newMemberId,
-            treeId: newTree.id,
-          });
-        }
+      if (params.memberIds.length > 0) {
+        await tx.update(memberMutes)
+          .set({ treeId: newTree.id })
+          .where(and(
+            eq(memberMutes.treeId, sourceTreeId),
+            inArray(memberMutes.memberId, params.memberIds)
+          ));
+
+        await tx.update(familyEvents)
+          .set({ treeId: newTree.id })
+          .where(and(
+            eq(familyEvents.treeId, sourceTreeId),
+            inArray(familyEvents.memberId, params.memberIds)
+          ));
+
+        await tx.update(memberInvitations)
+          .set({ treeId: newTree.id, treeName: newTree.name })
+          .where(and(
+            eq(memberInvitations.treeId, sourceTreeId),
+            inArray(memberInvitations.memberId, params.memberIds)
+          ));
+
+        await tx.update(profileClaimRequests)
+          .set({ treeId: newTree.id })
+          .where(and(
+            eq(profileClaimRequests.treeId, sourceTreeId),
+            inArray(profileClaimRequests.memberId, params.memberIds)
+          ));
+
+        await tx.update(custodianshipRequests)
+          .set({ treeId: newTree.id })
+          .where(and(
+            eq(custodianshipRequests.treeId, sourceTreeId),
+            inArray(custodianshipRequests.memberId, params.memberIds)
+          ));
+
+        await tx.update(specialConnections)
+          .set({ fromTreeId: newTree.id })
+          .where(and(
+            eq(specialConnections.fromTreeId, sourceTreeId),
+            inArray(specialConnections.fromMemberId, params.memberIds)
+          ));
+        await tx.update(specialConnections)
+          .set({ toTreeId: newTree.id })
+          .where(and(
+            eq(specialConnections.toTreeId, sourceTreeId),
+            inArray(specialConnections.toMemberId, params.memberIds)
+          ));
+
+        await tx.update(connectionRequests)
+          .set({ fromTreeId: newTree.id })
+          .where(and(
+            eq(connectionRequests.fromTreeId, sourceTreeId),
+            inArray(connectionRequests.fromMemberId, params.memberIds)
+          ));
+        await tx.update(connectionRequests)
+          .set({ toTreeId: newTree.id })
+          .where(and(
+            eq(connectionRequests.toTreeId, sourceTreeId),
+            inArray(connectionRequests.toMemberId, params.memberIds)
+          ));
       }
 
-      if (params.rootMemberId && oldToNewMemberMap.has(params.rootMemberId)) {
+      if (sourceTree.rootMemberId && memberIdSet.has(sourceTree.rootMemberId)) {
+        const remainingMembers = await tx.select({ id: familyMembers.id })
+          .from(familyMembers)
+          .where(eq(familyMembers.treeId, sourceTreeId))
+          .limit(1);
         await tx.update(familyTrees)
-          .set({ rootMemberId: oldToNewMemberMap.get(params.rootMemberId)!, updatedAt: new Date() })
-          .where(eq(familyTrees.id, newTree.id));
+          .set({ rootMemberId: remainingMembers[0]?.id || null, updatedAt: new Date() })
+          .where(eq(familyTrees.id, sourceTreeId));
       }
 
       if (params.createConnection) {
@@ -709,11 +727,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteTree(id: string): Promise<boolean> {
-    const [updated] = await db.update(familyTrees)
-      .set({ deletedAt: new Date() })
-      .where(eq(familyTrees.id, id))
-      .returning();
-    return !!updated;
+    const result = await db.delete(familyTrees).where(eq(familyTrees.id, id));
+    return true;
   }
 
   async softDeleteTree(id: string): Promise<boolean> {
@@ -733,23 +748,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async permanentlyDeleteTree(id: string): Promise<boolean> {
-    const now = new Date();
-    await db.update(familyMembers)
-      .set({ deletedAt: now })
-      .where(and(eq(familyMembers.treeId, id), isNull(familyMembers.deletedAt)));
-    await db.update(relationships)
-      .set({ deletedAt: now })
-      .where(and(
-        eq(relationships.treeId, id),
-        isNull(relationships.deletedAt),
-      ));
+    const members = await db.select().from(familyMembers).where(eq(familyMembers.treeId, id));
+    for (const member of members) {
+      await db.delete(relationships).where(
+        or(eq(relationships.fromMemberId, member.id), eq(relationships.toMemberId, member.id))
+      );
+      await db.delete(familyEvents).where(eq(familyEvents.memberId, member.id));
+    }
+    await db.delete(familyMembers).where(eq(familyMembers.treeId, id));
     await db.delete(treeCollaborators).where(eq(treeCollaborators.treeId, id));
     await db.delete(treeInvitations).where(eq(treeInvitations.treeId, id));
-    const [updated] = await db.update(familyTrees)
-      .set({ deletedAt: now })
-      .where(eq(familyTrees.id, id))
-      .returning();
-    return !!updated;
+    await db.delete(familyTrees).where(eq(familyTrees.id, id));
+    return true;
   }
 
   async getDiscoverableTrees(options?: { search?: string; category?: string; treeType?: string }): Promise<(FamilyTree & { memberCount: number; ownerName: string })[]> {
@@ -839,27 +849,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteMember(id: string): Promise<boolean> {
-    const now = new Date();
-    await db.update(relationships)
-      .set({ deletedAt: now })
-      .where(and(
-        or(eq(relationships.fromMemberId, id), eq(relationships.toMemberId, id)),
-        isNull(relationships.deletedAt),
-      ));
-    const [updated] = await db.update(familyMembers)
-      .set({ deletedAt: now })
-      .where(eq(familyMembers.id, id))
-      .returning();
-    return !!updated;
+    await db.delete(relationships).where(
+      or(eq(relationships.fromMemberId, id), eq(relationships.toMemberId, id))
+    );
+    await db.delete(familyEvents).where(eq(familyEvents.memberId, id));
+    await db.delete(familyMembers).where(eq(familyMembers.id, id));
+    return true;
   }
 
   async removeMemberRecord(id: string): Promise<boolean> {
-    const now = new Date();
-    const [updated] = await db.update(familyMembers)
-      .set({ deletedAt: now })
-      .where(eq(familyMembers.id, id))
-      .returning();
-    return !!updated;
+    await db.delete(familyEvents).where(eq(familyEvents.memberId, id));
+    await db.delete(familyMembers).where(eq(familyMembers.id, id));
+    return true;
   }
 
   async softDeleteMember(id: string): Promise<boolean> {
