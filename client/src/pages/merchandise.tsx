@@ -734,77 +734,161 @@ function ProductCustomizer({
       }
 
       let treeImageUrl = '';
-      if (includeTree && selectedTreeId && treePreviewRef.current) {
+      if (includeTree && selectedTreeId && treeMembers.length > 0) {
         setIsCapturingTree(true);
         try {
-          await new Promise(resolve => setTimeout(resolve, 200));
-          const el = treePreviewRef.current;
-          const svgEl = el.querySelector('svg');
-          if (!svgEl) throw new Error("Tree SVG not found");
+          const treeConfig = getTreeTypeConfig((selectedTree?.treeType || "custom") as TreeType);
+          const accentColor = treeConfig.visual.accentColor || "#10b981";
+          const rels = treeDetail?.relationships ?? [];
 
-          const captureW = parseInt(svgEl.getAttribute('width') || '800');
-          const captureH = parseInt(svgEl.getAttribute('height') || '600');
-
-          const imageEls = svgEl.querySelectorAll('image');
-          const base64Map = new Map<string, string>();
-          await Promise.all(Array.from(imageEls).map(async (img) => {
-            const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
-            if (!href || href.startsWith('data:') || base64Map.has(href)) return;
-            try {
-              const absUrl = href.startsWith('http') ? href : `${window.location.origin}${href}`;
-              const response = await fetch(absUrl);
-              const blob = await response.blob();
-              const reader = new FileReader();
-              const dataUrl: string = await new Promise((resolve, reject) => {
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-              base64Map.set(href, dataUrl);
-            } catch (e) {
-              console.warn("Failed to fetch image for capture:", href, e);
-            }
-          }));
-
-          const clonedSvg = svgEl.cloneNode(true) as SVGSVGElement;
-          clonedSvg.querySelectorAll('image').forEach(img => {
-            const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
-            if (href && base64Map.has(href)) {
-              img.setAttribute('href', base64Map.get(href)!);
+          const adjacency = new Map<string, Set<string>>();
+          treeMembers.forEach(m => adjacency.set(m.id, new Set()));
+          rels.forEach(r => {
+            if (adjacency.has(r.fromMemberId) && adjacency.has(r.toMemberId)) {
+              adjacency.get(r.fromMemberId)!.add(r.toMemberId);
+              adjacency.get(r.toMemberId)!.add(r.fromMemberId);
             }
           });
-          clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-          clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+          let rootId = treeMembers[0]?.id;
+          let maxConn = 0;
+          for (const [id, neighbors] of adjacency) {
+            if (neighbors.size > maxConn) { maxConn = neighbors.size; rootId = id; }
+          }
+          const bfsQueue: string[] = [rootId];
+          const visited = new Set<string>([rootId]);
+          const levels: string[][] = [];
+          while (bfsQueue.length > 0) {
+            const sz = bfsQueue.length;
+            const level: string[] = [];
+            for (let i = 0; i < sz; i++) {
+              const cur = bfsQueue.shift()!;
+              level.push(cur);
+              for (const n of (adjacency.get(cur) || new Set())) {
+                if (!visited.has(n)) { visited.add(n); bfsQueue.push(n); }
+              }
+            }
+            levels.push(level);
+          }
+          for (const m of treeMembers) {
+            if (!visited.has(m.id)) {
+              levels[levels.length - 1] = levels[levels.length - 1] || [];
+              levels[levels.length - 1].push(m.id);
+            }
+          }
 
-          const svgString = new XMLSerializer().serializeToString(clonedSvg);
-          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-          const svgUrl = URL.createObjectURL(svgBlob);
+          const nodeSpacingX = 220, nodeSpacingY = 200, nodeRadius = 40, capPadding = 80;
+          const placed = new Map<string, { x: number; y: number }>();
+          levels.forEach((level, depth) => {
+            const totalW = (level.length - 1) * nodeSpacingX;
+            const startX = -totalW / 2;
+            level.forEach((id, i) => placed.set(id, { x: startX + i * nodeSpacingX, y: depth * nodeSpacingY }));
+          });
+          const nodes = treeMembers.map(m => {
+            const pos = placed.get(m.id) || { x: 0, y: 0 };
+            const initials = `${m.firstName?.[0] || ""}${m.lastName?.[0] || ""}`.toUpperCase();
+            const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || "?";
+            return { id: m.id, x: pos.x, y: pos.y, initials, name, photoUrl: m.photoUrl };
+          });
+
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          nodes.forEach(n => { if (n.x < minX) minX = n.x; if (n.y < minY) minY = n.y; if (n.x > maxX) maxX = n.x; if (n.y > maxY) maxY = n.y; });
+          const canvasW = maxX - minX + capPadding * 2 + nodeRadius * 2;
+          const canvasH = maxY - minY + capPadding * 2 + nodeRadius * 2 + 60;
+          const offX = -minX + capPadding + nodeRadius;
+          const offY = -minY + capPadding + nodeRadius + 40;
+
+          const posMap = new Map(nodes.map(n => [n.id, n]));
+          const uniqueLines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+          const lineKeys = new Set<string>();
+          rels.forEach(r => {
+            const from = posMap.get(r.fromMemberId);
+            const to = posMap.get(r.toMemberId);
+            if (from && to) {
+              const key = [from.x, from.y, to.x, to.y].sort().join(',');
+              if (!lineKeys.has(key)) { lineKeys.add(key); uniqueLines.push({ x1: from.x, y1: from.y, x2: to.x, y2: to.y }); }
+            }
+          });
+
+          const photoImages = new Map<string, HTMLImageElement>();
+          await Promise.all(nodes.filter(n => n.photoUrl).map(n => {
+            return new Promise<void>((resolve) => {
+              const absUrl = n.photoUrl!.startsWith('http') ? n.photoUrl! : `${window.location.origin}${n.photoUrl}`;
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => { photoImages.set(n.id, img); resolve(); };
+              img.onerror = () => { resolve(); };
+              img.src = absUrl;
+            });
+          }));
 
           const scale = 3;
           const canvas = document.createElement('canvas');
-          canvas.width = captureW * scale;
-          canvas.height = captureH * scale;
+          canvas.width = canvasW * scale;
+          canvas.height = canvasH * scale;
           const ctx = canvas.getContext('2d')!;
+          ctx.scale(scale, scale);
           ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillRect(0, 0, canvasW, canvasH);
 
-          const drawImg = new Image();
-          const dataUrl: string = await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error("Tree capture timed out")), 15000);
-            drawImg.onload = () => {
-              clearTimeout(timeout);
-              ctx.drawImage(drawImg, 0, 0, canvas.width, canvas.height);
-              URL.revokeObjectURL(svgUrl);
-              resolve(canvas.toDataURL('image/png', 0.95));
-            };
-            drawImg.onerror = (e) => {
-              clearTimeout(timeout);
-              URL.revokeObjectURL(svgUrl);
-              reject(new Error("Failed to render tree image"));
-            };
-            drawImg.src = svgUrl;
+          ctx.font = 'bold 24px Inter, sans-serif';
+          ctx.fillStyle = '#1f2937';
+          ctx.textAlign = 'center';
+          ctx.fillText(selectedTree?.name || treeName || '', canvasW / 2, 30);
+
+          uniqueLines.forEach(line => {
+            ctx.beginPath();
+            ctx.moveTo(line.x1 + offX, line.y1 + offY);
+            ctx.lineTo(line.x2 + offX, line.y2 + offY);
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 3;
+            ctx.globalAlpha = 0.6;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
           });
 
+          nodes.forEach(node => {
+            const cx = node.x + offX;
+            const cy = node.y + offY;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, nodeRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            const photo = photoImages.get(node.id);
+            if (photo) {
+              ctx.save();
+              ctx.beginPath();
+              ctx.arc(cx, cy, nodeRadius - 3, 0, Math.PI * 2);
+              ctx.clip();
+              const size = (nodeRadius - 3) * 2;
+              ctx.drawImage(photo, cx - nodeRadius + 3, cy - nodeRadius + 3, size, size);
+              ctx.restore();
+            } else {
+              ctx.font = 'bold 18px Inter, sans-serif';
+              ctx.fillStyle = accentColor;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(node.initials, cx, cy + 1);
+            }
+
+            ctx.font = '500 13px Inter, sans-serif';
+            ctx.fillStyle = '#374151';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(node.name, cx, cy + nodeRadius + 5);
+          });
+
+          ctx.font = '14px Inter, sans-serif';
+          ctx.fillStyle = '#9ca3af';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(treeConfig.visual.shapeName || '', canvasW / 2, canvasH - 10);
+
+          const dataUrl = canvas.toDataURL('image/png', 0.95);
           const blob = await (await fetch(dataUrl)).blob();
           const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
           const res = await apiRequest("POST", "/api/uploads/request-url", {
