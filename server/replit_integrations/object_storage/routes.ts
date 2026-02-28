@@ -35,6 +35,18 @@ export function registerObjectStorageRoutes(app: Express): void {
    * IMPORTANT: The client should NOT send the file to this endpoint.
    * Send JSON metadata only, then upload the file directly to uploadURL.
    */
+  const FILE_SIZE_LIMITS: Record<string, number> = {
+    image: 10 * 1024 * 1024,
+    audio: 25 * 1024 * 1024,
+    video: 100 * 1024 * 1024,
+  };
+
+  const getMediaCategory = (contentType: string, fileName: string): string => {
+    if (contentType?.startsWith('video/') || /\.(mp4|webm|mov|avi|mkv)$/i.test(fileName)) return 'video';
+    if (contentType?.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac|aac|webm)$/i.test(fileName)) return 'audio';
+    return 'image';
+  };
+
   app.post("/api/uploads/request-url", async (req, res) => {
     try {
       const { name, size, contentType } = req.body;
@@ -45,15 +57,33 @@ export function registerObjectStorageRoutes(app: Express): void {
         });
       }
 
+      const category = getMediaCategory(contentType || '', name);
+      if (size && size > 0) {
+        const maxSize = FILE_SIZE_LIMITS[category] || FILE_SIZE_LIMITS.image;
+        if (size > maxSize) {
+          const maxMB = Math.round(maxSize / (1024 * 1024));
+          return res.status(413).json({
+            error: "file_too_large",
+            message: `${category.charAt(0).toUpperCase() + category.slice(1)} files must be under ${maxMB}MB. Your file is ${(size / (1024 * 1024)).toFixed(1)}MB.`,
+            maxSize,
+            maxMB,
+            category,
+          });
+        }
+      } else if (category === 'audio' || category === 'video') {
+        return res.status(400).json({
+          error: "missing_file_size",
+          message: "File size is required for audio and video uploads.",
+        });
+      }
+
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
 
-      // Extract object path from the presigned URL for later reference
       const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
       res.json({
         uploadURL,
         objectPath,
-        // Echo back the metadata for client convenience
         metadata: { name, size, contentType },
       });
     } catch (error) {

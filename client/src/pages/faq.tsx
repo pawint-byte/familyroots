@@ -84,7 +84,7 @@ export default function FAQ() {
         },
         {
           question: "How does FamilyRoots pricing compare to competitors?",
-          answer: <>Ancestry costs $20-$50/month. MyHeritage costs $11-$25/month. FamilySearch is free but limited in collaboration. FamilyRoots starts free with your first 20 family members, and after that you buy member packs: 10 credits for $7.99, 25 for $14.99, or 50 for $24.99. Credits never expire, so you pay only when you grow. Active users earn rewards: 20% off for adding 5+ members in a month, and a free 10-pack when you hit 100 members. Optional Premium ($4.99/mo) adds unlimited media uploads and advanced features. No surprise charges, no annual lock-ins. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for details.</>
+          answer: <>Ancestry costs $20-$50/month. MyHeritage costs $11-$25/month. FamilySearch is free but limited in collaboration. FamilyRoots starts free with your first 20 family members, and after that you buy member packs: 10 credits for $7.99, 25 for $14.99, or 50 for $24.99. Credits never expire, so you pay only when you grow. Active users earn rewards: 20% off for adding 5+ members in a month, and a free 10-pack when you hit 100 members. Optional subscriptions starting at $4.99/mo unlock voice notes, video attachments, expanded media uploads, and advanced features. No surprise charges, no annual lock-ins. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for details.</>
         },
         {
           question: "Can I use FamilyRoots alongside Ancestry or FamilySearch?",
@@ -334,7 +334,7 @@ export default function FAQ() {
         },
         {
           question: "What is Premium and do I need it?",
-          answer: <>Premium ($4.99/month) is entirely optional. Most families don't need it. It unlocks unlimited media uploads for life events, gift registries, advanced tree analytics, and priority support. The core experience, including unlimited trees, collaboration, privacy controls, profile claiming, and all relationship features, is available to every user regardless of Premium status.</>
+          answer: <>Subscriptions starting at $4.99/month (Cultivator tier) are entirely optional. Most families don't need them. Paid tiers unlock voice notes, video attachments, expanded media uploads, gift registries, advanced tree analytics, and priority support. The core experience, including unlimited trees, collaboration, privacy controls, profile claiming, photo uploads, and all relationship features, is available to every user regardless of subscription status.</>
         },
         {
           question: "What happens to my data if I stop buying credits?",
@@ -342,7 +342,7 @@ export default function FAQ() {
         },
         {
           question: "Can I cancel Premium anytime?",
-          answer: "Yes. You can cancel Premium at any time and you'll keep access through the end of your billing period. After that, you'll lose access to Premium-only features like unlimited media uploads and gift registries, but all your trees, members, and data remain intact."
+          answer: "Yes. You can cancel your subscription at any time and you'll keep access through the end of your billing period. After that, you'll lose access to paid features like voice notes, video attachments, and expanded upload limits, but all your trees, members, and data remain intact. Existing voice notes and videos you've already uploaded stay accessible."
         }
       ]
     },
@@ -530,7 +530,7 @@ export default function FAQ() {
         },
         {
           question: "Can I attach photos and videos to life events?",
-          answer: "Yes! Each life event can have multiple photo and video attachments. This is a great way to preserve memories alongside the historical record - wedding photos, graduation pictures, and other cherished moments."
+          answer: "Yes! Each life event can have multiple photo and video attachments. Photos (up to 10MB each) are available on all tiers. Video and audio attachments (up to 100MB each) require a Cultivator subscription or above. This is a great way to preserve memories alongside the historical record - wedding photos, graduation pictures, and other cherished moments."
         },
         {
           question: "How do I get notified when family events are recorded?",
@@ -866,11 +866,11 @@ export default function FAQ() {
         },
         {
           question: "What are Voice Notes?",
-          answer: "Voice Notes let you record audio messages attached to individual family member profiles. Capture a grandparent telling a story, a parent sharing advice, or a child's first words — all saved directly on the person's profile in the tree. It's a way to preserve voices alongside the names and photos in your family history."
+          answer: "Voice Notes let you record audio messages attached to individual family member profiles. Capture a grandparent telling a story, a parent sharing advice, or a child's first words — all saved directly on the person's profile in the tree. Voice Notes require a Cultivator subscription or above."
         },
         {
           question: "How do I record a Voice Note?",
-          answer: "Open any family member's detail panel by clicking on them in the tree. Scroll to the Voice Notes section and tap the record button. Grant microphone access when prompted, record your message, and save it. The recording is attached to that member's profile and can be played back by anyone with access to the tree."
+          answer: "Open any family member's detail panel by clicking on them in the tree. Scroll to the Voice Notes section and tap the record button. Grant microphone access when prompted, record your message (up to 5 minutes), and save it. The recording is attached to that member's profile and can be played back by anyone with access to the tree. Voice notes are limited to 25MB per file."
         },
         {
           question: "Where do Voice Notes appear?",
@@ -879,6 +879,14 @@ export default function FAQ() {
         {
           question: "Can I delete a Voice Note?",
           answer: "Yes. If you have edit permissions on the tree, you can delete any Voice Note from a member's profile. Open the member's detail panel, find the Voice Note you want to remove, and use the delete option. Deleted Voice Notes cannot be recovered."
+        },
+        {
+          question: "Are there file size limits for uploads?",
+          answer: "Yes. Photos are limited to 10MB per file. Voice notes (audio) are limited to 25MB and 5 minutes of recording. Video attachments are limited to 100MB per file. These limits help keep the platform fast and reliable for everyone."
+        },
+        {
+          question: "Do Voice Notes and video attachments require a subscription?",
+          answer: <>Yes. Voice notes and video attachments require a Cultivator subscription ($4.99/month) or above. Free Explorer users can still upload photos, but voice and video features are reserved for paid subscribers. Monthly limits vary by tier: Cultivator gets 20/month, Heritage gets 80/month, and Legacy gets 200/month. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for full details.</>
         },
         {
           question: "What is the Annual Tree Report?",

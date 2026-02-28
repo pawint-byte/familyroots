@@ -424,7 +424,7 @@ export default function FeaturesGuide() {
         },
         {
           name: "Voice Notes",
-          description: "Record and attach audio voice notes to individual member profiles. Capture oral histories, personal messages, birthday wishes, or any audio keepsake directly within the app. Notes are saved and playable from the member's profile panel.",
+          description: "Record and attach audio voice notes to individual member profiles (Cultivator subscription required). Capture oral histories, personal messages, birthday wishes, or any audio keepsake directly within the app. Recordings are limited to 5 minutes and 25MB per file. Notes are saved and playable from the member's profile panel.",
           whereToFind: "Tree View > click a member > scroll to 'Voice Notes' section in the profile panel. Use the record button to capture audio.",
           icon: <Mic className="h-5 w-5 text-blue-500" />,
         },

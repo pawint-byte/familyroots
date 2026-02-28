@@ -83,6 +83,9 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
     },
   });
 
+  const MAX_RECORDING_SECONDS = 300;
+  const maxRecordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -100,6 +103,7 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
         setRecordedBlob(blob);
         stream.getTracks().forEach(t => t.stop());
         if (timerRef.current) clearInterval(timerRef.current);
+        if (maxRecordingTimerRef.current) clearTimeout(maxRecordingTimerRef.current);
       };
 
       recorder.start(100);
@@ -108,6 +112,14 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
       timerRef.current = setInterval(() => {
         setRecordingDuration(d => d + 1);
       }, 1000);
+
+      maxRecordingTimerRef.current = setTimeout(() => {
+        if (recorder.state === "recording") {
+          recorder.stop();
+          setIsRecording(false);
+          toast({ title: "Recording limit reached", description: "Voice notes are limited to 5 minutes." });
+        }
+      }, MAX_RECORDING_SECONDS * 1000);
     } catch (err) {
       toast({ title: "Microphone access denied", description: "Please allow microphone access to record voice notes.", variant: "destructive" });
     }
@@ -121,8 +133,15 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
     }
   };
 
+  const MAX_AUDIO_SIZE_MB = 25;
+
   const uploadAndSave = async () => {
     if (!recordedBlob) return;
+
+    if (recordedBlob.size > MAX_AUDIO_SIZE_MB * 1024 * 1024) {
+      toast({ title: "File too large", description: `Voice notes must be under ${MAX_AUDIO_SIZE_MB}MB.`, variant: "destructive" });
+      return;
+    }
 
     try {
       const urlRes = await fetch("/api/uploads/request-url", {
@@ -130,7 +149,14 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: `voice-note-${Date.now()}.webm`, size: recordedBlob.size, contentType: "audio/webm" }),
       });
-      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      if (!urlRes.ok) {
+        const errData = await urlRes.json().catch(() => null);
+        if (errData?.error === 'file_too_large') {
+          toast({ title: "File too large", description: errData.message, variant: "destructive" });
+          return;
+        }
+        throw new Error("Failed to get upload URL");
+      }
       const { uploadURL, objectPath } = await urlRes.json();
 
       await fetch(uploadURL, {
@@ -299,12 +325,12 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
                   {isRecording ? (
                     <>
                       <Square className="h-3.5 w-3.5" />
-                      Stop Recording ({formatDuration(recordingDuration)})
+                      Stop Recording ({formatDuration(recordingDuration)} / {formatDuration(MAX_RECORDING_SECONDS)})
                     </>
                   ) : (
                     <>
                       <Mic className="h-3.5 w-3.5" />
-                      Record Voice Note
+                      Record Voice Note (max 5 min)
                     </>
                   )}
                 </Button>
