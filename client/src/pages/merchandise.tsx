@@ -17,7 +17,7 @@ import {
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
   AlertTriangle, AlertCircle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
   Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy, Type, Upload,
-  RotateCcw
+  RotateCcw, ShoppingCart, Trash2, Tag, X, Minus
 } from "lucide-react";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
@@ -54,6 +54,30 @@ interface Product {
   bulkHint?: string;
   recommendedFor?: string[];
   bestFor?: Record<string, string>;
+}
+
+interface CartItem {
+  productId: number;
+  variantId: number;
+  productName: string;
+  variantName: string;
+  quantity: number;
+  unitPriceCents: number;
+  productImage: string;
+  treeId?: string;
+  treeImageUrl?: string;
+  includeTree: boolean;
+  includeQR: boolean;
+  qrUrl?: string;
+  qrImageUrl?: string;
+  treePlacement?: string;
+  qrPlacement?: string;
+  includeCustomImage?: boolean;
+  customImageUrl?: string;
+  customImagePlacement?: string;
+  includeCustomText?: boolean;
+  customText?: string;
+  customTextPlacement?: string;
 }
 
 type QRCodeType = 'site' | 'profile' | 'tree';
@@ -533,6 +557,7 @@ function ProductCustomizer({
   trees,
   onClose,
   onOrderCreated,
+  onAddToCart,
   userId,
   prefill,
   layoutOverride,
@@ -541,6 +566,7 @@ function ProductCustomizer({
   trees: FamilyTree[];
   onClose: () => void;
   onOrderCreated: () => void;
+  onAddToCart?: (item: CartItem) => void;
   userId?: string;
   prefill?: { treeId?: string; includeQR?: boolean; skipToShipping?: boolean };
   layoutOverride?: GroupLayoutMode;
@@ -1013,14 +1039,19 @@ function ProductCustomizer({
         },
       });
     },
-    onSuccess: () => {
-      toast({
-        title: "Order Created",
-        description: "Your merchandise order has been created. Proceed to checkout to complete your purchase.",
-      });
+    onSuccess: async (response: any) => {
+      const data = await response.json();
       queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
-      onOrderCreated();
-      onClose();
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        toast({
+          title: "Order Created",
+          description: "Your order has been created. Redirecting to payment...",
+        });
+        onOrderCreated();
+        onClose();
+      }
     },
     onError: (error: any) => {
       toast({
@@ -1504,9 +1535,9 @@ function ProductCustomizer({
                 id="quantity"
                 type="number"
                 min={1}
-                max={10}
+                max={100}
                 value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                onChange={(e) => setQuantity(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
                 className="w-24"
                 data-testid="input-quantity"
               />
@@ -1816,15 +1847,66 @@ function ProductCustomizer({
                 </div>
               </div>
 
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={() => setShowShipping(true)}
-                disabled={(!includeTree && !includeQR && !includeCustomImage && !includeCustomText) || (includeTree && !selectedTreeId) || (includeCustomImage && !customImageUrl) || (includeCustomText && !customText.trim()) || !selectedVariantId}
-                data-testid="button-continue-shipping"
-              >
-                Continue to Shipping
-              </Button>
+              <div className="flex gap-2">
+                {onAddToCart && (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                    onClick={() => {
+                      if (!selectedVariantId || !selectedVariant) return;
+                      const treePrintPlacement = product.placements?.find(p => p.id === treePlacement);
+                      const qrPrintPlacement = qrPlacement ? product.placements?.find(p => p.id === qrPlacement) : null;
+                      let qrUrl: string | undefined;
+                      if (includeQR) {
+                        const orderBaseUrl = `${window.location.protocol}//${window.location.host}`;
+                        if (selectedQRType === 'site') qrUrl = orderBaseUrl;
+                        else if (selectedQRType === 'profile' && userId) qrUrl = `${orderBaseUrl}/profile/${userId}`;
+                        else if (selectedQRType === 'tree' && treeInviteCode) qrUrl = `${orderBaseUrl}/join/${treeInviteCode}`;
+                        else qrUrl = orderBaseUrl;
+                      }
+                      onAddToCart({
+                        productId: product.id,
+                        variantId: selectedVariantId,
+                        productName: product.name,
+                        variantName: selectedVariant.name,
+                        quantity,
+                        unitPriceCents: unitPriceCents,
+                        productImage: selectedVariant.image || product.image,
+                        treeId: selectedTreeId || undefined,
+                        treeImageUrl: savedTreeImageUrl || undefined,
+                        includeTree,
+                        includeQR,
+                        qrUrl,
+                        qrImageUrl: savedQRImageUrl || undefined,
+                        treePlacement: treePrintPlacement?.printfulType || 'default',
+                        qrPlacement: qrPrintPlacement?.printfulType || undefined,
+                        includeCustomImage,
+                        customImageUrl: includeCustomImage ? customImageUrl : undefined,
+                        customImagePlacement: includeCustomImage ? customImagePlacement : undefined,
+                        includeCustomText,
+                        customText: includeCustomText ? customText.trim() : undefined,
+                        customTextPlacement: includeCustomText ? customTextPlacement : undefined,
+                      });
+                    }}
+                    disabled={(!includeTree && !includeQR && !includeCustomImage && !includeCustomText) || (includeTree && !selectedTreeId) || (includeCustomImage && !customImageUrl) || (includeCustomText && !customText.trim()) || !selectedVariantId || (includeTree && !savedTreeImageUrl) || (includeQR && !savedQRImageUrl)}
+                    data-testid="button-add-to-cart"
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    Add to Cart
+                  </Button>
+                )}
+                <Button
+                  className="flex-1"
+                  size="lg"
+                  onClick={() => setShowShipping(true)}
+                  disabled={(!includeTree && !includeQR && !includeCustomImage && !includeCustomText) || (includeTree && !selectedTreeId) || (includeCustomImage && !customImageUrl) || (includeCustomText && !customText.trim()) || !selectedVariantId}
+                  data-testid="button-continue-shipping"
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Buy Now
+                </Button>
+              </div>
             </>
           ) : (
             <>
@@ -2079,6 +2161,12 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
             <span className="text-muted-foreground">Subtotal</span>
             <span>${((order.subtotal || 0) / 100).toFixed(2)}</span>
           </div>
+          {(order as any).discount > 0 && (
+            <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> Bulk Discount</span>
+              <span>-${((order as any).discount / 100).toFixed(2)}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-muted-foreground">Shipping</span>
             <span>${((order.shippingCost || 0) / 100).toFixed(2)}</span>
@@ -2095,11 +2183,11 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
           </div>
         </div>
         
-        {order.status === "pending" && (
+        {order.status === "pending" && order.stripePaymentIntentId && (
           <div className="flex gap-2">
             <Button 
               onClick={handleCheckout} 
-              disabled={isCheckingOut || isVerifying}
+              disabled={isCheckingOut}
               className="flex-1"
               data-testid={`button-checkout-${order.id}`}
             >
@@ -2109,23 +2197,12 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
                   Processing...
                 </>
               ) : (
-                "Complete Checkout"
+                <>
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Complete Payment
+                </>
               )}
             </Button>
-            {order.stripePaymentIntentId && (
-              <Button 
-                variant="outline"
-                onClick={handleVerifyPayment} 
-                disabled={isVerifying || isCheckingOut}
-                data-testid={`button-verify-${order.id}`}
-              >
-                {isVerifying ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Verify Payment"
-                )}
-              </Button>
-            )}
           </div>
         )}
 
@@ -2226,9 +2303,44 @@ function OrdersTab({ orders }: { orders: MerchandiseOrder[] }) {
     );
   }
 
+  const cartGroups = new Map<string, MerchandiseOrder[]>();
+  const singleOrders: MerchandiseOrder[] = [];
+
+  for (const order of orders) {
+    const csid = (order as any).cartSessionId;
+    if (csid) {
+      if (!cartGroups.has(csid)) cartGroups.set(csid, []);
+      cartGroups.get(csid)!.push(order);
+    } else {
+      singleOrders.push(order);
+    }
+  }
+
   return (
     <div className="space-y-4">
-      {orders.map(order => (
+      {Array.from(cartGroups.entries()).map(([cartId, cartOrders]) => (
+        <Card key={cartId} className="border-2" data-testid={`cart-group-${cartId}`}>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">
+                Cart Order · {cartOrders.length} {cartOrders.length === 1 ? 'item' : 'items'}
+              </span>
+              {cartOrders.some((o: any) => o.discount > 0) && (
+                <Badge variant="secondary" className="text-emerald-600 dark:text-emerald-400">
+                  <Tag className="h-3 w-3 mr-1" /> Bulk Discount Applied
+                </Badge>
+              )}
+            </div>
+            <div className="space-y-3">
+              {cartOrders.map(order => (
+                <OrderCard key={order.id} order={order} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+      {singleOrders.map(order => (
         <OrderCard key={order.id} order={order} />
       ))}
     </div>
@@ -2247,6 +2359,7 @@ export default function MerchandisePage() {
   const urlParams = new URLSearchParams(window.location.search);
   const checkoutStatus = urlParams.get("checkout");
   const orderId = urlParams.get("order");
+  const cartSessionParam = urlParams.get("cart");
   const tabParam = urlParams.get("tab");
   const qrTreeIdParam = urlParams.get("qrTreeId");
   const layoutParam = urlParams.get("layout") as GroupLayoutMode | null;
@@ -2263,10 +2376,90 @@ export default function MerchandisePage() {
     queryKey: ["/api/merchandise/products"],
   });
 
-  const { data: pricingConfig } = useQuery<{ productMarkupPercent: number; shippingBufferPercent: number }>({
+  const { data: pricingConfig } = useQuery<{ productMarkupPercent: number; shippingBufferPercent: number; quantityDiscountThreshold: number; quantityDiscountPercent: number; maxItemQuantity: number }>({
     queryKey: ["/api/merchandise/pricing-config"],
   });
   const markupMultiplier = pricingConfig ? (1 + pricingConfig.productMarkupPercent / 100) : 2;
+  const discountThreshold = pricingConfig?.quantityDiscountThreshold ?? 3;
+  const discountPercent = pricingConfig?.quantityDiscountPercent ?? 10;
+
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [showCart, setShowCart] = useState(false);
+  const [cartShippingAddress, setCartShippingAddress] = useState({
+    name: "", address1: "", address2: "", city: "", stateCode: "", countryCode: "US", zip: "", phone: "", email: ""
+  });
+  const [isCartCheckingOut, setIsCartCheckingOut] = useState(false);
+
+  const cartTotalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const cartSubtotal = cartItems.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
+  const cartDiscountApplies = cartTotalQty >= discountThreshold;
+  const cartDiscountAmount = cartDiscountApplies ? Math.round(cartSubtotal * discountPercent / 100) : 0;
+  const cartDiscountedSubtotal = cartSubtotal - cartDiscountAmount;
+
+  const addToCart = (item: CartItem) => {
+    setCartItems(prev => [...prev, item]);
+    toast({ title: "Added to Cart", description: `${item.productName} (${item.variantName}) x${item.quantity}` });
+  };
+
+  const removeFromCart = (index: number) => {
+    setCartItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const isCartShippingValid = () => {
+    return cartShippingAddress.name.trim() !== "" && cartShippingAddress.address1.trim() !== "" &&
+      cartShippingAddress.city.trim() !== "" && cartShippingAddress.stateCode.trim() !== "" &&
+      cartShippingAddress.countryCode.trim() !== "" && cartShippingAddress.zip.trim() !== "";
+  };
+
+  const handleCartCheckout = async () => {
+    if (!isCartShippingValid() || cartItems.length === 0) return;
+    setIsCartCheckingOut(true);
+    try {
+      const resp = await apiRequest("POST", "/api/merchandise/cart/checkout", {
+        items: cartItems.map(item => ({
+          productId: item.productId,
+          variantId: item.variantId,
+          productName: item.productName,
+          variantName: item.variantName,
+          quantity: item.quantity,
+          treeId: item.treeId,
+          treeImageUrl: item.treeImageUrl,
+          includeTree: item.includeTree,
+          includeQR: item.includeQR,
+          qrUrl: item.qrUrl,
+          qrImageUrl: item.qrImageUrl,
+          treePlacement: item.treePlacement,
+          qrPlacement: item.qrPlacement,
+          includeCustomImage: item.includeCustomImage,
+          customImageUrl: item.customImageUrl,
+          customImagePlacement: item.customImagePlacement,
+          includeCustomText: item.includeCustomText,
+          customText: item.customText,
+          customTextPlacement: item.customTextPlacement,
+        })),
+        shippingAddress: {
+          name: cartShippingAddress.name.trim(),
+          address1: cartShippingAddress.address1.trim(),
+          address2: cartShippingAddress.address2.trim() || undefined,
+          city: cartShippingAddress.city.trim(),
+          stateCode: cartShippingAddress.stateCode.trim().toUpperCase(),
+          countryCode: cartShippingAddress.countryCode.toUpperCase(),
+          zip: cartShippingAddress.zip.trim(),
+          phone: cartShippingAddress.phone.trim() || undefined,
+          email: cartShippingAddress.email.trim() || undefined,
+        },
+      });
+      const data = await resp.json();
+      if (data.checkoutUrl) {
+        setCartItems([]);
+        window.location.href = data.checkoutUrl;
+      }
+    } catch (error: any) {
+      toast({ title: "Checkout Failed", description: error.message || "Failed to create checkout", variant: "destructive" });
+    } finally {
+      setIsCartCheckingOut(false);
+    }
+  };
 
   const [preselectedTreeId, setPreselectedTreeId] = useState<string | null>(qrTreeIdParam);
 
@@ -2311,17 +2504,20 @@ export default function MerchandisePage() {
   });
 
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [confirmedOrderId, setConfirmedOrderId] = useState<string | null>(null);
 
   const [confirmResult, setConfirmResult] = useState<{ status?: string; error?: string } | null>(null);
 
   const confirmPaymentMutation = useMutation({
-    mutationFn: async (orderId: string) => {
-      const resp = await apiRequest("POST", `/api/merchandise/orders/${orderId}/confirm-payment`);
+    mutationFn: async (params: { orderId?: string; cartSessionId?: string }) => {
+      if (params.cartSessionId) {
+        const resp = await apiRequest("POST", `/api/merchandise/cart/confirm-payment`, { cartSessionId: params.cartSessionId });
+        return resp.json();
+      }
+      const resp = await apiRequest("POST", `/api/merchandise/orders/${params.orderId}/confirm-payment`);
       return resp.json();
     },
     onSuccess: (data: any) => {
-      setConfirmResult({ status: data.status || 'submitted' });
+      setConfirmResult({ status: data.status || data.results?.[0]?.status || 'submitted' });
       queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
     },
     onError: (err: any) => {
@@ -2331,27 +2527,25 @@ export default function MerchandisePage() {
   });
 
   useEffect(() => {
-    if (checkoutStatus === "success" && orderId) {
+    if (checkoutStatus === "success" && (orderId || cartSessionParam)) {
       setShowConfirmation(true);
-      setConfirmedOrderId(orderId);
       setConfirmResult(null);
+      if (cartSessionParam) {
+        confirmPaymentMutation.mutate({ cartSessionId: cartSessionParam });
+      } else if (orderId) {
+        confirmPaymentMutation.mutate({ orderId });
+      }
       window.history.replaceState({}, '', '/merchandise');
     } else if (checkoutStatus === "cancel") {
       toast({
         title: "Checkout Cancelled",
-        description: "Your checkout was cancelled. You can complete it later from your orders.",
+        description: "Your checkout was cancelled. You can try again.",
         variant: "destructive",
       });
       window.history.replaceState({}, '', '/merchandise');
     }
-  }, [checkoutStatus, orderId]);
+  }, [checkoutStatus, orderId, cartSessionParam]);
 
-  useEffect(() => {
-    if (user && confirmedOrderId) {
-      confirmPaymentMutation.mutate(confirmedOrderId);
-      setConfirmedOrderId(null);
-    }
-  }, [user, confirmedOrderId]);
 
   if (authLoading) {
     return (
@@ -2404,16 +2598,32 @@ export default function MerchandisePage() {
             </div>
           </div>
           
-          {user && orders.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={() => setActiveTab("orders")}
-              data-testid="button-view-orders"
-            >
-              <Package className="h-4 w-4 mr-2" />
-              My Orders ({orders.length})
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {user && cartItems.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setShowCart(true)}
+                className="relative"
+                data-testid="button-open-cart"
+              >
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Cart
+                <Badge className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-[10px]" data-testid="badge-cart-count">
+                  {cartTotalQty}
+                </Badge>
+              </Button>
+            )}
+            {user && orders.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setActiveTab("orders")}
+                data-testid="button-view-orders"
+              >
+                <Package className="h-4 w-4 mr-2" />
+                My Orders ({orders.length})
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -2906,10 +3116,148 @@ export default function MerchandisePage() {
               trees={trees}
               onClose={() => { setSelectedProduct(null); setProductPrefill(undefined); }}
               onOrderCreated={() => setActiveTab("orders")}
+              onAddToCart={(item) => { addToCart(item); setSelectedProduct(null); setProductPrefill(undefined); }}
               userId={user?.id}
               prefill={productPrefill}
               layoutOverride={effectiveLayout}
             />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCart} onOpenChange={setShowCart}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              Your Cart ({cartTotalQty} {cartTotalQty === 1 ? 'item' : 'items'})
+            </DialogTitle>
+            <DialogDescription>
+              {!cartDiscountApplies && cartTotalQty > 0 && cartTotalQty < discountThreshold && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                  Add {discountThreshold - cartTotalQty} more {discountThreshold - cartTotalQty === 1 ? 'item' : 'items'} to save {discountPercent}%!
+                </span>
+              )}
+              {cartDiscountApplies && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                  {discountPercent}% bulk discount applied!
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {cartItems.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p>Your cart is empty</p>
+              <Button variant="outline" className="mt-4" onClick={() => setShowCart(false)} data-testid="button-start-shopping">
+                Start Shopping
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-3">
+                {cartItems.map((item, index) => (
+                  <div key={index} className="flex gap-3 p-3 border rounded-lg" data-testid={`cart-item-${index}`}>
+                    <img src={item.productImage} alt={item.productName} className="w-16 h-16 object-cover rounded" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{item.productName}</p>
+                      <p className="text-xs text-muted-foreground">{item.variantName}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-sm">Qty: {item.quantity} x ${(item.unitPriceCents / 100).toFixed(2)}</p>
+                        <p className="font-medium text-sm">${(item.unitPriceCents * item.quantity / 100).toFixed(2)}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8" onClick={() => removeFromCart(index)} data-testid={`button-remove-cart-${index}`}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t pt-3 space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal</span>
+                  <span>${(cartSubtotal / 100).toFixed(2)}</span>
+                </div>
+                {cartDiscountApplies && (
+                  <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400">
+                    <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> Bulk Discount ({discountPercent}%)</span>
+                    <span>-${(cartDiscountAmount / 100).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Shipping + Tax</span>
+                  <span>Calculated at checkout</span>
+                </div>
+                <div className="flex justify-between font-semibold border-t pt-2 mt-2">
+                  <span>Estimated Total</span>
+                  <span>${(cartDiscountedSubtotal / 100).toFixed(2)} + shipping</span>
+                </div>
+              </div>
+
+              <div className="border-t pt-4 space-y-3">
+                <h4 className="font-semibold text-sm">Shipping Address</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <Label htmlFor="cart-name">Full Name *</Label>
+                    <Input id="cart-name" value={cartShippingAddress.name} onChange={(e) => setCartShippingAddress(prev => ({ ...prev, name: e.target.value }))} data-testid="input-cart-name" />
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="cart-address1">Address Line 1 *</Label>
+                    <Input id="cart-address1" value={cartShippingAddress.address1} onChange={(e) => setCartShippingAddress(prev => ({ ...prev, address1: e.target.value }))} data-testid="input-cart-address1" />
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="cart-address2">Address Line 2</Label>
+                    <Input id="cart-address2" value={cartShippingAddress.address2} onChange={(e) => setCartShippingAddress(prev => ({ ...prev, address2: e.target.value }))} data-testid="input-cart-address2" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cart-city">City *</Label>
+                    <Input id="cart-city" value={cartShippingAddress.city} onChange={(e) => setCartShippingAddress(prev => ({ ...prev, city: e.target.value }))} data-testid="input-cart-city" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cart-state">State *</Label>
+                    <Input id="cart-state" value={cartShippingAddress.stateCode} onChange={(e) => setCartShippingAddress(prev => ({ ...prev, stateCode: e.target.value }))} placeholder="e.g. NJ" data-testid="input-cart-state" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cart-zip">ZIP Code *</Label>
+                    <Input id="cart-zip" value={cartShippingAddress.zip} onChange={(e) => setCartShippingAddress(prev => ({ ...prev, zip: e.target.value }))} data-testid="input-cart-zip" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cart-country">Country</Label>
+                    <Input id="cart-country" value={cartShippingAddress.countryCode} onChange={(e) => setCartShippingAddress(prev => ({ ...prev, countryCode: e.target.value }))} data-testid="input-cart-country" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cart-phone">Phone</Label>
+                    <Input id="cart-phone" value={cartShippingAddress.phone} onChange={(e) => setCartShippingAddress(prev => ({ ...prev, phone: e.target.value }))} data-testid="input-cart-phone" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cart-email">Email</Label>
+                    <Input id="cart-email" type="email" value={cartShippingAddress.email} onChange={(e) => setCartShippingAddress(prev => ({ ...prev, email: e.target.value }))} data-testid="input-cart-email" />
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleCartCheckout}
+                  disabled={!isCartShippingValid() || isCartCheckingOut || cartItems.length === 0}
+                  data-testid="button-cart-checkout"
+                >
+                  {isCartCheckingOut ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Checkout ${(cartDiscountedSubtotal / 100).toFixed(2)} + shipping
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

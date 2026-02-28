@@ -69,59 +69,7 @@ export class WebhookHandlers {
               }
             }
             if (order && order.status === 'pending') {
-              await storage.updateMerchandiseOrder(order.id, { status: "paid" });
-
-              if (order.shippingAddress) {
-                const shippingAddr = order.shippingAddress as any;
-                const printfulAddress = {
-                  name: shippingAddr.name,
-                  address1: shippingAddr.address1,
-                  address2: shippingAddr.address2 || '',
-                  city: shippingAddr.city,
-                  state_code: shippingAddr.stateCode,
-                  country_code: shippingAddr.countryCode,
-                  zip: shippingAddr.zip,
-                  email: shippingAddr.email,
-                  phone: shippingAddr.phone,
-                };
-
-                const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
-                const printfulFiles = await buildPrintfulFiles(order, baseUrl);
-
-                if (printfulFiles.length === 0) {
-                  await storage.updateMerchandiseOrder(order.id, {
-                    status: "failed",
-                    printfulError: "No print files configured for this order",
-                  });
-                  console.error(`Merchandise order ${order.id} has no print files`);
-                  return;
-                }
-
-                const printfulResult = await printfulService.createOrder(
-                  printfulAddress,
-                  [{
-                    variant_id: order.variantId,
-                    quantity: order.quantity,
-                    files: printfulFiles,
-                  }],
-                  true
-                );
-
-                if (printfulResult) {
-                  await storage.updateMerchandiseOrder(order.id, {
-                    status: "submitted",
-                    printfulOrderId: String(printfulResult.orderId),
-                  });
-                  console.log(`Merchandise order ${order.id} submitted to Printful: ${printfulResult.orderId}`);
-                  await sendOrderConfirmationEmail(order, order.userId);
-                } else {
-                  await storage.updateMerchandiseOrder(order.id, {
-                    status: "failed",
-                    printfulError: "Printful rejected the order — check print files and address",
-                  });
-                  console.error(`Failed to submit merchandise order ${order.id} to Printful`);
-                }
-              }
+              await WebhookHandlers.processOrderToPrintful(order);
             } else if (order) {
               console.log(`Merchandise order ${order.id} already processed (status: ${order.status})`);
             }
@@ -135,6 +83,32 @@ export class WebhookHandlers {
                 });
               } catch {}
             }
+          }
+        } else if (metadata.type === 'merchandise_cart') {
+          console.log(`Cart payment completed for cartSessionId ${metadata.cartSessionId}, session ${session.id}`);
+          try {
+            const allUserOrders = await storage.getMerchandiseOrderByStripeSession(session.id);
+            if (!allUserOrders) {
+              console.error(`No orders found for cart session ${session.id}`);
+              return;
+            }
+            const userId = allUserOrders.userId;
+            const userOrders = await storage.getMerchandiseOrders(userId);
+            const cartOrders = userOrders.filter((o: any) => o.cartSessionId === metadata.cartSessionId && o.status === 'pending');
+            
+            for (const order of cartOrders) {
+              try {
+                await WebhookHandlers.processOrderToPrintful(order);
+              } catch (err: any) {
+                console.error(`Error processing cart order ${order.id}:`, err);
+                await storage.updateMerchandiseOrder(order.id, {
+                  status: "failed",
+                  printfulError: err.message || "Error during cart order processing",
+                });
+              }
+            }
+          } catch (cartError: any) {
+            console.error('Error processing cart webhook:', cartError);
           }
         }
       } else if (event.type === 'customer.subscription.deleted') {
@@ -150,6 +124,65 @@ export class WebhookHandlers {
       }
     } catch (customError) {
       console.error('Error processing custom webhook handler:', customError);
+    }
+  }
+
+  static async processOrderToPrintful(order: any): Promise<void> {
+    await storage.updateMerchandiseOrder(order.id, { status: "paid" });
+
+    if (!order.shippingAddress) {
+      console.error(`Merchandise order ${order.id} has no shipping address`);
+      return;
+    }
+
+    const shippingAddr = order.shippingAddress as any;
+    const printfulAddress = {
+      name: shippingAddr.name,
+      address1: shippingAddr.address1,
+      address2: shippingAddr.address2 || '',
+      city: shippingAddr.city,
+      state_code: shippingAddr.stateCode,
+      country_code: shippingAddr.countryCode,
+      zip: shippingAddr.zip,
+      email: shippingAddr.email,
+      phone: shippingAddr.phone,
+    };
+
+    const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+    const printfulFiles = await buildPrintfulFiles(order, baseUrl);
+
+    if (printfulFiles.length === 0) {
+      await storage.updateMerchandiseOrder(order.id, {
+        status: "failed",
+        printfulError: "No print files configured for this order",
+      });
+      console.error(`Merchandise order ${order.id} has no print files`);
+      return;
+    }
+
+    const printfulResult = await printfulService.createOrder(
+      printfulAddress,
+      [{
+        variant_id: order.variantId,
+        quantity: order.quantity,
+        files: printfulFiles,
+      }],
+      true
+    );
+
+    if (printfulResult) {
+      await storage.updateMerchandiseOrder(order.id, {
+        status: "submitted",
+        printfulOrderId: String(printfulResult.orderId),
+      });
+      console.log(`Merchandise order ${order.id} submitted to Printful: ${printfulResult.orderId}`);
+      await sendOrderConfirmationEmail(order, order.userId);
+    } else {
+      await storage.updateMerchandiseOrder(order.id, {
+        status: "failed",
+        printfulError: "Printful rejected the order — check print files and address",
+      });
+      console.error(`Failed to submit merchandise order ${order.id} to Printful`);
     }
   }
 }
