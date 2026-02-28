@@ -614,72 +614,171 @@ function ProductCustomizer({
     setIsCapturingTree(true);
     setSavedTreeImageUrl("");
     try {
-      const photoDataUrls = new Map<string, string>();
-      const photoMembers = treeMembers.filter(m => m.photoUrl);
-      for (const m of photoMembers) {
-        try {
-          const absUrl = m.photoUrl!.startsWith('http') ? m.photoUrl! : `${window.location.origin}${m.photoUrl}`;
-          const resp = await fetch(absUrl, { credentials: 'include' });
-          if (!resp.ok) {
-            console.warn(`Photo fetch failed for ${m.id}: HTTP ${resp.status}`);
-            continue;
+      const config = getTreeTypeConfig((selectedTree?.treeType || "custom") as TreeType);
+      const accentColor = config.visual.accentColor || "#10b981";
+      const rels = treeDetail?.relationships ?? [];
+
+      const adjacency = new Map<string, Set<string>>();
+      treeMembers.forEach(m => adjacency.set(m.id, new Set()));
+      rels.forEach(r => {
+        if (adjacency.has(r.fromMemberId) && adjacency.has(r.toMemberId)) {
+          adjacency.get(r.fromMemberId)!.add(r.toMemberId);
+          adjacency.get(r.toMemberId)!.add(r.fromMemberId);
+        }
+      });
+
+      let rootId = treeMembers[0]?.id;
+      let maxConn = 0;
+      for (const [id, neighbors] of adjacency) {
+        if (neighbors.size > maxConn) { maxConn = neighbors.size; rootId = id; }
+      }
+
+      const nodeSpacingX = 140, nodeSpacingY = 120, nodeRadius = 22, padding = 50;
+      const queue: string[] = [rootId];
+      const visited = new Set<string>([rootId]);
+      const levels: string[][] = [];
+      while (queue.length > 0) {
+        const sz = queue.length;
+        const level: string[] = [];
+        for (let i = 0; i < sz; i++) {
+          const cur = queue.shift()!;
+          level.push(cur);
+          for (const n of (adjacency.get(cur) || new Set())) {
+            if (!visited.has(n)) { visited.add(n); queue.push(n); }
           }
-          const blob = await resp.blob();
-          if (blob.size === 0) {
-            console.warn(`Photo blob empty for ${m.id}`);
-            continue;
-          }
-          const dataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error('FileReader failed'));
-            reader.readAsDataURL(blob);
-          });
-          if (dataUrl && dataUrl.startsWith('data:')) {
-            photoDataUrls.set(m.id, dataUrl);
-          }
-        } catch (e) {
-          console.warn("Failed to load photo for member:", m.id, e);
+        }
+        levels.push(level);
+      }
+      for (const m of treeMembers) {
+        if (!visited.has(m.id)) {
+          levels[levels.length - 1] = levels[levels.length - 1] || [];
+          levels[levels.length - 1].push(m.id);
         }
       }
 
-      const membersWithDataUrls = treeMembers.map(m => ({
-        ...m,
-        photoUrl: photoDataUrls.has(m.id) ? photoDataUrls.get(m.id) : null
-      }));
-
-      const captureDiv = document.createElement('div');
-      captureDiv.style.position = 'absolute';
-      captureDiv.style.left = '-9999px';
-      captureDiv.style.top = '-9999px';
-      captureDiv.style.width = '800px';
-      captureDiv.style.height = '600px';
-      captureDiv.style.background = '#ffffff';
-      document.body.appendChild(captureDiv);
-
-      const { createRoot } = await import('react-dom/client');
-      const root = createRoot(captureDiv);
-      root.render(
-        <MiniTreePreview
-          members={membersWithDataUrls}
-          relationships={treeDetail?.relationships ?? []}
-          treeName={selectedTree?.name || ''}
-          treeType={selectedTree?.treeType || 'family'}
-        />
-      );
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const { toPng } = await import('html-to-image');
-      const dataUrl = await toPng(captureDiv, {
-        quality: 0.95,
-        pixelRatio: 3,
-        backgroundColor: '#ffffff',
+      const placed = new Map<string, { x: number; y: number }>();
+      levels.forEach((level, depth) => {
+        const totalW = (level.length - 1) * nodeSpacingX;
+        const startX = -totalW / 2;
+        level.forEach((id, i) => placed.set(id, { x: startX + i * nodeSpacingX, y: depth * nodeSpacingY }));
       });
 
-      root.unmount();
-      document.body.removeChild(captureDiv);
+      const nodes = treeMembers.map(m => {
+        const pos = placed.get(m.id) || { x: 0, y: 0 };
+        const initials = `${m.firstName?.[0] || ""}${m.lastName?.[0] || ""}`.toUpperCase();
+        const displayName = m.firstName || "?";
+        return { id: m.id, x: pos.x, y: pos.y, initials, displayName, photoUrl: m.photoUrl };
+      });
 
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      nodes.forEach(n => { if (n.x < minX) minX = n.x; if (n.y < minY) minY = n.y; if (n.x > maxX) maxX = n.x; if (n.y > maxY) maxY = n.y; });
+      const canvasW = maxX - minX + padding * 2 + nodeRadius * 2;
+      const canvasH = maxY - minY + padding * 2 + nodeRadius * 2 + 30;
+      const offX = -minX + padding + nodeRadius;
+      const offY = -minY + padding + nodeRadius + 20;
+
+      const photoImages = new Map<string, HTMLImageElement>();
+      const photoPromises = nodes.filter(n => n.photoUrl).map(n => {
+        return new Promise<void>((resolve) => {
+          const absUrl = n.photoUrl!.startsWith('http') ? n.photoUrl! : `${window.location.origin}${n.photoUrl}`;
+          const img = document.createElement('img');
+          img.onload = () => {
+            const offscreen = document.createElement('canvas');
+            offscreen.width = nodeRadius * 2 * 3;
+            offscreen.height = nodeRadius * 2 * 3;
+            const octx = offscreen.getContext('2d')!;
+            octx.drawImage(img, 0, 0, offscreen.width, offscreen.height);
+            try {
+              const cleanImg = new window.Image();
+              cleanImg.onload = () => { photoImages.set(n.id, cleanImg); resolve(); };
+              cleanImg.onerror = () => resolve();
+              cleanImg.src = offscreen.toDataURL('image/png');
+            } catch (e) {
+              console.warn('Canvas tainted for member', n.id, e);
+              resolve();
+            }
+          };
+          img.onerror = () => resolve();
+          img.src = absUrl;
+        });
+      });
+      await Promise.all(photoPromises);
+
+      const scale = 3;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasW * scale;
+      canvas.height = canvasH * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
+      ctx.font = 'bold 12px Inter, sans-serif';
+      ctx.fillStyle = '#374151';
+      ctx.textAlign = 'center';
+      ctx.fillText(selectedTree?.name || '', canvasW / 2, 14);
+
+      const posMap = new Map(nodes.map(n => [n.id, n]));
+      const drawnLines = new Set<string>();
+      rels.forEach(r => {
+        const from = posMap.get(r.fromMemberId);
+        const to = posMap.get(r.toMemberId);
+        if (from && to) {
+          const key = [from.x, from.y, to.x, to.y].sort().join(',');
+          if (!drawnLines.has(key)) {
+            drawnLines.add(key);
+            ctx.beginPath();
+            ctx.moveTo(from.x + offX, from.y + offY);
+            ctx.lineTo(to.x + offX, to.y + offY);
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = 0.5;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+        }
+      });
+
+      nodes.forEach(node => {
+        const cx = node.x + offX;
+        const cy = node.y + offY;
+        ctx.beginPath();
+        ctx.arc(cx, cy, nodeRadius, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = accentColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        const photo = photoImages.get(node.id);
+        if (photo) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, nodeRadius - 2, 0, Math.PI * 2);
+          ctx.clip();
+          const size = (nodeRadius - 2) * 2;
+          ctx.drawImage(photo, cx - nodeRadius + 2, cy - nodeRadius + 2, size, size);
+          ctx.restore();
+        } else {
+          ctx.font = 'bold 10px Inter, sans-serif';
+          ctx.fillStyle = accentColor;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(node.initials, cx, cy + 1);
+        }
+        ctx.font = '500 7px Inter, sans-serif';
+        ctx.fillStyle = '#4b5563';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(node.displayName, cx, cy + nodeRadius + 3);
+      });
+
+      ctx.font = '8px Inter, sans-serif';
+      ctx.fillStyle = '#9ca3af';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(config.visual.shapeName || '', canvasW / 2, canvasH - 4);
+
+      const dataUrl = canvas.toDataURL('image/png', 0.95);
       const captureBlob = await (await fetch(dataUrl)).blob();
       const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
       const res = await apiRequest("POST", "/api/uploads/request-url", {
@@ -941,9 +1040,9 @@ function ProductCustomizer({
             />
             {includeTree && selectedTree && selectedTreeId && loadingTreeDetail && (
               <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/20">
-                <div className="bg-white/90 dark:bg-gray-900/90 rounded-lg shadow-lg p-6 flex flex-col items-center gap-2">
+                <div className="bg-white/90 rounded-lg shadow-lg p-6 flex flex-col items-center gap-2">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  <span className="text-xs text-muted-foreground">Loading tree preview...</span>
+                  <span className="text-xs text-gray-500">Loading tree preview...</span>
                 </div>
               </div>
             )}
@@ -1026,8 +1125,8 @@ function ProductCustomizer({
                 }`}
                 data-testid="custom-text-preview-overlay"
               >
-                <div className="bg-white/90 dark:bg-gray-900/90 rounded px-3 py-1.5 shadow-lg">
-                  <p className="text-sm font-bold text-gray-800 dark:text-gray-100 text-center whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
+                <div className="bg-white/90 rounded px-3 py-1.5 shadow-lg">
+                  <p className="text-sm font-bold text-gray-800 text-center whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
                     {customText}
                   </p>
                 </div>
@@ -2486,9 +2585,9 @@ export default function MerchandisePage() {
                                       )}
                                       {!hasTree && item.showTree && (
                                         <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                                          <div className="bg-white/90 dark:bg-gray-900/90 rounded-lg px-3 py-2 text-center">
+                                          <div className="bg-white/90 rounded-lg px-3 py-2 text-center">
                                             <TreeDeciduous className="h-5 w-5 mx-auto text-primary mb-1" />
-                                            <p className="text-[10px] text-muted-foreground">Your group appears here</p>
+                                            <p className="text-[10px] text-gray-500">Your group appears here</p>
                                           </div>
                                         </div>
                                       )}
