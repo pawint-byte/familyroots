@@ -967,6 +967,8 @@ export const merchandiseOrders = pgTable("merchandise_orders", {
   commission: integer("commission").default(0),
   taxAmount: integer("tax_amount").default(0),
   placementConfig: jsonb("placement_config").$type<Record<string, any>>(),
+  cartSessionId: varchar("cart_session_id"),
+  discount: integer("discount").default(0),
   printfulError: text("printful_error"),
   trackingNumber: text("tracking_number"),
   trackingUrl: text("tracking_url"),

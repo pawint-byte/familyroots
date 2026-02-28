@@ -61,6 +61,35 @@ export class StripeService {
     });
   }
 
+  async createCartCheckoutSession(
+    customerId: string,
+    lineItems: Array<{ name: string; description: string; amountCents: number; quantity: number }>,
+    successUrl: string,
+    cancelUrl: string,
+    metadata: Record<string, string>
+  ) {
+    const stripe = await getUncachableStripeClient();
+    return await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: lineItems.map(item => ({
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: item.name,
+            description: item.description,
+          },
+          unit_amount: item.amountCents,
+        },
+        quantity: item.quantity,
+      })),
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata,
+    });
+  }
+
   async retrieveCheckoutSession(sessionId: string) {
     const stripe = await getUncachableStripeClient();
     return await stripe.checkout.sessions.retrieve(sessionId);

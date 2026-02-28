@@ -1,6 +1,9 @@
 export const PRODUCT_MARKUP_PERCENT = 100;
 export const SHIPPING_BUFFER_PERCENT = 20;
 export const FALLBACK_TAX_RATE = 0.0955;
+export const QUANTITY_DISCOUNT_THRESHOLD = 3;
+export const QUANTITY_DISCOUNT_PERCENT = 10;
+export const MAX_ITEM_QUANTITY = 100;
 
 const STATE_TAX_RATES: Record<string, number> = {
   AL: 0.04,
@@ -72,4 +75,11 @@ export function getStateTaxRate(stateCode: string): number {
 
 export function getRetailPriceFromDollars(printfulCostDollars: number): number {
   return Math.round(printfulCostDollars * 100 * (1 + PRODUCT_MARKUP_PERCENT / 100));
+}
+
+export function getCartDiscount(totalItemCount: number, itemSubtotalCents: number): number {
+  if (totalItemCount >= QUANTITY_DISCOUNT_THRESHOLD) {
+    return Math.round(itemSubtotalCents * QUANTITY_DISCOUNT_PERCENT / 100);
+  }
+  return 0;
 }

@@ -10293,8 +10293,8 @@ export async function registerRoutes(
   
   // Get recommended products for merchandise
   app.get("/api/merchandise/pricing-config", async (req, res) => {
-    const { PRODUCT_MARKUP_PERCENT, SHIPPING_BUFFER_PERCENT } = await import("./merchandisePricing");
-    res.json({ productMarkupPercent: PRODUCT_MARKUP_PERCENT, shippingBufferPercent: SHIPPING_BUFFER_PERCENT });
+    const { PRODUCT_MARKUP_PERCENT, SHIPPING_BUFFER_PERCENT, QUANTITY_DISCOUNT_THRESHOLD, QUANTITY_DISCOUNT_PERCENT, MAX_ITEM_QUANTITY } = await import("./merchandisePricing");
+    res.json({ productMarkupPercent: PRODUCT_MARKUP_PERCENT, shippingBufferPercent: SHIPPING_BUFFER_PERCENT, quantityDiscountThreshold: QUANTITY_DISCOUNT_THRESHOLD, quantityDiscountPercent: QUANTITY_DISCOUNT_PERCENT, maxItemQuantity: MAX_ITEM_QUANTITY });
   });
 
   app.get("/api/merchandise/products", async (req, res) => {
@@ -10508,12 +10508,45 @@ export async function registerRoutes(
         taxAmount,
         totalAmount,
         commission,
+        discount: 0,
         shippingAddress: addressValidation.data,
         placementConfig,
         status: "pending",
       });
 
-      res.status(201).json(order);
+      let checkoutUrl: string | null = null;
+      if (isStripeConfigured()) {
+        try {
+          const user = await storage.getUser(userId);
+          let customerId = user?.stripeCustomerId;
+          if (!customerId) {
+            const customer = await stripeService.createCustomer(
+              user?.email || `user-${userId}@familyroots.family`,
+              userId
+            );
+            await storage.updateUserStripeInfo(userId, { stripeCustomerId: customer.id });
+            customerId = customer.id;
+          }
+          const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+          const displayName = order.variantName || order.productName;
+          const session = await stripeService.createMerchandiseCheckoutSession(
+            customerId,
+            displayName,
+            `Custom ${displayName} with your family tree`,
+            order.totalAmount,
+            order.quantity,
+            `${baseUrl}/merchandise?checkout=success&order=${order.id}`,
+            `${baseUrl}/merchandise?checkout=cancel`,
+            { orderId: order.id, type: 'merchandise' }
+          );
+          await storage.updateMerchandiseOrder(order.id, { stripePaymentIntentId: session.id });
+          checkoutUrl = session.url;
+        } catch (stripeError: any) {
+          console.error("Error creating checkout session:", stripeError);
+        }
+      }
+
+      res.status(201).json({ ...order, checkoutUrl });
     } catch (error: any) {
       console.error("Error creating order:", error);
       res.status(500).json({ message: "Failed to create order" });
@@ -10943,6 +10976,255 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error confirming payment:", error);
       res.status(500).json({ message: "Failed to confirm payment" });
+    }
+  });
+
+  // Cart checkout - multiple items in one transaction
+  app.post("/api/merchandise/cart/checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const userId = req.user.claims.sub;
+      const { items, shippingAddress } = req.body;
+
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "Cart is empty" });
+      }
+
+      const addressValidation = shippingAddressSchema.safeParse(shippingAddress);
+      if (!addressValidation.success) {
+        return res.status(400).json({ message: "Invalid shipping address", errors: addressValidation.error.errors });
+      }
+
+      const { getRetailPrice, getBufferedShipping, getStateTaxRate, getCartDiscount, MAX_ITEM_QUANTITY } = await import("./merchandisePricing");
+      const { v4: uuidv4 } = await import("uuid");
+      const cartSessionId = uuidv4();
+
+      const totalItemCount = items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+
+      const printfulAddress = {
+        name: shippingAddress.name,
+        address1: shippingAddress.address1,
+        address2: shippingAddress.address2 || '',
+        city: shippingAddress.city,
+        state_code: shippingAddress.stateCode,
+        country_code: shippingAddress.countryCode,
+        zip: shippingAddress.zip,
+      };
+
+      const createdOrders: any[] = [];
+      const stripeLineItems: Array<{ name: string; description: string; amountCents: number; quantity: number }> = [];
+
+      for (const item of items) {
+        const orderQuantity = Math.min(Math.max(1, item.quantity || 1), MAX_ITEM_QUANTITY);
+
+        const variantPrice = await printfulService.getVariantPrice(item.productId, item.variantId);
+        if (variantPrice === null) {
+          return res.status(400).json({ message: `Invalid variant for product ${item.productId}` });
+        }
+
+        const printfulProduct = await printfulService.getProduct(item.productId);
+        const printfulVariant = await printfulService.getVariant(item.productId, item.variantId);
+        const verifiedProductName = printfulProduct
+          ? [printfulProduct.brand, printfulProduct.model].filter(Boolean).join(' ') || printfulProduct.type_name || item.productName
+          : item.productName;
+        const verifiedVariantName = printfulVariant?.name || item.variantName;
+
+        const unitRetailPrice = getRetailPrice(variantPrice);
+        const subtotal = unitRetailPrice * orderQuantity;
+
+        const shippingRates = await printfulService.calculateShipping(
+          printfulAddress,
+          [{ variant_id: item.variantId, quantity: orderQuantity }]
+        );
+
+        let printfulShipping = 599;
+        if (shippingRates.length > 0) {
+          const sortedRates = [...shippingRates].sort((a: any, b: any) => parseFloat(a.rate) - parseFloat(b.rate));
+          printfulShipping = Math.round(parseFloat(sortedRates[0].rate) * 100);
+        }
+        const shippingCost = getBufferedShipping(printfulShipping);
+
+        const discount = getCartDiscount(totalItemCount, subtotal);
+        const discountedSubtotal = subtotal - discount;
+
+        const taxRate = getStateTaxRate(shippingAddress.stateCode || '');
+        const taxableAmount = discountedSubtotal + shippingCost;
+        const taxAmount = Math.round(taxableAmount * taxRate);
+
+        const totalAmount = discountedSubtotal + shippingCost + taxAmount;
+
+        const placementConfig: Record<string, any> = {
+          treePlacement: item.treePlacement || 'default',
+          qrPlacement: item.includeQR ? (item.qrPlacement || null) : null,
+          qrProfileUrl: item.includeQR ? (item.qrUrl || null) : null,
+        };
+
+        if (item.includeCustomImage && item.customImageUrl) {
+          placementConfig.customImageUrl = item.customImageUrl;
+          placementConfig.customImagePlacement = item.customImagePlacement || 'front';
+        }
+        if (item.includeCustomText && item.customText) {
+          placementConfig.customText = item.customText;
+          placementConfig.customTextPlacement = item.customTextPlacement || 'front';
+        }
+
+        const order = await storage.createMerchandiseOrder({
+          userId,
+          treeId: item.treeId || null,
+          productId: item.productId,
+          variantId: item.variantId,
+          productName: verifiedProductName,
+          variantName: verifiedVariantName || item.variantName || null,
+          quantity: orderQuantity,
+          treeImageUrl: item.treeImageUrl || '',
+          subtotal: discountedSubtotal,
+          shippingCost,
+          taxAmount,
+          totalAmount,
+          commission: 0,
+          discount,
+          cartSessionId,
+          shippingAddress: addressValidation.data,
+          placementConfig,
+          status: "pending",
+        });
+
+        createdOrders.push(order);
+
+        const displayName = verifiedVariantName || verifiedProductName;
+        stripeLineItems.push({
+          name: displayName,
+          description: `Custom ${displayName} with your family tree`,
+          amountCents: totalAmount,
+          quantity: 1,
+        });
+      }
+
+      const user = await storage.getUser(userId);
+      let customerId = user?.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripeService.createCustomer(
+          user?.email || `user-${userId}@familyroots.family`,
+          userId
+        );
+        await storage.updateUserStripeInfo(userId, { stripeCustomerId: customer.id });
+        customerId = customer.id;
+      }
+
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const session = await stripeService.createCartCheckoutSession(
+        customerId,
+        stripeLineItems,
+        `${baseUrl}/merchandise?checkout=success&cart=${cartSessionId}`,
+        `${baseUrl}/merchandise?checkout=cancel`,
+        { cartSessionId, type: 'merchandise_cart' }
+      );
+
+      for (const order of createdOrders) {
+        await storage.updateMerchandiseOrder(order.id, { stripePaymentIntentId: session.id });
+      }
+
+      res.status(201).json({ checkoutUrl: session.url, cartSessionId, orderCount: createdOrders.length });
+    } catch (error: any) {
+      console.error("Error creating cart checkout:", error);
+      res.status(500).json({ message: "Failed to create cart checkout" });
+    }
+  });
+
+  // Confirm cart payment after Stripe redirect
+  app.post("/api/merchandise/cart/confirm-payment", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { cartSessionId } = req.body;
+
+      if (!cartSessionId) {
+        return res.status(400).json({ message: "Cart session ID required" });
+      }
+
+      const allOrders = await storage.getMerchandiseOrders(userId);
+      const cartOrders = allOrders.filter((o: any) => o.cartSessionId === cartSessionId);
+
+      if (cartOrders.length === 0) {
+        return res.status(404).json({ message: "No orders found for this cart session" });
+      }
+
+      const pendingOrders = cartOrders.filter((o: any) => o.status === 'pending');
+      if (pendingOrders.length === 0) {
+        return res.json({ success: true, status: "already_processed", results: cartOrders.map((o: any) => ({ orderId: o.id, status: o.status })) });
+      }
+
+      const stripeSessionId = cartOrders[0].stripePaymentIntentId;
+      if (!stripeSessionId) {
+        return res.status(400).json({ message: "No payment session found" });
+      }
+
+      const session = await stripeService.retrieveCheckoutSession(stripeSessionId);
+      if (session.payment_status !== 'paid') {
+        return res.json({ success: false, status: "unpaid" });
+      }
+
+      const { buildPrintfulFiles, sendOrderConfirmationEmail } = await import("./merchandiseHelpers");
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const results: any[] = [];
+
+      for (const order of pendingOrders) {
+        await storage.updateMerchandiseOrder(order.id, { status: "paid" });
+
+        if (order.shippingAddress) {
+          const shippingAddr = order.shippingAddress as any;
+          const printfulAddress = {
+            name: shippingAddr.name,
+            address1: shippingAddr.address1,
+            address2: shippingAddr.address2 || '',
+            city: shippingAddr.city,
+            state_code: shippingAddr.stateCode,
+            country_code: shippingAddr.countryCode,
+            zip: shippingAddr.zip,
+            email: shippingAddr.email,
+            phone: shippingAddr.phone,
+          };
+
+          try {
+            const printfulFiles = await buildPrintfulFiles(order, baseUrl);
+            if (printfulFiles.length > 0) {
+              const printfulResult = await printfulService.createOrder(
+                printfulAddress,
+                [{ variant_id: order.variantId, quantity: order.quantity, files: printfulFiles }],
+                true
+              );
+              if (printfulResult) {
+                await storage.updateMerchandiseOrder(order.id, { status: "submitted", printfulOrderId: String(printfulResult.orderId) });
+                results.push({ orderId: order.id, status: "submitted", printfulOrderId: printfulResult.orderId });
+              } else {
+                await storage.updateMerchandiseOrder(order.id, { status: "failed", printfulError: "Printful rejected the order" });
+                results.push({ orderId: order.id, status: "failed" });
+              }
+            } else {
+              await storage.updateMerchandiseOrder(order.id, { status: "failed", printfulError: "No print files configured" });
+              results.push({ orderId: order.id, status: "failed" });
+            }
+          } catch (printErr: any) {
+            await storage.updateMerchandiseOrder(order.id, { status: "failed", printfulError: printErr.message });
+            results.push({ orderId: order.id, status: "failed", error: printErr.message });
+          }
+        }
+      }
+
+      if (pendingOrders.length > 0) {
+        try {
+          await sendOrderConfirmationEmail(pendingOrders[0], userId);
+        } catch (emailErr) {
+          console.error("Error sending cart confirmation email:", emailErr);
+        }
+      }
+
+      res.json({ success: true, results });
+    } catch (error: any) {
+      console.error("Error confirming cart payment:", error);
+      res.status(500).json({ message: "Failed to confirm cart payment" });
     }
   });
 
