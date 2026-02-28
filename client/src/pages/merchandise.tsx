@@ -19,7 +19,6 @@ import {
   Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy, Type, Upload,
   RotateCcw
 } from "lucide-react";
-import { toPng } from "html-to-image";
 import { SiBitcoin, SiEthereum } from "react-icons/si";
 import { QRCodeSVG } from "qrcode.react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -741,24 +740,71 @@ function ProductCustomizer({
           await new Promise(resolve => setTimeout(resolve, 200));
           const el = treePreviewRef.current;
           const svgEl = el.querySelector('svg');
-          const captureW = svgEl ? (parseInt(svgEl.getAttribute('width') || '800')) : 800;
-          const captureH = svgEl ? (parseInt(svgEl.getAttribute('height') || '600')) : 600;
-          el.style.width = `${captureW}px`;
-          el.style.height = `${captureH}px`;
+          if (!svgEl) throw new Error("Tree SVG not found");
 
-          const toPngWithTimeout = (element: HTMLElement, options: any, timeoutMs: number) => {
-            return Promise.race([
-              toPng(element, options),
-              new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Tree capture timed out")), timeoutMs)),
-            ]);
-          };
-          const dataUrl = await toPngWithTimeout(el, {
-            quality: 0.95,
-            pixelRatio: 3,
-            backgroundColor: "#ffffff",
-            width: captureW,
-            height: captureH,
-          }, 15000);
+          const captureW = parseInt(svgEl.getAttribute('width') || '800');
+          const captureH = parseInt(svgEl.getAttribute('height') || '600');
+
+          const imageEls = svgEl.querySelectorAll('image');
+          const base64Map = new Map<string, string>();
+          await Promise.all(Array.from(imageEls).map(async (img) => {
+            const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+            if (!href || href.startsWith('data:') || base64Map.has(href)) return;
+            try {
+              const absUrl = href.startsWith('http') ? href : `${window.location.origin}${href}`;
+              const response = await fetch(absUrl);
+              const blob = await response.blob();
+              const reader = new FileReader();
+              const dataUrl: string = await new Promise((resolve, reject) => {
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+              base64Map.set(href, dataUrl);
+            } catch (e) {
+              console.warn("Failed to fetch image for capture:", href, e);
+            }
+          }));
+
+          const clonedSvg = svgEl.cloneNode(true) as SVGSVGElement;
+          clonedSvg.querySelectorAll('image').forEach(img => {
+            const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+            if (href && base64Map.has(href)) {
+              img.setAttribute('href', base64Map.get(href)!);
+            }
+          });
+          clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+          const svgString = new XMLSerializer().serializeToString(clonedSvg);
+          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+          const svgUrl = URL.createObjectURL(svgBlob);
+
+          const scale = 3;
+          const canvas = document.createElement('canvas');
+          canvas.width = captureW * scale;
+          canvas.height = captureH * scale;
+          const ctx = canvas.getContext('2d')!;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          const drawImg = new Image();
+          const dataUrl: string = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error("Tree capture timed out")), 15000);
+            drawImg.onload = () => {
+              clearTimeout(timeout);
+              ctx.drawImage(drawImg, 0, 0, canvas.width, canvas.height);
+              URL.revokeObjectURL(svgUrl);
+              resolve(canvas.toDataURL('image/png', 0.95));
+            };
+            drawImg.onerror = (e) => {
+              clearTimeout(timeout);
+              URL.revokeObjectURL(svgUrl);
+              reject(new Error("Failed to render tree image"));
+            };
+            drawImg.src = svgUrl;
+          });
+
           const blob = await (await fetch(dataUrl)).blob();
           const filename = `tree-${selectedTreeId}-${Date.now()}.png`;
           const res = await apiRequest("POST", "/api/uploads/request-url", {
