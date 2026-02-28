@@ -15,7 +15,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   ShoppingBag, Package, Truck, ArrowLeft, TreeDeciduous, Camera,
   Shirt, Coffee, Image, Star, Check, Loader2, CreditCard, CheckCircle, XCircle,
-  AlertTriangle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
+  AlertTriangle, AlertCircle, Info, Sparkles, Wallet, QrCode, Flame, ChevronRight, Zap,
   Users, Scan, Heart, ArrowRight, User, Crown, Plus, GraduationCap, Trophy, Type, Upload,
   RotateCcw
 } from "lucide-react";
@@ -2122,6 +2122,36 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
           </div>
         )}
 
+        {order.status === "paid" && (
+          <div className="space-y-2">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Payment Received</AlertTitle>
+              <AlertDescription>
+                Payment was confirmed but the order hasn't been sent to our print partner yet. Tap retry to submit it.
+              </AlertDescription>
+            </Alert>
+            <Button
+              onClick={handleRetry}
+              disabled={isRetrying}
+              className="w-full"
+              data-testid={`button-retry-paid-${order.id}`}
+            >
+              {isRetrying ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Submit to Print Partner
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
         {order.status === "failed" && (
           <div className="space-y-2">
             <Alert variant="destructive">
@@ -2271,14 +2301,19 @@ export default function MerchandisePage() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [confirmedOrderId, setConfirmedOrderId] = useState<string | null>(null);
 
+  const [confirmResult, setConfirmResult] = useState<{ status?: string; error?: string } | null>(null);
+
   const confirmPaymentMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      return apiRequest("POST", `/api/merchandise/orders/${orderId}/confirm-payment`);
+      const resp = await apiRequest("POST", `/api/merchandise/orders/${orderId}/confirm-payment`);
+      return resp.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      setConfirmResult({ status: data.status || 'submitted' });
       queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
     },
-    onError: () => {
+    onError: (err: any) => {
+      setConfirmResult({ status: 'error', error: err.message || 'Failed to confirm payment' });
       queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
     },
   });
@@ -2287,6 +2322,7 @@ export default function MerchandisePage() {
     if (checkoutStatus === "success" && orderId) {
       setShowConfirmation(true);
       setConfirmedOrderId(orderId);
+      setConfirmResult(null);
       window.history.replaceState({}, '', '/merchandise');
     } else if (checkoutStatus === "cancel") {
       toast({
@@ -2373,13 +2409,37 @@ export default function MerchandisePage() {
         {showConfirmation ? (
           <div className="max-w-lg mx-auto text-center py-12" data-testid="order-confirmation">
             <div className="mb-6">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Order Confirmed!</h2>
-              <p className="text-muted-foreground">
-                Your payment was successful. Your custom merchandise is being prepared and will be shipped to you soon.
-              </p>
+              {confirmPaymentMutation.isPending ? (
+                <>
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Loader2 className="h-8 w-8 text-blue-600 dark:text-blue-400 animate-spin" />
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2">Processing Order...</h2>
+                  <p className="text-muted-foreground">
+                    Verifying payment and submitting to our print partner. Please wait.
+                  </p>
+                </>
+              ) : confirmResult?.status === 'error' || confirmResult?.status === 'failed' ? (
+                <>
+                  <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertCircle className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2">Payment Received</h2>
+                  <p className="text-muted-foreground">
+                    Your payment was successful but we had trouble sending to our print partner. You can retry from your orders.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2">Order Confirmed!</h2>
+                  <p className="text-muted-foreground">
+                    Your payment was successful. Your custom merchandise is being prepared and will be shipped to you soon.
+                  </p>
+                </>
+              )}
             </div>
             <Card className="mb-6 text-left">
               <CardContent className="pt-6 space-y-3">
@@ -2388,8 +2448,16 @@ export default function MerchandisePage() {
                   <span>Payment processed</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Package className="h-5 w-5 text-primary" />
-                  <span>Order sent to our print partner</span>
+                  {confirmPaymentMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                  ) : confirmResult?.status === 'submitted' ? (
+                    <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  ) : confirmResult?.status === 'error' || confirmResult?.status === 'failed' ? (
+                    <AlertCircle className="h-5 w-5 text-yellow-600" />
+                  ) : (
+                    <Package className="h-5 w-5 text-primary" />
+                  )}
+                  <span>{confirmPaymentMutation.isPending ? 'Submitting to print partner...' : confirmResult?.status === 'submitted' ? 'Order sent to our print partner' : confirmResult?.status === 'error' || confirmResult?.status === 'failed' ? 'Print submission needs retry' : 'Order sent to our print partner'}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Truck className="h-5 w-5 text-muted-foreground" />
