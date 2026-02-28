@@ -7,6 +7,7 @@ import {
   custodianshipRequests, specialConnections, connectionRequests, familySearchConnections, familySearchSources,
   giftRegistries, giftRegistryItems, userConnectionRequests, userConnections, memberMergeHistory,
   externalPersonIdentifiers, pendingMemberSuggestions, crossTreeMatches, referrals, treeTags, memberTags,
+  radarSessions,
   type FamilyTree, type InsertFamilyTree, 
   type FamilyMember, type InsertFamilyMember,
   type Relationship, type InsertRelationship,
@@ -47,6 +48,7 @@ import {
   type Announcement, type InsertAnnouncement,
   memberMutes,
   type MemberMute, type InsertMemberMute,
+  type RadarSession,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, ilike, desc, lt, gte, isNotNull, isNull, inArray, sql, count } from "drizzle-orm";
@@ -399,6 +401,13 @@ export interface IStorage {
   addMemberTag(data: InsertMemberTag): Promise<MemberTag>;
   removeMemberTag(tagId: string, memberId: string): Promise<boolean>;
   bulkAddMemberTags(tagId: string, memberIds: string[], treeId: string): Promise<MemberTag[]>;
+
+  // Radar
+  activateRadar(userId: string, latitude: number, longitude: number, mode: string): Promise<RadarSession>;
+  updateRadarPosition(userId: string, latitude: number, longitude: number): Promise<RadarSession | undefined>;
+  deactivateRadar(userId: string): Promise<void>;
+  getRadarSession(userId: string): Promise<RadarSession | undefined>;
+  getNearbyRadarUsers(latitude: number, longitude: number, radiusMiles: number, excludeUserId: string): Promise<{ userId: string; name: string; profileImage: string | null; distance: number; mode: string; latitude: number; longitude: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3039,6 +3048,91 @@ export class DatabaseStorage implements IStorage {
       .values(newMemberIds.map(memberId => ({ tagId, memberId, treeId })))
       .returning();
     return [...existing, ...newTags];
+  }
+
+  // Radar
+  async activateRadar(userId: string, latitude: number, longitude: number, mode: string): Promise<RadarSession> {
+    const existing = await db.select().from(radarSessions)
+      .where(and(eq(radarSessions.userId, userId), eq(radarSessions.isActive, true)));
+    if (existing.length > 0) {
+      const [updated] = await db.update(radarSessions)
+        .set({ latitude, longitude, mode, lastPing: new Date(), isActive: true })
+        .where(eq(radarSessions.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+    const [session] = await db.insert(radarSessions)
+      .values({ userId, latitude, longitude, mode, isActive: true })
+      .returning();
+    return session;
+  }
+
+  async updateRadarPosition(userId: string, latitude: number, longitude: number): Promise<RadarSession | undefined> {
+    const [updated] = await db.update(radarSessions)
+      .set({ latitude, longitude, lastPing: new Date() })
+      .where(and(eq(radarSessions.userId, userId), eq(radarSessions.isActive, true)))
+      .returning();
+    return updated;
+  }
+
+  async deactivateRadar(userId: string): Promise<void> {
+    await db.update(radarSessions)
+      .set({ isActive: false })
+      .where(and(eq(radarSessions.userId, userId), eq(radarSessions.isActive, true)));
+  }
+
+  async getRadarSession(userId: string): Promise<RadarSession | undefined> {
+    const [session] = await db.select().from(radarSessions)
+      .where(and(eq(radarSessions.userId, userId), eq(radarSessions.isActive, true)));
+    if (!session) return undefined;
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+    if (session.lastPing < fiveMinAgo) {
+      await db.update(radarSessions)
+        .set({ isActive: false })
+        .where(eq(radarSessions.id, session.id));
+      return undefined;
+    }
+    return session;
+  }
+
+  async getNearbyRadarUsers(latitude: number, longitude: number, radiusMiles: number, excludeUserId: string): Promise<{ userId: string; name: string; profileImage: string | null; distance: number; mode: string; latitude: number; longitude: number }[]> {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+    await db.update(radarSessions)
+      .set({ isActive: false })
+      .where(and(eq(radarSessions.isActive, true), lt(radarSessions.lastPing, fiveMinAgo)));
+
+    const results = await db.execute(sql`
+      SELECT rs.user_id, rs.mode, rs.latitude, rs.longitude,
+        u.username as name, u.profile_image_url as profile_image,
+        (3959 * acos(
+          LEAST(1.0, cos(radians(${latitude})) * cos(radians(rs.latitude)) *
+          cos(radians(rs.longitude) - radians(${longitude})) +
+          sin(radians(${latitude})) * sin(radians(rs.latitude)))
+        )) as distance
+      FROM radar_sessions rs
+      JOIN users u ON u.id = rs.user_id
+      WHERE rs.is_active = true
+        AND rs.mode = 'broadcast'
+        AND rs.user_id != ${excludeUserId}
+        AND rs.last_ping >= ${fiveMinAgo}
+        AND (3959 * acos(
+          LEAST(1.0, cos(radians(${latitude})) * cos(radians(rs.latitude)) *
+          cos(radians(rs.longitude) - radians(${longitude})) +
+          sin(radians(${latitude})) * sin(radians(rs.latitude)))
+        )) <= ${radiusMiles}
+      ORDER BY distance ASC
+      LIMIT 50
+    `);
+
+    return (results.rows as any[]).map(r => ({
+      userId: r.user_id,
+      name: r.name || 'FamilyRoots Member',
+      profileImage: r.profile_image || null,
+      distance: Math.round(Number(r.distance) * 100) / 100,
+      mode: r.mode,
+      latitude: Number(r.latitude) + (Math.random() - 0.5) * 0.002,
+      longitude: Number(r.longitude) + (Math.random() - 0.5) * 0.002,
+    }));
   }
 }
 

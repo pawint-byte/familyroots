@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, date, pgEnum, integer, jsonb, real, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, date, pgEnum, integer, jsonb, real, unique, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -1305,3 +1305,23 @@ export const insertPoolUpdateNotificationSchema = createInsertSchema(poolUpdateN
 
 export type PoolUpdateNotification = typeof poolUpdateNotifications.$inferSelect;
 export type InsertPoolUpdateNotification = z.infer<typeof insertPoolUpdateNotificationSchema>;
+
+export const radarSessions = pgTable("radar_sessions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  mode: text("mode").notNull().default("broadcast"),
+  lastPing: timestamp("last_ping").defaultNow().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertRadarSessionSchema = createInsertSchema(radarSessions).omit({
+  id: true,
+  lastPing: true,
+  createdAt: true,
+});
+
+export type RadarSession = typeof radarSessions.$inferSelect;
+export type InsertRadarSession = z.infer<typeof insertRadarSessionSchema>;

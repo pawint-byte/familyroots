@@ -16211,5 +16211,78 @@ export async function registerRoutes(
     }
   });
 
+  // Radar - Members-Only Proximity Discovery
+  app.post("/api/radar/activate", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const schema = z.object({
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
+        mode: z.enum(["broadcast", "watch"]),
+      });
+      const parsed = schema.parse(req.body);
+      const session = await storage.activateRadar(req.user!.id, parsed.latitude, parsed.longitude, parsed.mode);
+      res.json(session);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      console.error("Error activating radar:", error);
+      res.status(500).json({ message: "Failed to activate radar" });
+    }
+  });
+
+  app.patch("/api/radar/position", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const schema = z.object({
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
+      });
+      const parsed = schema.parse(req.body);
+      const session = await storage.updateRadarPosition(req.user!.id, parsed.latitude, parsed.longitude);
+      if (!session) return res.status(404).json({ message: "No active radar session" });
+      res.json(session);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      console.error("Error updating radar position:", error);
+      res.status(500).json({ message: "Failed to update position" });
+    }
+  });
+
+  app.post("/api/radar/deactivate", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      await storage.deactivateRadar(req.user!.id);
+      res.json({ message: "Radar deactivated" });
+    } catch (error) {
+      console.error("Error deactivating radar:", error);
+      res.status(500).json({ message: "Failed to deactivate radar" });
+    }
+  });
+
+  app.get("/api/radar/status", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const session = await storage.getRadarSession(req.user!.id);
+      res.json({ active: !!session, session: session || null });
+    } catch (error) {
+      console.error("Error fetching radar status:", error);
+      res.status(500).json({ message: "Failed to fetch radar status" });
+    }
+  });
+
+  app.get("/api/radar/nearby", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const session = await storage.getRadarSession(req.user!.id);
+      if (!session) return res.status(400).json({ message: "Radar is not active" });
+      const radius = Math.min(Math.max(Number(req.query.radius) || 5, 0.1), 50);
+      const nearby = await storage.getNearbyRadarUsers(session.latitude, session.longitude, radius, req.user!.id);
+      res.json({ nearby, radius });
+    } catch (error) {
+      console.error("Error fetching nearby users:", error);
+      res.status(500).json({ message: "Failed to fetch nearby users" });
+    }
+  });
+
   return httpServer;
 }

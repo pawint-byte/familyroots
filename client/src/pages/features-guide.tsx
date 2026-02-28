@@ -9,7 +9,7 @@ import {
   Church, Trophy, GraduationCap, Briefcase, BookOpen, QrCode, Share2, Globe, MapPin,
   Search, Bell, Camera, Palette, ShoppingBag, Video, Bot, Link2, Layers, Split,
   Settings, Eye, Lock, Mail, Award, UserCheck, ScrollText, Network, GitMerge, CheckCircle2, FileCheck,
-  Star, ArrowRight, Crown, BookHeart, Mic, BarChart3
+  Star, ArrowRight, Crown, BookHeart, Mic, BarChart3, Radio
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -433,6 +433,12 @@ export default function FeaturesGuide() {
           description: "A yearly statistical summary of your tree including total members, new additions, relationship breakdowns, and growth trends. View reports for the current year or browse past years to see how your tree has evolved over time.",
           whereToFind: "Tree View > 'Report' tab. Select a year from the dropdown to view historical reports.",
           icon: <BarChart3 className="h-5 w-5 text-emerald-600" />,
+        },
+        {
+          name: "Member Radar",
+          description: "A members-only proximity discovery tool. Turn on Radar to find other FamilyRoots members nearby — like scanning for WiFi, but for people. Choose Broadcast mode to be visible to others, or Watch mode to scan privately. Your location auto-expires after 5 minutes of inactivity. Set the scan radius from 1 to 50 miles.",
+          whereToFind: "Dashboard > 'Radar' button in the top navigation bar, or use the mobile menu.",
+          icon: <Radio className="h-5 w-5 text-green-500" />,
         },
       ],
     },

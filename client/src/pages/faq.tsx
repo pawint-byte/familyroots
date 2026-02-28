@@ -901,6 +901,31 @@ export default function FAQ() {
           answer: "The report is generated automatically based on the data in your tree. It analyzes member additions, relationship types, and tree structure to produce statistics and insights. No manual setup is required — just navigate to the Report tab on your tree to see the current year's summary or browse previous years."
         }
       ]
+    },
+    {
+      title: "Member Radar",
+      items: [
+        {
+          question: "What is Member Radar?",
+          answer: "Member Radar is a proximity discovery feature that lets you find other FamilyRoots members nearby — like scanning for WiFi, but for people. Only signed-in members can use it. Turn it on when you're at a family reunion, community event, or anywhere you want to connect with other members in person."
+        },
+        {
+          question: "Is my location shared all the time?",
+          answer: "No. Radar is completely opt-in. Your location is only shared while you have Radar turned on. It automatically expires after 5 minutes of inactivity. You can turn it off anytime with one tap. When Radar is off, no location data is collected or shared."
+        },
+        {
+          question: "What's the difference between Broadcast and Watch mode?",
+          answer: "Broadcast mode makes you visible to other nearby members and lets you see them too — great for meetups and reunions. Watch mode lets you scan for nearby members without revealing your own position. Think of it as listening on the channel without transmitting."
+        },
+        {
+          question: "How far can Member Radar scan?",
+          answer: "You can set the scan radius from 1 mile up to 50 miles. The default is 5 miles. For events and reunions, a smaller radius like 1-2 miles works well. For discovering members in your broader area, try 10-25 miles."
+        },
+        {
+          question: "Can non-members see me on Radar?",
+          answer: "No. Member Radar is a members-only feature. Only signed-in FamilyRoots users with Radar active can see other members. It's a private channel — if you're not on the network, you can't see anyone."
+        }
+      ]
     }
   ];
 

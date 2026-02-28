@@ -15,7 +15,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { trackTreeCreation } from "@/lib/tracking";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe, BookOpen, GitBranch, Undo2, Clock, AlertTriangle, School } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe, BookOpen, GitBranch, Undo2, Clock, AlertTriangle, School, Radio } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -584,6 +584,17 @@ export default function Dashboard() {
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
+                  className="flex items-start gap-2"
+                  onClick={() => navigate("/radar")}
+                  data-testid="mobile-menu-radar"
+                >
+                  <Radio className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-medium">Member Radar</div>
+                    <div className="text-xs text-muted-foreground">Find nearby FamilyRoots members</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
                   className="flex items-center gap-2"
                   onClick={() => navigate("/share")}
                   data-testid="mobile-menu-share"
@@ -717,6 +728,17 @@ export default function Dashboard() {
               </TooltipTrigger>
               <TooltipContent>
                 <p>Browse and join public communities and groups</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/radar")} className="hidden md:flex gap-1" data-testid="link-radar">
+                  <Radio className="h-4 w-4" />
+                  <span className="hidden lg:inline">Radar</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Find nearby FamilyRoots members</p>
               </TooltipContent>
             </Tooltip>
             <Tooltip>
