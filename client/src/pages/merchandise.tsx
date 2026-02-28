@@ -96,12 +96,14 @@ function ProductCard({
   product, 
   onCustomize,
   memberCount,
-  activeTreeType 
+  activeTreeType,
+  markupMultiplier = 2
 }: { 
   product: Product; 
   onCustomize: (product: Product) => void;
   memberCount?: number;
   activeTreeType?: string;
+  markupMultiplier?: number;
 }) {
   const isSuitable = !memberCount || !product.maxMembers || memberCount <= product.maxMembers;
   const isRecommended = memberCount && product.maxMembers && memberCount <= product.maxMembers && 
@@ -181,7 +183,7 @@ function ProductCard({
       </CardHeader>
       <CardFooter className="flex justify-between items-center">
         <div className="text-lg font-semibold">
-          From ${product.basePrice.toFixed(2)}
+          From ${(product.basePrice * markupMultiplier).toFixed(2)}
         </div>
         <Button 
           onClick={() => onCustomize(product)}
@@ -897,9 +899,14 @@ function ProductCustomizer({
   const treeMembers = treeDetail?.members ?? [];
   const treeMemberCount = treeMembers.length;
 
-  const subtotal = selectedVariant 
-    ? parseFloat(selectedVariant.price) * quantity * 100 
-    : product.basePrice * quantity * 100;
+  const { data: pricingConfig } = useQuery<{ productMarkupPercent: number; shippingBufferPercent: number }>({
+    queryKey: ["/api/merchandise/pricing-config"],
+  });
+  const retailMarkup = pricingConfig ? (1 + pricingConfig.productMarkupPercent / 100) : 2;
+  const unitPriceCents = selectedVariant 
+    ? Math.round(parseFloat(selectedVariant.price) * 100 * retailMarkup)
+    : Math.round(product.basePrice * 100 * retailMarkup);
+  const subtotal = unitPriceCents * quantity;
 
   const isShippingValid = () => {
     return (
@@ -1804,7 +1811,7 @@ function ProductCustomizer({
                   <span>${(subtotal / 100).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Shipping + Commission</span>
+                  <span>Shipping + Tax</span>
                   <span>Calculated at checkout</span>
                 </div>
               </div>
@@ -2256,6 +2263,11 @@ export default function MerchandisePage() {
     queryKey: ["/api/merchandise/products"],
   });
 
+  const { data: pricingConfig } = useQuery<{ productMarkupPercent: number; shippingBufferPercent: number }>({
+    queryKey: ["/api/merchandise/pricing-config"],
+  });
+  const markupMultiplier = pricingConfig ? (1 + pricingConfig.productMarkupPercent / 100) : 2;
+
   const [preselectedTreeId, setPreselectedTreeId] = useState<string | null>(qrTreeIdParam);
 
   useEffect(() => {
@@ -2675,7 +2687,7 @@ export default function MerchandisePage() {
                                     <div className="flex items-center justify-between">
                                       <div>
                                         <p className="text-[11px] text-muted-foreground">{product.name}</p>
-                                        <p className="font-semibold text-sm">From ${product.basePrice.toFixed(2)}</p>
+                                        <p className="font-semibold text-sm">From ${(product.basePrice * markupMultiplier).toFixed(2)}</p>
                                       </div>
                                       <Button size="sm" variant="default" data-testid={`button-theme-order-${group.id}-${product.id}`}>
                                         <Zap className="h-3 w-3 mr-1" />
@@ -2740,6 +2752,7 @@ export default function MerchandisePage() {
                         onCustomize={(p) => { setProductPrefill(preselectedTreeId ? { treeId: preselectedTreeId } : undefined); setDialogKey(k => k + 1); setSelectedProduct(p); }}
                         memberCount={memberCount > 0 ? memberCount : undefined}
                         activeTreeType={activeType}
+                        markupMultiplier={markupMultiplier}
                       />
                     ));
                   })()}
@@ -2836,6 +2849,7 @@ export default function MerchandisePage() {
                     key={product.id}
                     product={product}
                     onCustomize={() => window.location.href = "/api/login"}
+                    markupMultiplier={markupMultiplier}
                   />
                 ))}
               </div>

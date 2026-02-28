@@ -10292,6 +10292,11 @@ export async function registerRoutes(
   // ============== MERCHANDISE / PRINTFUL ROUTES ==============
   
   // Get recommended products for merchandise
+  app.get("/api/merchandise/pricing-config", async (req, res) => {
+    const { PRODUCT_MARKUP_PERCENT, SHIPPING_BUFFER_PERCENT } = await import("./merchandisePricing");
+    res.json({ productMarkupPercent: PRODUCT_MARKUP_PERCENT, shippingBufferPercent: SHIPPING_BUFFER_PERCENT });
+  });
+
   app.get("/api/merchandise/products", async (req, res) => {
     try {
       const products = await printfulService.getRecommendedProducts();
@@ -10434,10 +10439,10 @@ export async function registerRoutes(
         : productName;
       const verifiedVariantName = printfulVariant?.name || variantName;
 
-      // Calculate subtotal from verified Printful price
-      const subtotal = variantPrice * orderQuantity;
+      const { getRetailPrice, getBufferedShipping, getStateTaxRate } = await import("./merchandisePricing");
 
-      // Get shipping cost from Printful (use standard shipping)
+      const subtotal = getRetailPrice(variantPrice) * orderQuantity;
+
       const printfulAddress = {
         name: shippingAddress.name,
         address1: shippingAddress.address1,
@@ -10453,29 +10458,22 @@ export async function registerRoutes(
         [{ variant_id: variantId, quantity: orderQuantity }]
       );
 
-      // Use MINIMUM (cheapest) available shipping rate for deterministic pricing
-      // Sort rates by cost and pick the cheapest to prevent manipulation
-      let shippingCost = 599; // Default $5.99 if no rates available
+      let printfulShipping = 599;
       if (shippingRates.length > 0) {
         const sortedRates = [...shippingRates].sort((a, b) => 
           parseFloat(a.rate) - parseFloat(b.rate)
         );
-        shippingCost = Math.round(parseFloat(sortedRates[0].rate) * 100);
+        printfulShipping = Math.round(parseFloat(sortedRates[0].rate) * 100);
       }
+      const shippingCost = getBufferedShipping(printfulShipping);
 
-      // Calculate commission (10% markup on subtotal)
-      const commission = Math.round(subtotal * 0.10);
+      const commission = 0;
 
-      // Estimate tax from Printful
-      const taxRate = await printfulService.estimateTax(
-        printfulAddress,
-        [{ variant_id: variantId, quantity: orderQuantity }]
-      );
+      const taxRate = getStateTaxRate(shippingAddress.stateCode || '');
       const taxableAmount = subtotal + shippingCost;
       const taxAmount = Math.round(taxableAmount * taxRate);
 
-      // Calculate total: subtotal + shipping + tax + commission
-      const totalAmount = subtotal + shippingCost + taxAmount + commission;
+      const totalAmount = subtotal + shippingCost + taxAmount;
 
       const qrUrl = req.body.qrUrl || null;
       const qrProfileUrl = includeQR ? (qrUrl || `${req.protocol}://${req.get('host')}/profile/${userId}`) : null;
