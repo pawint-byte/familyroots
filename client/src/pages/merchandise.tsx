@@ -953,10 +953,11 @@ function ProductCustomizer({
 
       let qrUrl: string | undefined;
       if (includeQR) {
-        if (selectedQRType === 'site') qrUrl = baseUrl;
-        else if (selectedQRType === 'profile' && userId) qrUrl = `${baseUrl}/profile/${userId}`;
-        else if (selectedQRType === 'tree' && treeInviteCode) qrUrl = `${baseUrl}/join/${treeInviteCode}`;
-        else qrUrl = baseUrl;
+        const orderBaseUrl = `${window.location.protocol}//${window.location.host}`;
+        if (selectedQRType === 'site') qrUrl = orderBaseUrl;
+        else if (selectedQRType === 'profile' && userId) qrUrl = `${orderBaseUrl}/profile/${userId}`;
+        else if (selectedQRType === 'tree' && treeInviteCode) qrUrl = `${orderBaseUrl}/join/${treeInviteCode}`;
+        else qrUrl = orderBaseUrl;
       }
 
       return apiRequest("POST", "/api/merchandise/orders", {
