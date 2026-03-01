@@ -414,6 +414,7 @@ async function restoreSplitMembers() {
           treeId: MAIN_TREE_ID,
           memberId: newMemberId,
           eventType: evt.eventType,
+          title: evt.title,
           eventDate: evt.eventDate,
           location: evt.location,
           description: evt.description,
