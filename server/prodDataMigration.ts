@@ -131,6 +131,20 @@ const RELATIONSHIP_DEFS: RelDef[] = [
   ["Agatha|Wint", "Duncan|Ceforth Wint", "sibling", null],
   ["Robert|Simms", "Agatha|Wint", "spouse", null],
   ["Agatha|Wint", "Robert|Simms", "spouse", null],
+  ["Kevin|Bynum", "Joan|Bynum", "child", null],
+  ["Joan|Bynum", "Kevin|Bynum", "parent", null],
+  ["Courtney|Bynum", "Joan|Bynum", "child", null],
+  ["Joan|Bynum", "Courtney|Bynum", "parent", null],
+  ["Melissa Bernard|Thompson", "Karen|Simpson", "child", null],
+  ["Karen|Simpson", "Melissa Bernard|Thompson", "parent", null],
+  ["Michael|Simpson", "Karen|Simpson", "child", null],
+  ["Karen|Simpson", "Michael|Simpson", "parent", null],
+  ["Krystyna|Simpson", "Karen|Simpson", "child", null],
+  ["Karen|Simpson", "Krystyna|Simpson", "parent", null],
+  ["Christopher|Berry", "Anne-Marie|Wint", "child", null],
+  ["Anne-Marie|Wint", "Christopher|Berry", "parent", null],
+  ["Travis|Wint", "Anne-Marie|Wint", "child", null],
+  ["Anne-Marie|Wint", "Travis|Wint", "parent", null],
 ];
 
 export async function runProdDataMigration() {
