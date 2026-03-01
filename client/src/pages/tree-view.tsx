@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { parseDateString } from "@/lib/utils";
@@ -75,6 +75,104 @@ interface TreeData {
   childTrees?: { id: string; name: string }[];
   tags?: TreeTag[];
   memberTags?: MemberTag[];
+}
+
+function ScrollableTabBar({ children, activeTab }: { children: ReactNode; activeTab: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [translateX, setTranslateX] = useState(0);
+  const touchRef = useRef({ startX: 0, startTranslate: 0, isDragging: false, startTime: 0 });
+
+  const getMaxScroll = useCallback(() => {
+    if (!containerRef.current || !innerRef.current) return 0;
+    const containerWidth = containerRef.current.offsetWidth;
+    const contentWidth = innerRef.current.scrollWidth;
+    return Math.max(0, contentWidth - containerWidth);
+  }, []);
+
+  const clamp = useCallback((val: number) => {
+    const max = getMaxScroll();
+    return Math.max(-max, Math.min(0, val));
+  }, [getMaxScroll]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      touchRef.current.startX = e.touches[0].clientX;
+      touchRef.current.startTranslate = translateX;
+      touchRef.current.isDragging = false;
+      touchRef.current.startTime = Date.now();
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const deltaX = e.touches[0].clientX - touchRef.current.startX;
+      if (Math.abs(deltaX) > 5) {
+        touchRef.current.isDragging = true;
+        e.preventDefault();
+        const newTranslate = clamp(touchRef.current.startTranslate + deltaX);
+        setTranslateX(newTranslate);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      touchRef.current.isDragging = false;
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [translateX, clamp]);
+
+  useEffect(() => {
+    if (!innerRef.current || !containerRef.current) return;
+    const tabs = ['tree', 'members', 'timeline', 'memories', 'report', 'registries'];
+    const idx = tabs.indexOf(activeTab);
+    if (idx < 0) return;
+    const tabElements = innerRef.current.querySelectorAll('[role="tab"]');
+    if (idx >= tabElements.length) return;
+    const tab = tabElements[idx] as HTMLElement;
+    const containerWidth = containerRef.current.offsetWidth;
+    const tabLeft = tab.offsetLeft;
+    const tabWidth = tab.offsetWidth;
+    const tabCenter = tabLeft + tabWidth / 2;
+    const desiredTranslate = -(tabCenter - containerWidth / 2);
+    setTranslateX(clamp(desiredTranslate));
+  }, [activeTab, clamp]);
+
+  const maxScroll = getMaxScroll();
+  const showLeftFade = translateX < -5;
+  const showRightFade = Math.abs(translateX) < maxScroll - 5;
+
+  return (
+    <div className="border-b border-border bg-card/50 relative" ref={containerRef} style={{ overflow: 'hidden' }} data-testid="tab-scroll-container">
+      {showLeftFade && (
+        <div className="absolute left-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: 'linear-gradient(to right, hsl(var(--card)/0.9), transparent)' }} />
+      )}
+      {showRightFade && (
+        <div className="absolute right-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: 'linear-gradient(to left, hsl(var(--card)/0.9), transparent)' }} />
+      )}
+      <div
+        ref={innerRef}
+        style={{
+          transform: `translateX(${translateX}px)`,
+          transition: touchRef.current.isDragging ? 'none' : 'transform 0.25s ease-out',
+          willChange: 'transform',
+        }}
+      >
+        <TabsList className="bg-transparent h-12 p-0 gap-1 sm:gap-4 inline-flex flex-nowrap w-max px-4">
+          {children}
+        </TabsList>
+      </div>
+    </div>
+  );
 }
 
 export default function TreeView() {
@@ -1798,26 +1896,7 @@ export default function TreeView() {
 
       <div className="flex-1 flex min-h-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <div 
-            className="border-b border-border bg-card/50 relative scrollbar-hide"
-            data-testid="tab-scroll-container"
-            style={{ overflowX: 'scroll', WebkitOverflowScrolling: 'touch' }}
-            onTouchStart={(e) => {
-              const el = e.currentTarget;
-              el.dataset.touchStartX = String(e.touches[0].clientX);
-              el.dataset.touchScrollLeft = String(el.scrollLeft);
-            }}
-            onTouchMove={(e) => {
-              const el = e.currentTarget;
-              const startX = Number(el.dataset.touchStartX || 0);
-              const scrollLeftStart = Number(el.dataset.touchScrollLeft || 0);
-              const deltaX = startX - e.touches[0].clientX;
-              if (Math.abs(deltaX) > 3) {
-                el.scrollLeft = scrollLeftStart + deltaX;
-              }
-            }}
-          >
-              <TabsList className="bg-transparent h-12 p-0 gap-1 sm:gap-4 inline-flex flex-nowrap w-max px-4">
+          <ScrollableTabBar activeTab={activeTab}>
                 <TabsTrigger 
                   value="tree" 
                   className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
@@ -1866,8 +1945,7 @@ export default function TreeView() {
                   <Gift className="h-4 w-4 shrink-0" />
                   Registries
                 </TabsTrigger>
-              </TabsList>
-          </div>
+          </ScrollableTabBar>
 
           {(treeData?.childTrees && treeData.childTrees.length > 0 || (isOwner || isCoOwner)) && (
             <div className="border-b border-border bg-muted/30 px-4 py-2">
