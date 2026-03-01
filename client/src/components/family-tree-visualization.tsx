@@ -364,6 +364,9 @@ export default function FamilyTreeVisualization({
     
     if (!focusMember) return { positions: [], labels: [] };
 
+    const focusFirstName = focusMember.firstName || 'Focus';
+    const focusName = focusFirstName.endsWith('s') ? `${focusFirstName}'` : `${focusFirstName}'s`;
+
     // PRE-IDENTIFY siblings to prevent them from being placed as grandparents or other roles
     const focusSiblings = new Set<string>(getSiblings(focusId, parentChildMap, childParentMap, siblingMap));
     focusSiblings.delete(focusId); // Remove focus from their own siblings list
@@ -551,7 +554,24 @@ export default function FamilyTreeVisualization({
       const parentY = centerY - verticalGap - nodeHeight;
       const parentStartX = centerX - ((parents.length - 1) * (nodeWidth + horizontalGap)) / 2;
       
-      labels.push({ x: centerX, y: parentY + nodeHeight + 40, text: 'Parents', type: 'parent' });
+      labels.push({ x: centerX, y: parentY + nodeHeight + 40, text: `${focusName} Parents`, type: 'parent' });
+      
+      const hasGrandparents = showGrandparents && parents.some(p => !p.isUnknown && (childParentMap.get(p.id) || []).length > 0);
+      if (hasGrandparents) {
+        const gpY = parentY - verticalGap - nodeHeight;
+        labels.push({ x: centerX, y: gpY + nodeHeight + 40, text: `${focusName} Grandparents`, type: 'grandparent' });
+        
+        if (showGreatGrandparents) {
+          const hasGreatGrandparents = parents.some(p => {
+            const gpIds = childParentMap.get(p.id) || [];
+            return gpIds.some(gpId => (childParentMap.get(gpId) || []).length > 0);
+          });
+          if (hasGreatGrandparents) {
+            const ggpY = gpY - verticalGap - nodeHeight;
+            labels.push({ x: centerX, y: ggpY + nodeHeight + 40, text: `${focusName} Great-Grandparents`, type: 'greatgrandparent' });
+          }
+        }
+      }
       
       parents.forEach((parent, index) => {
         if (!placed.has(parent.id)) {
@@ -723,7 +743,7 @@ export default function FamilyTreeVisualization({
       const siblings = allSiblings.filter(sibId => sibId !== focusId && !placed.has(sibId));
       if (siblings.length > 0) {
         const sibSpacing = nodeWidth + horizontalGap / 3;
-        labels.push({ x: centerX - sibSpacing * ((siblings.length + 1) / 2), y: centerY - 30, text: 'Siblings', type: 'sibling' });
+        labels.push({ x: centerX - sibSpacing * ((siblings.length + 1) / 2), y: centerY - 30, text: `${focusName} Siblings`, type: 'sibling' });
         
         siblings.forEach((sibId, index) => {
           const sib = deduplicatedMembers.find(m => m.id === sibId);
@@ -769,7 +789,7 @@ export default function FamilyTreeVisualization({
       coParentPositions.forEach(cp => familyXPositions.push(cp.x));
       const familyUnitCenter = (Math.min(...familyXPositions) + Math.max(...familyXPositions)) / 2;
       
-      labels.push({ x: familyUnitCenter, y: childY - 40, text: 'Children', type: 'child' });
+      labels.push({ x: familyUnitCenter, y: childY - 40, text: `${focusName} Children`, type: 'child' });
 
       const measureSubtreeWidth = (rootId: string, visited: Set<string>): number => {
         if (visited.has(rootId) || placed.has(rootId)) return 0;
@@ -1806,6 +1826,8 @@ export default function FamilyTreeVisualization({
                   height="24"
                   rx="12"
                   fill={label.type === 'parent' ? BRANCH_COLORS.parent.line : 
+                        label.type === 'grandparent' ? BRANCH_COLORS.grandparent.line :
+                        label.type === 'greatgrandparent' ? BRANCH_COLORS.greatgrandparent.line :
                         label.type === 'sibling' ? BRANCH_COLORS.sibling.line : 
                         label.type === 'unconnected' ? BRANCH_COLORS.unconnected.line :
                         BRANCH_COLORS.child.line}

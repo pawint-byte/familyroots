@@ -1,12 +1,11 @@
 /**
  * Production → Development Database Sync Script
  * 
- * QUALITY CHECK: Before syncing, compares total record counts.
- * If production has FEWER total records than dev, sync is BLOCKED
- * to prevent data loss from overwriting more complete data.
+ * ADDITIVE ONLY — never deletes dev data.
+ * Inserts any records from production that don't already exist in dev.
+ * Uses ON CONFLICT DO NOTHING so existing dev records are preserved.
  * 
  * Usage: Run via the agent's code execution environment using executeSql()
- * The script logic is implemented as the syncProdToDev() function below.
  * 
  * Tables synced (in order):
  *   1. family_trees
@@ -20,10 +19,10 @@
  *   9. name_history / education_history / career_history
  * 
  * Safety rules:
- *   - Total production records must be >= total dev records
- *   - Per-table counts are logged but only total blocks the sync
- *   - Post-sync verification confirms counts match
- *   - Force override available but logged as a warning
+ *   - NEVER deletes existing dev records
+ *   - Only inserts records that don't already exist (ON CONFLICT DO NOTHING)
+ *   - Dev data is always preserved — production adds to it, never replaces it
+ *   - Post-sync report shows what was added
  */
 
 export const OWNER_ID = "52852375";
