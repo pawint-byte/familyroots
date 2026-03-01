@@ -53,15 +53,13 @@ export default function GiftRegistryPage() {
   const [description, setDescription] = useState("");
   const [notifyMembers, setNotifyMembers] = useState(true);
 
-  const { data: tree } = useQuery<{ id: string; name: string; ownerId: string }>({
+  const { data: treeData } = useQuery<{ tree: { id: string; name: string; ownerId: string }; members: FamilyMember[] }>({
     queryKey: ["/api/trees", treeId],
     enabled: !!treeId,
   });
 
-  const { data: members } = useQuery<FamilyMember[]>({
-    queryKey: ["/api/trees", treeId, "members"],
-    enabled: !!treeId,
-  });
+  const tree = treeData?.tree;
+  const members = treeData?.members;
 
   const { data: registries, isLoading } = useQuery<EnrichedRegistry[]>({
     queryKey: ["/api/trees", treeId, "registries"],

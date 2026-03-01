@@ -477,7 +477,34 @@ async function restoreCrossRelationships() {
       log(`[migration] All cross-relationships already present`, "migration");
     }
 
+    await fixRegistryMemberReferences(nameToId);
+
   } catch (error) {
     console.error("[migration] Error restoring cross-relationships:", error);
+  }
+}
+
+async function fixRegistryMemberReferences(mainTreeNameToId: Map<string, string>) {
+  try {
+    const registries = await db.select().from(giftRegistries)
+      .where(eq(giftRegistries.treeId, MAIN_TREE_ID));
+
+    for (const reg of registries) {
+      const member = await db.select().from(familyMembers)
+        .where(eq(familyMembers.id, reg.memberId));
+
+      if (member.length > 0 && member[0].treeId !== MAIN_TREE_ID) {
+        const nameKey = `${member[0].firstName}|${member[0].lastName}`;
+        const correctId = mainTreeNameToId.get(nameKey);
+        if (correctId && correctId !== reg.memberId) {
+          await db.update(giftRegistries)
+            .set({ memberId: correctId })
+            .where(eq(giftRegistries.id, reg.id));
+          log(`[migration] Fixed registry "${reg.title}" member reference: ${reg.memberId} → ${correctId}`, "migration");
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[migration] Error fixing registry member references:", error);
   }
 }

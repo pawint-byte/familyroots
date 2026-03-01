@@ -212,8 +212,9 @@ export async function registerRoutes(
       // Get collaborated trees
       const { collaboratedTrees } = await storage.getCollaboratedTrees(userId);
       
-      // Combine and deduplicate
-      const allTrees = [...ownedTrees, ...collaboratedTrees];
+      const seenIds = new Set(ownedTrees.map(t => t.id));
+      const uniqueCollaborated = collaboratedTrees.filter(t => !seenIds.has(t.id));
+      const allTrees = [...ownedTrees, ...uniqueCollaborated];
       
       // Add member counts to each tree
       const treesWithCounts = await Promise.all(
