@@ -278,6 +278,7 @@ async function restoreSplitMembers() {
     const [ashleyTree] = await db.select().from(familyTrees).where(eq(familyTrees.id, ASHLEY_WEST_TREE_ID));
     if (!ashleyTree) {
       log(`[migration] Ashley West tree not found, skipping restore`, "migration");
+      await restoreCrossRelationships();
       return;
     }
 
@@ -288,6 +289,7 @@ async function restoreSplitMembers() {
 
     if (ashleyMembers.length === 0) {
       log(`[migration] Ashley West tree has no members, skipping restore`, "migration");
+      await restoreCrossRelationships();
       return;
     }
 
@@ -299,6 +301,7 @@ async function restoreSplitMembers() {
 
     if (toRestore.length === 0) {
       log(`[migration] All Ashley West members already in main tree, no restore needed`, "migration");
+      await restoreCrossRelationships();
       return;
     }
 
@@ -410,7 +413,57 @@ async function restoreSplitMembers() {
 
     log(`[migration] Restore complete: ${toRestore.length} members, ${relsCreated} relationships, ${eventsCopied} events copied. Tree now has ${finalCount[0].count} members.`, "migration");
 
+    await restoreCrossRelationships();
+
   } catch (error) {
     console.error("[migration] Error restoring split members:", error);
+  }
+}
+
+async function restoreCrossRelationships() {
+  try {
+    const allMembers = await db.select().from(familyMembers)
+      .where(and(eq(familyMembers.treeId, MAIN_TREE_ID), isNull(familyMembers.deletedAt)));
+
+    const nameToId = new Map<string, string>();
+    for (const m of allMembers) {
+      nameToId.set(`${m.firstName}|${m.lastName}`, m.id);
+    }
+
+    const existingRels = await db.select().from(relationshipsTable)
+      .where(and(eq(relationshipsTable.treeId, MAIN_TREE_ID), isNull(relationshipsTable.deletedAt)));
+
+    const relSet = new Set(existingRels.map(r => `${r.fromMemberId}|${r.toMemberId}|${r.relationshipType}`));
+
+    let crossRelsCreated = 0;
+    for (const [fromKey, toKey, relType, qualifier] of RELATIONSHIP_DEFS) {
+      const fromId = nameToId.get(fromKey);
+      const toId = nameToId.get(toKey);
+      if (!fromId || !toId) continue;
+
+      const key = `${fromId}|${toId}|${relType}`;
+      if (relSet.has(key)) continue;
+
+      await db.insert(relationshipsTable).values({
+        id: crypto.randomUUID(),
+        treeId: MAIN_TREE_ID,
+        fromMemberId: fromId,
+        toMemberId: toId,
+        relationshipType: relType,
+        qualifier: qualifier,
+      });
+      relSet.add(key);
+      crossRelsCreated++;
+      log(`[migration] Cross-rel: ${fromKey} → ${toKey} (${relType})`, "migration");
+    }
+
+    if (crossRelsCreated > 0) {
+      log(`[migration] Restored ${crossRelsCreated} cross-relationships from RELATIONSHIP_DEFS`, "migration");
+    } else {
+      log(`[migration] All cross-relationships already present`, "migration");
+    }
+
+  } catch (error) {
+    console.error("[migration] Error restoring cross-relationships:", error);
   }
 }
