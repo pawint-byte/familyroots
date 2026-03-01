@@ -485,110 +485,96 @@ export class DatabaseStorage implements IStorage {
         preferredLayout: sourceTree.preferredLayout,
       }).returning();
 
-      await tx.update(familyMembers)
-        .set({ treeId: newTree.id, updatedAt: new Date() })
+      const sourceMembersToSplit = await tx.select().from(familyMembers)
         .where(and(
           eq(familyMembers.treeId, sourceTreeId),
           inArray(familyMembers.id, params.memberIds)
         ));
 
-      const allRels = await tx.select().from(relationships)
-        .where(eq(relationships.treeId, sourceTreeId));
+      const idMapping = new Map<string, string>();
+      for (const m of sourceMembersToSplit) {
+        const newId = crypto.randomUUID();
+        idMapping.set(m.id, newId);
+        await tx.insert(familyMembers).values({
+          id: newId,
+          treeId: newTree.id,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          suffix: m.suffix,
+          nickname: m.nickname,
+          email: m.email,
+          alternateEmail: m.alternateEmail,
+          gender: m.gender,
+          birthDate: m.birthDate,
+          deathDate: m.deathDate,
+          birthPlace: m.birthPlace,
+          isLiving: m.isLiving,
+          photoUrl: m.photoUrl,
+          notes: m.notes,
+          isUnknown: m.isUnknown,
+          unknownLabel: m.unknownLabel,
+          claimedByUserId: m.claimedByUserId,
+          claimedAt: m.claimedAt,
+          visibilityOverride: m.visibilityOverride,
+          sharedInPool: m.sharedInPool,
+          currentCity: m.currentCity,
+          currentRegion: m.currentRegion,
+          currentCountry: m.currentCountry,
+          locationVisible: m.locationVisible,
+          customPosition: m.customPosition,
+        });
+      }
 
-      const relsToMove: string[] = [];
-      const relsToDelete: string[] = [];
+      const allRels = await tx.select().from(relationships)
+        .where(and(eq(relationships.treeId, sourceTreeId), isNull(relationships.deletedAt)));
 
       for (const rel of allRels) {
-        const fromMoved = memberIdSet.has(rel.fromMemberId);
-        const toMoved = memberIdSet.has(rel.toMemberId);
-        if (fromMoved && toMoved) {
-          relsToMove.push(rel.id);
-        } else if (fromMoved || toMoved) {
-          relsToDelete.push(rel.id);
+        const fromInSplit = memberIdSet.has(rel.fromMemberId);
+        const toInSplit = memberIdSet.has(rel.toMemberId);
+        if (fromInSplit && toInSplit) {
+          const newFromId = idMapping.get(rel.fromMemberId);
+          const newToId = idMapping.get(rel.toMemberId);
+          if (newFromId && newToId) {
+            await tx.insert(relationships).values({
+              id: crypto.randomUUID(),
+              treeId: newTree.id,
+              fromMemberId: newFromId,
+              toMemberId: newToId,
+              relationshipType: rel.relationshipType,
+              qualifier: rel.qualifier,
+              customLabel: rel.customLabel,
+            });
+          }
         }
       }
 
-      if (relsToMove.length > 0) {
-        await tx.update(relationships)
-          .set({ treeId: newTree.id })
-          .where(inArray(relationships.id, relsToMove));
-      }
-      if (relsToDelete.length > 0) {
-        await tx.delete(relationships)
-          .where(inArray(relationships.id, relsToDelete));
+      const mappedRootId = params.rootMemberId ? idMapping.get(params.rootMemberId) : null;
+      if (mappedRootId) {
+        await tx.update(familyTrees)
+          .set({ rootMemberId: mappedRootId })
+          .where(eq(familyTrees.id, newTree.id));
+        newTree.rootMemberId = mappedRootId;
       }
 
       if (params.memberIds.length > 0) {
-        await tx.update(memberMutes)
-          .set({ treeId: newTree.id })
-          .where(and(
-            eq(memberMutes.treeId, sourceTreeId),
-            inArray(memberMutes.memberId, params.memberIds)
-          ));
-
-        await tx.update(familyEvents)
-          .set({ treeId: newTree.id })
+        const sourceEvents = await tx.select().from(familyEvents)
           .where(and(
             eq(familyEvents.treeId, sourceTreeId),
             inArray(familyEvents.memberId, params.memberIds)
           ));
-
-        await tx.update(memberInvitations)
-          .set({ treeId: newTree.id, treeName: newTree.name })
-          .where(and(
-            eq(memberInvitations.treeId, sourceTreeId),
-            inArray(memberInvitations.memberId, params.memberIds)
-          ));
-
-        await tx.update(profileClaimRequests)
-          .set({ treeId: newTree.id })
-          .where(and(
-            eq(profileClaimRequests.treeId, sourceTreeId),
-            inArray(profileClaimRequests.memberId, params.memberIds)
-          ));
-
-        await tx.update(custodianshipRequests)
-          .set({ treeId: newTree.id })
-          .where(and(
-            eq(custodianshipRequests.treeId, sourceTreeId),
-            inArray(custodianshipRequests.memberId, params.memberIds)
-          ));
-
-        await tx.update(specialConnections)
-          .set({ fromTreeId: newTree.id })
-          .where(and(
-            eq(specialConnections.fromTreeId, sourceTreeId),
-            inArray(specialConnections.fromMemberId, params.memberIds)
-          ));
-        await tx.update(specialConnections)
-          .set({ toTreeId: newTree.id })
-          .where(and(
-            eq(specialConnections.toTreeId, sourceTreeId),
-            inArray(specialConnections.toMemberId, params.memberIds)
-          ));
-
-        await tx.update(connectionRequests)
-          .set({ fromTreeId: newTree.id })
-          .where(and(
-            eq(connectionRequests.fromTreeId, sourceTreeId),
-            inArray(connectionRequests.fromMemberId, params.memberIds)
-          ));
-        await tx.update(connectionRequests)
-          .set({ toTreeId: newTree.id })
-          .where(and(
-            eq(connectionRequests.toTreeId, sourceTreeId),
-            inArray(connectionRequests.toMemberId, params.memberIds)
-          ));
-      }
-
-      if (sourceTree.rootMemberId && memberIdSet.has(sourceTree.rootMemberId)) {
-        const remainingMembers = await tx.select({ id: familyMembers.id })
-          .from(familyMembers)
-          .where(eq(familyMembers.treeId, sourceTreeId))
-          .limit(1);
-        await tx.update(familyTrees)
-          .set({ rootMemberId: remainingMembers[0]?.id || null, updatedAt: new Date() })
-          .where(eq(familyTrees.id, sourceTreeId));
+        for (const evt of sourceEvents) {
+          const newMemberId = idMapping.get(evt.memberId);
+          if (newMemberId) {
+            await tx.insert(familyEvents).values({
+              treeId: newTree.id,
+              memberId: newMemberId,
+              eventType: evt.eventType,
+              eventDate: evt.eventDate,
+              location: evt.location,
+              description: evt.description,
+            });
+          }
+        }
       }
 
       if (params.createConnection) {

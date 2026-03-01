@@ -2,7 +2,7 @@
 
 ## Overview
 
-FamilyRoots is a full-stack web application for creating, managing, and visualizing interactive trees. It supports diverse community structures beyond traditional family trees, such as church groups, sports teams, and professional networks. The platform enables users to anchor themselves across multiple tree types, each with unique relationship types and terminology. The project's core vision is to provide a collaborative, privacy-aware, and securely authenticated platform for visualizing various groups, fostering connections, and preserving legacies. It offers advanced features like nested sub-groups, tree splitting, cloning, selective merged views, and an AI-powered assistant, aiming to be a comprehensive solution for community and legacy management.
+FamilyRoots is a full-stack web application for creating, managing, and visualizing interactive trees. It supports diverse community structures beyond traditional family trees, such as church groups, sports teams, and professional networks. The platform enables users to anchor themselves across multiple tree types, each with unique relationship types and terminology. The project's core vision is to provide a collaborative, privacy-aware, and securely authenticated platform for visualizing various groups, fostering connections, and preserving legacies. It offers advanced features like nested sub-groups, tree splitting (copies members to new tree, preserving source), cloning, selective merged views, and an AI-powered assistant, aiming to be a comprehensive solution for community and legacy management.
 
 ## User Preferences
 
