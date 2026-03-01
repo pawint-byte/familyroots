@@ -14552,13 +14552,17 @@ export async function registerRoutes(
         return urlObj.toString();
       }
       
-      // Etsy affiliate tracking via Awin (Publisher ID: 2735710)
+      // Awin affiliate tracking (Publisher ID: 2735710)
       if (urlObj.hostname.includes('etsy.com')) {
         const encodedUrl = encodeURIComponent(url);
         return `https://www.awin1.com/cread.php?awinmid=6220&awinaffid=2735710&ued=${encodedUrl}`;
       }
       
-      // Return unchanged for other URLs
+      if (urlObj.hostname.includes('giftlab.com')) {
+        const encodedUrl = encodeURIComponent(url);
+        return `https://www.awin1.com/cread.php?awinmid=95201&awinaffid=2735710&ued=${encodedUrl}`;
+      }
+      
       return url;
     } catch {
       return url;
