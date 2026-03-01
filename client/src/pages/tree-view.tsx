@@ -1798,9 +1798,8 @@ export default function TreeView() {
 
       <div className="flex-1 flex min-h-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <div className="border-b border-border bg-card/50 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <div className="px-4">
-              <TabsList className="bg-transparent h-12 p-0 gap-1 sm:gap-4 flex-nowrap w-max">
+          <div className="border-b border-border bg-card/50 overflow-x-auto scrollbar-hide touch-pan-x">
+              <TabsList className="bg-transparent h-12 p-0 gap-1 sm:gap-4 w-max px-4 inline-flex flex-nowrap">
                 <TabsTrigger 
                   value="tree" 
                   className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-2 sm:px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
@@ -1850,7 +1849,6 @@ export default function TreeView() {
                   Registries
                 </TabsTrigger>
               </TabsList>
-            </div>
           </div>
 
           {(treeData?.childTrees && treeData.childTrees.length > 0 || (isOwner || isCoOwner)) && (
