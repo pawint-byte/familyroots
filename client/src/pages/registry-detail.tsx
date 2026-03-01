@@ -156,9 +156,11 @@ export default function RegistryDetailPage() {
     const isAmazon = parsedUrl.hostname.includes('amazon.com') || parsedUrl.hostname.includes('amzn.to') || parsedUrl.hostname.includes('amzn.com');
     const isEtsy = parsedUrl.hostname.includes('etsy.com');
     const isGiftlab = parsedUrl.hostname.includes('giftlab.com');
+    const isGiftory = parsedUrl.hostname.includes('giftory.com');
+    const isLucasgift = parsedUrl.hostname.includes('lucasgift.com');
 
-    if (isAmazon || isEtsy || isGiftlab) {
-      const storeName = isAmazon ? "Amazon" : isEtsy ? "Etsy" : "Giftlab";
+    if (isAmazon || isEtsy || isGiftlab || isGiftory || isLucasgift) {
+      const storeName = isAmazon ? "Amazon" : isEtsy ? "Etsy" : isGiftlab ? "Giftlab" : isGiftory ? "Giftory" : "Lucasgift";
       setShowItemFields(true);
       toast({ title: `${storeName} link saved`, description: "Please enter the item name and price below." });
       return;
@@ -200,6 +202,8 @@ export default function RegistryDetailPage() {
     { name: "Amazon", icon: SiAmazon, color: "text-[#FF9900]", searchUrl: "https://www.amazon.com/s?k=" },
     { name: "Etsy", icon: SiEtsy, color: "text-[#F1641E]", searchUrl: "https://www.etsy.com/search?q=" },
     { name: "Giftlab", icon: Gift, color: "text-[#E91E63]", searchUrl: "https://www.giftlab.com/search?q=" },
+    { name: "Giftory", icon: Gift, color: "text-[#6B46C1]", searchUrl: "https://www.giftory.com/search?q=" },
+    { name: "Lucasgift", icon: Gift, color: "text-[#2D8C5A]", searchUrl: "https://www.lucasgift.com/search?q=" },
   ];
   const [storeSearch, setStoreSearch] = useState("");
 

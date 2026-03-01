@@ -395,6 +395,14 @@ function testAffiliateTracking() {
         const encodedUrl = encodeURIComponent(url);
         return `https://www.awin1.com/cread.php?awinmid=95201&awinaffid=2735710&ued=${encodedUrl}`;
       }
+      if (urlObj.hostname.includes('giftory.com')) {
+        const encodedUrl = encodeURIComponent(url);
+        return `https://www.awin1.com/cread.php?awinmid=113182&awinaffid=2735710&ued=${encodedUrl}`;
+      }
+      if (urlObj.hostname.includes('lucasgift.com')) {
+        const encodedUrl = encodeURIComponent(url);
+        return `https://www.awin1.com/cread.php?awinmid=100541&awinaffid=2735710&ued=${encodedUrl}`;
+      }
       return url;
     } catch {
       return url;
@@ -425,6 +433,16 @@ function testAffiliateTracking() {
 
   const amznShort = addAffiliateTracking("https://amzn.to/3abc123");
   assert(amznShort?.includes("tag=pawint-20") === true, "Shortened Amazon URL gets affiliate tag");
+
+  const giftoryUrl = addAffiliateTracking("https://www.giftory.com/experience/broadway-tickets");
+  assert(giftoryUrl?.includes("awinmid=113182") === true, "Giftory URL has correct Awin merchant ID (113182)");
+  assert(giftoryUrl?.includes("awinaffid=2735710") === true, "Giftory URL has correct Awin publisher ID");
+  assert(giftoryUrl?.includes("awin1.com") === true, "Giftory URL wrapped in Awin redirect");
+
+  const lucasgiftUrl = addAffiliateTracking("https://www.lucasgift.com/products/personalized-keychain");
+  assert(lucasgiftUrl?.includes("awinmid=100541") === true, "Lucasgift URL has correct Awin merchant ID (100541)");
+  assert(lucasgiftUrl?.includes("awinaffid=2735710") === true, "Lucasgift URL has correct Awin publisher ID");
+  assert(lucasgiftUrl?.includes("awin1.com") === true, "Lucasgift URL wrapped in Awin redirect");
 }
 
 // ============================================================

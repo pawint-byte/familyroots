@@ -14673,6 +14673,16 @@ export async function registerRoutes(
         return `https://www.awin1.com/cread.php?awinmid=95201&awinaffid=2735710&ued=${encodedUrl}`;
       }
       
+      if (urlObj.hostname.includes('giftory.com')) {
+        const encodedUrl = encodeURIComponent(url);
+        return `https://www.awin1.com/cread.php?awinmid=113182&awinaffid=2735710&ued=${encodedUrl}`;
+      }
+      
+      if (urlObj.hostname.includes('lucasgift.com')) {
+        const encodedUrl = encodeURIComponent(url);
+        return `https://www.awin1.com/cread.php?awinmid=100541&awinaffid=2735710&ued=${encodedUrl}`;
+      }
+      
       return url;
     } catch {
       return url;
