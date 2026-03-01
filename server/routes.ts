@@ -8555,6 +8555,115 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Copy members from one tree to another (restores split members)
+  app.post("/api/admin/copy-members-between-trees", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { sourceTreeId, targetTreeId, memberIds } = req.body;
+      if (!sourceTreeId || !targetTreeId) {
+        return res.status(400).json({ message: "sourceTreeId and targetTreeId required" });
+      }
+
+      const sourceTree = await storage.getTree(sourceTreeId);
+      const targetTree = await storage.getTree(targetTreeId);
+      if (!sourceTree) return res.status(404).json({ message: "Source tree not found" });
+      if (!targetTree) return res.status(404).json({ message: "Target tree not found" });
+
+      const sourceMembers = await storage.getMembers(sourceTreeId);
+      const sourceRels = await storage.getRelationships(sourceTreeId);
+
+      const toCopy = memberIds
+        ? sourceMembers.filter(m => memberIds.includes(m.id))
+        : sourceMembers;
+
+      const idMapping = new Map<string, string>();
+      const importedMembers: any[] = [];
+
+      for (const srcMember of toCopy) {
+        const newMember = await storage.createMember({
+          treeId: targetTreeId,
+          firstName: srcMember.firstName,
+          lastName: srcMember.lastName,
+          suffix: srcMember.suffix,
+          nickname: srcMember.nickname,
+          email: srcMember.email,
+          alternateEmail: srcMember.alternateEmail,
+          gender: srcMember.gender,
+          birthDate: srcMember.birthDate,
+          deathDate: srcMember.deathDate,
+          birthPlace: srcMember.birthPlace,
+          isLiving: srcMember.isLiving,
+          photoUrl: srcMember.photoUrl,
+          notes: srcMember.notes,
+          isUnknown: srcMember.isUnknown,
+          unknownLabel: srcMember.unknownLabel,
+          claimedByUserId: srcMember.claimedByUserId,
+          visibilityOverride: srcMember.visibilityOverride,
+          sharedInPool: srcMember.sharedInPool,
+          currentCity: srcMember.currentCity,
+          currentRegion: srcMember.currentRegion,
+          currentCountry: srcMember.currentCountry,
+          locationVisible: srcMember.locationVisible,
+        });
+        idMapping.set(srcMember.id, newMember.id);
+        importedMembers.push(newMember);
+      }
+
+      const copiedIds = new Set(toCopy.map(m => m.id));
+      let relationshipsCreated = 0;
+      for (const rel of sourceRels) {
+        if (copiedIds.has(rel.fromMemberId) && copiedIds.has(rel.toMemberId)) {
+          const newFromId = idMapping.get(rel.fromMemberId);
+          const newToId = idMapping.get(rel.toMemberId);
+          if (newFromId && newToId) {
+            await storage.createRelationship({
+              treeId: targetTreeId,
+              fromMemberId: newFromId,
+              toMemberId: newToId,
+              relationshipType: rel.relationshipType,
+              qualifier: rel.qualifier,
+              customLabel: rel.customLabel,
+            });
+            relationshipsCreated++;
+          }
+        }
+      }
+
+      const sourceEvents = await db.select().from(familyEvents)
+        .where(eq(familyEvents.treeId, sourceTreeId));
+
+      let eventsCopied = 0;
+      for (const evt of sourceEvents) {
+        if (copiedIds.has(evt.memberId)) {
+          const newMemberId = idMapping.get(evt.memberId);
+          if (newMemberId) {
+            await db.insert(familyEvents).values({
+              treeId: targetTreeId,
+              memberId: newMemberId,
+              eventType: evt.eventType,
+              eventDate: evt.eventDate,
+              location: evt.location,
+              description: evt.description,
+            });
+            eventsCopied++;
+          }
+        }
+      }
+
+      console.log(`Admin copy: ${importedMembers.length} members, ${relationshipsCreated} relationships, ${eventsCopied} events from ${sourceTreeId} to ${targetTreeId}`);
+
+      res.json({
+        importedCount: importedMembers.length,
+        relationshipsCreated,
+        eventsCopied,
+        idMapping: Object.fromEntries(idMapping),
+        members: importedMembers.map(m => ({ id: m.id, firstName: m.firstName, lastName: m.lastName })),
+      });
+    } catch (error) {
+      console.error("Error copying members between trees:", error);
+      res.status(500).json({ message: "Failed to copy members" });
+    }
+  });
+
   // Get all users (admin only)
   app.get("/api/admin/users", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
