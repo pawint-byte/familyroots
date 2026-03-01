@@ -1798,55 +1798,55 @@ export default function TreeView() {
 
       <div className="flex-1 flex min-h-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <div className="border-b border-border bg-card/50">
-            <div className="container mx-auto px-4 overflow-x-auto scrollbar-hide">
-              <TabsList className="bg-transparent h-12 p-0 gap-4 w-max min-w-full">
+          <div className="border-b border-border bg-card/50 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="px-4">
+              <TabsList className="bg-transparent h-12 p-0 gap-1 sm:gap-4 flex-nowrap w-max">
                 <TabsTrigger 
                   value="tree" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-2"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-2 sm:px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
                   data-testid="tab-tree"
                 >
-                  <Trees className="h-4 w-4" />
+                  <Trees className="h-4 w-4 shrink-0" />
                   Tree View
                 </TabsTrigger>
                 <TabsTrigger 
                   value="members" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-2"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-2 sm:px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
                   data-testid="tab-members"
                 >
-                  <Users className="h-4 w-4" />
+                  <Users className="h-4 w-4 shrink-0" />
                   Members
                 </TabsTrigger>
                 <TabsTrigger 
                   value="timeline" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-2"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-2 sm:px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
                   data-testid="tab-timeline"
                 >
-                  <Clock className="h-4 w-4" />
+                  <Clock className="h-4 w-4 shrink-0" />
                   Timeline
                 </TabsTrigger>
                 <TabsTrigger 
                   value="memories" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-2"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-2 sm:px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
                   data-testid="tab-memories"
                 >
-                  <BookHeart className="h-4 w-4" />
+                  <BookHeart className="h-4 w-4 shrink-0" />
                   Memories
                 </TabsTrigger>
                 <TabsTrigger 
                   value="report" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-2"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-2 sm:px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
                   data-testid="tab-report"
                 >
-                  <BarChart3 className="h-4 w-4" />
+                  <BarChart3 className="h-4 w-4 shrink-0" />
                   Report
                 </TabsTrigger>
                 <TabsTrigger 
                   value="registries" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-2"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-2 sm:px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
                   data-testid="tab-registries"
                 >
-                  <Gift className="h-4 w-4" />
+                  <Gift className="h-4 w-4 shrink-0" />
                   Registries
                 </TabsTrigger>
               </TabsList>
