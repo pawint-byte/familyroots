@@ -1,0 +1,93 @@
+Here's all your AWIN setup info:
+
+Publisher ID: 2735710
+
+Current AWIN Merchants:
+
+Merchant	AWIN Merchant ID	Hostnames
+Promeed	100833	promeed.com, promfreed.com
+Lashterally	117123	lashterally.com
+Abracadabra NYC	83201	abracadabranyc.com
+YCZ Fragrance	121156	yczfragrance.com
+Giftlab	95201	giftlab.com
+Affiliate Link Format (AWIN):
+
+https://www.awin1.com/cread.php?awinmid={MERCHANT_ID}&awinaffid=2735710&ued={ENCODED_PRODUCT_URL}
+Example (Giftlab):
+
+https://www.awin1.com/cread.php?awinmid=95201&awinaffid=2735710&ued=https%3A%2F%2Fwww.giftlab.com%2Fproducts%2Fcustom-mug
+Other Affiliate Networks:
+
+Network	Details
+Amazon	Affiliate tag: pawint-20 (appended as ?tag=pawint-20)
+Travelpayouts	Project ID: 491463, Marker: 698229
+Travelpayouts merchants	Klook, Kiwi (active), Viator & Tiqets (pending approval)
+Travelpayouts API token env var	TRAVELPAYOUTS_API_TOKEN
+How it works in the app:
+
+When a user adds a product URL from a supported retailer to their wishlist, the server detects the merchant and converts the link to an affiliate URL
+For AWIN merchants, it wraps the original URL in the awin1.com/cread.php redirect format
+For Amazon, it appends ?tag=pawint-20 to the URL
+For Travelpayouts merchants (Klook, Kiwi, etc.), it uses the Travelpayouts deeplink API
+Let me know if the other AI needs anything else!
+API code?
+Here's the actual code from the app that handles AWIN affiliate link generation:
+
+Merchant Registry:
+
+const AWIN_PUBLISHER_ID = '2735710';
+const AWIN_MERCHANTS = {
+  'promeed': { id: '100833', hostnames: ['promeed.com', 'promfreed.com'] },
+  'lashterally': { id: '117123', hostnames: ['lashterally.com'] },
+  'abracadabranyc': { id: '83201', hostnames: ['abracadabranyc.com'] },
+  'yczfragrance': { id: '121156', hostnames: ['yczfragrance.com'] },
+  'giftlab': { id: '95201', hostnames: ['giftlab.com', 'www.giftlab.com'] },
+};
+Detect if a URL is an AWIN merchant:
+
+function isAwinMerchant(hostname) {
+  for (const [name, merchant] of Object.entries(AWIN_MERCHANTS)) {
+    if (merchant.hostnames.some(h => hostname.includes(h))) {
+      return { name, id: merchant.id };
+    }
+  }
+  return null;
+}
+Convert a product URL to an AWIN affiliate link:
+
+function convertToAwinAffiliateLink(originalUrl) {
+  const hostname = new URL(originalUrl).hostname.toLowerCase();
+  const merchant = isAwinMerchant(hostname);
+  if (!merchant) return originalUrl;
+  return `https://www.awin1.com/cread.php?awinmid=${merchant.id}&awinaffid=${AWIN_PUBLISHER_ID}&ued=${encodeURIComponent(originalUrl)}`;
+}
+Amazon affiliate (separate from AWIN):
+
+function addAmazonTag(url) {
+  const urlObj = new URL(url);
+  urlObj.searchParams.set('tag', 'pawint-20');
+  return urlObj.toString();
+}
+Travelpayouts deeplink API (for Klook, Kiwi, etc.):
+
+async function convertToTravelpayoutsLink(url) {
+  const token = process.env.TRAVELPAYOUTS_API_TOKEN;
+  const response = await fetch(
+    `https://api.travelpayouts.com/v2/statistics/deeplink?token=${token}&marker=698229&url=${encodeURIComponent(url)}`
+  );
+  const data = await response.json();
+  return data.result.links[0].partner_url;
+}
+Client-side supported hostnames (for URL validation before submission):
+
+const SUPPORTED_HOSTNAMES = [
+  'amazon.com', 'amzn.to', 'amzn.com', 'a.co',
+  'viator.com', 'klook.com', 'kiwi.com', 'tiqets.com',
+  'tp.st', 'travelpayouts.com',
+  'promeed.com', 'promfreed.com',
+  'lashterally.com',
+  'abracadabranyc.com',
+  'yczfragrance.com',
+  'giftlab.com',
+];
+That covers everything the other AI would need to replicate or extend the affiliate setup. Let me know if you need anything else!
