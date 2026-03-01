@@ -738,7 +738,7 @@ export default function FAQ() {
         },
         {
           question: "How do I create a Gift Registry?",
-          answer: "Click on any member in your tree to open their profile panel, then scroll to the 'Gift Registries' section. Create a registry for any occasion — birthdays, weddings, baby showers, holidays. Add items with links, prices, and quantities. Once created, the registry appears on the member's profile, on their tree card badge (purple gift icon), and in the tree-wide Registries tab so the whole family can find it."
+          answer: "Click on any member in your tree to open their profile panel, then scroll to the 'Gift Registries' section. Create a registry for any occasion — birthdays, weddings, baby showers, holidays. To add items: type what you're looking for in the search box, click a store button (Amazon, Etsy, or Giftlab) to search on that retailer's site, find the item you want, copy the product link from your browser, then paste it back into the registry. The link is saved automatically — just fill in the item name, price, and quantity. Once created, the registry appears on the member's profile, on their tree card badge (purple gift icon), and in the tree-wide Registries tab so the whole family can find it."
         },
         {
           question: "Where can I see all gift registries in my tree?",
@@ -774,7 +774,7 @@ export default function FAQ() {
         },
         {
           question: "Which retailers are supported for gift registries?",
-          answer: "You can add items from any online store by pasting the product URL. We have built-in support for Amazon, Etsy, and Giftlab — links from these retailers are automatically optimized for the best shopping experience. Any other retailer URL works too, it just links directly to the product page."
+          answer: "You can add items from any online store by pasting the product URL. We have built-in quick-search buttons for Amazon, Etsy, and Giftlab — click a store button to search directly on their site, find the item, and copy the link back. These three retailers also have affiliate tracking built in, which helps support FamilyRoots at no extra cost to you. Any other retailer URL works too — just paste the link and fill in the item details manually."
         }
       ]
     },
