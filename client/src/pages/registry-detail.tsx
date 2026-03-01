@@ -154,10 +154,13 @@ export default function RegistryDetailPage() {
 
     const parsedUrl = new URL(url);
     const isAmazon = parsedUrl.hostname.includes('amazon.com') || parsedUrl.hostname.includes('amzn.to') || parsedUrl.hostname.includes('amzn.com');
+    const isEtsy = parsedUrl.hostname.includes('etsy.com');
+    const isGiftlab = parsedUrl.hostname.includes('giftlab.com');
 
-    if (isAmazon) {
+    if (isAmazon || isEtsy || isGiftlab) {
+      const storeName = isAmazon ? "Amazon" : isEtsy ? "Etsy" : "Giftlab";
       setShowItemFields(true);
-      toast({ title: "Amazon link saved", description: "Amazon blocks auto-fill. Please enter the item name and price below." });
+      toast({ title: `${storeName} link saved`, description: "Please enter the item name and price below." });
       return;
     }
 
