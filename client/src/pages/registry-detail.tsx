@@ -151,6 +151,16 @@ export default function RegistryDetailPage() {
       setShowItemFields(true);
       return;
     }
+
+    const parsedUrl = new URL(url);
+    const isAmazon = parsedUrl.hostname.includes('amazon.com') || parsedUrl.hostname.includes('amzn.to') || parsedUrl.hostname.includes('amzn.com');
+
+    if (isAmazon) {
+      setShowItemFields(true);
+      toast({ title: "Amazon link saved", description: "Amazon blocks auto-fill. Please enter the item name and price below." });
+      return;
+    }
+
     setIsFetchingMeta(true);
     try {
       const res = await fetch(`/api/product-metadata?url=${encodeURIComponent(url)}`, {
@@ -170,13 +180,13 @@ export default function RegistryDetailPage() {
         if (fieldsLoaded > 0) {
           toast({ title: "Product details loaded", description: data.title ? `Found: ${data.title.substring(0, 60)}` : "Some details were fetched." });
         } else {
-          toast({ title: "Couldn't load details", description: "This store may block auto-fill. Please enter the item name and price manually below.", variant: "destructive" });
+          toast({ title: "Couldn't load details", description: "This store may block auto-fill. Please enter the item name and price below.", variant: "destructive" });
         }
       } else {
-        toast({ title: "Couldn't load details", description: "This store may block auto-fill. Please enter the item name and price manually below.", variant: "destructive" });
+        toast({ title: "Couldn't load details", description: "This store may block auto-fill. Please enter the item name and price below.", variant: "destructive" });
       }
     } catch {
-      toast({ title: "Couldn't load details", description: "Please enter the item name and price manually below.", variant: "destructive" });
+      toast({ title: "Couldn't load details", description: "Please enter the item name and price below.", variant: "destructive" });
     } finally {
       setIsFetchingMeta(false);
       setShowItemFields(true);
@@ -187,9 +197,6 @@ export default function RegistryDetailPage() {
     { name: "Amazon", icon: SiAmazon, color: "text-[#FF9900]", searchUrl: "https://www.amazon.com/s?k=" },
     { name: "Etsy", icon: SiEtsy, color: "text-[#F1641E]", searchUrl: "https://www.etsy.com/search?q=" },
     { name: "Giftlab", icon: Gift, color: "text-[#E91E63]", searchUrl: "https://www.giftlab.com/search?q=" },
-    { name: "Target", icon: Store, color: "text-[#CC0000]", searchUrl: "https://www.target.com/s?searchTerm=" },
-    { name: "Walmart", icon: Store, color: "text-[#0071DC]", searchUrl: "https://www.walmart.com/search?q=" },
-    { name: "Best Buy", icon: Store, color: "text-[#0046BE]", searchUrl: "https://www.bestbuy.com/site/searchpage.jsp?st=" },
   ];
   const [storeSearch, setStoreSearch] = useState("");
 
@@ -382,7 +389,8 @@ export default function RegistryDetailPage() {
                           value={itemUrl}
                           onChange={(e) => setItemUrl(e.target.value)}
                           onPaste={(e) => {
-                            const pasted = e.clipboardData.getData('text');
+                            e.preventDefault();
+                            const pasted = e.clipboardData.getData('text').trim();
                             if (pasted) {
                               setItemUrl(pasted);
                               setTimeout(() => fetchProductMetadata(pasted), 100);
@@ -604,7 +612,7 @@ export default function RegistryDetailPage() {
               <h3 className="text-lg font-medium mb-2">No Items Yet</h3>
               <p className="text-muted-foreground text-center mb-4">
                 {registry.isOwner 
-                  ? "Search for items on Amazon, Target, Walmart, and more - then paste the link to auto-fill your wish list."
+                  ? "Search for items on Amazon, Etsy, or Giftlab - then paste the link to auto-fill your wish list."
                   : "The registry owner hasn't added any items yet."}
               </p>
               {registry.isOwner && registry.isActive && (
