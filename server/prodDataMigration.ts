@@ -1,11 +1,12 @@
 import { db } from "./db";
-import { familyTrees, familyMembers, relationships as relationshipsTable, giftRegistries } from "@shared/schema";
+import { familyTrees, familyMembers, relationships as relationshipsTable, giftRegistries, familyEvents } from "@shared/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { log } from "./index";
 
 const MIGRATION_KEY = "prod_data_consolidation_v1";
 const OWNER_ID = "52852375";
 const MAIN_TREE_ID = "526dab60-90d1-486a-9c31-1e24a5d29da4";
+const ASHLEY_WEST_TREE_ID = "39b0b70c-d09f-4c6f-98e3-61f8456971bb";
 
 const PROD_TREE_ID = "ea2f35fe-9da5-4790-87a1-cfeb2f5e83bd";
 const PROD_SR_TREE_ID = "8d9a8117-77c2-4644-a9d4-9b4da4909e78";
@@ -144,6 +145,7 @@ export async function runProdDataMigration() {
       
       if (members.length >= 25) {
         log(`[migration] Tree has ${members.length} members, data looks complete`, "migration");
+        await restoreSplitMembers();
         return;
       }
       
@@ -268,5 +270,147 @@ export async function runProdDataMigration() {
 
   } catch (error) {
     console.error("[migration] Error running production data migration:", error);
+  }
+}
+
+async function restoreSplitMembers() {
+  try {
+    const [ashleyTree] = await db.select().from(familyTrees).where(eq(familyTrees.id, ASHLEY_WEST_TREE_ID));
+    if (!ashleyTree) {
+      log(`[migration] Ashley West tree not found, skipping restore`, "migration");
+      return;
+    }
+
+    const mainMembers = await db.select().from(familyMembers)
+      .where(and(eq(familyMembers.treeId, MAIN_TREE_ID), isNull(familyMembers.deletedAt)));
+    const ashleyMembers = await db.select().from(familyMembers)
+      .where(and(eq(familyMembers.treeId, ASHLEY_WEST_TREE_ID), isNull(familyMembers.deletedAt)));
+
+    if (ashleyMembers.length === 0) {
+      log(`[migration] Ashley West tree has no members, skipping restore`, "migration");
+      return;
+    }
+
+    const mainNameSet = new Set(mainMembers.map(m => `${m.firstName}|${m.lastName}|${m.email || ''}`));
+
+    const toRestore = ashleyMembers.filter(m => 
+      !mainNameSet.has(`${m.firstName}|${m.lastName}|${m.email || ''}`)
+    );
+
+    if (toRestore.length === 0) {
+      log(`[migration] All Ashley West members already in main tree, no restore needed`, "migration");
+      return;
+    }
+
+    log(`[migration] Restoring ${toRestore.length} split members from Ashley West to main tree...`, "migration");
+
+    const idMapping = new Map<string, string>();
+
+    for (const m of toRestore) {
+      const newId = crypto.randomUUID();
+      await db.insert(familyMembers).values({
+        id: newId,
+        treeId: MAIN_TREE_ID,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        suffix: m.suffix,
+        nickname: m.nickname,
+        email: m.email,
+        alternateEmail: m.alternateEmail,
+        gender: m.gender,
+        birthDate: m.birthDate,
+        deathDate: m.deathDate,
+        birthPlace: m.birthPlace,
+        isLiving: m.isLiving,
+        photoUrl: m.photoUrl,
+        notes: m.notes,
+        isUnknown: m.isUnknown,
+        unknownLabel: m.unknownLabel,
+        claimedByUserId: m.claimedByUserId,
+        visibilityOverride: m.visibilityOverride,
+        sharedInPool: m.sharedInPool,
+        currentCity: m.currentCity,
+        currentRegion: m.currentRegion,
+        currentCountry: m.currentCountry,
+        locationVisible: m.locationVisible,
+      });
+      idMapping.set(m.id, newId);
+      log(`[migration] Restored ${m.firstName} ${m.lastName}`, "migration");
+    }
+
+    const ashleyRels = await db.select().from(relationshipsTable)
+      .where(and(eq(relationshipsTable.treeId, ASHLEY_WEST_TREE_ID), isNull(relationshipsTable.deletedAt)));
+
+    const mainMemberNameMap = new Map<string, string>();
+    const refreshedMainMembers = await db.select().from(familyMembers)
+      .where(and(eq(familyMembers.treeId, MAIN_TREE_ID), isNull(familyMembers.deletedAt)));
+    for (const m of refreshedMainMembers) {
+      mainMemberNameMap.set(`${m.firstName}|${m.lastName}`, m.id);
+    }
+
+    const ashleyIdToName = new Map<string, string>();
+    for (const m of ashleyMembers) {
+      ashleyIdToName.set(m.id, `${m.firstName}|${m.lastName}`);
+    }
+
+    let relsCreated = 0;
+    for (const rel of ashleyRels) {
+      const fromName = ashleyIdToName.get(rel.fromMemberId);
+      const toName = ashleyIdToName.get(rel.toMemberId);
+      if (!fromName || !toName) continue;
+
+      const newFromId = idMapping.get(rel.fromMemberId) || mainMemberNameMap.get(fromName);
+      const newToId = idMapping.get(rel.toMemberId) || mainMemberNameMap.get(toName);
+      if (!newFromId || !newToId) continue;
+
+      const existingRels = await db.select().from(relationshipsTable)
+        .where(and(
+          eq(relationshipsTable.treeId, MAIN_TREE_ID),
+          eq(relationshipsTable.fromMemberId, newFromId),
+          eq(relationshipsTable.toMemberId, newToId),
+          eq(relationshipsTable.relationshipType, rel.relationshipType),
+          isNull(relationshipsTable.deletedAt)
+        ));
+
+      if (existingRels.length === 0) {
+        await db.insert(relationshipsTable).values({
+          id: crypto.randomUUID(),
+          treeId: MAIN_TREE_ID,
+          fromMemberId: newFromId,
+          toMemberId: newToId,
+          relationshipType: rel.relationshipType,
+          qualifier: rel.qualifier,
+          customLabel: rel.customLabel,
+        });
+        relsCreated++;
+      }
+    }
+
+    const ashleyEvents = await db.select().from(familyEvents)
+      .where(eq(familyEvents.treeId, ASHLEY_WEST_TREE_ID));
+
+    let eventsCopied = 0;
+    for (const evt of ashleyEvents) {
+      const newMemberId = idMapping.get(evt.memberId);
+      if (newMemberId) {
+        await db.insert(familyEvents).values({
+          treeId: MAIN_TREE_ID,
+          memberId: newMemberId,
+          eventType: evt.eventType,
+          eventDate: evt.eventDate,
+          location: evt.location,
+          description: evt.description,
+        });
+        eventsCopied++;
+      }
+    }
+
+    const finalCount = await db.select({ count: sql`count(*)` }).from(familyMembers)
+      .where(and(eq(familyMembers.treeId, MAIN_TREE_ID), isNull(familyMembers.deletedAt)));
+
+    log(`[migration] Restore complete: ${toRestore.length} members, ${relsCreated} relationships, ${eventsCopied} events copied. Tree now has ${finalCount[0].count} members.`, "migration");
+
+  } catch (error) {
+    console.error("[migration] Error restoring split members:", error);
   }
 }
