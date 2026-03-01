@@ -186,6 +186,7 @@ export default function RegistryDetailPage() {
   const AFFILIATE_STORES = [
     { name: "Amazon", icon: SiAmazon, color: "text-[#FF9900]", searchUrl: "https://www.amazon.com/s?k=" },
     { name: "Etsy", icon: SiEtsy, color: "text-[#F1641E]", searchUrl: "https://www.etsy.com/search?q=" },
+    { name: "Giftlab", icon: Gift, color: "text-[#E91E63]", searchUrl: "https://www.giftlab.com/search?q=" },
     { name: "Target", icon: Store, color: "text-[#CC0000]", searchUrl: "https://www.target.com/s?searchTerm=" },
     { name: "Walmart", icon: Store, color: "text-[#0071DC]", searchUrl: "https://www.walmart.com/search?q=" },
     { name: "Best Buy", icon: Store, color: "text-[#0046BE]", searchUrl: "https://www.bestbuy.com/site/searchpage.jsp?st=" },
@@ -734,9 +735,8 @@ export default function RegistryDetailPage() {
                   When they click "Buy This Gift", they'll be taken to the store to purchase it, and then asked to mark it as bought so others know not to buy it again.
                 </p>
                 <p>
-                  <strong>Affiliate earnings:</strong> When someone buys through your registry links on Amazon or Etsy, 
+                  <strong>Affiliate earnings:</strong> When someone buys through your registry links on Amazon, Etsy, or Giftlab, 
                   FamilyRoots earns a small commission at no extra cost to the buyer. This helps keep the platform running.
-                  Your Amazon affiliate tag (<code>pawint-20</code>) is automatically added to all Amazon links.
                 </p>
                 <p>
                   <strong>Tracking purchases:</strong> You can see which items have been marked as purchased in real-time.

@@ -734,7 +734,7 @@ export default function FAQ() {
         },
         {
           question: "What are Gift Registries?",
-          answer: "Gift Registries let you create wishlists for family events like birthdays, baby showers, weddings, graduations, and more. You can add items from any online store (like Amazon), and family members can see what's needed and mark items as purchased to avoid duplicates. Everyone in the tree can browse all active registries from the Registries tab."
+          answer: "Gift Registries let you create wishlists for family events like birthdays, baby showers, weddings, graduations, and more. You can add items from any online store — we support Amazon, Etsy, and Giftlab with built-in affiliate links, plus any other retailer URL. Family members can see what's needed and mark items as purchased to avoid duplicates. Everyone in the tree can browse all active registries from the Registries tab."
         },
         {
           question: "How do I create a Gift Registry?",
@@ -769,8 +769,12 @@ export default function FAQ() {
           answer: "Yes! When you order custom merchandise (like a mug or t-shirt with your family tree), you'll receive an email confirmation with your full order details including item, quantity, pricing breakdown, and shipping address. You'll also get a second email with tracking information once your order ships."
         },
         {
-          question: "Do I get order emails for gift registry items from Amazon, Walmart, etc.?",
-          answer: "No — gift registry items from Amazon, Walmart, Etsy, and other retailers are purchased directly through those stores using affiliate links. The retailer handles the entire purchase, so they'll send the buyer order confirmation and tracking emails directly. FamilyRoots only sends order emails for custom merchandise printed through our site."
+          question: "Do I get order emails for gift registry items from Amazon, Etsy, etc.?",
+          answer: "No — gift registry items from Amazon, Etsy, Giftlab, and other retailers are purchased directly through those stores. The retailer handles the entire purchase, so they'll send the buyer order confirmation and tracking emails directly. FamilyRoots only sends order emails for custom merchandise printed through our site."
+        },
+        {
+          question: "Which retailers are supported for gift registries?",
+          answer: "You can add items from any online store by pasting the product URL. We have built-in support for Amazon, Etsy, and Giftlab — links from these retailers are automatically optimized for the best shopping experience. Any other retailer URL works too, it just links directly to the product page."
         }
       ]
     },

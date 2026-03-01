@@ -316,7 +316,7 @@ export default function FeaturesGuide() {
         },
         {
           name: "Gift Registry",
-          description: "Create and manage gift registries for birthdays, weddings, baby showers, graduations, holidays, and more. Add items from any online store with links and prices. Family members can mark items as purchased to prevent duplicates. Each registry shows fulfillment progress with a progress bar.",
+          description: "Create and manage gift registries for birthdays, weddings, baby showers, graduations, holidays, and more. Add items from any online store with links and prices — Amazon, Etsy, and Giftlab links are automatically supported. Family members can mark items as purchased to prevent duplicates. Each registry shows fulfillment progress with a progress bar.",
           whereToFind: "Create from any member's profile panel > 'Gift Registries' section. Browse all tree registries from the 'Registries' tab in tree view. Also accessible via Dashboard > 'Gifts'.",
           icon: <Gift className="h-5 w-5 text-pink-600" />,
         },
