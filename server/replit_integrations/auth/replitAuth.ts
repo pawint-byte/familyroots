@@ -174,7 +174,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (user.authMethod === "email" || user.authMethod === "local") {
+  if (user.authProvider === "email" || user.authMethod === "email" || user.authMethod === "local") {
     if (!user.claims?.sub) {
       return res.status(401).json({ message: "Unauthorized" });
     }

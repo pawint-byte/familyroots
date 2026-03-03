@@ -49,6 +49,7 @@ import AuthLogin from "@/pages/auth-login";
 import AuthRegister from "@/pages/auth-register";
 import AuthForgotPassword from "@/pages/auth-forgot-password";
 import AuthResetPassword from "@/pages/auth-reset-password";
+import AuthVerifyEmail from "@/pages/auth-verify-email";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -70,9 +71,12 @@ function Router() {
     <Switch>
       <Route path="/" component={user ? Dashboard : Landing} />
       <Route path="/login" component={AuthLogin} />
+      <Route path="/signup" component={AuthRegister} />
       <Route path="/register" component={AuthRegister} />
       <Route path="/forgot-password" component={AuthForgotPassword} />
+      <Route path="/reset-password/:token" component={AuthResetPassword} />
       <Route path="/reset-password" component={AuthResetPassword} />
+      <Route path="/verify-email/:token" component={AuthVerifyEmail} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/tree/:id" component={TreeView} />
       <Route path="/pricing" component={Pricing} />

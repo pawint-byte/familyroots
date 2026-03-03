@@ -60,11 +60,11 @@ export default function AuthRegister() {
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterForm) => {
       const { confirmPassword, ...payload } = data;
-      const res = await apiRequest("POST", "/api/auth/register", payload);
+      const res = await apiRequest("POST", "/api/auth/signup", payload);
       return res.json();
     },
     onSuccess: (data) => {
-      if (data.emailVerificationSent) {
+      if (data.requiresVerification || data.emailVerificationSent) {
         setVerificationEmail(form.getValues("email"));
       }
     },

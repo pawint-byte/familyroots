@@ -66,7 +66,7 @@ export default function AuthLogin() {
       setLocation("/");
     },
     onError: (error: any) => {
-      if (error?.code === "USER_NOT_FOUND") {
+      if (error?.code === "NO_ACCOUNT" || error?.code === "USER_NOT_FOUND") {
         const email = form.getValues("email");
         setLocation(`/register?email=${encodeURIComponent(email)}`);
         return;

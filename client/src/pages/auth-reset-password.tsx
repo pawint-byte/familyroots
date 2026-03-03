@@ -3,8 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { useLocation, useParams } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +14,7 @@ import { Eye, EyeOff, CheckCircle, TreeDeciduous } from "lucide-react";
 const resetSchema = z.object({
   password: z.string()
     .min(8, "Password must be at least 8 characters")
+    .max(128, "Password must be less than 128 characters")
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
@@ -32,8 +32,9 @@ export default function AuthResetPassword() {
   const [showPassword, setShowPassword] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("token");
+  const { token: pathToken } = useParams<{ token: string }>();
+  const queryToken = new URLSearchParams(window.location.search).get("token");
+  const token = pathToken || queryToken;
 
   const form = useForm<ResetForm>({
     resolver: zodResolver(resetSchema),
@@ -42,11 +43,15 @@ export default function AuthResetPassword() {
 
   const resetMutation = useMutation({
     mutationFn: async (data: ResetForm) => {
-      const res = await apiRequest("POST", "/api/auth/reset-password", {
-        token,
-        password: data.password,
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password: data.password }),
+        credentials: "include",
       });
-      return res.json();
+      const body = await res.json();
+      if (!res.ok) throw body;
+      return body;
     },
     onSuccess: () => {
       setSuccess(true);
@@ -54,7 +59,7 @@ export default function AuthResetPassword() {
     onError: (error: any) => {
       toast({
         title: "Reset failed",
-        description: error.message || "Invalid or expired reset link",
+        description: error?.message || "Invalid or expired reset link",
         variant: "destructive",
       });
     },
@@ -94,7 +99,7 @@ export default function AuthResetPassword() {
             </div>
             <CardTitle className="text-2xl font-bold">Password Reset</CardTitle>
             <CardDescription>
-              Your password has been successfully reset. You can now sign in with your new password.
+              Your password has been reset successfully. You can now log in.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -103,7 +108,7 @@ export default function AuthResetPassword() {
               onClick={() => setLocation("/login")}
               data-testid="button-go-to-login"
             >
-              Sign In
+              Go to Login
             </Button>
           </CardContent>
         </Card>

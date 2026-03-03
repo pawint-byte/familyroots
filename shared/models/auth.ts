@@ -78,6 +78,7 @@ export const users = pgTable("users", {
   authProvider: varchar("auth_provider").default("replit"),
   emailVerified: boolean("email_verified").default(false),
   emailVerifyToken: varchar("email_verify_token"),
+  isAdmin: boolean("is_admin").default(false),
 
   subscriptionCancelledAt: timestamp("subscription_cancelled_at"),
   contentRetentionWarningsSent: integer("content_retention_warnings_sent").default(0),

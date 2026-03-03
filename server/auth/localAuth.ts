@@ -1,68 +1,42 @@
-import { Express } from "express";
-import crypto from "crypto";
+import { Express, RequestHandler } from "express";
 import { db } from "../db";
 import { users } from "@shared/models/auth";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, ilike, or } from "drizzle-orm";
+import {
+  hashPassword,
+  verifyPassword,
+  generateToken,
+  validateEmail,
+  validatePassword,
+} from "../services/email-auth";
 
-const SCRYPT_KEYLEN = 64;
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
+const MIGRATION_TOKEN_EXPIRY_MS = 72 * 60 * 60 * 1000;
 
-const PASSWORD_RULES = {
-  minLength: 8,
-  requireUppercase: true,
-  requireLowercase: true,
-  requireNumber: true,
+export const isAdmin: RequestHandler = async (req: any, res, next) => {
+  const userId = req.user?.claims?.sub;
+  if (!userId) return res.status(403).json({ message: "Forbidden" });
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user?.isAdmin) return res.status(403).json({ message: "Forbidden" });
+  next();
 };
 
-function validatePassword(password: string): string | null {
-  if (password.length < PASSWORD_RULES.minLength) {
-    return `Password must be at least ${PASSWORD_RULES.minLength} characters`;
-  }
-  if (PASSWORD_RULES.requireUppercase && !/[A-Z]/.test(password)) {
-    return "Password must contain at least one uppercase letter";
-  }
-  if (PASSWORD_RULES.requireLowercase && !/[a-z]/.test(password)) {
-    return "Password must contain at least one lowercase letter";
-  }
-  if (PASSWORD_RULES.requireNumber && !/[0-9]/.test(password)) {
-    return "Password must contain at least one number";
-  }
-  return null;
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.randomBytes(16).toString("hex");
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(password, salt, SCRYPT_KEYLEN, (err, derivedKey) => {
-      if (err) reject(err);
-      resolve(`${salt}:${derivedKey.toString("hex")}`);
-    });
-  });
-}
-
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return false;
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(password, salt, SCRYPT_KEYLEN, (err, derivedKey) => {
-      if (err) reject(err);
-      resolve(crypto.timingSafeEqual(Buffer.from(hash, "hex"), derivedKey));
-    });
-  });
-}
-
 export function setupLocalAuth(app: Express) {
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/signup", async (req, res) => {
     try {
       const { email, password, firstName, lastName } = req.body;
 
-      if (!email || !password) {
-        return res.status(400).json({ message: "Email and password are required" });
+      if (!email || !password || !firstName) {
+        return res.status(400).json({ message: "Email, password, and first name are required" });
       }
 
-      const passwordError = validatePassword(password);
-      if (passwordError) {
-        return res.status(400).json({ message: passwordError });
+      if (!validateEmail(email)) {
+        return res.status(400).json({ message: "Invalid email address" });
+      }
+
+      const passwordCheck = validatePassword(password);
+      if (!passwordCheck.valid) {
+        return res.status(400).json({ message: passwordCheck.message });
       }
 
       const normalizedEmail = email.toLowerCase().trim();
@@ -72,48 +46,60 @@ export function setupLocalAuth(app: Express) {
 
       if (existingUser) {
         if (existingUser.passwordHash) {
-          return res.status(409).json({ message: "An account with this email already exists. Please sign in." });
+          return res.status(409).json({ message: "An account with this email already exists" });
         }
-        const passwordHash = await hashPassword(password);
-        const emailVerifyToken = crypto.randomBytes(32).toString("hex");
-        const [updated] = await db.update(users)
+        const hashedPassword = await hashPassword(password);
+        const verifyToken = generateToken();
+        await db.update(users)
           .set({
-            passwordHash,
+            passwordHash: hashedPassword,
             authProvider: "email",
             emailVerified: false,
-            emailVerifyToken,
+            emailVerifyToken: verifyToken,
             firstName: existingUser.firstName || firstName,
-            lastName: existingUser.lastName || lastName,
+            lastName: existingUser.lastName || lastName || null,
             updatedAt: new Date(),
           })
-          .where(eq(users.id, existingUser.id))
-          .returning();
+          .where(eq(users.id, existingUser.id));
 
-        await sendVerificationEmail(normalizedEmail, firstName || existingUser.firstName || "there", emailVerifyToken);
-        return res.json({ emailVerificationSent: true, message: "Please check your email to verify your account." });
+        await sendVerificationEmail(req, normalizedEmail, firstName || existingUser.firstName || "there", verifyToken);
+        return res.status(201).json({
+          message: "Account created! Please check your email to verify your address before logging in.",
+          requiresVerification: true,
+        });
       }
 
-      const passwordHash = await hashPassword(password);
-      const emailVerifyToken = crypto.randomBytes(32).toString("hex");
-      const [newUser] = await db.insert(users)
+      const hashedPassword = await hashPassword(password);
+      const verifyToken = generateToken();
+      await db.insert(users)
         .values({
           email: normalizedEmail,
           firstName: firstName || null,
           lastName: lastName || null,
-          passwordHash,
+          passwordHash: hashedPassword,
           authProvider: "email",
           emailVerified: false,
-          emailVerifyToken,
-        })
-        .returning();
+          emailVerifyToken: verifyToken,
+        });
 
-      await sendVerificationEmail(normalizedEmail, firstName || "there", emailVerifyToken);
+      await sendVerificationEmail(req, normalizedEmail, firstName || "there", verifyToken);
 
-      res.status(201).json({ emailVerificationSent: true, message: "Please check your email to verify your account." });
+      res.status(201).json({
+        message: "Account created! Please check your email to verify your address before logging in.",
+        requiresVerification: true,
+      });
     } catch (error: any) {
       console.error("Registration error:", error);
       res.status(500).json({ message: "Registration failed" });
     }
+  });
+
+  app.post("/api/auth/register", async (req, res) => {
+    return (app as any)._router.handle(
+      Object.assign(req, { url: "/api/auth/signup", method: "POST" }),
+      res,
+      () => {}
+    );
   });
 
   app.post("/api/auth/login", async (req, res) => {
@@ -130,13 +116,25 @@ export function setupLocalAuth(app: Express) {
         .where(sql`LOWER(${users.email}) = ${normalizedEmail}`);
 
       if (!user) {
-        return res.status(404).json({ message: "No account found with this email", code: "USER_NOT_FOUND" });
+        return res.status(401).json({
+          message: "No account found with that email. Would you like to sign up?",
+          code: "NO_ACCOUNT",
+        });
+      }
+
+      if (user.authProvider !== "email" && user.authProvider !== "both") {
+        if (!user.passwordHash) {
+          return res.status(401).json({
+            message: "This account uses a different login method. Try signing in with Replit, or use 'Forgot Password' to set a password.",
+            code: "REPLIT_AUTH_ONLY",
+          });
+        }
       }
 
       if (!user.passwordHash) {
         return res.status(401).json({
-          message: "This account uses Replit authentication. Please sign in with Replit, or use 'Forgot Password' to set a password.",
-          code: "REPLIT_AUTH_ONLY"
+          message: "This account uses a different login method.",
+          code: "REPLIT_AUTH_ONLY",
         });
       }
 
@@ -147,7 +145,7 @@ export function setupLocalAuth(app: Express) {
 
       if (!user.emailVerified) {
         return res.status(403).json({
-          message: "Please verify your email before signing in. Check your inbox for the verification link.",
+          message: "Please verify your email before logging in.",
           code: "EMAIL_NOT_VERIFIED",
           email: normalizedEmail,
         });
@@ -159,7 +157,7 @@ export function setupLocalAuth(app: Express) {
         .set({ lastActivityAt: new Date() })
         .where(eq(users.id, user.id));
 
-      res.json({ user: sanitizeUser(user) });
+      res.json({ message: "Logged in successfully" });
     } catch (error: any) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Login failed" });
@@ -167,18 +165,18 @@ export function setupLocalAuth(app: Express) {
   });
 
   app.post("/api/auth/logout", (req, res) => {
-    req.logout(() => {
+    req.logout((err) => {
+      if (err) return res.status(500).json({ message: "Logout failed" });
       req.session.destroy(() => {
-        res.clearCookie("connect.sid");
-        res.json({ success: true });
+        res.json({ message: "Logged out successfully" });
       });
     });
   });
 
-  app.get("/api/auth/verify-email", async (req, res) => {
+  app.get("/api/auth/verify-email/:token", async (req, res) => {
     try {
-      const { token } = req.query;
-      if (!token || typeof token !== "string") {
+      const { token } = req.params;
+      if (!token) {
         return res.status(400).json({ message: "Verification token is required" });
       }
 
@@ -186,7 +184,7 @@ export function setupLocalAuth(app: Express) {
         .where(eq(users.emailVerifyToken, token));
 
       if (!user) {
-        return res.status(400).json({ message: "Invalid verification link" });
+        return res.status(400).json({ message: "Invalid or expired verification link" });
       }
 
       await db.update(users)
@@ -197,12 +195,24 @@ export function setupLocalAuth(app: Express) {
         })
         .where(eq(users.id, user.id));
 
-      const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
-      res.redirect(`https://${domain}/login?verified=true`);
+      res.json({ message: "Email verified successfully" });
     } catch (error: any) {
       console.error("Email verification error:", error);
       res.status(500).json({ message: "Verification failed" });
     }
+  });
+
+  app.get("/api/auth/verify-email", async (req, res) => {
+    const { token } = req.query;
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ message: "Verification token is required" });
+    }
+    req.params = { token };
+    return (app as any)._router.handle(
+      Object.assign(req, { url: `/api/auth/verify-email/${token}`, method: "GET" }),
+      res,
+      () => {}
+    );
   });
 
   app.post("/api/auth/resend-verification", async (req, res) => {
@@ -220,12 +230,12 @@ export function setupLocalAuth(app: Express) {
         return res.json({ message: "If the email exists and is unverified, a verification link has been sent." });
       }
 
-      const emailVerifyToken = crypto.randomBytes(32).toString("hex");
+      const verifyToken = generateToken();
       await db.update(users)
-        .set({ emailVerifyToken })
+        .set({ emailVerifyToken: verifyToken })
         .where(eq(users.id, user.id));
 
-      await sendVerificationEmail(normalizedEmail, user.firstName || "there", emailVerifyToken);
+      await sendVerificationEmail(req, normalizedEmail, user.firstName || "there", verifyToken);
       res.json({ message: "If the email exists and is unverified, a verification link has been sent." });
     } catch (error: any) {
       console.error("Resend verification error:", error);
@@ -244,23 +254,22 @@ export function setupLocalAuth(app: Express) {
       const [user] = await db.select().from(users)
         .where(sql`LOWER(${users.email}) = ${normalizedEmail}`);
 
-      if (!user) {
+      if (!user || (user.authProvider !== "email" && user.authProvider !== "both" && !user.passwordHash)) {
         return res.json({ message: "If an account exists with that email, a reset link has been sent." });
       }
 
-      const token = crypto.randomBytes(32).toString("hex");
-      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      const resetToken = generateToken();
       const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
 
       await db.update(users)
         .set({
-          passwordResetToken: tokenHash,
+          passwordResetToken: resetToken,
           passwordResetExpires: expires,
         })
         .where(eq(users.id, user.id));
 
       const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
-      const resetUrl = `https://${domain}/reset-password?token=${token}`;
+      const resetUrl = `https://${domain}/reset-password/${resetToken}`;
 
       try {
         const { sendEmail } = await import("../lib/email");
@@ -271,10 +280,10 @@ export function setupLocalAuth(app: Express) {
           <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
             <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 16px;">Reset Your Password</h1>
             <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
-              Hi ${user.firstName || "there"},
+              Hey ${user.firstName || "there"},
             </p>
             <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
-              We received a request to reset your FamilyRoots password. Click the button below to set a new password:
+              We received a request to reset your password. Click the button below to create a new one:
             </p>
             <div style="text-align: center; margin: 32px 0;">
               <a href="${resetUrl}" style="background-color: #16a34a; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
@@ -282,7 +291,10 @@ export function setupLocalAuth(app: Express) {
               </a>
             </div>
             <p style="font-size: 14px; color: #6a6a6a; line-height: 1.6;">
-              This link expires in 1 hour. If you didn't request this, you can safely ignore this email.
+              This link expires in 1 hour.
+            </p>
+            <p style="font-size: 14px; color: #6a6a6a; line-height: 1.6;">
+              If you didn't request this, you can safely ignore this email.
             </p>
             <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
             <p style="font-size: 12px; color: #999;">FamilyRoots &mdash; Your Private Network for Real Connections</p>
@@ -308,107 +320,217 @@ export function setupLocalAuth(app: Express) {
         return res.status(400).json({ message: "Token and new password are required" });
       }
 
-      const passwordError = validatePassword(password);
-      if (passwordError) {
-        return res.status(400).json({ message: passwordError });
+      const passwordCheck = validatePassword(password);
+      if (!passwordCheck.valid) {
+        return res.status(400).json({ message: passwordCheck.message });
       }
 
-      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-
       const [user] = await db.select().from(users)
-        .where(eq(users.passwordResetToken, tokenHash));
+        .where(eq(users.passwordResetToken, token));
 
       if (!user || !user.passwordResetExpires || user.passwordResetExpires < new Date()) {
         return res.status(400).json({ message: "Invalid or expired reset link. Please request a new one." });
       }
 
-      const passwordHash = await hashPassword(password);
+      const hashedPassword = await hashPassword(password);
 
       await db.update(users)
         .set({
-          passwordHash,
-          authProvider: user.authProvider === "replit" ? "both" : "email",
+          passwordHash: hashedPassword,
+          authProvider: user.authProvider === "replit" ? "email" : user.authProvider,
+          emailVerified: true,
           passwordResetToken: null,
           passwordResetExpires: null,
           updatedAt: new Date(),
         })
         .where(eq(users.id, user.id));
 
-      res.json({ message: "Password has been reset. You can now sign in." });
+      res.json({ message: "Password reset successfully. You can now log in." });
     } catch (error: any) {
       console.error("Reset password error:", error);
       res.status(500).json({ message: "Failed to reset password" });
     }
   });
 
-  app.post("/api/admin/users/:id/reset-password", async (req: any, res) => {
-    try {
-      const adminId = req.user?.claims?.sub;
-      if (!adminId) return res.status(401).json({ message: "Unauthorized" });
-
-      const adminEmails = (process.env.ADMIN_EMAILS_LIST || "pawint@me.com").split(",").map((e: string) => e.trim().toLowerCase());
-      const adminIds = (process.env.ADMIN_USER_IDS_LIST || "52852375").split(",").map((i: string) => i.trim());
-
-      const [admin] = await db.select().from(users).where(eq(users.id, adminId));
-      const isAdmin = adminIds.includes(adminId) || (admin?.email && adminEmails.includes(admin.email.toLowerCase()));
-      if (!isAdmin) return res.status(403).json({ message: "Forbidden" });
-
-      const { id } = req.params;
-      const [targetUser] = await db.select().from(users).where(eq(users.id, id));
-      if (!targetUser || !targetUser.email) {
-        return res.status(404).json({ message: "User not found or has no email" });
-      }
-
-      const token = crypto.randomBytes(32).toString("hex");
-      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-      const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
-
-      await db.update(users)
-        .set({
-          passwordResetToken: tokenHash,
-          passwordResetExpires: expires,
-        })
-        .where(eq(users.id, id));
-
-      const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
-      const resetUrl = `https://${domain}/reset-password?token=${token}`;
-
-      try {
-        const { sendEmail } = await import("../lib/email");
-        await sendEmail(
-          targetUser.email,
-          "Password Reset - FamilyRoots",
-          `
-          <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-            <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 16px;">Password Reset</h1>
-            <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
-              Hi ${targetUser.firstName || "there"},
-            </p>
-            <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
-              An administrator has initiated a password reset for your FamilyRoots account. Click the button below to set a new password:
-            </p>
-            <div style="text-align: center; margin: 32px 0;">
-              <a href="${resetUrl}" style="background-color: #16a34a; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
-                Set New Password
-              </a>
-            </div>
-            <p style="font-size: 14px; color: #6a6a6a; line-height: 1.6;">
-              This link expires in 1 hour. If you didn't expect this, contact support.
-            </p>
-            <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
-            <p style="font-size: 12px; color: #999;">FamilyRoots &mdash; Your Private Network for Real Connections</p>
-          </div>
-          `
-        );
-      } catch (e) {
-        console.error("Failed to send admin-initiated reset email:", e);
-      }
-
-      res.json({ message: "Password reset email sent to user" });
-    } catch (error: any) {
-      console.error("Admin reset password error:", error);
-      res.status(500).json({ message: "Failed to send reset" });
+  app.get("/api/admin/status", async (req: any, res) => {
+    if (!req.isAuthenticated() || !req.user?.claims?.sub) {
+      return res.json({ isAdmin: false });
     }
+    const [user] = await db.select().from(users).where(eq(users.id, req.user.claims.sub));
+    res.json({ isAdmin: user?.isAdmin || false });
+  });
+
+  app.get("/api/admin/auth-users", async (req: any, res) => {
+    if (!req.isAuthenticated() || !req.user?.claims?.sub) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const [admin] = await db.select().from(users).where(eq(users.id, req.user.claims.sub));
+    if (!admin?.isAdmin) return res.status(403).json({ message: "Forbidden" });
+
+    const search = ((req.query.search as string) || "").trim().toLowerCase();
+
+    let allUsers;
+    if (search) {
+      const pattern = `%${search}%`;
+      allUsers = await db.select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        createdAt: users.createdAt,
+        isAdmin: users.isAdmin,
+        authProvider: users.authProvider,
+        emailVerified: users.emailVerified,
+        subscriptionTier: users.subscriptionTier,
+        lastActivityAt: users.lastActivityAt,
+      }).from(users)
+        .where(or(
+          ilike(users.firstName, pattern),
+          ilike(users.lastName, pattern),
+          ilike(users.email, pattern),
+        ))
+        .orderBy(sql`${users.createdAt} DESC`);
+    } else {
+      allUsers = await db.select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        createdAt: users.createdAt,
+        isAdmin: users.isAdmin,
+        authProvider: users.authProvider,
+        emailVerified: users.emailVerified,
+        subscriptionTier: users.subscriptionTier,
+        lastActivityAt: users.lastActivityAt,
+      }).from(users)
+        .orderBy(sql`${users.createdAt} DESC`);
+    }
+
+    res.json(allUsers);
+  });
+
+  app.post("/api/admin/users/:id/reset-password", async (req: any, res) => {
+    if (!req.isAuthenticated() || !req.user?.claims?.sub) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const [admin] = await db.select().from(users).where(eq(users.id, req.user.claims.sub));
+    if (!admin?.isAdmin) return res.status(403).json({ message: "Forbidden" });
+
+    const { id } = req.params;
+    const [targetUser] = await db.select().from(users).where(eq(users.id, id));
+    if (!targetUser || !targetUser.email) {
+      return res.status(404).json({ message: "User not found or has no email" });
+    }
+
+    const resetToken = generateToken();
+    const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
+
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
+    const resetUrl = `https://${domain}/reset-password/${resetToken}`;
+
+    try {
+      const { sendEmail } = await import("../lib/email");
+      await sendEmail(
+        targetUser.email,
+        "Password Reset - FamilyRoots",
+        `
+        <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+          <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 16px;">Password Reset</h1>
+          <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
+            Hey ${targetUser.firstName || "there"},
+          </p>
+          <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
+            An administrator has initiated a password reset for your FamilyRoots account. Click the button below to set a new password:
+          </p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${resetUrl}" style="background-color: #16a34a; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+              Set New Password
+            </a>
+          </div>
+          <p style="font-size: 14px; color: #6a6a6a; line-height: 1.6;">
+            This link expires in 1 hour.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
+          <p style="font-size: 12px; color: #999;">FamilyRoots &mdash; Your Private Network for Real Connections</p>
+        </div>
+        `
+      );
+    } catch (e) {
+      console.error("Failed to send admin-initiated reset email:", e);
+      return res.status(500).json({ message: "Failed to send email. Reset aborted." });
+    }
+
+    await db.update(users)
+      .set({
+        passwordResetToken: resetToken,
+        passwordResetExpires: expires,
+      })
+      .where(eq(users.id, id));
+
+    res.json({ message: `Password reset email sent to ${targetUser.email}` });
+  });
+
+  app.post("/api/admin/migrate-auth", async (req: any, res) => {
+    if (!req.isAuthenticated() || !req.user?.claims?.sub) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const [admin] = await db.select().from(users).where(eq(users.id, req.user.claims.sub));
+    if (!admin?.isAdmin) return res.status(403).json({ message: "Forbidden" });
+
+    const { userId } = req.body;
+    const [targetUser] = await db.select().from(users).where(eq(users.id, userId));
+    if (!targetUser) return res.status(404).json({ message: "User not found" });
+    if (targetUser.authProvider === "email") return res.status(400).json({ message: "Already using email auth" });
+    if (!targetUser.email) return res.status(400).json({ message: "No email on file" });
+
+    const resetToken = generateToken();
+    const expires = new Date(Date.now() + MIGRATION_TOKEN_EXPIRY_MS);
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
+    const resetUrl = `https://${domain}/reset-password/${resetToken}`;
+
+    try {
+      const { sendEmail } = await import("../lib/email");
+      await sendEmail(
+        targetUser.email,
+        "Set Up Your FamilyRoots Password",
+        `
+        <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+          <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 16px;">Set Up Your Password</h1>
+          <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
+            Hey ${targetUser.firstName || "there"},
+          </p>
+          <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
+            FamilyRoots now supports direct email/password login. Click the button below to set your password:
+          </p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${resetUrl}" style="background-color: #16a34a; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+              Set Password
+            </a>
+          </div>
+          <p style="font-size: 14px; color: #6a6a6a; line-height: 1.6;">
+            This link expires in 72 hours.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
+          <p style="font-size: 12px; color: #999;">FamilyRoots &mdash; Your Private Network for Real Connections</p>
+        </div>
+        `
+      );
+    } catch (e) {
+      console.error("Failed to send migration email:", e);
+      return res.status(500).json({ message: "Failed to send email. Migration aborted." });
+    }
+
+    await db.update(users)
+      .set({
+        authProvider: "email",
+        emailVerified: true,
+        passwordResetToken: resetToken,
+        passwordResetExpires: expires,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    res.json({ message: `Migrated ${targetUser.email} to email auth. Reset link sent.` });
   });
 }
 
@@ -416,8 +538,7 @@ function setLocalSession(req: any, userId: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const user: any = {
       claims: { sub: userId },
-      authMethod: "email",
-      expires_at: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60),
+      authProvider: "email",
     };
     req.login(user, (err: any) => {
       if (err) {
@@ -430,34 +551,33 @@ function setLocalSession(req: any, userId: string): Promise<void> {
   });
 }
 
-function sanitizeUser(user: any) {
-  const { passwordHash, passwordResetToken, passwordResetExpires, emailVerifyToken, ...safe } = user;
-  return safe;
-}
-
-async function sendVerificationEmail(email: string, name: string, token: string) {
+async function sendVerificationEmail(req: any, email: string, name: string, token: string) {
   try {
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
-    const verifyUrl = `https://${domain}/api/auth/verify-email?token=${token}`;
+    const verifyUrl = `https://${domain}/verify-email/${token}`;
 
     const { sendEmail } = await import("../lib/email");
     await sendEmail(
       email,
-      "Verify Your FamilyRoots Email",
+      "Verify your email - FamilyRoots",
       `
       <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-        <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 16px;">Welcome to FamilyRoots!</h1>
+        <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 16px;">Verify Your Email</h1>
         <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
-          Hi ${name},
+          Hey ${name},
         </p>
         <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
-          Thanks for signing up. Please verify your email address by clicking the button below:
+          Thanks for signing up! Please verify your email address by clicking the button below:
         </p>
         <div style="text-align: center; margin: 32px 0;">
           <a href="${verifyUrl}" style="background-color: #16a34a; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
             Verify Email
           </a>
         </div>
+        <p style="font-size: 14px; color: #6a6a6a; line-height: 1.6;">
+          If the button doesn't work, copy and paste this link:
+        </p>
+        <p style="font-size: 12px; color: #6a6a6a; word-break: break-all;">${verifyUrl}</p>
         <p style="font-size: 14px; color: #6a6a6a; line-height: 1.6;">
           If you didn't create an account, you can safely ignore this email.
         </p>

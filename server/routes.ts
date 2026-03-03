@@ -8530,7 +8530,9 @@ export async function registerRoutes(
       
       const isAdminById = ADMIN_USER_IDS.includes(userId);
       
-      if (!isAdminUser && !isAdminById) {
+      const isAdminByDbFlag = user.isAdmin === true;
+      
+      if (!isAdminUser && !isAdminById && !isAdminByDbFlag) {
         console.log(`Admin access denied for user: ${userId}, email: ${user.email}`);
         return res.status(403).json({ message: "Admin access required" });
       }
@@ -8549,7 +8551,8 @@ export async function registerRoutes(
       
       const isAdminByEmail = user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
       const isAdminById = ADMIN_USER_IDS.includes(userId);
-      res.json({ isAdmin: isAdminByEmail || isAdminById });
+      const isAdminByDbFlag = user?.isAdmin === true;
+      res.json({ isAdmin: isAdminByEmail || isAdminById || isAdminByDbFlag });
     } catch (error: any) {
       console.error("Error checking admin status:", error);
       res.status(500).json({ isAdmin: false });
