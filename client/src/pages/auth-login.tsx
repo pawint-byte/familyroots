@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, LogIn, TreeDeciduous } from "lucide-react";
+import { Eye, EyeOff, LogIn, TreeDeciduous, Mail } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -24,6 +24,7 @@ export default function AuthLogin() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
   const params = new URLSearchParams(window.location.search);
   const verified = params.get("verified") === "true";
@@ -33,23 +34,92 @@ export default function AuthLogin() {
     defaultValues: { email: "", password: "" },
   });
 
+  const resendMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const res = await apiRequest("POST", "/api/auth/resend-verification", { email });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Verification email sent",
+        description: "Please check your inbox and click the verification link.",
+      });
+    },
+  });
+
   const loginMutation = useMutation({
     mutationFn: async (data: LoginForm) => {
-      const res = await apiRequest("POST", "/api/auth/login", data);
-      return res.json();
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw body;
+      }
+      return body;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       setLocation("/");
     },
     onError: (error: any) => {
+      if (error?.code === "USER_NOT_FOUND") {
+        const email = form.getValues("email");
+        setLocation(`/register?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      if (error?.code === "EMAIL_NOT_VERIFIED") {
+        setUnverifiedEmail(error.email || form.getValues("email"));
+        return;
+      }
       toast({
         title: "Sign in failed",
-        description: error.message || "Invalid email or password",
+        description: error?.message || "Invalid email or password",
         variant: "destructive",
       });
     },
   });
+
+  if (unverifiedEmail) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md" data-testid="verify-email-card">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Mail className="h-10 w-10 text-primary" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
+            <CardDescription>
+              You need to verify your email address before you can sign in.
+              Check your inbox at <strong>{unverifiedEmail}</strong> for the verification link.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => resendMutation.mutate(unverifiedEmail)}
+              disabled={resendMutation.isPending}
+              data-testid="button-resend-verification"
+            >
+              {resendMutation.isPending ? "Sending..." : "Resend Verification Email"}
+            </Button>
+            <Button
+              className="w-full"
+              variant="ghost"
+              onClick={() => setUnverifiedEmail(null)}
+              data-testid="button-back-to-login"
+            >
+              Back to Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

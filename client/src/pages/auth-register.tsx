@@ -4,14 +4,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, UserPlus, TreeDeciduous } from "lucide-react";
+import { Eye, EyeOff, UserPlus, TreeDeciduous, Mail } from "lucide-react";
 
 const registerSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -34,11 +34,27 @@ export default function AuthRegister() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
-  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+
+  const params = new URLSearchParams(window.location.search);
+  const prefillEmail = params.get("email") || "";
 
   const form = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { firstName: "", lastName: "", email: "", password: "", confirmPassword: "" },
+    defaultValues: { firstName: "", lastName: "", email: prefillEmail, password: "", confirmPassword: "" },
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const res = await apiRequest("POST", "/api/auth/resend-verification", { email });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Verification email sent",
+        description: "Please check your inbox and click the verification link.",
+      });
+    },
   });
 
   const registerMutation = useMutation({
@@ -48,11 +64,8 @@ export default function AuthRegister() {
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       if (data.emailVerificationSent) {
-        setVerificationSent(true);
-      } else {
-        setLocation("/");
+        setVerificationEmail(form.getValues("email"));
       }
     },
     onError: (error: any) => {
@@ -64,30 +77,39 @@ export default function AuthRegister() {
     },
   });
 
-  if (verificationSent) {
+  if (verificationEmail) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md" data-testid="verification-sent-card">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-              <TreeDeciduous className="h-10 w-10 text-primary" />
+              <Mail className="h-10 w-10 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">Check Your Email</CardTitle>
+            <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
             <CardDescription>
-              We've sent a verification link to <strong>{form.getValues("email")}</strong>.
-              Please check your inbox and click the link to verify your account.
+              We've sent a verification link to <strong>{verificationEmail}</strong>.
+              You must verify your email before you can sign in.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground text-center">
-              You can start using FamilyRoots right away, but please verify your email to access all features.
-            </p>
+            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-200">
+              Check your inbox (and spam folder) for an email from FamilyRoots. Click the verification link, then come back here to sign in.
+            </div>
             <Button
               className="w-full"
-              onClick={() => setLocation("/")}
-              data-testid="button-continue-to-app"
+              variant="outline"
+              onClick={() => resendMutation.mutate(verificationEmail)}
+              disabled={resendMutation.isPending}
+              data-testid="button-resend-verification"
             >
-              Continue to FamilyRoots
+              {resendMutation.isPending ? "Sending..." : "Resend Verification Email"}
+            </Button>
+            <Button
+              className="w-full"
+              onClick={() => setLocation("/login")}
+              data-testid="button-go-to-login"
+            >
+              Go to Sign In
             </Button>
           </CardContent>
         </Card>

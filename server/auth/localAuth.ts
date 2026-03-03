@@ -89,9 +89,8 @@ export function setupLocalAuth(app: Express) {
           .where(eq(users.id, existingUser.id))
           .returning();
 
-        await setLocalSession(req, updated.id);
         await sendVerificationEmail(normalizedEmail, firstName || existingUser.firstName || "there", emailVerifyToken);
-        return res.json({ user: sanitizeUser(updated), emailVerificationSent: true });
+        return res.json({ emailVerificationSent: true, message: "Please check your email to verify your account." });
       }
 
       const passwordHash = await hashPassword(password);
@@ -108,10 +107,9 @@ export function setupLocalAuth(app: Express) {
         })
         .returning();
 
-      await setLocalSession(req, newUser.id);
       await sendVerificationEmail(normalizedEmail, firstName || "there", emailVerifyToken);
 
-      res.status(201).json({ user: sanitizeUser(newUser), emailVerificationSent: true });
+      res.status(201).json({ emailVerificationSent: true, message: "Please check your email to verify your account." });
     } catch (error: any) {
       console.error("Registration error:", error);
       res.status(500).json({ message: "Registration failed" });
@@ -132,18 +130,27 @@ export function setupLocalAuth(app: Express) {
         .where(sql`LOWER(${users.email}) = ${normalizedEmail}`);
 
       if (!user) {
-        return res.status(401).json({ message: "Invalid email or password" });
+        return res.status(404).json({ message: "No account found with this email", code: "USER_NOT_FOUND" });
       }
 
       if (!user.passwordHash) {
         return res.status(401).json({
-          message: "This account uses Replit authentication. Please sign in with Replit, or use 'Forgot Password' to set a password."
+          message: "This account uses Replit authentication. Please sign in with Replit, or use 'Forgot Password' to set a password.",
+          code: "REPLIT_AUTH_ONLY"
         });
       }
 
       const valid = await verifyPassword(password, user.passwordHash);
       if (!valid) {
         return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      if (!user.emailVerified) {
+        return res.status(403).json({
+          message: "Please verify your email before signing in. Check your inbox for the verification link.",
+          code: "EMAIL_NOT_VERIFIED",
+          email: normalizedEmail,
+        });
       }
 
       await setLocalSession(req, user.id);
