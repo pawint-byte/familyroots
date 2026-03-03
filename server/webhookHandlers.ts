@@ -1,3 +1,4 @@
+import Stripe from 'stripe';
 import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { subscriptionService } from './subscriptionService';
 import { storage } from './storage';
@@ -15,12 +16,25 @@ export class WebhookHandlers {
       );
     }
 
-    const sync = await getStripeSync();
-    await sync.processWebhook(payload, signature);
+    try {
+      const sync = await getStripeSync();
+      await sync.processWebhook(payload, signature);
+    } catch (syncError: any) {
+      console.error('stripe-replit-sync processWebhook failed (non-fatal):', syncError.message);
+    }
 
     try {
       const stripe = await getUncachableStripeClient();
-      const event = JSON.parse(payload.toString());
+
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      let event: Stripe.Event;
+
+      if (webhookSecret) {
+        event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      } else {
+        console.warn('STRIPE_WEBHOOK_SECRET not set — falling back to unverified event parsing');
+        event = JSON.parse(payload.toString()) as Stripe.Event;
+      }
 
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object;

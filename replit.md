@@ -59,7 +59,7 @@ The backend uses Node.js, Express.js, and TypeScript, providing RESTful API endp
 -   **AI**: OpenAI (via Replit AI Integrations)
 -   **Email**: Resend
 -   **Video Generation**: HeyGen API
--   **Payments**: Stripe
+-   **Payments**: Stripe. Webhook endpoint at `/api/stripe/webhook` uses `STRIPE_WEBHOOK_SECRET` for signature verification via `constructEvent()`. Webhooks are managed manually in the Stripe Dashboard — no auto-creation/deletion in code. `stripe-replit-sync` processWebhook is wrapped in try/catch so sync failures don't block event processing.
 -   **Print-on-Demand**: Printful API
 -   **Genealogy Research**: FamilySearch API (Beta environment) with a robust conflict detection and resolution system for importing ancestry data, involving a 7-phase true-sync approach for merging, skipping, and keeping members and their associated data.
 -   **NPM Packages**: Radix UI, Tailwind CSS, react-hook-form, zod, @tanstack/react-query, drizzle-orm, passport, openid-client, express-session, connect-pg-simple, html-to-image, react-leaflet.
