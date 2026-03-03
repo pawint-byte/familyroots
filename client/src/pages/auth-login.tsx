@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, LogIn, TreeDeciduous, Mail, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, LogIn, TreeDeciduous, Mail } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -115,15 +114,6 @@ export default function AuthLogin() {
             <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-200" data-testid="text-migration-info">
               Check your inbox and click the link to create your password. Once set, you can sign in directly with your email and password.
             </div>
-            <Button
-              className="w-full"
-              variant="outline"
-              onClick={() => { window.location.href = "/api/login"; }}
-              data-testid="button-continue-replit-migration"
-            >
-              Continue with Replit in the meantime
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
             <Button
               className="w-full"
               variant="ghost"
@@ -262,22 +252,6 @@ export default function AuthLogin() {
               </Button>
             </form>
           </Form>
-
-          <div className="relative">
-            <Separator />
-            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
-              or
-            </span>
-          </div>
-
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => { window.location.href = "/api/login"; }}
-            data-testid="button-continue-replit"
-          >
-            Continue with Replit
-          </Button>
 
           <p className="text-center text-sm text-muted-foreground">
             Don't have an account?{" "}

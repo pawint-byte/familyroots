@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Separator } from "@/components/ui/separator";
 import { Eye, EyeOff, UserPlus, TreeDeciduous, Mail } from "lucide-react";
 
 const registerSchema = z.object({
@@ -233,22 +232,6 @@ export default function AuthRegister() {
               </Button>
             </form>
           </Form>
-
-          <div className="relative">
-            <Separator />
-            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
-              or
-            </span>
-          </div>
-
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => { window.location.href = "/api/login"; }}
-            data-testid="button-continue-replit"
-          >
-            Continue with Replit
-          </Button>
 
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
