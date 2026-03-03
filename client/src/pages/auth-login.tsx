@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, LogIn, TreeDeciduous, Mail } from "lucide-react";
+import { Eye, EyeOff, LogIn, TreeDeciduous, Mail, ArrowRight } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -25,6 +25,7 @@ export default function AuthLogin() {
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [migrationEmail, setMigrationEmail] = useState<string | null>(null);
 
   const params = new URLSearchParams(window.location.search);
   const verified = params.get("verified") === "true";
@@ -61,7 +62,16 @@ export default function AuthLogin() {
       }
       return body;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data?.code === "NO_ACCOUNT") {
+        const email = form.getValues("email");
+        setLocation(`/register?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      if (data?.code === "MIGRATION_EMAIL_SENT") {
+        setMigrationEmail(data.email || form.getValues("email"));
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       setLocation("/");
     },
@@ -69,6 +79,10 @@ export default function AuthLogin() {
       if (error?.code === "NO_ACCOUNT" || error?.code === "USER_NOT_FOUND") {
         const email = form.getValues("email");
         setLocation(`/register?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      if (error?.code === "MIGRATION_EMAIL_SENT") {
+        setMigrationEmail(error.email || form.getValues("email"));
         return;
       }
       if (error?.code === "EMAIL_NOT_VERIFIED") {
@@ -82,6 +96,47 @@ export default function AuthLogin() {
       });
     },
   });
+
+  if (migrationEmail) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md" data-testid="migration-email-card">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Mail className="h-10 w-10 text-primary" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Set Up Your Password</CardTitle>
+            <CardDescription>
+              We found your existing account at <strong>{migrationEmail}</strong>.
+              We've sent you an email with a link to set up a password for direct login.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-200" data-testid="text-migration-info">
+              Check your inbox and click the link to create your password. Once set, you can sign in directly with your email and password.
+            </div>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => { window.location.href = "/api/login"; }}
+              data-testid="button-continue-replit-migration"
+            >
+              Continue with Replit in the meantime
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button
+              className="w-full"
+              variant="ghost"
+              onClick={() => setMigrationEmail(null)}
+              data-testid="button-back-to-login"
+            >
+              Back to Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (unverifiedEmail) {
     return (

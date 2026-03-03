@@ -116,25 +116,60 @@ export function setupLocalAuth(app: Express) {
         .where(sql`LOWER(${users.email}) = ${normalizedEmail}`);
 
       if (!user) {
-        return res.status(401).json({
+        return res.status(200).json({
           message: "No account found with that email. Would you like to sign up?",
           code: "NO_ACCOUNT",
         });
       }
 
-      if (user.authProvider !== "email" && user.authProvider !== "both") {
-        if (!user.passwordHash) {
-          return res.status(401).json({
-            message: "This account uses a different login method. Try signing in with Replit, or use 'Forgot Password' to set a password.",
-            code: "REPLIT_AUTH_ONLY",
-          });
-        }
-      }
-
       if (!user.passwordHash) {
-        return res.status(401).json({
-          message: "This account uses a different login method.",
-          code: "REPLIT_AUTH_ONLY",
+        const resetToken = generateToken();
+        const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
+        const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
+        const resetUrl = `https://${domain}/reset-password/${resetToken}`;
+
+        await db.update(users)
+          .set({
+            passwordResetToken: resetToken,
+            passwordResetExpires: expires,
+          })
+          .where(eq(users.id, user.id));
+
+        try {
+          const { sendEmail } = await import("../lib/email");
+          await sendEmail(
+            normalizedEmail,
+            "Set Up Your FamilyRoots Password",
+            `
+            <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+              <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 16px;">Set Up Your Password</h1>
+              <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
+                Hey ${user.firstName || "there"},
+              </p>
+              <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6;">
+                FamilyRoots now supports direct email/password login. Click the button below to set your password:
+              </p>
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${resetUrl}" style="background-color: #16a34a; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+                  Set Password
+                </a>
+              </div>
+              <p style="font-size: 14px; color: #6a6a6a; line-height: 1.6;">
+                This link expires in 1 hour. You can also continue signing in with Replit in the meantime.
+              </p>
+              <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
+              <p style="font-size: 12px; color: #999;">FamilyRoots &mdash; Your Private Network for Real Connections</p>
+            </div>
+            `
+          );
+        } catch (e) {
+          console.error("Failed to send migration email:", e);
+        }
+
+        return res.status(200).json({
+          message: "We've sent you an email to set up a password for direct login. Check your inbox!",
+          code: "MIGRATION_EMAIL_SENT",
+          email: normalizedEmail,
         });
       }
 
@@ -254,7 +289,7 @@ export function setupLocalAuth(app: Express) {
       const [user] = await db.select().from(users)
         .where(sql`LOWER(${users.email}) = ${normalizedEmail}`);
 
-      if (!user || (user.authProvider !== "email" && user.authProvider !== "both" && !user.passwordHash)) {
+      if (!user) {
         return res.json({ message: "If an account exists with that email, a reset link has been sent." });
       }
 
