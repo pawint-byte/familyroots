@@ -3121,7 +3121,7 @@ export default function MerchandisePage() {
                 <Button 
                   variant="ghost" 
                   className="px-1 text-primary underline"
-                  onClick={() => window.location.href = "/api/login"}
+                  onClick={() => window.location.href = "/login"}
                   data-testid="button-sign-in"
                 >
                   Sign In Now
@@ -3139,7 +3139,7 @@ export default function MerchandisePage() {
                   <ProductCard
                     key={product.id}
                     product={product}
-                    onCustomize={() => window.location.href = "/api/login"}
+                    onCustomize={() => window.location.href = "/login"}
                     markupMultiplier={markupMultiplier}
                   />
                 ))}

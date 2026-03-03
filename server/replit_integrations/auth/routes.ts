@@ -9,7 +9,12 @@ export function registerAuthRoutes(app: Express): void {
     try {
       const userId = req.user.claims.sub;
       const user = await authStorage.getUser(userId);
-      res.json(user);
+      if (user) {
+        const { passwordHash, passwordResetToken, passwordResetExpires, emailVerifyToken, ...safeUser } = user as any;
+        res.json(safeUser);
+      } else {
+        res.status(401).json({ message: "Unauthorized" });
+      }
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });

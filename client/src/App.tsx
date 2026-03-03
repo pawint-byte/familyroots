@@ -45,6 +45,10 @@ import FeaturesGuide from "@/pages/features-guide";
 import ConnectToTree from "@/pages/connect-to-tree";
 import WhatsNew from "@/pages/whats-new";
 import Radar from "@/pages/radar";
+import AuthLogin from "@/pages/auth-login";
+import AuthRegister from "@/pages/auth-register";
+import AuthForgotPassword from "@/pages/auth-forgot-password";
+import AuthResetPassword from "@/pages/auth-reset-password";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -65,6 +69,10 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={user ? Dashboard : Landing} />
+      <Route path="/login" component={AuthLogin} />
+      <Route path="/register" component={AuthRegister} />
+      <Route path="/forgot-password" component={AuthForgotPassword} />
+      <Route path="/reset-password" component={AuthResetPassword} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/tree/:id" component={TreeView} />
       <Route path="/pricing" component={Pricing} />

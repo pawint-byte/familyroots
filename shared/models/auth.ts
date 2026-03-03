@@ -72,6 +72,13 @@ export const users = pgTable("users", {
   monthlyAddsResetAt: timestamp("monthly_adds_reset_at"),
   hasEarnedFreePackAt100: boolean("has_earned_free_pack_at_100").default(false),
 
+  passwordHash: text("password_hash"),
+  passwordResetToken: varchar("password_reset_token"),
+  passwordResetExpires: timestamp("password_reset_expires"),
+  authProvider: varchar("auth_provider").default("replit"),
+  emailVerified: boolean("email_verified").default(false),
+  emailVerifyToken: varchar("email_verify_token"),
+
   subscriptionCancelledAt: timestamp("subscription_cancelled_at"),
   contentRetentionWarningsSent: integer("content_retention_warnings_sent").default(0),
 

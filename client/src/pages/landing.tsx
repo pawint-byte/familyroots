@@ -57,10 +57,10 @@ export default function Landing() {
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
             <ThemeToggle />
-            <a href="/api/login">
+            <a href="/login">
               <Button variant="ghost" data-testid="button-login">{t.nav.login}</Button>
             </a>
-            <a href="/api/login">
+            <a href="/login">
               <Button data-testid="button-get-started">{t.nav.getStarted}</Button>
             </a>
           </div>
@@ -85,7 +85,7 @@ export default function Landing() {
                   {t.landing.heroDescription}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <a href="/api/login">
+                  <a href="/login">
                     <Button size="lg" className="gap-2" data-testid="button-hero-start">
                       {t.landing.startTree}
                       <ArrowRight className="h-4 w-4" />
@@ -257,7 +257,7 @@ export default function Landing() {
             
             {/* CTA after steps */}
             <div className="text-center mt-12">
-              <a href="/api/login">
+              <a href="/login">
                 <Button size="lg" className="gap-2" data-testid="button-how-cta">
                   {t.landing.startTree}
                   <ArrowRight className="h-4 w-4" />
@@ -339,7 +339,7 @@ export default function Landing() {
               <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
                 Your family knows you're their cousin. Your church knows you're their pastor. Your team knows you're the captain. But outsiders? They see nothing.
               </p>
-              <a href="/api/login">
+              <a href="/login">
                 <Button size="lg" className="gap-2" data-testid="button-private-cta">
                   Build Your Private Network
                   <ArrowRight className="h-4 w-4" />
@@ -451,7 +451,7 @@ export default function Landing() {
               </Card>
             </div>
             <div className="text-center mt-8">
-              <a href="/api/login">
+              <a href="/login">
                 <Button size="lg" className="gap-2" data-testid="button-demo-cta">
                   Start Building Your Tree
                   <ArrowRight className="h-4 w-4" />
@@ -507,7 +507,7 @@ export default function Landing() {
                 You are the common anchor across all your private networks. 
                 Each group has its own roles and relationships, all members-only, and all under your control.
               </p>
-              <a href="/api/login">
+              <a href="/login">
                 <Button size="lg" className="gap-2" data-testid="button-tree-types-cta">
                   Start Building
                   <ArrowRight className="h-4 w-4" />
@@ -901,7 +901,7 @@ export default function Landing() {
                 {t.landing.headsOfHouseholdDesc}
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="/api/login">
+                <a href="/login">
                   <Button size="lg" className="gap-2" data-testid="button-cta-start">
                     {t.landing.ctaButton}
                     <ArrowRight className="h-4 w-4" />

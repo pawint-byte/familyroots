@@ -1,0 +1,31 @@
+is there anything you want me to share with the other app about this effort so both apps are being engineered the same/right way
+
+Great question. Here's what would be relevant to share with whoever is building FamilyRoots.family:
+
+Authentication architecture:
+
+We're building a dual auth system — email/password for new users, with Replit Auth staying active for existing users
+The users table now has: passwordHash, emailVerified, emailVerifyToken, passwordResetToken, passwordResetExpires, authProvider (either "replit" or "email")
+Password hashing uses Node's built-in scrypt (no external dependency)
+Sessions use express-session with PostgreSQL storage via connect-pg-simple
+The isAuthenticated middleware checks authProvider — email users skip OIDC token refresh, Replit users go through the existing OIDC flow
+What FamilyRoots should match:
+
+Same user schema structure (the auth fields above)
+Same password hashing approach (scrypt with random salt, stored as salt:hash)
+Same email verification flow (token in URL, verified via API)
+Same password reset flow (token + 1-hour expiry)
+Same session setup (PostgreSQL-backed, 1-week TTL, httpOnly secure cookies)
+Same email templates via Resend for verification and password reset
+What can be shared directly:
+
+server/services/email-auth.ts — the password hashing, token generation, and validation functions. This file is portable, copy it straight over.
+The email templates for verification and password reset from server/lib/email.ts
+The phone verification service (server/services/twilio-verify.ts) if FamilyRoots needs phone verification too
+Key decisions to keep consistent:
+
+Password rules: min 8 chars, uppercase, lowercase, number
+Email stored lowercase everywhere
+UUID for user IDs (not sequential integers)
+Auth provider field so you always know how a user signed up
+If FamilyRoots is being built on Replit too, the same dual-auth approach works. If it's built elsewhere, just use the email/password auth and skip Replit Auth entirely

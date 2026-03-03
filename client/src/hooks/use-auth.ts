@@ -33,8 +33,16 @@ async function fetchUser(): Promise<User | null> {
   return response.json();
 }
 
-async function logout(): Promise<void> {
-  window.location.href = "/api/logout";
+async function logout(authProvider?: string): Promise<void> {
+  if (authProvider === "replit") {
+    window.location.href = "/api/logout";
+    return;
+  }
+  try {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+  } catch {
+  }
+  window.location.href = "/login";
 }
 
 export function useAuth() {
@@ -63,7 +71,7 @@ export function useAuth() {
   }, [user]);
 
   const logoutMutation = useMutation({
-    mutationFn: logout,
+    mutationFn: () => logout(user?.authProvider),
     onSuccess: () => {
       queryClient.setQueryData(["/api/auth/user"], null);
     },

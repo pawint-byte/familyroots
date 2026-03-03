@@ -177,7 +177,7 @@ export default function Pricing() {
 
   const handleTierCheckout = (tier: string) => {
     if (!user) {
-      window.location.href = "/api/login";
+      window.location.href = "/login";
       return;
     }
     tierCheckoutMutation.mutate(tier);
@@ -185,7 +185,7 @@ export default function Pricing() {
 
   const handleBuyPack = (packType: string) => {
     if (!user) {
-      window.location.href = "/api/login";
+      window.location.href = "/login";
       return;
     }
     bulkPackMutation.mutate(packType);
@@ -231,7 +231,7 @@ export default function Pricing() {
               </Button>
             ) : (
               <Button asChild data-testid="button-login">
-                <a href="/api/login">Log In</a>
+                <a href="/login">Log In</a>
               </Button>
             )}
           </div>
@@ -564,7 +564,7 @@ export default function Pricing() {
           <div className="text-center mt-12">
             <p className="text-muted-foreground mb-4">Sign in to start building your family tree — {config.freeTierCredits} members free.</p>
             <Button asChild size="lg" data-testid="button-get-started">
-              <a href="/api/login">Get Started Free</a>
+              <a href="/login">Get Started Free</a>
             </Button>
           </div>
         )}
