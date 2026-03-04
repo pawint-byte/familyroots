@@ -13,6 +13,12 @@ import {
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
 const MIGRATION_TOKEN_EXPIRY_MS = 72 * 60 * 60 * 1000;
 
+function getEmailDomain(): string {
+  const domains = process.env.REPLIT_DOMAINS?.split(",") || [];
+  const productionDomain = domains.find(d => !d.includes(".spock.replit.dev") && !d.includes(".replit.dev"));
+  return productionDomain || domains[0] || "familyroots.family";
+}
+
 export const isAdmin: RequestHandler = async (req: any, res, next) => {
   const userId = req.user?.claims?.sub;
   if (!userId) return res.status(403).json({ message: "Forbidden" });
@@ -125,7 +131,7 @@ export function setupLocalAuth(app: Express) {
       if (!user.passwordHash) {
         const resetToken = generateToken();
         const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
-        const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
+        const domain = getEmailDomain();
         const resetUrl = `https://${domain}/reset-password/${resetToken}`;
 
         await db.update(users)
@@ -313,7 +319,7 @@ export function setupLocalAuth(app: Express) {
         })
         .where(eq(users.id, user.id));
 
-      const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
+      const domain = getEmailDomain();
       const resetUrl = `https://${domain}/reset-password/${resetToken}`;
 
       try {
@@ -470,7 +476,7 @@ export function setupLocalAuth(app: Express) {
     const resetToken = generateToken();
     const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
 
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
+    const domain = getEmailDomain();
     const resetUrl = `https://${domain}/reset-password/${resetToken}`;
 
     try {
@@ -530,7 +536,7 @@ export function setupLocalAuth(app: Express) {
 
     const resetToken = generateToken();
     const expires = new Date(Date.now() + MIGRATION_TOKEN_EXPIRY_MS);
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
+    const domain = getEmailDomain();
     const resetUrl = `https://${domain}/reset-password/${resetToken}`;
 
     try {
@@ -598,7 +604,7 @@ function setLocalSession(req: any, userId: string): Promise<void> {
 
 async function sendVerificationEmail(req: any, email: string, name: string, token: string) {
   try {
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "familyroots.family";
+    const domain = getEmailDomain();
     const verifyUrl = `https://${domain}/verify-email/${token}`;
 
     const { sendEmail } = await import("../lib/email");
