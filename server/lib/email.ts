@@ -44,7 +44,8 @@ async function getResendClient() {
 // Generic email sending function
 export async function sendEmail(to: string, subject: string, html: string) {
   const { client, fromEmail } = await getResendClient();
-  const sender = fromEmail || 'FamilyRoots <onboarding@resend.dev>';
+  const verifiedSender = 'FamilyRoots <noreply@pawint-app.com>';
+  const sender = verifiedSender;
 
   let result = await client.emails.send({
     from: sender,
@@ -53,14 +54,8 @@ export async function sendEmail(to: string, subject: string, html: string) {
     html
   });
 
-  if (result?.error && sender !== 'FamilyRoots <onboarding@resend.dev>') {
-    console.warn(`[email] Primary sender failed (${sender}), retrying with resend.dev:`, result.error.message);
-    result = await client.emails.send({
-      from: 'FamilyRoots <onboarding@resend.dev>',
-      to,
-      subject,
-      html
-    });
+  if (result?.error) {
+    console.error(`[email] Send failed from ${sender}:`, result.error.message);
   }
 
   return result;
