@@ -88,6 +88,14 @@ export default function AuthLogin() {
         setUnverifiedEmail(error.email || form.getValues("email"));
         return;
       }
+      if (error?.code === "EMAIL_SEND_FAILED") {
+        toast({
+          title: "Email couldn't be sent",
+          description: "We found your account but couldn't send the setup email. Try using the Forgot Password option instead.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: "Sign in failed",
         description: error?.message || "Invalid email or password",

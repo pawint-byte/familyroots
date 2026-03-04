@@ -135,9 +135,10 @@ export function setupLocalAuth(app: Express) {
           })
           .where(eq(users.id, user.id));
 
+        let emailSent = false;
         try {
           const { sendEmail } = await import("../lib/email");
-          await sendEmail(
+          const emailResult = await sendEmail(
             normalizedEmail,
             "Set Up Your FamilyRoots Password",
             `
@@ -155,15 +156,24 @@ export function setupLocalAuth(app: Express) {
                 </a>
               </div>
               <p style="font-size: 14px; color: #6a6a6a; line-height: 1.6;">
-                This link expires in 1 hour. You can also continue signing in with Replit in the meantime.
+                This link expires in 1 hour.
               </p>
               <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
               <p style="font-size: 12px; color: #999;">FamilyRoots &mdash; Your Private Network for Real Connections</p>
             </div>
             `
           );
-        } catch (e) {
-          console.error("Failed to send migration email:", e);
+          console.log("[auth] Migration email result:", JSON.stringify(emailResult));
+          emailSent = !emailResult?.error;
+        } catch (e: any) {
+          console.error("[auth] Failed to send migration email:", e?.message || e);
+        }
+
+        if (!emailSent) {
+          return res.status(500).json({
+            message: "We found your account but couldn't send the password setup email. Please try again or use the Forgot Password page.",
+            code: "EMAIL_SEND_FAILED",
+          });
         }
 
         return res.status(200).json({
