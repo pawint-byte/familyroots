@@ -29,6 +29,72 @@ async function uploadBuffer(buffer: Buffer, filename: string, contentType: strin
   return `/objects/merchandise/${filename}`;
 }
 
+function getUniquePlacements(productId: number): string[] {
+  try {
+    const { PrintfulService } = require("./printful");
+    const service = new PrintfulService();
+    const products = service.getProducts();
+    const product = products.find((p: any) => p.id === productId);
+    if (product?.placements) {
+      const types = new Set(product.placements.map((p: any) => p.printfulType));
+      return [...types];
+    }
+  } catch {}
+  return ["default"];
+}
+
+async function fetchImageBuffer(urlOrPath: string, baseUrl: string): Promise<Buffer> {
+  const fullUrl = urlOrPath.startsWith("http") ? urlOrPath : `${baseUrl}${urlOrPath}`;
+  const response = await fetch(fullUrl);
+  if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+  return Buffer.from(await response.arrayBuffer());
+}
+
+async function compositeTreeAndQR(treeImagePath: string, qrUrl: string, baseUrl: string): Promise<string> {
+  const sharp = (await import("sharp")).default;
+
+  const treeBuffer = await fetchImageBuffer(treeImagePath, baseUrl);
+  const treeMeta = await sharp(treeBuffer).metadata();
+  const treeWidth = treeMeta.width || 2400;
+  const treeHeight = treeMeta.height || 2400;
+
+  const QRCode = await import("qrcode");
+  const qrSize = Math.min(Math.round(treeWidth * 0.18), 400);
+  const qrBuffer = await QRCode.default.toBuffer(qrUrl, {
+    type: "png",
+    width: qrSize,
+    margin: 1,
+    color: { dark: "#000000", light: "#ffffff" },
+    errorCorrectionLevel: "H",
+  });
+
+  const padding = Math.round(qrSize * 0.15);
+  const bgSize = qrSize + padding * 2;
+  const qrWithBg = await sharp(
+    Buffer.from(
+      `<svg width="${bgSize}" height="${bgSize}">
+        <rect width="${bgSize}" height="${bgSize}" rx="12" fill="white" stroke="#e5e7eb" stroke-width="2"/>
+      </svg>`
+    )
+  )
+    .composite([{ input: qrBuffer, left: padding, top: padding }])
+    .png()
+    .toBuffer();
+
+  const margin = Math.round(treeWidth * 0.03);
+  const composited = await sharp(treeBuffer)
+    .composite([{
+      input: qrWithBg,
+      left: treeWidth - bgSize - margin,
+      top: treeHeight - bgSize - margin,
+    }])
+    .png()
+    .toBuffer();
+
+  const filename = `composited-${randomUUID()}.png`;
+  return uploadBuffer(composited, filename, "image/png");
+}
+
 export async function generateAndUploadQR(url: string): Promise<string> {
   const QRCode = await import("qrcode");
   const pngBuffer = await QRCode.default.toBuffer(url, {
@@ -109,23 +175,46 @@ export async function buildPrintfulFiles(
     return files;
   }
 
-  if (order.treeImageUrl) {
-    const treeUrl = getPublicFileUrl(order.treeImageUrl, baseUrl);
-    const resolvedType = resolvePrintfulType(placement?.treePlacement || "front", productId);
-    files.push({
-      type: resolvedType,
-      url: treeUrl,
-    });
-  }
+  const uniquePlacements = getUniquePlacements(productId);
+  const isSinglePlacement = uniquePlacements.length === 1;
+  const hasQR = placement?.qrPlacement && placement?.qrProfileUrl;
+  const treePlacementType = resolvePrintfulType(placement?.treePlacement || "front", productId);
+  const qrPlacementType = hasQR ? resolvePrintfulType(placement.qrPlacement, productId) : null;
+  const needsCompositing = isSinglePlacement && hasQR && order.treeImageUrl && treePlacementType === qrPlacementType;
 
-  if (placement?.qrPlacement && placement?.qrProfileUrl) {
-    const qrObjectPath = await generateAndUploadQR(placement.qrProfileUrl);
-    const qrUrl = getPublicFileUrl(qrObjectPath, baseUrl);
-    const resolvedType = resolvePrintfulType(placement.qrPlacement, productId);
-    files.push({
-      type: resolvedType,
-      url: qrUrl,
-    });
+  if (needsCompositing) {
+    console.log(`[merchandise] Single-placement product ${productId} — compositing tree image + QR into one file`);
+    try {
+      const compositedPath = await compositeTreeAndQR(order.treeImageUrl, placement.qrProfileUrl, baseUrl);
+      const compositedUrl = getPublicFileUrl(compositedPath, baseUrl);
+      files.push({
+        type: treePlacementType,
+        url: compositedUrl,
+      });
+    } catch (err) {
+      console.error("[merchandise] Compositing failed, falling back to tree image only:", err);
+      files.push({
+        type: treePlacementType,
+        url: getPublicFileUrl(order.treeImageUrl, baseUrl),
+      });
+    }
+  } else {
+    if (order.treeImageUrl) {
+      const treeUrl = getPublicFileUrl(order.treeImageUrl, baseUrl);
+      files.push({
+        type: treePlacementType,
+        url: treeUrl,
+      });
+    }
+
+    if (hasQR) {
+      const qrObjectPath = await generateAndUploadQR(placement.qrProfileUrl);
+      const qrUrl = getPublicFileUrl(qrObjectPath, baseUrl);
+      files.push({
+        type: qrPlacementType!,
+        url: qrUrl,
+      });
+    }
   }
 
   if (placement?.customImageUrl) {
