@@ -10848,6 +10848,31 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/merchandise/orders/:id/preview-files", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const order = await storage.getMerchandiseOrder(req.params.id);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+      if (order.userId !== userId) return res.status(403).json({ message: "Access denied" });
+
+      const { buildPrintfulFiles } = await import("./merchandiseHelpers");
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const printfulFiles = await buildPrintfulFiles(order, baseUrl);
+
+      res.json({
+        orderId: order.id,
+        productName: order.productName,
+        variantName: order.variantName,
+        productId: order.productId,
+        files: printfulFiles,
+        placementConfig: order.placementConfig,
+      });
+    } catch (error: any) {
+      console.error("Error previewing order files:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Test Printful connection
   app.get("/api/merchandise/test-connection", isAuthenticated, async (req, res) => {
     try {
