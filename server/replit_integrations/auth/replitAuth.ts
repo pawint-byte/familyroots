@@ -206,6 +206,18 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     updateUserSession(user, tokenResponse);
     return next();
   } catch (error) {
+    try {
+      const dbUser = await authStorage.getUser(user.claims?.sub);
+      if (dbUser && dbUser.authProvider === "email" && dbUser.passwordHash) {
+        user.authProvider = "email";
+        user.authMethod = "email";
+        delete user.expires_at;
+        delete user.refresh_token;
+        delete user.access_token;
+        (req as any).session?.save?.();
+        return next();
+      }
+    } catch {}
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
