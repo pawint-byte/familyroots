@@ -3,7 +3,7 @@ import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { subscriptionService } from './subscriptionService';
 import { storage } from './storage';
 import { printfulService } from './printful';
-import { buildPrintfulFiles, sendOrderConfirmationEmail } from './merchandiseHelpers';
+import { buildPrintfulFiles, sendOrderConfirmationEmail, sendOrderFailureEmail } from './merchandiseHelpers';
 
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
@@ -91,10 +91,14 @@ export class WebhookHandlers {
             console.error('Error processing merchandise webhook:', merchError);
             if (metadata.orderId) {
               try {
+                const failedOrder = await storage.getMerchandiseOrder(metadata.orderId);
                 await storage.updateMerchandiseOrder(metadata.orderId, {
                   status: "failed",
                   printfulError: merchError.message || "Unexpected error during order submission",
                 });
+                if (failedOrder) {
+                  await sendOrderFailureEmail(failedOrder, failedOrder.userId, merchError.message || "Unexpected error during order submission");
+                }
               } catch {}
             }
           }
@@ -119,6 +123,7 @@ export class WebhookHandlers {
                   status: "failed",
                   printfulError: err.message || "Error during cart order processing",
                 });
+                await sendOrderFailureEmail(order, order.userId, err.message || "Error during cart order processing");
               }
             }
           } catch (cartError: any) {
@@ -171,6 +176,7 @@ export class WebhookHandlers {
         printfulError: "No print files configured for this order",
       });
       console.error(`Merchandise order ${order.id} has no print files`);
+      await sendOrderFailureEmail(order, order.userId, "No print files configured for this order");
       return;
     }
 
@@ -192,11 +198,13 @@ export class WebhookHandlers {
       console.log(`Merchandise order ${order.id} submitted to Printful: ${printfulResult.orderId}`);
       await sendOrderConfirmationEmail(order, order.userId);
     } else {
+      const errorMsg = "Printful rejected the order — check print files and address";
       await storage.updateMerchandiseOrder(order.id, {
         status: "failed",
-        printfulError: "Printful rejected the order — check print files and address",
+        printfulError: errorMsg,
       });
       console.error(`Failed to submit merchandise order ${order.id} to Printful`);
+      await sendOrderFailureEmail(order, order.userId, errorMsg);
     }
   }
 }

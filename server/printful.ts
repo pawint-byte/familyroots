@@ -593,8 +593,8 @@ class PrintfulService {
           fraternity: 'Chapter event tote — functional and full of pride.',
         },
         placements: [
-          { id: 'front', label: 'Front', printfulType: 'front', description: 'Bag front panel' },
-          { id: 'back', label: 'Back', printfulType: 'back', description: 'Bag back panel' },
+          { id: 'front', label: 'Front', printfulType: 'default', description: 'Bag front panel (all-over)' },
+          { id: 'back', label: 'Back', printfulType: 'default', description: 'Bag back panel (all-over)' },
         ],
       },
     ];
