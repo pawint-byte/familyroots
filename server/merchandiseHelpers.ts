@@ -154,7 +154,18 @@ export async function buildPrintfulFiles(
     });
   }
 
-  return files;
+  const seenTypes = new Set<string>();
+  const deduped: Array<{ type: string; url: string }> = [];
+  for (const file of files) {
+    if (!seenTypes.has(file.type)) {
+      seenTypes.add(file.type);
+      deduped.push(file);
+    } else {
+      console.log(`[merchandise] Skipping duplicate placement type "${file.type}" — product only allows one file per placement`);
+    }
+  }
+
+  return deduped;
 }
 
 export async function sendOrderFailureEmail(order: any, userId: string, errorMessage: string) {
