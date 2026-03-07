@@ -2144,6 +2144,88 @@ function ProductCustomizer({
   );
 }
 
+function OrderImageUpdater({ orderId, onUpdated, onCancel }: { orderId: string; onUpdated: () => void; onCancel: () => void }) {
+  const { toast } = useToast();
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please use an image under 10MB", variant: "destructive" });
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please select an image file (PNG, JPG)", variant: "destructive" });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const res = await apiRequest("POST", "/api/uploads/request-url", {
+        name: `order-fix-${orderId}-${Date.now()}.png`,
+        size: file.size,
+        contentType: file.type,
+      });
+      const { uploadURL, objectPath } = await res.json();
+      await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      await apiRequest("POST", `/api/merchandise/orders/${orderId}/update-image`, {
+        treeImageUrl: objectPath,
+      });
+      onUpdated();
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message || "Failed to update image", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 border rounded-lg p-3 bg-muted/50" data-testid={`image-updater-${orderId}`}>
+      <p className="text-sm text-muted-foreground">
+        Go to your tree, tap the camera icon to capture it, save the image, then upload it here.
+      </p>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileSelect}
+        data-testid={`input-file-${orderId}`}
+      />
+      <div className="flex gap-2">
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="flex-1"
+          data-testid={`button-upload-fix-${orderId}`}
+        >
+          {isUploading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            <>
+              <Upload className="h-4 w-4 mr-2" />
+              Choose Image
+            </>
+          )}
+        </Button>
+        <Button variant="ghost" onClick={onCancel} disabled={isUploading} data-testid={`button-cancel-fix-${orderId}`}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function OrderCard({ order }: { order: MerchandiseOrder }) {
   const { toast } = useToast();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -2153,7 +2235,7 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
   const [isUpdatingImage, setIsUpdatingImage] = useState(false);
 
   const hasInvalidImage = order.treeImageUrl?.startsWith("http") && !order.treeImageUrl?.includes("/objects/");
-  const needsImageFix = hasInvalidImage && (order.status === "paid" || order.status === "failed") && !order.printfulOrderId;
+  const needsImageFix = hasInvalidImage && (order.status === "paid" || order.status === "failed" || order.status === "submitted");
 
   const handleCheckout = async () => {
     setIsCheckingOut(true);
@@ -2313,7 +2395,7 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
                     className="w-full"
                     data-testid={`button-update-image-${order.id}`}
                   >
-                    <ImageIcon className="h-4 w-4 mr-2" />
+                    <Image className="h-4 w-4 mr-2" />
                     Update Print Image
                   </Button>
                 ) : (
@@ -2361,25 +2443,85 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
                 {(order as any).printfulError || "There was an issue sending your order to our print partner."}
               </AlertDescription>
             </Alert>
-            <Button
-              onClick={handleRetry}
-              disabled={isRetrying}
-              variant="outline"
-              className="w-full"
-              data-testid={`button-retry-${order.id}`}
-            >
-              {isRetrying ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Retrying...
-                </>
-              ) : (
-                <>
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Retry Submission
-                </>
-              )}
-            </Button>
+            {needsImageFix && (
+              <div className="space-y-2">
+                {!showImageUpdate ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowImageUpdate(true)}
+                    className="w-full"
+                    data-testid={`button-update-image-failed-${order.id}`}
+                  >
+                    <Image className="h-4 w-4 mr-2" />
+                    Update Print Image
+                  </Button>
+                ) : (
+                  <OrderImageUpdater
+                    orderId={order.id}
+                    onUpdated={() => {
+                      setShowImageUpdate(false);
+                      queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
+                      toast({ title: "Image Updated", description: "You can now submit the order to our print partner." });
+                    }}
+                    onCancel={() => setShowImageUpdate(false)}
+                  />
+                )}
+              </div>
+            )}
+            {!needsImageFix && (
+              <Button
+                onClick={handleRetry}
+                disabled={isRetrying}
+                variant="outline"
+                className="w-full"
+                data-testid={`button-retry-${order.id}`}
+              >
+                {isRetrying ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Retrying...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Retry Submission
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {order.status === "submitted" && needsImageFix && (
+          <div className="space-y-2">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Image Issue</AlertTitle>
+              <AlertDescription>
+                This order's print image needs to be updated. Please capture a new tree image below, then resubmit.
+              </AlertDescription>
+            </Alert>
+            {!showImageUpdate ? (
+              <Button
+                variant="outline"
+                onClick={() => setShowImageUpdate(true)}
+                className="w-full"
+                data-testid={`button-update-image-submitted-${order.id}`}
+              >
+                <Image className="h-4 w-4 mr-2" />
+                Update Print Image
+              </Button>
+            ) : (
+              <OrderImageUpdater
+                orderId={order.id}
+                onUpdated={() => {
+                  setShowImageUpdate(false);
+                  queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
+                  toast({ title: "Image Updated", description: "Order reset. You can now submit it to our print partner." });
+                }}
+                onCancel={() => setShowImageUpdate(false)}
+              />
+            )}
           </div>
         )}
         

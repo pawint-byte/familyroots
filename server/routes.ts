@@ -10854,15 +10854,18 @@ export async function registerRoutes(
       const order = await storage.getMerchandiseOrder(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
       if (order.userId !== userId) return res.status(403).json({ message: "Access denied" });
-      if (order.status !== "paid" && order.status !== "failed") {
-        return res.status(400).json({ message: "Can only update image on paid or failed orders" });
-      }
-      if (order.printfulOrderId) {
-        return res.status(400).json({ message: "Order already submitted to print partner" });
+      if (order.status !== "paid" && order.status !== "failed" && order.status !== "submitted") {
+        return res.status(400).json({ message: "Can only update image on paid, failed, or submitted orders that need fixing" });
       }
       const { treeImageUrl } = req.body;
       if (!treeImageUrl) return res.status(400).json({ message: "treeImageUrl is required" });
-      await storage.updateMerchandiseOrder(order.id, { treeImageUrl });
+      const updates: any = { treeImageUrl };
+      if (order.printfulOrderId) {
+        updates.printfulOrderId = null;
+        updates.printfulError = null;
+        updates.status = "paid";
+      }
+      await storage.updateMerchandiseOrder(order.id, updates);
       res.json({ success: true, message: "Image updated. You can now submit the order." });
     } catch (error: any) {
       console.error("Error updating order image:", error);
