@@ -10848,6 +10848,28 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/merchandise/orders/:id/update-image", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const order = await storage.getMerchandiseOrder(req.params.id);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+      if (order.userId !== userId) return res.status(403).json({ message: "Access denied" });
+      if (order.status !== "paid" && order.status !== "failed") {
+        return res.status(400).json({ message: "Can only update image on paid or failed orders" });
+      }
+      if (order.printfulOrderId) {
+        return res.status(400).json({ message: "Order already submitted to print partner" });
+      }
+      const { treeImageUrl } = req.body;
+      if (!treeImageUrl) return res.status(400).json({ message: "treeImageUrl is required" });
+      await storage.updateMerchandiseOrder(order.id, { treeImageUrl });
+      res.json({ success: true, message: "Image updated. You can now submit the order." });
+    } catch (error: any) {
+      console.error("Error updating order image:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.post("/api/merchandise/orders/:id/preview-files", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
