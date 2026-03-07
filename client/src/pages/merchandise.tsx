@@ -2149,6 +2149,11 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [showImageUpdate, setShowImageUpdate] = useState(false);
+  const [isUpdatingImage, setIsUpdatingImage] = useState(false);
+
+  const hasInvalidImage = order.treeImageUrl?.startsWith("http") && !order.treeImageUrl?.includes("/objects/");
+  const needsImageFix = hasInvalidImage && (order.status === "paid" || order.status === "failed") && !order.printfulOrderId;
 
   const handleCheckout = async () => {
     setIsCheckingOut(true);
@@ -2293,27 +2298,57 @@ function OrderCard({ order }: { order: MerchandiseOrder }) {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Payment Received</AlertTitle>
               <AlertDescription>
-                Payment was confirmed but the order hasn't been sent to our print partner yet. Tap retry to submit it.
+                {needsImageFix
+                  ? "Payment was confirmed but the print image needs to be updated before submitting. Please capture a new tree image below."
+                  : "Payment was confirmed but the order hasn't been sent to our print partner yet. Tap retry to submit it."
+                }
               </AlertDescription>
             </Alert>
-            <Button
-              onClick={handleRetry}
-              disabled={isRetrying}
-              className="w-full"
-              data-testid={`button-retry-paid-${order.id}`}
-            >
-              {isRetrying ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Submit to Print Partner
-                </>
-              )}
-            </Button>
+            {needsImageFix && (
+              <div className="space-y-2">
+                {!showImageUpdate ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowImageUpdate(true)}
+                    className="w-full"
+                    data-testid={`button-update-image-${order.id}`}
+                  >
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    Update Print Image
+                  </Button>
+                ) : (
+                  <OrderImageUpdater
+                    orderId={order.id}
+                    onUpdated={() => {
+                      setShowImageUpdate(false);
+                      queryClient.invalidateQueries({ queryKey: ["/api/merchandise/orders"] });
+                      toast({ title: "Image Updated", description: "You can now submit the order to our print partner." });
+                    }}
+                    onCancel={() => setShowImageUpdate(false)}
+                  />
+                )}
+              </div>
+            )}
+            {!needsImageFix && (
+              <Button
+                onClick={handleRetry}
+                disabled={isRetrying}
+                className="w-full"
+                data-testid={`button-retry-paid-${order.id}`}
+              >
+                {isRetrying ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Submit to Print Partner
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         )}
 
