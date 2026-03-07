@@ -59,7 +59,8 @@ async function compositeTreeAndQR(treeImagePath: string, qrUrl: string, baseUrl:
   const treeHeight = treeMeta.height || 2400;
 
   const QRCode = await import("qrcode");
-  const qrSize = Math.min(Math.round(treeWidth * 0.18), 400);
+  const smallerDimension = Math.min(treeWidth, treeHeight);
+  const qrSize = Math.min(Math.round(smallerDimension * 0.15), 300);
   const qrBuffer = await QRCode.default.toBuffer(qrUrl, {
     type: "png",
     width: qrSize,
