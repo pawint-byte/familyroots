@@ -177,9 +177,9 @@ export async function buildPrintfulFiles(
 
   const uniquePlacements = getUniquePlacements(productId);
   const isSinglePlacement = uniquePlacements.length === 1;
-  const hasQR = placement?.qrPlacement && placement?.qrProfileUrl;
+  const hasQR = placement?.qrProfileUrl && (placement?.qrPlacement || isSinglePlacement);
   const treePlacementType = resolvePrintfulType(placement?.treePlacement || "front", productId);
-  const qrPlacementType = hasQR ? resolvePrintfulType(placement.qrPlacement, productId) : null;
+  const qrPlacementType = hasQR ? resolvePrintfulType(placement?.qrPlacement || placement?.treePlacement || "front", productId) : null;
   const needsCompositing = isSinglePlacement && hasQR && order.treeImageUrl && treePlacementType === qrPlacementType;
 
   if (needsCompositing) {
