@@ -254,46 +254,6 @@ app.use((req, res, next) => {
         console.error('Data migration error:', err);
       });
 
-      // One-time: resubmit mug+tote with smaller QR (remove after deploy)
-      if (process.env.NODE_ENV === "production") {
-        (async () => {
-          try {
-            const { buildPrintfulFiles } = await import("./merchandiseHelpers");
-            const { printfulService } = await import("./printful");
-            const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
-            const ordersToFix = [
-              { id: '5ab5b7b4-c9a9-42ca-968f-50ff23df648a', qrProfileUrl: 'https://familyroots.family/profile/53014603' },
-              { id: '28ad0115-bcac-4857-a1db-e1eef8c10018', qrProfileUrl: 'https://familyroots.family/tree/39b0b70c-d09f-4c6f-98e3-61f8456971bb' },
-            ];
-            for (const fix of ordersToFix) {
-              const order = await storage.getMerchandiseOrder(fix.id);
-              if (!order) { console.log(`[resubmit2] Order ${fix.id} not found`); continue; }
-              const currentConfig = (order.placementConfig as any) || {};
-              await storage.updateMerchandiseOrder(order.id, {
-                placementConfig: { ...currentConfig, qrProfileUrl: fix.qrProfileUrl },
-                printfulOrderId: null, printfulError: null, status: 'paid',
-              });
-              const freshOrder = await storage.getMerchandiseOrder(order.id);
-              if (!freshOrder?.shippingAddress) continue;
-              const sa = freshOrder.shippingAddress as any;
-              const addr = { name: sa.name, address1: sa.address1, address2: sa.address2 || '', city: sa.city, state_code: sa.stateCode, country_code: sa.countryCode, zip: sa.zip, email: sa.email, phone: sa.phone };
-              const files = await buildPrintfulFiles(freshOrder, baseUrl);
-              console.log(`[resubmit2] Order ${fix.id}: ${files.length} files`);
-              files.forEach((f: any, i: number) => console.log(`[resubmit2]   ${i}: type=${f.type}, url=${f.url}`));
-              const result = await printfulService.createOrder(addr, [{ variant_id: freshOrder.variantId, quantity: freshOrder.quantity, files }], true);
-              if (result) {
-                await storage.updateMerchandiseOrder(order.id, { status: 'submitted', printfulOrderId: String(result.orderId) });
-                console.log(`[resubmit2] Order ${fix.id} → Printful ${result.orderId}`);
-              } else {
-                await storage.updateMerchandiseOrder(order.id, { status: 'failed', printfulError: 'Resubmit2 failed' });
-                console.error(`[resubmit2] Order ${fix.id} FAILED`);
-              }
-            }
-            console.log('[resubmit2] Done');
-          } catch (err) { console.error('[resubmit2] Error:', err); }
-        })();
-      }
-
       // Start scheduled tasks
       startCustodianshipScheduler();
       startRegistryReminderScheduler();
