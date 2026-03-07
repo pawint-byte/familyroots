@@ -10784,8 +10784,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
 
-      if (order.status !== "failed") {
-        return res.status(400).json({ message: "Only failed orders can be retried" });
+      if (order.status !== "failed" && order.status !== "paid") {
+        return res.status(400).json({ message: "Only failed or unpaid orders can be retried" });
       }
 
       if (order.printfulOrderId) {
