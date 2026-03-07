@@ -253,6 +253,69 @@ app.use((req, res, next) => {
       runProdDataMigration().catch(err => {
         console.error('Data migration error:', err);
       });
+
+      // One-time order resubmission fix (cancel old Printful orders, resubmit with QR compositing)
+      if (process.env.NODE_ENV === "production") {
+        (async () => {
+          try {
+            const { buildPrintfulFiles } = await import("./merchandiseHelpers");
+            const { printfulService } = await import("./printful");
+            const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+
+            const ordersToFix = [
+              { id: '5ab5b7b4-c9a9-42ca-968f-50ff23df648a', qrProfileUrl: 'https://familyroots.family/profile/53014603' },
+              { id: '28ad0115-bcac-4857-a1db-e1eef8c10018', qrProfileUrl: 'https://familyroots.family/tree/39b0b70c-d09f-4c6f-98e3-61f8456971bb' },
+            ];
+
+            for (const fix of ordersToFix) {
+              const order = await storage.getMerchandiseOrder(fix.id);
+              if (!order) { console.log(`[resubmit] Order ${fix.id} not found, skipping`); continue; }
+              if (order.status === 'submitted' && order.printfulOrderId) {
+                console.log(`[resubmit] Order ${fix.id}: already submitted as ${order.printfulOrderId}, needs resubmit`);
+              } else if (order.status !== 'paid' && order.status !== 'failed') {
+                console.log(`[resubmit] Order ${fix.id}: status=${order.status}, skipping`); continue;
+              }
+
+              // Update QR URL and reset printful state
+              const currentConfig = (order.placementConfig as any) || {};
+              await storage.updateMerchandiseOrder(order.id, {
+                placementConfig: { ...currentConfig, qrProfileUrl: fix.qrProfileUrl },
+                printfulOrderId: null,
+                printfulError: null,
+                status: 'paid',
+              });
+
+              const freshOrder = await storage.getMerchandiseOrder(order.id);
+              if (!freshOrder?.shippingAddress) { console.error(`[resubmit] No shipping address for ${fix.id}`); continue; }
+
+              const shippingAddr = freshOrder.shippingAddress as any;
+              const printfulAddress = {
+                name: shippingAddr.name, address1: shippingAddr.address1, address2: shippingAddr.address2 || '',
+                city: shippingAddr.city, state_code: shippingAddr.stateCode, country_code: shippingAddr.countryCode,
+                zip: shippingAddr.zip, email: shippingAddr.email, phone: shippingAddr.phone,
+              };
+
+              const printfulFiles = await buildPrintfulFiles(freshOrder, baseUrl);
+              console.log(`[resubmit] Order ${fix.id}: ${printfulFiles.length} files`);
+              printfulFiles.forEach((f: any, i: number) => console.log(`[resubmit]   File ${i}: type=${f.type}, url=${f.url}`));
+
+              const result = await printfulService.createOrder(printfulAddress,
+                [{ variant_id: freshOrder.variantId, quantity: freshOrder.quantity, files: printfulFiles }], true);
+
+              if (result) {
+                await storage.updateMerchandiseOrder(order.id, { status: 'submitted', printfulOrderId: String(result.orderId) });
+                console.log(`[resubmit] Order ${fix.id} resubmitted as Printful order ${result.orderId}`);
+              } else {
+                await storage.updateMerchandiseOrder(order.id, { status: 'failed', printfulError: 'Resubmit failed' });
+                console.error(`[resubmit] Order ${fix.id} failed to resubmit`);
+              }
+            }
+            console.log('[resubmit] Done');
+          } catch (err) {
+            console.error('[resubmit] Error:', err);
+          }
+        })();
+      }
       
       // Start scheduled tasks
       startCustodianshipScheduler();
