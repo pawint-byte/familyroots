@@ -10784,12 +10784,17 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
 
-      if (order.status !== "failed" && order.status !== "paid") {
-        return res.status(400).json({ message: "Only failed or unpaid orders can be retried" });
+      if (order.status !== "failed" && order.status !== "paid" && order.status !== "submitted") {
+        return res.status(400).json({ message: "Only paid, failed, or submitted orders can be retried" });
       }
 
       if (order.printfulOrderId) {
-        return res.status(400).json({ message: "This order already has a Printful order ID — contact support if there's an issue" });
+        console.log(`[merchandise] Cancelling existing Printful order ${order.printfulOrderId} before resubmitting`);
+        const cancelled = await printfulService.cancelOrder(Number(order.printfulOrderId));
+        if (!cancelled) {
+          console.warn(`[merchandise] Failed to cancel Printful order ${order.printfulOrderId} — it may already be in production`);
+        }
+        await storage.updateMerchandiseOrder(order.id, { printfulOrderId: null, printfulError: null });
       }
 
       if (!order.shippingAddress) {
