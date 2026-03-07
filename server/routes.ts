@@ -10853,6 +10853,85 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/merchandise/orders/:id/resubmit", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const order = await storage.getMerchandiseOrder(req.params.id);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+
+      const { qrProfileUrl } = req.body;
+
+      if (order.printfulOrderId) {
+        console.log(`[admin] Cancelling Printful order ${order.printfulOrderId}`);
+        const cancelled = await printfulService.cancelOrder(Number(order.printfulOrderId));
+        console.log(`[admin] Cancel result: ${cancelled}`);
+      }
+
+      const updates: any = { printfulOrderId: null, printfulError: null, status: "paid" };
+      if (qrProfileUrl) {
+        const currentConfig = (order.placementConfig as any) || {};
+        updates.placementConfig = { ...currentConfig, qrProfileUrl };
+      }
+      await storage.updateMerchandiseOrder(order.id, updates);
+
+      const freshOrder = await storage.getMerchandiseOrder(order.id);
+      if (!freshOrder || !freshOrder.shippingAddress) {
+        return res.status(400).json({ message: "Order has no shipping address" });
+      }
+
+      const shippingAddr = freshOrder.shippingAddress as any;
+      const printfulAddress = {
+        name: shippingAddr.name,
+        address1: shippingAddr.address1,
+        address2: shippingAddr.address2 || '',
+        city: shippingAddr.city,
+        state_code: shippingAddr.stateCode,
+        country_code: shippingAddr.countryCode,
+        zip: shippingAddr.zip,
+        email: shippingAddr.email,
+        phone: shippingAddr.phone,
+      };
+
+      const { buildPrintfulFiles, sendOrderConfirmationEmail } = await import("./merchandiseHelpers");
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const printfulFiles = await buildPrintfulFiles(freshOrder, baseUrl);
+
+      if (printfulFiles.length === 0) {
+        return res.status(400).json({ message: "No print files configured" });
+      }
+
+      console.log(`[admin] Submitting order ${order.id} to Printful with ${printfulFiles.length} files`);
+      printfulFiles.forEach((f: any, i: number) => console.log(`[admin]   File ${i}: type=${f.type}, url=${f.url}`));
+
+      const printfulResult = await printfulService.createOrder(
+        printfulAddress,
+        [{ variant_id: freshOrder.variantId, quantity: freshOrder.quantity, files: printfulFiles }],
+        true
+      );
+
+      if (printfulResult) {
+        await storage.updateMerchandiseOrder(order.id, {
+          status: "submitted",
+          printfulOrderId: String(printfulResult.orderId),
+          printfulError: null,
+        });
+        return res.json({ success: true, printfulOrderId: printfulResult.orderId });
+      } else {
+        await storage.updateMerchandiseOrder(order.id, {
+          status: "failed",
+          printfulError: "Admin resubmit failed — Printful rejected the order",
+        });
+        return res.status(500).json({ message: "Printful rejected the order" });
+      }
+    } catch (error: any) {
+      console.error("[admin] Resubmit error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.post("/api/merchandise/orders/:id/update-image", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
