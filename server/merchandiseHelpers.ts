@@ -96,18 +96,71 @@ async function compositeTreeAndQR(treeImagePath: string, qrUrl: string, baseUrl:
   return uploadBuffer(composited, filename, "image/png");
 }
 
-export async function generateAndUploadQR(url: string): Promise<string> {
+export async function generateAndUploadQR(url: string, options?: { position?: "left_chest" | "center" | "full" }): Promise<string> {
+  const sharp = (await import("sharp")).default;
   const QRCode = await import("qrcode");
-  const pngBuffer = await QRCode.default.toBuffer(url, {
-    type: "png",
-    width: 1200,
-    margin: 2,
-    color: { dark: "#000000", light: "#ffffff" },
-    errorCorrectionLevel: "H",
-  });
+  const position = options?.position || "full";
 
+  if (position === "left_chest") {
+    const canvasW = 1800;
+    const canvasH = 2400;
+    const qrSize = 400;
+    const qrBuffer = await QRCode.default.toBuffer(url, {
+      type: "png", width: qrSize, margin: 2,
+      color: { dark: "#000000", light: "#ffffff" }, errorCorrectionLevel: "H",
+    });
+    const padding = 20;
+    const bgSize = qrSize + padding * 2;
+    const qrWithBg = await sharp(
+      Buffer.from(`<svg width="${bgSize}" height="${bgSize}"><rect width="${bgSize}" height="${bgSize}" rx="8" fill="white"/></svg>`)
+    ).composite([{ input: qrBuffer, left: padding, top: padding }]).png().toBuffer();
+
+    const leftMargin = 100;
+    const topMargin = 150;
+    const canvas = await sharp({
+      create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    }).composite([{ input: qrWithBg, left: leftMargin, top: topMargin }]).png().toBuffer();
+
+    const filename = `qr-chest-${randomUUID()}.png`;
+    return uploadBuffer(canvas, filename, "image/png");
+  }
+
+  const pngBuffer = await QRCode.default.toBuffer(url, {
+    type: "png", width: 1200, margin: 2,
+    color: { dark: "#000000", light: "#ffffff" }, errorCorrectionLevel: "H",
+  });
   const filename = `qr-${randomUUID()}.png`;
   return uploadBuffer(pngBuffer, filename, "image/png");
+}
+
+async function fitTreeImageForPrint(treeImagePath: string, baseUrl: string): Promise<string> {
+  const sharp = (await import("sharp")).default;
+  const treeBuffer = await fetchImageBuffer(treeImagePath, baseUrl);
+  const treeMeta = await sharp(treeBuffer).metadata();
+  const srcW = treeMeta.width || 1800;
+  const srcH = treeMeta.height || 2400;
+
+  const printW = 1800;
+  const printH = 2400;
+  const padding = 100;
+  const availW = printW - padding * 2;
+  const availH = printH - padding * 2;
+
+  const scale = Math.min(availW / srcW, availH / srcH);
+  const newW = Math.round(srcW * scale);
+  const newH = Math.round(srcH * scale);
+
+  const resized = await sharp(treeBuffer).resize(newW, newH, { fit: "inside" }).png().toBuffer();
+
+  const left = Math.round((printW - newW) / 2);
+  const top = Math.round((printH - newH) / 2);
+
+  const canvas = await sharp({
+    create: { width: printW, height: printH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  }).composite([{ input: resized, left, top }]).png().toBuffer();
+
+  const filename = `tree-print-${randomUUID()}.png`;
+  return uploadBuffer(canvas, filename, "image/png");
 }
 
 export async function renderTextToImage(text: string): Promise<string> {
@@ -201,20 +254,25 @@ export async function buildPrintfulFiles(
     }
   } else {
     if (order.treeImageUrl) {
-      const treeUrl = getPublicFileUrl(order.treeImageUrl, baseUrl);
-      files.push({
-        type: treePlacementType,
-        url: treeUrl,
-      });
+      const isMultiPlacement = !isSinglePlacement;
+      if (isMultiPlacement) {
+        console.log(`[merchandise] Multi-placement product ${productId} — fitting tree image to print area`);
+        const fittedPath = await fitTreeImageForPrint(order.treeImageUrl, baseUrl);
+        const fittedUrl = getPublicFileUrl(fittedPath, baseUrl);
+        files.push({ type: treePlacementType, url: fittedUrl });
+      } else {
+        const treeUrl = getPublicFileUrl(order.treeImageUrl, baseUrl);
+        files.push({ type: treePlacementType, url: treeUrl });
+      }
     }
 
     if (hasQR) {
-      const qrObjectPath = await generateAndUploadQR(placement.qrProfileUrl);
+      const isQrOnFront = qrPlacementType === "front" || qrPlacementType === "default";
+      const qrPosition = isQrOnFront && !isSinglePlacement ? "left_chest" : "full";
+      console.log(`[merchandise] QR placement: type=${qrPlacementType}, position=${qrPosition}`);
+      const qrObjectPath = await generateAndUploadQR(placement.qrProfileUrl, { position: qrPosition as any });
       const qrUrl = getPublicFileUrl(qrObjectPath, baseUrl);
-      files.push({
-        type: qrPlacementType!,
-        url: qrUrl,
-      });
+      files.push({ type: qrPlacementType!, url: qrUrl });
     }
   }
 
