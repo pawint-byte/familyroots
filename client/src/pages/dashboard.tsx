@@ -15,7 +15,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { trackTreeCreation } from "@/lib/tracking";
-import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe, BookOpen, GitBranch, Undo2, Clock, AlertTriangle, School, Radio } from "lucide-react";
+import { Trees, Plus, Search, Users, User, Calendar, MoreVertical, LogOut, Settings, Edit, Trash2, Share2, ShoppingBag, Gift, QrCode, Menu, UserCircle, HelpCircle, Shield, Link2, RefreshCw, TreeDeciduous, Package, CreditCard, TrendingUp, Award, Church, Trophy, GraduationCap, Heart, Briefcase, Sparkles, X, Globe, BookOpen, GitBranch, Undo2, Clock, AlertTriangle, School, Radio, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { TREE_TYPE_CONFIGS, type TreeType } from "@shared/treeTypes";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -171,6 +172,34 @@ function AllMembersDialog({ totalMembers }: { totalMembers: number }) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CollapsibleSection({ title, icon: Icon, children, defaultOpen = false, testId, badge, forceMount }: { title: string; icon: any; children: React.ReactNode; defaultOpen?: boolean; testId?: string; badge?: React.ReactNode; forceMount?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button
+          className="w-full flex items-center gap-2 py-3 px-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left group"
+          data-testid={testId}
+        >
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium flex-1">{title}</span>
+          {badge}
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        </button>
+      </CollapsibleTrigger>
+      {forceMount ? (
+        <CollapsibleContent forceMount className={open ? "pt-4" : "hidden"}>
+          {children}
+        </CollapsibleContent>
+      ) : (
+        <CollapsibleContent className="pt-4">
+          {children}
+        </CollapsibleContent>
+      )}
+    </Collapsible>
   );
 }
 
@@ -1299,165 +1328,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Revenue Forecast Section (Admin Only) */}
-        {isAdmin && (
-          <div className="mb-8">
-            <RevenueForecastSection />
-          </div>
-        )}
-
-        {/* Member Credits & Pricing Card - always show for authenticated users */}
-        <Card className="mb-8" data-testid="card-credit-balance">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Package className="h-5 w-5 text-primary" />
-              Member Credits
-              {pricingStatus?.featureTier && pricingStatus.featureTier !== 'explorer' && (
-                <Badge variant="secondary" className="ml-auto text-xs" data-testid="badge-dashboard-tier">
-                  {pricingStatus.featureTier === 'cultivator' ? 'Cultivator' : pricingStatus.featureTier === 'heritage' ? 'Heritage' : pricingStatus.featureTier === 'legacy' ? 'Legacy' : 'Explorer'}
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pricingLoading && !pricingStatus ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="space-y-1">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-8 w-12" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Total Members</p>
-                  <p className="text-2xl font-bold" data-testid="text-total-members">{totalMembers}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Free Slots Left</p>
-                  <p className="text-2xl font-bold" data-testid="text-free-remaining">{freeRemaining}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Credits Owned</p>
-                  <p className="text-2xl font-bold" data-testid="text-credits-owned">{memberCredits}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Added This Month</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-2xl font-bold" data-testid="text-monthly-adds">{monthlyAdds}</p>
-                    {monthlyAdds >= rewardThreshold && (
-                      <span className="text-xs text-primary font-medium">20% off next pack</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="gap-2" data-testid="button-buy-credits">
-                    <CreditCard className="h-4 w-4" />
-                    Buy Member Pack
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {(pricingStatus?.config?.packs || [
-                    { type: 'starter_10', credits: 10, priceCents: 799, label: 'Starter Pack' },
-                    { type: 'growth_25', credits: 25, priceCents: 1499, label: 'Growth Pack' },
-                    { type: 'family_50', credits: 50, priceCents: 2499, label: 'Family Pack' },
-                  ]).map((pack) => (
-                    <DropdownMenuItem
-                      key={pack.type}
-                      onClick={() => bulkPackMutation.mutate(pack.type)}
-                      disabled={bulkPackMutation.isPending}
-                      data-testid={`menu-pack-${pack.type}`}
-                    >
-                      <div className="flex items-center justify-between w-full gap-4">
-                        <span className="font-medium">{pack.label}</span>
-                        <span className="text-muted-foreground">
-                          {pack.credits} credits &middot; ${(pack.priceCents / 100).toFixed(2)}
-                        </span>
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button variant="outline" onClick={() => navigate("/pricing")} data-testid="button-view-pricing">
-                View All Plans
-              </Button>
-              <AllMembersDialog totalMembers={totalMembers} />
-              {pricingStatus?.hasActiveReward && (
-                <span className="flex items-center gap-1 text-sm text-primary font-medium">
-                  <Award className="h-4 w-4" />
-                  {pricingStatus.activeRewardDiscount}% discount available
-                </span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pending Family Connection Requests Section */}
-        <div className="mb-8">
-          <PendingConnectionsSection />
-        </div>
-
-        {/* Outgoing Connection Requests Section */}
-        <div className="mb-8">
-          <OutgoingRequestsSection />
-        </div>
-
-        {/* My Family Connections Section */}
-        <div className="mb-8">
-          <MyConnectionsSection />
-        </div>
-
-        {/* Connect Trees Section - Show when connected users have trees */}
-        <div className="mb-8">
-          <ConnectTreesSection />
-        </div>
-
-        {/* Network Connection Requests Section - Extended family discovered via network */}
-        <div className="mb-8">
-          <NetworkRequestsSection />
-        </div>
-
-        {/* Pending Profile Claims Section */}
-        <div className="mb-8">
-          <PendingClaimsSection />
-        </div>
-
-        {/* Pending Custodianship Requests Section */}
-        <div className="mb-8">
-          <PendingCustodianshipSection />
-        </div>
-
-        {/* Potential Family Connections / Cross-Tree Matches */}
-        <div className="mb-8">
-          <PendingMatchesSection />
-        </div>
-
-        {/* Referral & Invite Section */}
-        <div className="mb-8 space-y-6">
-          <ReferralSection />
-          
-          {/* Invite Family Section */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <EmailInviteForm referralCode={referralData?.referralCode} />
-            <SocialShareButtons 
-              shareUrl={referralData?.referralLink || `https://${window.location.hostname}`}
-              title="Join me on FamilyRoots!"
-              description="Build and explore your family tree with me on FamilyRoots - a beautiful way to preserve family history."
-            />
-          </div>
-          
-          <InviteTemplates 
-            referralLink={referralData?.referralLink || `https://${window.location.hostname}`}
-            userName={user?.firstName || undefined}
-          />
-        </div>
-
         {isLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => (
@@ -1609,6 +1479,150 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Revenue Forecast Section (Admin Only) */}
+        {isAdmin && (
+          <div className="mt-8">
+            <CollapsibleSection title="Revenue Forecast" icon={TrendingUp} defaultOpen={false} testId="toggle-revenue-forecast">
+              <RevenueForecastSection />
+            </CollapsibleSection>
+          </div>
+        )}
+
+        {/* Member Credits & Pricing */}
+        <div className="mt-8">
+          <CollapsibleSection title="Member Credits" icon={Package} defaultOpen={false} testId="toggle-member-credits"
+            badge={pricingStatus?.featureTier && pricingStatus.featureTier !== 'explorer' ? (
+              <Badge variant="secondary" className="text-xs" data-testid="badge-dashboard-tier">
+                {pricingStatus.featureTier === 'cultivator' ? 'Cultivator' : pricingStatus.featureTier === 'heritage' ? 'Heritage' : pricingStatus.featureTier === 'legacy' ? 'Legacy' : 'Explorer'}
+              </Badge>
+            ) : undefined}>
+            <Card data-testid="card-credit-balance">
+              <CardContent className="pt-6">
+                {pricingLoading && !pricingStatus ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="space-y-1">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-8 w-12" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Total Members</p>
+                      <p className="text-2xl font-bold" data-testid="text-total-members">{totalMembers}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Free Slots Left</p>
+                      <p className="text-2xl font-bold" data-testid="text-free-remaining">{freeRemaining}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Credits Owned</p>
+                      <p className="text-2xl font-bold" data-testid="text-credits-owned">{memberCredits}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Added This Month</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-2xl font-bold" data-testid="text-monthly-adds">{monthlyAdds}</p>
+                        {monthlyAdds >= rewardThreshold && (
+                          <span className="text-xs text-primary font-medium">20% off next pack</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button className="gap-2" data-testid="button-buy-credits">
+                        <CreditCard className="h-4 w-4" />
+                        Buy Member Pack
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {(pricingStatus?.config?.packs || [
+                        { type: 'starter_10', credits: 10, priceCents: 799, label: 'Starter Pack' },
+                        { type: 'growth_25', credits: 25, priceCents: 1499, label: 'Growth Pack' },
+                        { type: 'family_50', credits: 50, priceCents: 2499, label: 'Family Pack' },
+                      ]).map((pack) => (
+                        <DropdownMenuItem
+                          key={pack.type}
+                          onClick={() => bulkPackMutation.mutate(pack.type)}
+                          disabled={bulkPackMutation.isPending}
+                          data-testid={`menu-pack-${pack.type}`}
+                        >
+                          <div className="flex items-center justify-between w-full gap-4">
+                            <span className="font-medium">{pack.label}</span>
+                            <span className="text-muted-foreground">
+                              {pack.credits} credits &middot; ${(pack.priceCents / 100).toFixed(2)}
+                            </span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button variant="outline" onClick={() => navigate("/pricing")} data-testid="button-view-pricing">
+                    View All Plans
+                  </Button>
+                  <AllMembersDialog totalMembers={totalMembers} />
+                  {pricingStatus?.hasActiveReward && (
+                    <span className="flex items-center gap-1 text-sm text-primary font-medium">
+                      <Award className="h-4 w-4" />
+                      {pricingStatus.activeRewardDiscount}% discount available
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </CollapsibleSection>
+        </div>
+
+        {/* Connections & Network */}
+        <div className="mt-8">
+          <CollapsibleSection title="Connections & Network" icon={Link2} defaultOpen={false} testId="toggle-connections" forceMount>
+            <div className="space-y-6">
+              <PendingConnectionsSection />
+              <OutgoingRequestsSection />
+              <MyConnectionsSection />
+              <ConnectTreesSection />
+              <NetworkRequestsSection />
+              <PendingMatchesSection />
+            </div>
+          </CollapsibleSection>
+        </div>
+
+        {/* Claims & Custodianship */}
+        <div className="mt-8">
+          <CollapsibleSection title="Claims & Custodianship" icon={Shield} defaultOpen={false} testId="toggle-claims" forceMount>
+            <div className="space-y-6">
+              <PendingClaimsSection />
+              <PendingCustodianshipSection />
+            </div>
+          </CollapsibleSection>
+        </div>
+
+        {/* Referral & Invite */}
+        <div className="mt-8">
+          <CollapsibleSection title="Referrals & Invites" icon={Share2} defaultOpen={false} testId="toggle-referrals">
+            <div className="space-y-6">
+              <ReferralSection />
+              <div className="grid md:grid-cols-2 gap-6">
+                <EmailInviteForm referralCode={referralData?.referralCode} />
+                <SocialShareButtons 
+                  shareUrl={referralData?.referralLink || `https://${window.location.hostname}`}
+                  title="Join me on FamilyRoots!"
+                  description="Build and explore your family tree with me on FamilyRoots - a beautiful way to preserve family history."
+                />
+              </div>
+              <InviteTemplates 
+                referralLink={referralData?.referralLink || `https://${window.location.hostname}`}
+                userName={user?.firstName || undefined}
+              />
+            </div>
+          </CollapsibleSection>
+        </div>
 
         {/* Recently Deleted Section */}
         {deletedTrees && deletedTrees.length > 0 && (
