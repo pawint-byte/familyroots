@@ -1326,3 +1326,24 @@ export const insertRadarSessionSchema = createInsertSchema(radarSessions).omit({
 
 export type RadarSession = typeof radarSessions.$inferSelect;
 export type InsertRadarSession = z.infer<typeof insertRadarSessionSchema>;
+
+export const treeWallMessages = pgTable("tree_wall_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  treeId: varchar("tree_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  replyToId: varchar("reply_to_id"),
+  editedAt: timestamp("edited_at"),
+  deletedAt: timestamp("deleted_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTreeWallMessageSchema = createInsertSchema(treeWallMessages).omit({
+  id: true,
+  editedAt: true,
+  deletedAt: true,
+  createdAt: true,
+});
+
+export type TreeWallMessage = typeof treeWallMessages.$inferSelect;
+export type InsertTreeWallMessage = z.infer<typeof insertTreeWallMessageSchema>;
