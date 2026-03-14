@@ -13030,7 +13030,7 @@ export async function registerRoutes(
       const isOwner = tree.ownerId === userId;
       const collaborators = await storage.getCollaborators(treeId);
       const isCollaborator = collaborators.some(c => c.userId === userId);
-      if (!isOwner && !isCollaborator && tree.privacy === "private") {
+      if (!isOwner && !isCollaborator) {
         return res.status(403).json({ message: "Access denied" });
       }
 
@@ -13069,7 +13069,7 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const { content, replyToId } = req.body;
 
-      if (!content || !content.trim()) {
+      if (!content || typeof content !== 'string' || !content.trim()) {
         return res.status(400).json({ message: "Message content is required" });
       }
       if (content.length > 2000) {
@@ -13081,9 +13081,31 @@ export async function registerRoutes(
 
       const isOwner = tree.ownerId === userId;
       const collaborators = await storage.getCollaborators(treeId);
-      const isCollaborator = collaborators.some(c => c.userId === userId);
-      if (!isOwner && !isCollaborator) {
-        return res.status(403).json({ message: "You must be a member of this tree to post" });
+      const collab = collaborators.find(c => c.userId === userId);
+      if (!isOwner && (!collab || collab.role === "viewer")) {
+        return res.status(403).json({ message: "You need editor access to post messages" });
+      }
+
+      const access = await subscriptionService.checkFeatureAccess(userId, 'tree_wall');
+      if (!access.allowed) {
+        return res.status(403).json({
+          error: 'tier_limit_reached',
+          message: 'The Group Wall requires a Cultivator subscription or above.',
+          tier: access.tier,
+          nextTier: access.nextTier,
+        });
+      }
+
+      if (replyToId) {
+        const [replyTarget] = await db.select().from(treeWallMessages)
+          .where(and(
+            eq(treeWallMessages.id, replyToId),
+            eq(treeWallMessages.treeId, treeId),
+            isNull(treeWallMessages.deletedAt)
+          ));
+        if (!replyTarget) {
+          return res.status(400).json({ message: "Reply target message not found" });
+        }
       }
 
       const [message] = await db.insert(treeWallMessages).values({
@@ -13110,12 +13132,28 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const { content } = req.body;
 
-      if (!content || !content.trim()) {
+      if (!content || typeof content !== 'string' || !content.trim()) {
         return res.status(400).json({ message: "Message content is required" });
+      }
+      if (content.length > 2000) {
+        return res.status(400).json({ message: "Message must be under 2000 characters" });
+      }
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      const isOwner = tree.ownerId === userId;
+      const collaborators = await storage.getCollaborators(treeId);
+      const isCollaborator = collaborators.some(c => c.userId === userId);
+      if (!isOwner && !isCollaborator) {
+        return res.status(403).json({ message: "Access denied" });
       }
 
       const [existing] = await db.select().from(treeWallMessages)
-        .where(and(eq(treeWallMessages.id, messageId), eq(treeWallMessages.treeId, treeId)));
+        .where(and(
+          eq(treeWallMessages.id, messageId),
+          eq(treeWallMessages.treeId, treeId),
+          isNull(treeWallMessages.deletedAt)
+        ));
 
       if (!existing) return res.status(404).json({ message: "Message not found" });
       if (existing.userId !== userId) return res.status(403).json({ message: "You can only edit your own messages" });
@@ -13137,13 +13175,23 @@ export async function registerRoutes(
       const { treeId, messageId } = req.params;
       const userId = req.user.claims.sub;
 
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      const isOwner = tree.ownerId === userId;
+      const collaborators = await storage.getCollaborators(treeId);
+      const isCollaborator = collaborators.some(c => c.userId === userId);
+      if (!isOwner && !isCollaborator) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
       const [existing] = await db.select().from(treeWallMessages)
-        .where(and(eq(treeWallMessages.id, messageId), eq(treeWallMessages.treeId, treeId)));
+        .where(and(
+          eq(treeWallMessages.id, messageId),
+          eq(treeWallMessages.treeId, treeId),
+          isNull(treeWallMessages.deletedAt)
+        ));
 
       if (!existing) return res.status(404).json({ message: "Message not found" });
-
-      const tree = await storage.getTree(treeId);
-      const isOwner = tree?.ownerId === userId;
       if (existing.userId !== userId && !isOwner) {
         return res.status(403).json({ message: "You can only delete your own messages" });
       }

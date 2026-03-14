@@ -4,7 +4,7 @@ import { familyTrees, familyMembers } from '@shared/schema';
 import { eq, sql, and, gte, desc, lte } from 'drizzle-orm';
 import { getUncachableStripeClient } from './stripeClient';
 
-export type PremiumFeature = 'ai_chat' | 'familysearch_import' | 'email_tagged_group' | 'ai_avatar_video' | 'media_upload' | 'voice_video_upload';
+export type PremiumFeature = 'ai_chat' | 'familysearch_import' | 'email_tagged_group' | 'ai_avatar_video' | 'media_upload' | 'voice_video_upload' | 'tree_wall';
 
 export type FeatureTier = 'explorer' | 'cultivator' | 'heritage' | 'legacy';
 
@@ -24,6 +24,7 @@ export const TIER_LIMITS: Record<PremiumFeature, Record<FeatureTier, number>> = 
   ai_avatar_video:     { explorer: 0,   cultivator: 2,   heritage: 5,   legacy: 10  },
   media_upload:        { explorer: 10,  cultivator: 50,  heritage: 200, legacy: 500 },
   voice_video_upload:  { explorer: 0,   cultivator: 20,  heritage: 80,  legacy: 200 },
+  tree_wall:           { explorer: 0,   cultivator: -1,  heritage: -1,  legacy: -1  },
 };
 
 export const FEATURE_INFO: Record<PremiumFeature, { label: string; description: string }> = {
@@ -33,6 +34,7 @@ export const FEATURE_INFO: Record<PremiumFeature, { label: string; description: 
   ai_avatar_video:     { label: 'AI Avatar Video',     description: 'Generate AI avatar videos' },
   media_upload:        { label: 'Media Upload',        description: 'Upload photos and media to events' },
   voice_video_upload:  { label: 'Voice & Video',       description: 'Record voice notes and attach videos to members' },
+  tree_wall:           { label: 'Group Wall',          description: 'Group messaging wall within your trees' },
 };
 
 export const PREMIUM_LIMITS: Record<PremiumFeature, { freeLimit: number; period: 'monthly' | 'lifetime'; label: string; description: string }> = {
@@ -42,6 +44,7 @@ export const PREMIUM_LIMITS: Record<PremiumFeature, { freeLimit: number; period:
   ai_avatar_video: { freeLimit: 0, period: 'monthly', label: 'AI Avatar Video', description: 'Generate AI avatar videos' },
   media_upload: { freeLimit: 10, period: 'monthly', label: 'Media Upload', description: 'Upload photos and media to events' },
   voice_video_upload: { freeLimit: 0, period: 'monthly', label: 'Voice & Video', description: 'Record voice notes and attach videos to members' },
+  tree_wall: { freeLimit: 0, period: 'monthly', label: 'Group Wall', description: 'Group messaging wall within your trees' },
 };
 
 // New pricing model: Bulk add packs + tiered subscriptions

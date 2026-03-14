@@ -72,7 +72,7 @@ interface PricingStatus {
 }
 
 const TIER_KEYS = ['explorer', 'cultivator', 'heritage', 'legacy'] as const;
-const FEATURE_KEYS = ['ai_chat', 'familysearch_import', 'email_tagged_group', 'ai_avatar_video', 'media_upload', 'voice_video_upload'] as const;
+const FEATURE_KEYS = ['ai_chat', 'familysearch_import', 'email_tagged_group', 'ai_avatar_video', 'media_upload', 'voice_video_upload', 'tree_wall'] as const;
 
 const tierIcons: Record<string, typeof Crown> = {
   explorer: Users,
@@ -151,6 +151,7 @@ export default function Pricing() {
       ai_avatar_video:     { explorer: 0,   cultivator: 2,   heritage: 5,   legacy: 10  },
       media_upload:        { explorer: 10,  cultivator: 50,  heritage: 200, legacy: 500 },
       voice_video_upload:  { explorer: 0,   cultivator: 20,  heritage: 80,  legacy: 200 },
+      tree_wall:           { explorer: 0,   cultivator: -1,  heritage: -1,  legacy: -1  },
     },
     featureInfo: {
       ai_chat:             { label: 'AI Chat',             description: 'AI-powered assistant' },
@@ -159,6 +160,7 @@ export default function Pricing() {
       ai_avatar_video:     { label: 'AI Avatar Video',     description: 'Generate videos' },
       media_upload:        { label: 'Media Upload',        description: 'Upload photos' },
       voice_video_upload:  { label: 'Voice & Video',       description: 'Voice notes & video attachments' },
+      tree_wall:           { label: 'Group Wall',          description: 'Group messaging within trees' },
     },
     rewards: {
       monthlyAddsThreshold: 5,

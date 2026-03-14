@@ -28,7 +28,8 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Filter, Download, Upload, Clock, Star, Image,
   Menu, ShoppingBag, Gift, QrCode, LayoutDashboard, ClipboardList, RefreshCw, Link2, Merge, Target,
   LayoutGrid, CircleDot, Rows3, Network, Orbit, GitBranch, UserMinus, Globe, BellOff, Bell, Scissors,
-  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight, UserPlus, BookHeart, BarChart3, Copy, Save
+  Mail, TreeDeciduous, Send, Tag, Undo2, ArrowLeftRight, UserPlus, BookHeart, BarChart3, Copy, Save,
+  MessageSquare
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -63,6 +64,7 @@ import { MergeMembersDialog } from "@/components/merge-members-dialog";
 import { MemberMergeDialog } from "@/components/member-merge-dialog";
 import { InviteConnectDialog } from "@/components/invite-connect-dialog";
 import { MemoryLane } from "@/components/memory-lane";
+import { TreeWall } from "@/components/tree-wall";
 import { VoiceNotesSection } from "@/components/voice-notes-section";
 import { AnnualTreeReport } from "@/components/annual-tree-report";
 import { TreeRegistriesTab } from "@/components/tree-registries-tab";
@@ -1922,6 +1924,14 @@ export default function TreeView() {
                   Timeline
                 </TabsTrigger>
                 <TabsTrigger 
+                  value="wall" 
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
+                  data-testid="tab-wall"
+                >
+                  <MessageSquare className="h-4 w-4 shrink-0" />
+                  Wall
+                </TabsTrigger>
+                <TabsTrigger 
                   value="memories" 
                   className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 gap-1.5 px-3 text-xs sm:text-sm shrink-0 whitespace-nowrap"
                   data-testid="tab-memories"
@@ -2520,6 +2530,10 @@ export default function TreeView() {
               members={treeData?.members || []} 
               treeId={treeId!}
             />
+          </TabsContent>
+
+          <TabsContent value="wall" className="flex-1 m-0 overflow-hidden flex flex-col">
+            <TreeWall treeId={treeId!} canEdit={canEditTree} />
           </TabsContent>
 
           <TabsContent value="memories" className="flex-1 m-0 overflow-y-auto">
