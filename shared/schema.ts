@@ -1056,6 +1056,7 @@ export const userConnectionRequests = pgTable("user_connection_requests", {
   sourceType: text("source_type").default("qr_scan"), // How they connected: qr_scan, manual, invite
   targetTreeId: varchar("target_tree_id"), // Which tree the requester wants to connect to
   targetTreeName: text("target_tree_name"), // Cached tree name for display
+  reminderSentAt: timestamp("reminder_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -85,6 +85,7 @@ export const users = pgTable("users", {
 
   lastActivityAt: timestamp("last_activity_at").defaultNow(),
   inactivityReminderSentAt: timestamp("inactivity_reminder_sent_at"),
+  annualReviewSentYear: integer("annual_review_sent_year"),
   notificationPreferences: jsonb("notification_preferences").$type<NotificationPreferences>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

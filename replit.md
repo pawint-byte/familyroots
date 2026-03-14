@@ -46,6 +46,8 @@ The backend uses Node.js, Express.js, and TypeScript, providing RESTful API endp
 -   **Personalized Branch Labels**: Generates dynamic, possessive branch labels in family tree visualizations.
 -   **Affiliate Tracking**: Automatically adds affiliate tracking to gift registry product URLs from supported retailers.
 -   **Production-to-Dev Sync**: Additive-only script to sync production data to dev, preventing data loss.
+-   **Connection Request Notifications**: Email notifications when connection requests are sent, approved, or denied, plus automatic reminders after 3 days of inactivity.
+-   **Annual Year-in-Review Email**: Scheduled December emails with yearly stats (trees, members, connections) and "We miss you" messaging for inactive users (90+ days).
 
 ## External Dependencies
 -   **Database**: PostgreSQL

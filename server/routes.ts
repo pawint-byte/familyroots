@@ -92,7 +92,7 @@ import {
 } from "./heygen";
 import { postToBluesky, testBlueskyConnection } from "./bluesky";
 import { testDiscordConnection, sendDiscordNotification, notifyNewSignup, notifyNewTree, notifyMilestone } from "./discord";
-import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification, sendRegistryAnnouncementEmail, sendRegistryItemPurchasedEmail, sendTreeUpdateNotification } from "./lib/email";
+import { sendInactivityReminder, sendAccountTransferNotification, sendFamilyMemberInvitation, sendLifeEventNotification, sendRegistryAnnouncementEmail, sendRegistryItemPurchasedEmail, sendTreeUpdateNotification, sendConnectionRequestNotification } from "./lib/email";
 import { insertAccountHeirSchema, insertAnnouncementSchema } from "@shared/schema";
 import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG, PREMIUM_LIMITS, TIER_CONFIG, TIER_LIMITS, FEATURE_INFO, type PremiumFeature, type FeatureTier } from "./subscriptionService";
@@ -11828,8 +11828,31 @@ export async function registerRoutes(
       });
 
       const fromUser = await storage.getUser(fromUserId);
+      const senderName = fromUser?.firstName
+        ? `${fromUser.firstName}${fromUser.lastName ? ' ' + fromUser.lastName : ''}`
+        : fromUser?.email || 'Someone';
 
       console.log(`[User Connection Request] From: ${fromUser?.firstName} ${fromUser?.lastName} (${fromUserId}) -> To: ${targetUser.firstName} ${targetUser.lastName} (${targetUserId}) as "${relationshipType}" for tree: ${resolvedTreeName || 'none specified'}`);
+
+      (async () => {
+        try {
+          if (targetUser.email) {
+            const prefs = targetUser.notificationPreferences as any;
+            if (!prefs || prefs.emailEnabled !== false) {
+              await sendConnectionRequestNotification(
+                targetUser.email,
+                targetUser.firstName || 'there',
+                senderName,
+                relationshipType,
+                message || null,
+                "new_request"
+              );
+            }
+          }
+        } catch (e) {
+          console.error('Error sending connection request notification:', e);
+        }
+      })();
 
       res.json({ 
         success: true, 
@@ -12253,6 +12276,29 @@ export async function registerRoutes(
         }
       }
 
+      (async () => {
+        try {
+          if (fromUser?.email) {
+            const prefs = fromUser.notificationPreferences as any;
+            if (!prefs || prefs.emailEnabled !== false) {
+              const approverName = toUser?.firstName
+                ? `${toUser.firstName}${toUser.lastName ? ' ' + toUser.lastName : ''}`
+                : toUser?.email || 'Someone';
+              await sendConnectionRequestNotification(
+                fromUser.email,
+                fromUser.firstName || 'there',
+                approverName,
+                approverRelationshipType || request.relationshipType,
+                null,
+                "approved"
+              );
+            }
+          }
+        } catch (e) {
+          console.error('Error sending connection approved notification:', e);
+        }
+      })();
+
       res.json({ 
         success: true, 
         request: approved,
@@ -12284,6 +12330,31 @@ export async function registerRoutes(
       }
 
       const denied = await storage.denyUserConnectionRequest(id);
+
+      (async () => {
+        try {
+          const fromUser = await storage.getUser(request.fromUserId);
+          const toUser = await storage.getUser(userId);
+          if (fromUser?.email) {
+            const prefs = fromUser.notificationPreferences as any;
+            if (!prefs || prefs.emailEnabled !== false) {
+              const denierName = toUser?.firstName
+                ? `${toUser.firstName}${toUser.lastName ? ' ' + toUser.lastName : ''}`
+                : toUser?.email || 'Someone';
+              await sendConnectionRequestNotification(
+                fromUser.email,
+                fromUser.firstName || 'there',
+                denierName,
+                request.relationshipType,
+                null,
+                "denied"
+              );
+            }
+          }
+        } catch (e) {
+          console.error('Error sending connection denied notification:', e);
+        }
+      })();
 
       res.json({ 
         success: true, 

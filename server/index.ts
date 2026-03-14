@@ -7,8 +7,12 @@ import { getStripeSync } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
 import { getVideoById } from './heygen';
 import { storage } from './storage';
-import { sendCustodianshipApproval, sendCustodianshipReminder, sendRegistryReminderEmail } from './lib/email';
+import { sendCustodianshipApproval, sendCustodianshipReminder, sendRegistryReminderEmail, sendConnectionRequestReminder, sendAnnualReviewEmail } from './lib/email';
 import { runProdDataMigration } from './prodDataMigration';
+import { userConnectionRequests } from '@shared/schema';
+import { users } from '@shared/models/auth';
+import { eq, and, isNull, lt, sql } from 'drizzle-orm';
+import { db } from './db';
 
 const app = express();
 const httpServer = createServer(app);
@@ -257,6 +261,8 @@ app.use((req, res, next) => {
       // Start scheduled tasks
       startCustodianshipScheduler();
       startRegistryReminderScheduler();
+      startConnectionReminderScheduler();
+      startAnnualReviewScheduler();
     },
   );
 })();
@@ -450,4 +456,145 @@ function startRegistryReminderScheduler() {
   processRegistryReminders();
   setInterval(processRegistryReminders, SIX_HOURS_MS);
   log('Registry reminder scheduler started', 'scheduler');
+}
+
+function startConnectionReminderScheduler() {
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  const REMINDER_AFTER_DAYS = 3;
+
+  async function processConnectionReminders() {
+    try {
+      log('Checking pending connection requests for reminders...', 'scheduler');
+      const cutoff = new Date(Date.now() - REMINDER_AFTER_DAYS * 24 * 60 * 60 * 1000);
+
+      const staleRequests = await db.select().from(userConnectionRequests)
+        .where(and(
+          eq(userConnectionRequests.status, 'pending'),
+          lt(userConnectionRequests.createdAt, cutoff),
+          isNull(userConnectionRequests.reminderSentAt)
+        ));
+
+      for (const request of staleRequests) {
+        try {
+          const [claimed] = await db.update(userConnectionRequests)
+            .set({ reminderSentAt: new Date() })
+            .where(and(
+              eq(userConnectionRequests.id, request.id),
+              isNull(userConnectionRequests.reminderSentAt)
+            ))
+            .returning();
+          if (!claimed) continue;
+
+          const toUser = await storage.getUser(request.toUserId);
+          const fromUser = await storage.getUser(request.fromUserId);
+          if (!toUser?.email || !fromUser) continue;
+
+          const prefs = toUser.notificationPreferences as any;
+          if (prefs && prefs.emailEnabled === false) continue;
+
+          const senderName = fromUser.firstName
+            ? `${fromUser.firstName}${fromUser.lastName ? ' ' + fromUser.lastName : ''}`
+            : fromUser.email || 'Someone';
+
+          const daysPending = Math.floor((Date.now() - request.createdAt.getTime()) / (24 * 60 * 60 * 1000));
+
+          await sendConnectionRequestReminder(
+            toUser.email,
+            toUser.firstName || 'there',
+            senderName,
+            request.relationshipType,
+            daysPending
+          );
+
+          log(`Sent connection reminder to ${toUser.email} for request from ${senderName} (${daysPending} days)`, 'scheduler');
+        } catch (e) {
+          console.error(`Error sending connection reminder for request ${request.id}:`, e);
+        }
+      }
+    } catch (error) {
+      console.error('Error processing connection reminders:', error);
+    }
+  }
+
+  processConnectionReminders();
+  setInterval(processConnectionReminders, SIX_HOURS_MS);
+  log('Connection reminder scheduler started', 'scheduler');
+}
+
+function startAnnualReviewScheduler() {
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+  async function processAnnualReviews() {
+    try {
+      const now = new Date();
+      const month = now.getMonth();
+      const day = now.getDate();
+
+      if (month !== 11 || day < 15 || day > 31) return;
+
+      log('Processing annual year-in-review emails...', 'scheduler');
+
+      const currentYear = now.getFullYear();
+      const yearStart = new Date(currentYear, 0, 1);
+      const inactivityThreshold = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+      const allUsers = await db.select().from(users);
+
+      for (const user of allUsers) {
+        if (!user.email) continue;
+
+        const prefs = user.notificationPreferences as any;
+        if (prefs && prefs.emailEnabled === false) continue;
+
+        if (user.annualReviewSentYear === currentYear) continue;
+
+        try {
+          const userTrees = await storage.getTrees(user.id);
+          let totalMembers = 0;
+          let membersThisYear = 0;
+          for (const tree of userTrees) {
+            const members = await storage.getMembers(tree.id);
+            totalMembers += members.length;
+            membersThisYear += members.filter(m =>
+              m.createdAt && new Date(m.createdAt) >= yearStart
+            ).length;
+          }
+
+          const treesThisYear = userTrees.filter(t =>
+            t.createdAt && new Date(t.createdAt) >= yearStart
+          ).length;
+
+          const connections = await storage.getUserConnections(user.id);
+          const isInactive = !user.lastActivityAt || user.lastActivityAt < inactivityThreshold;
+
+          await sendAnnualReviewEmail(
+            user.email,
+            user.firstName || 'there',
+            {
+              totalTrees: userTrees.length,
+              totalMembers,
+              membersAddedThisYear: membersThisYear,
+              connectionsCount: connections.length,
+              treesCreatedThisYear: treesThisYear,
+              isInactive,
+            }
+          );
+
+          await db.update(users)
+            .set({ annualReviewSentYear: currentYear })
+            .where(eq(users.id, user.id));
+
+          log(`Sent annual review to ${user.email} (inactive: ${isInactive})`, 'scheduler');
+        } catch (e) {
+          console.error(`Error sending annual review to ${user.email}:`, e);
+        }
+      }
+    } catch (error) {
+      console.error('Error processing annual reviews:', error);
+    }
+  }
+
+  processAnnualReviews();
+  setInterval(processAnnualReviews, TWENTY_FOUR_HOURS_MS);
+  log('Annual review scheduler started', 'scheduler');
 }

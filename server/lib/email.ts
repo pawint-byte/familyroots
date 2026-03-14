@@ -449,6 +449,201 @@ export async function sendTreeUpdateNotification(
   return sendEmail(to, subject, html);
 }
 
+export async function sendConnectionRequestNotification(
+  to: string,
+  recipientName: string,
+  senderName: string,
+  relationshipType: string,
+  message: string | null,
+  type: "new_request" | "approved" | "denied"
+) {
+  const subjectMap = {
+    new_request: `${senderName} wants to connect with you on FamilyRoots`,
+    approved: `${senderName} accepted your connection request`,
+    denied: `Connection request update from FamilyRoots`,
+  };
+  const headingMap = {
+    new_request: "New Connection Request",
+    approved: "Connection Accepted!",
+    denied: "Connection Update",
+  };
+  const bodyMap = {
+    new_request: `<strong>${senderName}</strong> has sent you a connection request as <em>"${relationshipType}"</em>.${message ? `<br/><br/><strong>Message:</strong> "${message}"` : ""}<br/><br/>Log in to review and respond to this request.`,
+    approved: `Great news! <strong>${senderName}</strong> has accepted your connection request. You are now connected as <em>"${relationshipType}"</em>.<br/><br/>You can now link your trees and start collaborating.`,
+    denied: `<strong>${senderName}</strong> has declined your connection request. This could be for many reasons — feel free to reach out to them directly if you'd like to follow up.`,
+  };
+
+  const subject = subjectMap[type];
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .update-card { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #4F46E5; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>${headingMap[type]}</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${recipientName},</p>
+        <div class="update-card">
+          ${bodyMap[type]}
+        </div>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/dashboard" class="button">Open Dashboard</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>&copy; FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this because you have a FamilyRoots account.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
+export async function sendConnectionRequestReminder(
+  to: string,
+  recipientName: string,
+  senderName: string,
+  relationshipType: string,
+  daysPending: number
+) {
+  const subject = `Reminder: ${senderName} is waiting for your response on FamilyRoots`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .update-card { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #f59e0b; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Pending Connection</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${recipientName},</p>
+        <div class="update-card">
+          <strong>${senderName}</strong> sent you a connection request as <em>"${relationshipType}"</em> ${daysPending} days ago and is still waiting for your response.
+        </div>
+        <p>You can approve or decline this request from your dashboard.</p>
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/dashboard" class="button">Review Request</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>&copy; FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this because you have a pending connection request.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
+export async function sendAnnualReviewEmail(
+  to: string,
+  userName: string,
+  stats: {
+    totalTrees: number;
+    totalMembers: number;
+    membersAddedThisYear: number;
+    connectionsCount: number;
+    treesCreatedThisYear: number;
+    isInactive: boolean;
+  }
+) {
+  const currentYear = new Date().getFullYear();
+  const subject = stats.isInactive
+    ? `We miss you! Your ${currentYear} FamilyRoots update`
+    : `Your ${currentYear} Year in Review on FamilyRoots`;
+
+  const inactiveBlock = stats.isInactive ? `
+    <div style="background: #fef3c7; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+      <strong>We haven't seen you in a while!</strong><br/>
+      Your trees and connections are still here, waiting for you. Log in to see what's new and keep your family history growing.
+    </div>
+  ` : '';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 40px 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 28px; }
+        .header p { color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 16px; }
+        .content { padding: 30px; background: #f9fafb; }
+        .stats-grid { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+        .stat-card { background: white; border-radius: 8px; padding: 16px; flex: 1; min-width: 120px; text-align: center; border: 1px solid #e5e7eb; }
+        .stat-number { font-size: 32px; font-weight: bold; color: #4F46E5; }
+        .stat-label { font-size: 13px; color: #6b7280; margin-top: 4px; }
+        .button { display: inline-block; background: #4F46E5; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-size: 16px; font-weight: 600; }
+        .footer { padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>${stats.isInactive ? 'We Miss You!' : 'Your Year in Review'}</h1>
+        <p>${currentYear} on FamilyRoots</p>
+      </div>
+      <div class="content">
+        <p>Hi ${userName},</p>
+        ${inactiveBlock}
+        <p>${stats.isInactive
+          ? "Here's a snapshot of what's waiting for you:"
+          : `Here's a look back at your ${currentYear} on FamilyRoots:`
+        }</p>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number">${stats.totalTrees}</div>
+            <div class="stat-label">Trees</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.totalMembers}</div>
+            <div class="stat-label">Total Members</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.membersAddedThisYear}</div>
+            <div class="stat-label">Added This Year</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.connectionsCount}</div>
+            <div class="stat-label">Connections</div>
+          </div>
+        </div>
+        ${stats.treesCreatedThisYear > 0 ? `<p>You created <strong>${stats.treesCreatedThisYear}</strong> new tree${stats.treesCreatedThisYear > 1 ? 's' : ''} this year!</p>` : ''}
+        <p style="text-align: center;">
+          <a href="https://familyroots.replit.app/dashboard" class="button">${stats.isInactive ? 'Come Back & Explore' : 'View Your Trees'}</a>
+        </p>
+      </div>
+      <div class="footer">
+        <p>&copy; FamilyRoots - Preserve Your Family's Legacy</p>
+        <p style="font-size: 12px;">You're receiving this annual summary because you have a FamilyRoots account.</p>
+      </div>
+    </body>
+    </html>
+  `;
+  return sendEmail(to, subject, html);
+}
+
 // Life event notification email
 export async function sendLifeEventNotification(
   to: string,
