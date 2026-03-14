@@ -18,7 +18,8 @@ import {
   memberMutes, memberInvitations, profileClaimRequests, custodianshipRequests,
   discoverableMembers,
   memories, insertMemorySchema,
-  poolUpdateNotifications
+  poolUpdateNotifications,
+  treeWallMessages
 } from "@shared/schema";
 import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
 import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType, TREE_TYPE_CONFIGS } from "@shared/treeTypes";
@@ -13014,6 +13015,147 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error deleting voice note:", error);
       res.status(500).json({ message: "Failed to delete voice note" });
+    }
+  });
+
+  // ==================== TREE WALL / GROUP CHAT ROUTES ====================
+
+  app.get("/api/trees/:treeId/wall", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      const isOwner = tree.ownerId === userId;
+      const collaborators = await storage.getCollaborators(treeId);
+      const isCollaborator = collaborators.some(c => c.userId === userId);
+      if (!isOwner && !isCollaborator && tree.privacy === "private") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const messages = await db.select().from(treeWallMessages)
+        .where(and(
+          eq(treeWallMessages.treeId, treeId),
+          isNull(treeWallMessages.deletedAt)
+        ))
+        .orderBy(desc(treeWallMessages.createdAt))
+        .limit(100);
+
+      const userIds = [...new Set(messages.map(m => m.userId))];
+      const userMap: Record<string, any> = {};
+      for (const uid of userIds) {
+        const u = await storage.getUser(uid);
+        if (u) {
+          userMap[uid] = { id: u.id, firstName: u.firstName, lastName: u.lastName, profileImageUrl: u.profileImageUrl };
+        }
+      }
+
+      const enriched = messages.map(m => ({
+        ...m,
+        user: userMap[m.userId] || null,
+      }));
+
+      res.json(enriched.reverse());
+    } catch (error) {
+      console.error("Error fetching wall messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  app.post("/api/trees/:treeId/wall", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId } = req.params;
+      const userId = req.user.claims.sub;
+      const { content, replyToId } = req.body;
+
+      if (!content || !content.trim()) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+      if (content.length > 2000) {
+        return res.status(400).json({ message: "Message must be under 2000 characters" });
+      }
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+
+      const isOwner = tree.ownerId === userId;
+      const collaborators = await storage.getCollaborators(treeId);
+      const isCollaborator = collaborators.some(c => c.userId === userId);
+      if (!isOwner && !isCollaborator) {
+        return res.status(403).json({ message: "You must be a member of this tree to post" });
+      }
+
+      const [message] = await db.insert(treeWallMessages).values({
+        treeId,
+        userId,
+        content: content.trim(),
+        replyToId: replyToId || null,
+      }).returning();
+
+      const user = await storage.getUser(userId);
+      res.status(201).json({
+        ...message,
+        user: user ? { id: user.id, firstName: user.firstName, lastName: user.lastName, profileImageUrl: user.profileImageUrl } : null,
+      });
+    } catch (error) {
+      console.error("Error posting wall message:", error);
+      res.status(500).json({ message: "Failed to post message" });
+    }
+  });
+
+  app.patch("/api/trees/:treeId/wall/:messageId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, messageId } = req.params;
+      const userId = req.user.claims.sub;
+      const { content } = req.body;
+
+      if (!content || !content.trim()) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+
+      const [existing] = await db.select().from(treeWallMessages)
+        .where(and(eq(treeWallMessages.id, messageId), eq(treeWallMessages.treeId, treeId)));
+
+      if (!existing) return res.status(404).json({ message: "Message not found" });
+      if (existing.userId !== userId) return res.status(403).json({ message: "You can only edit your own messages" });
+
+      const [updated] = await db.update(treeWallMessages)
+        .set({ content: content.trim(), editedAt: new Date() })
+        .where(eq(treeWallMessages.id, messageId))
+        .returning();
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error editing wall message:", error);
+      res.status(500).json({ message: "Failed to edit message" });
+    }
+  });
+
+  app.delete("/api/trees/:treeId/wall/:messageId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, messageId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [existing] = await db.select().from(treeWallMessages)
+        .where(and(eq(treeWallMessages.id, messageId), eq(treeWallMessages.treeId, treeId)));
+
+      if (!existing) return res.status(404).json({ message: "Message not found" });
+
+      const tree = await storage.getTree(treeId);
+      const isOwner = tree?.ownerId === userId;
+      if (existing.userId !== userId && !isOwner) {
+        return res.status(403).json({ message: "You can only delete your own messages" });
+      }
+
+      await db.update(treeWallMessages)
+        .set({ deletedAt: new Date() })
+        .where(eq(treeWallMessages.id, messageId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting wall message:", error);
+      res.status(500).json({ message: "Failed to delete message" });
     }
   });
 
