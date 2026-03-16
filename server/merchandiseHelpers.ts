@@ -50,7 +50,7 @@ async function fetchImageBuffer(urlOrPath: string, baseUrl: string): Promise<Buf
   return Buffer.from(await response.arrayBuffer());
 }
 
-async function compositeTreeAndQR(treeImagePath: string, qrUrl: string, baseUrl: string): Promise<string> {
+async function compositeTreeAndQR(treeImagePath: string, qrUrl: string, baseUrl: string, productId?: number): Promise<string> {
   const sharp = (await import("sharp")).default;
 
   const treeBuffer = await fetchImageBuffer(treeImagePath, baseUrl);
@@ -58,9 +58,13 @@ async function compositeTreeAndQR(treeImagePath: string, qrUrl: string, baseUrl:
   const treeWidth = treeMeta.width || 2400;
   const treeHeight = treeMeta.height || 2400;
 
-  const QRCode = await import("qrcode");
+  const isMug = productId === 19;
   const smallerDimension = Math.min(treeWidth, treeHeight);
-  const qrSize = Math.min(Math.round(smallerDimension * 0.15), 300);
+  const qrSize = isMug
+    ? Math.min(Math.round(smallerDimension * 0.3), 500)
+    : Math.min(Math.round(smallerDimension * 0.15), 300);
+
+  const QRCode = await import("qrcode");
   const qrBuffer = await QRCode.default.toBuffer(qrUrl, {
     type: "png",
     width: qrSize,
@@ -83,11 +87,20 @@ async function compositeTreeAndQR(treeImagePath: string, qrUrl: string, baseUrl:
     .toBuffer();
 
   const margin = Math.round(treeWidth * 0.03);
+  const qrLeft = isMug
+    ? treeWidth - bgSize - margin
+    : treeWidth - bgSize - margin;
+  const qrTop = isMug
+    ? Math.round((treeHeight - bgSize) / 2)
+    : treeHeight - bgSize - margin;
+
+  console.log(`[merchandise] Compositing QR onto tree image: treeSize=${treeWidth}x${treeHeight}, qrSize=${qrSize}, position=(${qrLeft},${qrTop}), isMug=${isMug}`);
+
   const composited = await sharp(treeBuffer)
     .composite([{
       input: qrWithBg,
-      left: treeWidth - bgSize - margin,
-      top: treeHeight - bgSize - margin,
+      left: qrLeft,
+      top: qrTop,
     }])
     .png()
     .toBuffer();
@@ -239,14 +252,15 @@ export async function buildPrintfulFiles(
   if (needsCompositing) {
     console.log(`[merchandise] Single-placement product ${productId} — compositing tree image + QR into one file`);
     try {
-      const compositedPath = await compositeTreeAndQR(order.treeImageUrl, placement.qrProfileUrl, baseUrl);
+      const compositedPath = await compositeTreeAndQR(order.treeImageUrl, placement.qrProfileUrl, baseUrl, productId);
       const compositedUrl = getPublicFileUrl(compositedPath, baseUrl);
       files.push({
         type: treePlacementType,
         url: compositedUrl,
       });
     } catch (err) {
-      console.error("[merchandise] Compositing failed, falling back to tree image only:", err);
+      console.error("[merchandise] WARNING: QR compositing failed, falling back to tree image WITHOUT QR:", err);
+      console.error("[merchandise] Order will be missing QR code! treeImageUrl:", order.treeImageUrl, "qrUrl:", placement.qrProfileUrl);
       files.push({
         type: treePlacementType,
         url: getPublicFileUrl(order.treeImageUrl, baseUrl),
