@@ -960,7 +960,7 @@ export default function GroupVisualization({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full overflow-hidden select-none"
+      className="relative w-full h-full overflow-hidden select-none bg-background"
       style={{ cursor: isDragging ? "grabbing" : "grab" }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

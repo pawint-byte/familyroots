@@ -1252,7 +1252,7 @@ export default function TreeView() {
   const memberCount = treeData?.members?.length || 0;
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-dvh bg-background flex flex-col overflow-hidden">
       <SEO
         title={`${treeName} - FamilyRoots`}
         description={`Explore and manage ${treeName} with ${memberCount} family members. Add members, define relationships, and visualize your family history.`}
