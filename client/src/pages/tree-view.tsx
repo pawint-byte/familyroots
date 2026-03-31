@@ -1239,7 +1239,7 @@ export default function TreeView() {
             <p className="text-muted-foreground mb-4">
               This family tree doesn't exist or you don't have access to it.
             </p>
-            <Button onClick={() => navigate("/")} data-testid="button-back-home">
+            <Button onClick={() => navigate("/dashboard")} data-testid="button-back-home">
               Go Back Home
             </Button>
           </CardContent>
@@ -1265,7 +1265,7 @@ export default function TreeView() {
               variant="ghost" 
               size="icon" 
               className="shrink-0"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/dashboard")}
               data-testid="button-back"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -1614,7 +1614,7 @@ export default function TreeView() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="gap-2"
-                  onClick={() => navigate("/")}
+                  onClick={() => navigate("/dashboard")}
                   data-testid="menu-dashboard"
                 >
                   <LayoutDashboard className="h-4 w-4" />

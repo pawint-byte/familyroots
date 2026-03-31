@@ -19,6 +19,7 @@ The backend uses Node.js, Express.js, and TypeScript, providing RESTful API endp
 -   **Tree Management**: Supports nested sub-groups, splitting, cloning, and selective merging of trees.
 -   **Visualization**: Employs a rescue pass for unplaced members and provides unique visual layouts.
 -   **Authentication & Collaboration**: Secure login, role-based access (Viewer, Editor, Co-owner), and tree sharing.
+-   **Auto-Redirect to Tree**: Logged-in users landing at `/` are automatically redirected to their most recently updated tree. Users with no trees stay on the dashboard. Explicit `/dashboard` always shows the full dashboard.
 -   **Profile Management**: Members can claim and manage profiles, record events, track history, and utilize a custodianship system.
 -   **Privacy & Security**: Three-tier visibility controls, per-member overrides, and a "Deadman Switch" for tree inheritance.
 -   **Community & Discovery**: Opt-in discoverable community trees, location sharing, and a "Network Overview."

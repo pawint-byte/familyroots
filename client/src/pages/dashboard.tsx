@@ -258,6 +258,25 @@ export default function Dashboard() {
     queryKey: ["/api/trees"],
   });
 
+  const [location] = useLocation();
+  const [autoRedirectDone, setAutoRedirectDone] = useState(location !== "/");
+
+  useEffect(() => {
+    if (autoRedirectDone || isLoading || !trees || !user) return;
+    if (pendingConnectionInfo) return;
+    if (trees.length > 0) {
+      setAutoRedirectDone(true);
+      const sorted = [...trees].sort((a, b) => {
+        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+      navigate(`/tree/${sorted[0].id}`);
+    } else {
+      setAutoRedirectDone(true);
+    }
+  }, [trees, isLoading, user, autoRedirectDone, pendingConnectionInfo, navigate]);
+
   // Check if current user is admin
   const { data: adminCheck } = useQuery<{ isAdmin: boolean }>({
     queryKey: ["/api/admin/check"],
