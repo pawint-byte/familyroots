@@ -236,7 +236,7 @@ export default function TreeView() {
   const [showCrossTreeMerge, setShowCrossTreeMerge] = useState(false);
   const [showSamePersonPicker, setShowSamePersonPicker] = useState(false);
   const [samePersonSearch, setSamePersonSearch] = useState("");
-  const [isFocusPanelCollapsed, setIsFocusPanelCollapsed] = useState(false);
+  const [isFocusPanelCollapsed, setIsFocusPanelCollapsed] = useState(true);
   const [viewDepth, setViewDepth] = useState<'immediate' | 'extended' | 'all'>('all');
   const [isCreateSubgroupOpen, setIsCreateSubgroupOpen] = useState(false);
   const [newSubgroupName, setNewSubgroupName] = useState("");
