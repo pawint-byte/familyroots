@@ -39,6 +39,7 @@ interface GroupVisualizationProps {
   customRelationshipTypes?: CustomRelType[] | null;
   upcomingEvents?: MemberUpcomingEvent[];
   importPreview?: ImportPreviewConfig | null;
+  onAutoFitZoom?: (zoom: number) => void;
 }
 
 interface NodePosition {
@@ -506,6 +507,7 @@ export default function GroupVisualization({
   customRelationshipTypes,
   upcomingEvents,
   importPreview,
+  onAutoFitZoom,
 }: GroupVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -677,13 +679,20 @@ export default function GroupVisualization({
     if (hasCenteredRef.current) return;
     hasCenteredRef.current = true;
     const rect = containerRef.current.getBoundingClientRect();
-    const contentCenterX = (bounds.minX + bounds.maxX) / 2;
-    const contentCenterY = (bounds.minY + bounds.maxY) / 2;
-    const viewCenterX = rect.width / 2;
-    const viewCenterY = rect.height / 2;
-    const offsetX = viewCenterX - (contentCenterX - bounds.minX) * zoom;
-    const offsetY = viewCenterY - (contentCenterY - bounds.minY) * zoom;
+    const viewW = rect.width;
+    const viewH = rect.height;
+    const contentW = bounds.width;
+    const contentH = bounds.height;
+    const fitScale = Math.min(viewW / contentW, viewH / contentH, 1);
+    const effectiveZoom = Math.min(zoom, fitScale);
+    const scaledW = contentW * effectiveZoom;
+    const scaledH = contentH * effectiveZoom;
+    const offsetX = (viewW - scaledW) / 2;
+    const offsetY = (viewH - scaledH) / 2;
     setOffset({ x: offsetX, y: offsetY });
+    if (onAutoFitZoom && effectiveZoom < zoom) {
+      onAutoFitZoom(effectiveZoom);
+    }
   }, [positions, bounds, zoom]);
 
   const positionMap = useMemo(() => {

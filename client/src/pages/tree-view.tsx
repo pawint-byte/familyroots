@@ -2288,6 +2288,7 @@ export default function TreeView() {
                       customRelationshipTypes={(treeData?.tree.customRelationshipTypes as (string | { label: string; reverseLabel?: string })[] | null) || null}
                       upcomingEvents={upcomingEvents}
                       importPreview={importPreviewConfig}
+                      onAutoFitZoom={setZoom}
                     />
                   )}
                 </div>
