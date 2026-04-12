@@ -761,7 +761,8 @@ export class SubscriptionService {
     return { start, end };
   }
 
-  getUserTier(user: { premiumTier?: string | null; isPremium?: boolean | null }): FeatureTier {
+  getUserTier(user: { premiumTier?: string | null; isPremium?: boolean | null; isAdmin?: boolean | null }): FeatureTier {
+    if (user.isAdmin) return 'legacy';
     if (user.premiumTier && TIER_ORDER.includes(user.premiumTier as FeatureTier)) {
       return user.premiumTier as FeatureTier;
     }
@@ -780,7 +781,7 @@ export class SubscriptionService {
   }
 
   async getFeatureUsage(userId: string, feature: PremiumFeature): Promise<{ used: number; limit: number; remaining: number; tier: FeatureTier }> {
-    const [user] = await db.select({ isPremium: users.isPremium, premiumTier: users.premiumTier }).from(users).where(eq(users.id, userId));
+    const [user] = await db.select({ isPremium: users.isPremium, premiumTier: users.premiumTier, isAdmin: users.isAdmin }).from(users).where(eq(users.id, userId));
     const tier = this.getUserTier(user || {});
     const limit = this.getTierLimit(tier, feature);
 
@@ -826,7 +827,7 @@ export class SubscriptionService {
   }
 
   async incrementFeatureUsage(userId: string, feature: PremiumFeature): Promise<{ used: number; limit: number; remaining: number }> {
-    const [user] = await db.select({ isPremium: users.isPremium, premiumTier: users.premiumTier }).from(users).where(eq(users.id, userId));
+    const [user] = await db.select({ isPremium: users.isPremium, premiumTier: users.premiumTier, isAdmin: users.isAdmin }).from(users).where(eq(users.id, userId));
     const tier = this.getUserTier(user || {});
     const limit = this.getTierLimit(tier, feature);
 
@@ -871,7 +872,7 @@ export class SubscriptionService {
   }
 
   async getAllFeatureUsage(userId: string): Promise<Record<PremiumFeature, { used: number; limit: number; remaining: number; tier: FeatureTier }>> {
-    const [user] = await db.select({ isPremium: users.isPremium, premiumTier: users.premiumTier }).from(users).where(eq(users.id, userId));
+    const [user] = await db.select({ isPremium: users.isPremium, premiumTier: users.premiumTier, isAdmin: users.isAdmin }).from(users).where(eq(users.id, userId));
     const tier = this.getUserTier(user || {});
 
     const result = {} as Record<PremiumFeature, { used: number; limit: number; remaining: number; tier: FeatureTier }>;
@@ -906,6 +907,7 @@ export class SubscriptionService {
     const [user] = await db.select({
       isPremium: users.isPremium,
       premiumTier: users.premiumTier,
+      isAdmin: users.isAdmin,
       isSubscriptionActive: users.isSubscriptionActive,
       subscriptionCancelledAt: users.subscriptionCancelledAt,
     }).from(users).where(eq(users.id, creatorUserId));
