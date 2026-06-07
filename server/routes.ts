@@ -100,16 +100,7 @@ import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG, PREMIUM_LIMIT
 import * as familySearchService from "./familySearch";
 
 // Admin users who bypass all limits and costs
-const ADMIN_EMAILS_LIST = [
-  "pawint@me.com",
-];
-const ADMIN_USER_IDS_LIST = ["52852375"];
-
-function isAdminAccount(userId: string, email?: string | null): boolean {
-  if (ADMIN_USER_IDS_LIST.includes(userId)) return true;
-  if (email && ADMIN_EMAILS_LIST.some(e => e === email.toLowerCase())) return true;
-  return false;
-}
+import { isAdminAccount } from "./adminConfig";
 
 // Privacy visibility filtering for family members
 type VisibilityTier = "full" | "extended" | "limited";
