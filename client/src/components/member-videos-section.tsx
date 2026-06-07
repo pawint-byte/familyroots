@@ -131,11 +131,12 @@ export function MemberVideosSection({ memberId, treeId, canEdit, memberName }: M
       }
       const { uploadURL, objectPath } = await urlRes.json();
 
-      await fetch(uploadURL, {
+      const putRes = await fetch(uploadURL, {
         method: "PUT",
         body: selectedFile,
         headers: { "Content-Type": selectedFile.type },
       });
+      if (!putRes.ok) throw new Error("Upload to storage failed");
 
       createMutation.mutate({
         videoUrl: objectPath,

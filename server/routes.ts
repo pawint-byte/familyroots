@@ -4315,6 +4315,23 @@ export async function registerRoutes(
           }
           transferResults.voiceNotes = mergeVoiceNotes.length;
         } catch (e) { transferResults.voiceNotes = 0; }
+
+        // Transfer member videos
+        try {
+          const mergeMemberVideos = await db.select().from(memberVideos)
+            .where(and(eq(memberVideos.memberId, mergeMemberId), eq(memberVideos.treeId, mergeMember.treeId)));
+          for (const mv of mergeMemberVideos) {
+            await db.insert(memberVideos).values({
+              memberId: keepMemberId,
+              treeId: keepMember.treeId,
+              recordedByUserId: mv.recordedByUserId,
+              videoUrl: mv.videoUrl,
+              durationSeconds: mv.durationSeconds ?? undefined,
+              title: mv.title ?? undefined,
+            });
+          }
+          (transferResults as any).memberVideos = mergeMemberVideos.length;
+        } catch (e) { (transferResults as any).memberVideos = 0; }
         
         // Transfer gift registries
         try {
@@ -15866,7 +15883,7 @@ export async function registerRoutes(
       const results: any[] = [];
       const mergedSourceToTarget = new Map<string, string>();
       const skippedIds = new Set<string>();
-      const transferStats = { events: 0, nameHistory: 0, education: 0, career: 0, tags: 0, fsSources: 0, extIds: 0, specialConns: 0, giftRegistries: 0, voiceNotes: 0, memories: 0, invitations: 0, claimRequests: 0, custodianshipReqs: 0, mutes: 0 };
+      const transferStats = { events: 0, nameHistory: 0, education: 0, career: 0, tags: 0, fsSources: 0, extIds: 0, specialConns: 0, giftRegistries: 0, voiceNotes: 0, memberVideos: 0, memories: 0, invitations: 0, claimRequests: 0, custodianshipReqs: 0, mutes: 0 };
 
       const resolveMergeChain = (id: string): string => {
         let current = id;
@@ -16234,6 +16251,13 @@ export async function registerRoutes(
             await db.update(voiceNotes).set({ memberId: targetMemberId, treeId }).where(eq(voiceNotes.memberId, sourceMemberId));
             transferStats.voiceNotes += srcVoiceNotes.length;
             mergeLog.push(`${srcVoiceNotes.length} voice notes`);
+          }
+
+          const srcMemberVideos = await db.select().from(memberVideos).where(eq(memberVideos.memberId, sourceMemberId));
+          if (srcMemberVideos.length > 0) {
+            await db.update(memberVideos).set({ memberId: targetMemberId, treeId }).where(eq(memberVideos.memberId, sourceMemberId));
+            transferStats.memberVideos += srcMemberVideos.length;
+            mergeLog.push(`${srcMemberVideos.length} videos`);
           }
 
           const srcMemories = await db.select().from(memories).where(eq(memories.memberId, sourceMemberId));
@@ -16682,7 +16706,7 @@ export async function registerRoutes(
 
       console.log(`[resolve-conflicts] COMPLETE. Tree now has ${finalMembers.length} members, ${finalRels.length} relationships, max ancestor depth: ${maxChainDepth}, orphaned: ${orphanedRels}`);
       console.log(`[resolve-conflicts] Summary: ${mergeCount} merged, ${skipCount} skipped, ${keepCount} kept separate`);
-      console.log(`[resolve-conflicts] Transferred: ${transferStats.events} events, ${transferStats.nameHistory} name records, ${transferStats.education} education, ${transferStats.career} career, ${transferStats.tags} tags, ${transferStats.fsSources} FS sources, ${transferStats.extIds} external IDs, ${transferStats.specialConns} special connections, ${transferStats.giftRegistries} gift registries, ${transferStats.voiceNotes} voice notes, ${transferStats.memories} memories, ${transferStats.invitations} invitations, ${transferStats.claimRequests} claims, ${transferStats.custodianshipReqs} custodianship, ${transferStats.mutes} mutes`);
+      console.log(`[resolve-conflicts] Transferred: ${transferStats.events} events, ${transferStats.nameHistory} name records, ${transferStats.education} education, ${transferStats.career} career, ${transferStats.tags} tags, ${transferStats.fsSources} FS sources, ${transferStats.extIds} external IDs, ${transferStats.specialConns} special connections, ${transferStats.giftRegistries} gift registries, ${transferStats.voiceNotes} voice notes, ${transferStats.memberVideos} videos, ${transferStats.memories} memories, ${transferStats.invitations} invitations, ${transferStats.claimRequests} claims, ${transferStats.custodianshipReqs} custodianship, ${transferStats.mutes} mutes`);
 
       res.json({
         message: "Conflicts resolved and members integrated into tree",
