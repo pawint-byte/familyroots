@@ -90,6 +90,7 @@ export default function FamilyTreeVisualization({
   importPreview,
 }: FamilyTreeVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const userPannedRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -1366,33 +1367,51 @@ export default function FamilyTreeVisualization({
     return previewNodes;
   }, [importPreview, positions, nodeDragOffsets, nodeWidth, nodeHeight, horizontalGap, verticalGap]);
 
-  useEffect(() => {
-    if (positions.length === 0 || !containerRef.current) return;
-    
-    // Find the focused position, or fall back to the focus branch, or first position
-    let targetPosition = focusMemberId 
-      ? positions.find(p => p.member.id === focusMemberId)
-      : null;
-    
-    if (!targetPosition) {
-      // Try to find the focus branch member (main person in tree)
-      targetPosition = positions.find(p => p.branchType === 'focus');
-    }
-    
-    if (!targetPosition && positions.length > 0) {
-      // Fall back to first position to ensure tree is visible
-      targetPosition = positions[0];
-    }
-    
-    if (!targetPosition) return;
+  // Center the ENTIRE tree's bounding box within the viewport. Centering on a
+  // single focus member (often the youngest person, who only has ancestors above
+  // them) left the whole tree clustered in the top half with empty white space
+  // below. Using the bounding box fills the screen evenly. Returns true once it
+  // successfully centers against a laid-out container.
+  const centerTree = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || positions.length === 0) return false;
+    const containerRect = container.getBoundingClientRect();
+    // Bail if the container hasn't been laid out yet; measuring a 0-size
+    // container would push the tree to the top and leave the bottom blank.
+    if (containerRect.width === 0 || containerRect.height === 0) return false;
 
-    const containerRect = containerRef.current.getBoundingClientRect();
-    
-    const targetX = containerRect.width / 2 - (targetPosition.x + nodeWidth / 2) * zoom;
-    const targetY = containerRect.height / 2 - (targetPosition.y + nodeHeight / 2) * zoom;
-    
-    setOffset({ x: targetX, y: targetY });
-  }, [focusMemberId, positions, zoom, nodeWidth, nodeHeight, viewDepth]);
+    const xs = positions.map(p => p.x);
+    const ys = positions.map(p => p.y);
+    const treeCenterX = (Math.min(...xs) + Math.max(...xs) + nodeWidth) / 2;
+    const treeCenterY = (Math.min(...ys) + Math.max(...ys) + nodeHeight) / 2;
+
+    setOffset({
+      x: containerRect.width / 2 - treeCenterX * zoom,
+      y: containerRect.height / 2 - treeCenterY * zoom,
+    });
+    return true;
+  }, [positions, zoom, nodeWidth, nodeHeight]);
+
+  // Auto-center when the tree, focus, zoom, or depth changes. Treat this as a
+  // fresh layout, so allow a subsequent resize-driven recenter to run again.
+  useEffect(() => {
+    if (positions.length === 0) return;
+    userPannedRef.current = false;
+    const raf = requestAnimationFrame(() => centerTree());
+    return () => cancelAnimationFrame(raf);
+  }, [focusMemberId, positions, zoom, nodeWidth, nodeHeight, viewDepth, centerTree]);
+
+  // Re-center when the container is first measured (e.g. it mounts at 0x0 inside
+  // a tab) or is resized, but never override a manual pan.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (!userPannedRef.current) centerTree();
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [centerTree]);
 
   const handleNodeDragStart = useCallback((e: React.MouseEvent, memberId: string) => {
     e.stopPropagation();
@@ -1442,6 +1461,7 @@ export default function FamilyTreeVisualization({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-member-node]")) return;
+    userPannedRef.current = true;
     setIsDragging(true);
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
   };
@@ -1484,6 +1504,7 @@ export default function FamilyTreeVisualization({
   const handleTouchStart = (e: React.TouchEvent) => {
     if ((e.target as HTMLElement).closest("[data-member-node]")) return;
     if (e.touches.length === 1) {
+      userPannedRef.current = true;
       setIsDragging(true);
       setDragStart({ x: e.touches[0].clientX - offset.x, y: e.touches[0].clientY - offset.y });
     }
