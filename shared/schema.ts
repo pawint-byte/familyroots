@@ -1286,6 +1286,25 @@ export const insertVoiceNoteSchema = createInsertSchema(voiceNotes).omit({
 export type VoiceNote = typeof voiceNotes.$inferSelect;
 export type InsertVoiceNote = z.infer<typeof insertVoiceNoteSchema>;
 
+export const memberVideos = pgTable("member_videos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull(),
+  treeId: varchar("tree_id").notNull(),
+  recordedByUserId: varchar("recorded_by_user_id").notNull(),
+  videoUrl: text("video_url").notNull(),
+  durationSeconds: integer("duration_seconds"),
+  title: text("title"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertMemberVideoSchema = createInsertSchema(memberVideos).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type MemberVideo = typeof memberVideos.$inferSelect;
+export type InsertMemberVideo = z.infer<typeof insertMemberVideoSchema>;
+
 export const poolUpdateNotifications = pgTable("pool_update_notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   recipientUserId: varchar("recipient_user_id").notNull(),

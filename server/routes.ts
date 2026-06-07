@@ -15,6 +15,7 @@ import {
   memberTags, familySearchSources, externalPersonIdentifiers,
   specialConnections, giftRegistries, giftRegistryItems,
   voiceNotes, insertVoiceNoteSchema,
+  memberVideos, insertMemberVideoSchema,
   memberMutes, memberInvitations, profileClaimRequests, custodianshipRequests,
   discoverableMembers,
   memories, insertMemorySchema,
@@ -13006,6 +13007,105 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error deleting voice note:", error);
       res.status(500).json({ message: "Failed to delete voice note" });
+    }
+  });
+
+  // ==================== MEMBER VIDEO ROUTES ====================
+
+  app.get("/api/trees/:treeId/members/:memberId/videos", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, memberId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const videos = await db.select().from(memberVideos)
+        .where(and(eq(memberVideos.memberId, memberId), eq(memberVideos.treeId, treeId)));
+
+      const videosWithAccess = await Promise.all(videos.map(async (vid) => {
+        const access = await subscriptionService.checkPremiumContentAccess(vid.recordedByUserId);
+        return {
+          ...vid,
+          videoUrl: access.accessible ? vid.videoUrl : undefined,
+          locked: !access.accessible,
+          lockReason: !access.accessible ? 'premium_content_locked' : undefined,
+        };
+      }));
+
+      res.json(videosWithAccess);
+    } catch (error: any) {
+      console.error("Error fetching member videos:", error);
+      res.status(500).json({ message: "Failed to fetch videos" });
+    }
+  });
+
+  app.post("/api/trees/:treeId/members/:memberId/videos", isAuthenticated, async (req: any, res) => {
+    try {
+      const { treeId, memberId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const tree = await storage.getTree(treeId);
+      if (!tree) return res.status(404).json({ message: "Tree not found" });
+      if (tree.ownerId !== userId) {
+        const collab = await storage.getCollaboratorByUserAndTree(userId, treeId);
+        if (!collab || collab.role === "viewer") return res.status(403).json({ message: "Access denied" });
+      }
+
+      const access = await subscriptionService.checkFeatureAccess(userId, 'voice_video_upload');
+      if (!access.allowed) {
+        return res.status(403).json({
+          error: 'tier_limit_reached',
+          message: access.limit === 0
+            ? 'Member videos require a Cultivator subscription or above.'
+            : `You've reached your voice & video upload limit (${access.used}/${access.limit}) for this month.`,
+          tier: access.tier,
+          nextTier: access.nextTier,
+        });
+      }
+
+      const parsed = insertMemberVideoSchema.safeParse({
+        ...req.body,
+        memberId,
+        treeId,
+        recordedByUserId: userId,
+      });
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid video data" });
+      }
+
+      const [video] = await db.insert(memberVideos).values(parsed.data).returning();
+      await subscriptionService.incrementFeatureUsage(userId, 'voice_video_upload');
+      res.status(201).json(video);
+    } catch (error: any) {
+      console.error("Error creating member video:", error);
+      res.status(500).json({ message: "Failed to save video" });
+    }
+  });
+
+  app.delete("/api/member-videos/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [video] = await db.select().from(memberVideos).where(eq(memberVideos.id, id));
+      if (!video) return res.status(404).json({ message: "Video not found" });
+      if (video.recordedByUserId !== userId) {
+        const tree = await storage.getTree(video.treeId);
+        if (!tree || tree.ownerId !== userId) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      await db.delete(memberVideos).where(eq(memberVideos.id, id));
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting member video:", error);
+      res.status(500).json({ message: "Failed to delete video" });
     }
   });
 

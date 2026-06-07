@@ -66,6 +66,7 @@ import { InviteConnectDialog } from "@/components/invite-connect-dialog";
 import { MemoryLane } from "@/components/memory-lane";
 import { TreeWall } from "@/components/tree-wall";
 import { VoiceNotesSection } from "@/components/voice-notes-section";
+import { MemberVideosSection } from "@/components/member-videos-section";
 import { AnnualTreeReport } from "@/components/annual-tree-report";
 import { TreeRegistriesTab } from "@/components/tree-registries-tab";
 
@@ -3038,6 +3039,15 @@ export default function TreeView() {
 
                 {treeData && (
                   <VoiceNotesSection
+                    memberId={selectedMember.id}
+                    treeId={treeData.tree.id}
+                    canEdit={canEdit}
+                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '')}
+                  />
+                )}
+
+                {treeData && (
+                  <MemberVideosSection
                     memberId={selectedMember.id}
                     treeId={treeData.tree.id}
                     canEdit={canEdit}
