@@ -1,0 +1,1 @@
+- [Admin identity & dev/prod DB divergence](admin-and-prod-db.md) — admin paywall bypass must key off id/email (isAdminAccount), not the mutable users.is_admin column; dev & prod use separate DBs.
