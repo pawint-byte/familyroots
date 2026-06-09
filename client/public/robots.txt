@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+
+# Private / authenticated areas (no SEO value, keep out of the index)
+Disallow: /admin/
+Disallow: /manage-relationships
+Disallow: /account/
+Disallow: /my-qr
+Disallow: /my-profile
+Disallow: /my-badge
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /verify-email
+Disallow: /join/
+Disallow: /connect/
+Disallow: /api/
+
+Sitemap: https://familyroots.family/sitemap.xml

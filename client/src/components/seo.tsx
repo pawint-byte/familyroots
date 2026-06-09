@@ -15,7 +15,7 @@ export function SEO({
   title,
   description,
   keywords,
-  ogImage = "/og-image.png",
+  ogImage = "/icon-512.png",
   ogType = "website",
   twitterCard = "summary_large_image",
   canonicalUrl,
@@ -24,6 +24,15 @@ export function SEO({
   useEffect(() => {
     // Update document title
     document.title = title;
+
+    // Resolve the canonical/OG URL for THIS page. Falls back to the current
+    // path so every page gets a correct, unique canonical instead of inheriting
+    // the root canonical baked into index.html.
+    const pageUrl =
+      canonicalUrl ??
+      (typeof window !== "undefined"
+        ? window.location.origin + window.location.pathname
+        : undefined);
 
     // Helper to update or create meta tag
     const setMeta = (name: string, content: string, isProperty = false) => {
@@ -49,6 +58,9 @@ export function SEO({
     setMeta("og:type", ogType, true);
     setMeta("og:image", ogImage, true);
     setMeta("og:site_name", "FamilyRoots", true);
+    if (pageUrl) {
+      setMeta("og:url", pageUrl, true);
+    }
 
     // Twitter Card tags
     setMeta("twitter:card", twitterCard);
@@ -57,14 +69,14 @@ export function SEO({
     setMeta("twitter:image", ogImage);
 
     // Canonical URL
-    if (canonicalUrl) {
+    if (pageUrl) {
       let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
       if (!link) {
         link = document.createElement("link");
         link.rel = "canonical";
         document.head.appendChild(link);
       }
-      link.href = canonicalUrl;
+      link.href = pageUrl;
     }
 
     // Structured data (JSON-LD)
