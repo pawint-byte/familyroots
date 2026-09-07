@@ -365,6 +365,7 @@ export class SubscriptionService {
     options?: {
       paymentMethodTypes?: Array<'card' | 'crypto'>;
       metadata?: Record<string, string>;
+      priceId?: string;
     },
   ) {
     const stripe = await getUncachableStripeClient();
@@ -409,7 +410,10 @@ export class SubscriptionService {
       customer: customerId,
       mode: 'payment',
       payment_method_types: options?.paymentMethodTypes || ['card'],
-      line_items: [{
+      line_items: [options?.priceId && !activeReward ? {
+        price: options.priceId,
+        quantity: 1,
+      } : {
         price_data: {
           currency: 'usd',
           product_data: {
@@ -489,6 +493,7 @@ export class SubscriptionService {
     options?: {
       paymentMethodTypes?: Array<'card' | 'crypto'>;
       metadata?: Record<string, string>;
+      priceId?: string;
     },
   ) {
     if (tier === 'explorer') throw new Error('Explorer is the free tier');
@@ -525,7 +530,10 @@ export class SubscriptionService {
       customer: customerId,
       mode: 'subscription',
       payment_method_types: options?.paymentMethodTypes || ['card'],
-      line_items: [{
+      line_items: [options?.priceId ? {
+        price: options.priceId,
+        quantity: 1,
+      } : {
         price_data: {
           currency: 'usd',
           product_data: {

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar, integer, boolean, pgEnum, date, text } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, timestamp, varchar, integer, boolean, pgEnum, date, text, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -119,6 +119,23 @@ export const bulkPackPurchases = pgTable("bulk_pack_purchases", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const cryptoPayments = pgTable("crypto_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  purchaseType: varchar("purchase_type").notNull(),
+  purchaseKey: varchar("purchase_key").notNull(),
+  chain: varchar("chain").notNull(),
+  status: varchar("status").notNull().default("pending"),
+  toAddress: text("to_address").notNull(),
+  expectedAmount: varchar("expected_amount").notNull(),
+  expectedAsset: varchar("expected_asset").notNull(),
+  usdAmount: numeric("usd_amount", { precision: 12, scale: 2 }).notNull(),
+  destinationTag: varchar("destination_tag"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Activity rewards tracking table
 export const activityRewards = pgTable("activity_rewards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -157,3 +174,4 @@ export type InsertBulkPackPurchase = typeof bulkPackPurchases.$inferInsert;
 export type ActivityReward = typeof activityRewards.$inferSelect;
 export type InsertActivityReward = typeof activityRewards.$inferInsert;
 export type FeatureUsage = typeof featureUsage.$inferSelect;
+export type CryptoPayment = typeof cryptoPayments.$inferSelect;

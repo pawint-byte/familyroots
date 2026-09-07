@@ -99,7 +99,7 @@ import { insertAccountHeirSchema, insertAnnouncementSchema } from "@shared/schem
 import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG, PREMIUM_LIMITS, TIER_CONFIG, TIER_LIMITS, FEATURE_INFO, type PremiumFeature, type FeatureTier } from "./subscriptionService";
 import * as familySearchService from "./familySearch";
-import { createCryptoPayment, CryptoPaymentValidationError } from "./lib/crypto-payment-creator";
+import { createCryptoPayment, CryptoPaymentValidationError, getConfiguredCryptoAddresses, getCryptoPaymentStatus } from "./lib/crypto-payment-creator";
 
 // Admin users who bypass all limits and costs
 import { isAdminAccount } from "./adminConfig";
@@ -7441,33 +7441,38 @@ export async function registerRoutes(
     }
   });
 
-  // Stripe Checkout creates and manages crypto deposit addresses when crypto is
-  // available for the account. FamilyRoots never publishes a static wallet.
   app.get("/api/crypto-payment/addresses", (_req, res) => {
-    res.json({
-      provider: "stripe",
-      paymentFlow: "hosted_checkout",
-      directTransfersSupported: false,
-      addresses: [],
-    });
+    try {
+      res.json({
+        provider: process.env.CRYPTO_PAYMENT_PROVIDER,
+        addresses: getConfiguredCryptoAddresses(),
+      });
+    } catch (error: any) {
+      const status = error instanceof CryptoPaymentValidationError ? 503 : 500;
+      res.status(status).json({ message: error.message || "Crypto payment configuration unavailable" });
+    }
   });
 
-  // Look up a Stripe Checkout session without exposing another customer's data.
   app.get("/api/crypto-payment/status/:id", isAuthenticated, async (req: any, res) => {
     try {
-      if (!isStripeConfigured()) {
-        return res.status(503).json({ message: "Payment processing is not available" });
-      }
-
-      const sessionId = req.params.id;
-      if (typeof sessionId !== "string" || !/^cs_(test_|live_)?[A-Za-z0-9]+$/.test(sessionId)) {
-        return res.status(400).json({ message: "Invalid checkout session ID" });
+      const paymentId = req.params.id;
+      if (typeof paymentId !== "string" || paymentId.length > 255) {
+        return res.status(400).json({ message: "Invalid payment ID" });
       }
 
       const userId = req.user.claims.sub;
+      const pendingStatus = await getCryptoPaymentStatus(paymentId, userId);
+      if (pendingStatus) {
+        return res.json(pendingStatus);
+      }
+
+      // Compatibility for Stripe Checkout session IDs created by the provisional flow.
+      if (!/^cs_(test_|live_)?[A-Za-z0-9]+$/.test(paymentId)) {
+        return res.status(404).json({ message: "Payment not found" });
+      }
       const user = await storage.getUser(userId);
       const status = await stripeService.getCryptoCheckoutStatus(
-        sessionId,
+        paymentId,
         userId,
         user?.stripeCustomerId,
       );
@@ -7610,12 +7615,25 @@ export async function registerRoutes(
       }
 
       const userId = req.user.claims.sub;
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const baseUrl = process.env.PUBLIC_APP_BASE_URL?.trim().replace(/\/+$/, "");
+      if (!baseUrl || !/^https?:\/\//.test(baseUrl)) {
+        return res.status(503).json({ message: "PUBLIC_APP_BASE_URL is not configured" });
+      }
+      const priceEnvNames: Record<string, string> = {
+        starter_10: "STRIPE_PRICE_ADDON_STARTER_10",
+        growth_25: "STRIPE_PRICE_ADDON_GROWTH_25",
+        family_50: "STRIPE_PRICE_ADDON_FAMILY_50",
+      };
+      const priceId = process.env[priceEnvNames[addonKey]];
+      if (!priceId) {
+        return res.status(503).json({ message: `${priceEnvNames[addonKey]} is not configured` });
+      }
       const session = await subscriptionService.createBulkPackCheckout(
         userId,
         addonKey as "starter_10" | "growth_25" | "family_50",
         `${baseUrl}/pricing?addon=${addonKey}&status=success&session_id={CHECKOUT_SESSION_ID}`,
         `${baseUrl}/pricing?addon=${addonKey}&status=cancel`,
+        { priceId },
       );
 
       return res.json({
@@ -7633,10 +7651,6 @@ export async function registerRoutes(
 
   app.post("/api/addons/crypto-purchase", isAuthenticated, async (req: any, res) => {
     try {
-      if (!isStripeConfigured()) {
-        return res.status(503).json({ message: "Payment processing is not available" });
-      }
-
       const addonKey = typeof req.body?.addonKey === "string"
         ? req.body.addonKey.trim().toLowerCase()
         : "";
@@ -7649,26 +7663,16 @@ export async function registerRoutes(
       }
 
       const userId = req.user.claims.sub;
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-      const { session, requestedChain } = await createCryptoPayment({
+      const addon = PRICING_CONFIG.packs.find((item) => item.type === addonKey)!;
+      const pending = await createCryptoPayment({
+        userId,
+        purchaseType: "addon",
+        purchaseKey: addonKey,
         chain: req.body?.chain,
-        createCheckout: (options) =>
-          subscriptionService.createBulkPackCheckout(
-            userId,
-            addonKey as "starter_10" | "growth_25" | "family_50",
-            `${baseUrl}/pricing?addon=${addonKey}&payment=crypto&status=success&session_id={CHECKOUT_SESSION_ID}`,
-            `${baseUrl}/pricing?addon=${addonKey}&payment=crypto&status=cancel`,
-            options,
-          ),
+        usdAmount: addon.priceCents / 100,
       });
 
-      return res.json({
-        id: session.id,
-        url: session.url,
-        addonKey,
-        provider: "stripe",
-        requestedChain,
-      });
+      return res.status(201).json(pending);
     } catch (error: any) {
       if (error instanceof CryptoPaymentValidationError) {
         return res.status(400).json({ message: error.message });
@@ -8135,12 +8139,25 @@ export async function registerRoutes(
       }
 
       const userId = req.user.claims.sub;
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const baseUrl = process.env.PUBLIC_APP_BASE_URL?.trim().replace(/\/+$/, "");
+      if (!baseUrl || !/^https?:\/\//.test(baseUrl)) {
+        return res.status(503).json({ message: "PUBLIC_APP_BASE_URL is not configured" });
+      }
+      const priceEnvNames: Record<string, string> = {
+        cultivator: "STRIPE_PRICE_CULTIVATOR",
+        heritage: "STRIPE_PRICE_HERITAGE",
+        legacy: "STRIPE_PRICE_LEGACY",
+      };
+      const priceId = process.env[priceEnvNames[plan]];
+      if (!priceId) {
+        return res.status(503).json({ message: `${priceEnvNames[plan]} is not configured` });
+      }
       const session = await subscriptionService.createTierCheckout(
         userId,
         plan as FeatureTier,
         `${baseUrl}/pricing?tier=${plan}&status=success`,
         `${baseUrl}/pricing?tier=${plan}&status=cancel`,
+        { priceId },
       );
 
       return res.json({ url: session.url });
@@ -8154,10 +8171,6 @@ export async function registerRoutes(
 
   app.post("/api/crypto-payment/create", isAuthenticated, async (req: any, res) => {
     try {
-      if (!isStripeConfigured()) {
-        return res.status(503).json({ message: "Payment processing is not available" });
-      }
-
       const plan = typeof req.body?.plan === "string"
         ? req.body.plan.trim().toLowerCase()
         : "";
@@ -8170,25 +8183,15 @@ export async function registerRoutes(
       }
 
       const userId = req.user.claims.sub;
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-      const { session, requestedChain } = await createCryptoPayment({
+      const pending = await createCryptoPayment({
+        userId,
+        purchaseType: "plan",
+        purchaseKey: plan,
         chain: req.body?.chain,
-        createCheckout: (options) =>
-          subscriptionService.createTierCheckout(
-            userId,
-            plan as FeatureTier,
-            `${baseUrl}/pricing?tier=${plan}&payment=crypto&status=success&session_id={CHECKOUT_SESSION_ID}`,
-            `${baseUrl}/pricing?tier=${plan}&payment=crypto&status=cancel`,
-            options,
-          ),
+        usdAmount: TIER_CONFIG[plan as FeatureTier].monthlyPriceCents / 100,
       });
 
-      return res.json({
-        id: session.id,
-        url: session.url,
-        provider: "stripe",
-        requestedChain,
-      });
+      return res.status(201).json(pending);
     } catch (error: any) {
       if (error instanceof CryptoPaymentValidationError) {
         return res.status(400).json({ message: error.message });
