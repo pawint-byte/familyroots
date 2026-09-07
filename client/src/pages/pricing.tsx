@@ -96,8 +96,8 @@ export default function Pricing() {
   });
 
   const tierCheckoutMutation = useMutation({
-    mutationFn: async (tier: string) => {
-      const res = await apiRequest("POST", "/api/pricing/tier/checkout", { tier });
+    mutationFn: async (plan: string) => {
+      const res = await apiRequest("POST", "/api/stripe/create-checkout", { plan });
       return res.json();
     },
     onSuccess: (data) => {

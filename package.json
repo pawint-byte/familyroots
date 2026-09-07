@@ -9,6 +9,7 @@
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "test:crypto-payment": "tsx --test tests/crypto-payment-creator.test.ts",
+    "test:static-cache": "tsx --test tests/static-cache.test.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
