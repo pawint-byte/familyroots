@@ -99,6 +99,7 @@ import { insertAccountHeirSchema, insertAnnouncementSchema } from "@shared/schem
 import { printfulService } from "./printful";
 import { subscriptionService, SUBSCRIPTION_CONFIG, PRICING_CONFIG, PREMIUM_LIMITS, TIER_CONFIG, TIER_LIMITS, FEATURE_INFO, type PremiumFeature, type FeatureTier } from "./subscriptionService";
 import * as familySearchService from "./familySearch";
+import { createCryptoPayment, CryptoPaymentValidationError } from "./lib/crypto-payment-creator";
 
 // Admin users who bypass all limits and costs
 import { isAdminAccount } from "./adminConfig";
@@ -7440,6 +7441,51 @@ export async function registerRoutes(
     }
   });
 
+  // Stripe Checkout creates and manages crypto deposit addresses when crypto is
+  // available for the account. FamilyRoots never publishes a static wallet.
+  app.get("/api/crypto-payment/addresses", (_req, res) => {
+    res.json({
+      provider: "stripe",
+      paymentFlow: "hosted_checkout",
+      directTransfersSupported: false,
+      addresses: [],
+    });
+  });
+
+  // Look up a Stripe Checkout session without exposing another customer's data.
+  app.get("/api/crypto-payment/status/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const sessionId = req.params.id;
+      if (typeof sessionId !== "string" || !/^cs_(test_|live_)?[A-Za-z0-9]+$/.test(sessionId)) {
+        return res.status(400).json({ message: "Invalid checkout session ID" });
+      }
+
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const status = await stripeService.getCryptoCheckoutStatus(
+        sessionId,
+        userId,
+        user?.stripeCustomerId,
+      );
+
+      if (!status) {
+        return res.status(404).json({ message: "Payment session not found" });
+      }
+
+      return res.json(status);
+    } catch (error: any) {
+      if (error?.statusCode === 404 || error?.code === "resource_missing") {
+        return res.status(404).json({ message: "Payment session not found" });
+      }
+      console.error("Crypto payment status error:", error);
+      return res.status(500).json({ message: "Failed to get payment status" });
+    }
+  });
+
   // Get products with prices - returns default plans if Stripe not configured
   app.get("/api/products", async (req, res) => {
     try {
@@ -7534,6 +7580,104 @@ export async function registerRoutes(
   // Get subscription pricing config
   app.get("/api/subscription/config", async (req, res) => {
     res.json(SUBSCRIPTION_CONFIG);
+  });
+
+  // Bulk member-credit packs are the add-ons supported by the current pricing model.
+  const getSubscriptionAddons = (_req: any, res: any) => {
+    res.json({
+      addons: PRICING_CONFIG.packs,
+      checkoutPath: "/api/pricing/bulk-pack/checkout",
+    });
+  };
+  app.get("/api/subscription/addons", getSubscriptionAddons);
+  app.get("/api/addons", getSubscriptionAddons);
+
+  app.post("/api/addons/stripe-checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const addonKey = typeof req.body?.addonKey === "string"
+        ? req.body.addonKey.trim().toLowerCase()
+        : "";
+      const validAddonKeys = ["starter_10", "growth_25", "family_50"];
+
+      if (!validAddonKeys.includes(addonKey)) {
+        return res.status(400).json({
+          message: "Invalid add-on. Choose starter_10, growth_25, or family_50.",
+        });
+      }
+
+      const userId = req.user.claims.sub;
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const session = await subscriptionService.createBulkPackCheckout(
+        userId,
+        addonKey as "starter_10" | "growth_25" | "family_50",
+        `${baseUrl}/pricing?addon=${addonKey}&status=success&session_id={CHECKOUT_SESSION_ID}`,
+        `${baseUrl}/pricing?addon=${addonKey}&status=cancel`,
+      );
+
+      return res.json({
+        id: session.id,
+        url: session.url,
+        addonKey,
+      });
+    } catch (error: any) {
+      console.error("Error creating add-on checkout:", error);
+      return res.status(500).json({
+        message: error.message || "Failed to create add-on checkout session",
+      });
+    }
+  });
+
+  app.post("/api/addons/crypto-purchase", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const addonKey = typeof req.body?.addonKey === "string"
+        ? req.body.addonKey.trim().toLowerCase()
+        : "";
+      const validAddonKeys = ["starter_10", "growth_25", "family_50"];
+
+      if (!validAddonKeys.includes(addonKey)) {
+        return res.status(400).json({
+          message: "Invalid add-on. Choose starter_10, growth_25, or family_50.",
+        });
+      }
+
+      const userId = req.user.claims.sub;
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const { session, requestedChain } = await createCryptoPayment({
+        chain: req.body?.chain,
+        createCheckout: (options) =>
+          subscriptionService.createBulkPackCheckout(
+            userId,
+            addonKey as "starter_10" | "growth_25" | "family_50",
+            `${baseUrl}/pricing?addon=${addonKey}&payment=crypto&status=success&session_id={CHECKOUT_SESSION_ID}`,
+            `${baseUrl}/pricing?addon=${addonKey}&payment=crypto&status=cancel`,
+            options,
+          ),
+      });
+
+      return res.json({
+        id: session.id,
+        url: session.url,
+        addonKey,
+        provider: "stripe",
+        requestedChain,
+      });
+    } catch (error: any) {
+      if (error instanceof CryptoPaymentValidationError) {
+        return res.status(400).json({ message: error.message });
+      }
+      console.error("Error creating crypto add-on purchase:", error);
+      return res.status(500).json({
+        message: error.message || "Failed to create crypto add-on purchase",
+      });
+    }
   });
 
   // Create checkout session
@@ -7973,6 +8117,90 @@ export async function registerRoutes(
   });
 
   // Purchase tier subscription (replaces flat premium)
+  app.post("/api/stripe/create-checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const plan = typeof req.body?.plan === "string"
+        ? req.body.plan.trim().toLowerCase()
+        : "";
+      const validPlans = ["cultivator", "heritage", "legacy"];
+
+      if (!validPlans.includes(plan)) {
+        return res.status(400).json({
+          message: "Invalid plan. Choose cultivator, heritage, or legacy.",
+        });
+      }
+
+      const userId = req.user.claims.sub;
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const session = await subscriptionService.createTierCheckout(
+        userId,
+        plan as FeatureTier,
+        `${baseUrl}/pricing?tier=${plan}&status=success`,
+        `${baseUrl}/pricing?tier=${plan}&status=cancel`,
+      );
+
+      return res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating Stripe plan checkout:", error);
+      return res.status(500).json({
+        message: error.message || "Failed to create checkout session",
+      });
+    }
+  });
+
+  app.post("/api/crypto-payment/create", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!isStripeConfigured()) {
+        return res.status(503).json({ message: "Payment processing is not available" });
+      }
+
+      const plan = typeof req.body?.plan === "string"
+        ? req.body.plan.trim().toLowerCase()
+        : "";
+      const validPlans = ["cultivator", "heritage", "legacy"];
+
+      if (!validPlans.includes(plan)) {
+        return res.status(400).json({
+          message: "Invalid plan. Choose cultivator, heritage, or legacy.",
+        });
+      }
+
+      const userId = req.user.claims.sub;
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const { session, requestedChain } = await createCryptoPayment({
+        chain: req.body?.chain,
+        createCheckout: (options) =>
+          subscriptionService.createTierCheckout(
+            userId,
+            plan as FeatureTier,
+            `${baseUrl}/pricing?tier=${plan}&payment=crypto&status=success&session_id={CHECKOUT_SESSION_ID}`,
+            `${baseUrl}/pricing?tier=${plan}&payment=crypto&status=cancel`,
+            options,
+          ),
+      });
+
+      return res.json({
+        id: session.id,
+        url: session.url,
+        provider: "stripe",
+        requestedChain,
+      });
+    } catch (error: any) {
+      if (error instanceof CryptoPaymentValidationError) {
+        return res.status(400).json({ message: error.message });
+      }
+      console.error("Error creating crypto checkout:", error);
+      return res.status(500).json({
+        message: error.message || "Failed to create crypto checkout session",
+      });
+    }
+  });
+
+  // Purchase tier subscription (legacy path retained for compatibility)
   app.post("/api/pricing/tier/checkout", isAuthenticated, async (req: any, res) => {
     try {
       if (!isStripeConfigured()) {

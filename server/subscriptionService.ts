@@ -361,7 +361,11 @@ export class SubscriptionService {
     userId: string,
     packType: 'starter_10' | 'growth_25' | 'family_50',
     successUrl: string,
-    cancelUrl: string
+    cancelUrl: string,
+    options?: {
+      paymentMethodTypes?: Array<'card' | 'crypto'>;
+      metadata?: Record<string, string>;
+    },
   ) {
     const stripe = await getUncachableStripeClient();
     const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -391,10 +395,20 @@ export class SubscriptionService {
       finalPrice = pack.priceCents - discountApplied;
     }
 
+    const checkoutMetadata = {
+      userId,
+      type: 'bulk_pack',
+      packType,
+      credits: pack.credits.toString(),
+      discountApplied: discountApplied.toString(),
+      rewardId: activeReward?.id || '',
+      ...options?.metadata,
+    };
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'payment',
-      payment_method_types: ['card'],
+      payment_method_types: options?.paymentMethodTypes || ['card'],
       line_items: [{
         price_data: {
           currency: 'usd',
@@ -408,14 +422,7 @@ export class SubscriptionService {
       }],
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: {
-        userId,
-        type: 'bulk_pack',
-        packType,
-        credits: pack.credits.toString(),
-        discountApplied: discountApplied.toString(),
-        rewardId: activeReward?.id || '',
-      },
+      metadata: checkoutMetadata,
     });
 
     // Record the purchase as pending
@@ -474,7 +481,16 @@ export class SubscriptionService {
     }
   }
 
-  async createTierCheckout(userId: string, tier: FeatureTier, successUrl: string, cancelUrl: string) {
+  async createTierCheckout(
+    userId: string,
+    tier: FeatureTier,
+    successUrl: string,
+    cancelUrl: string,
+    options?: {
+      paymentMethodTypes?: Array<'card' | 'crypto'>;
+      metadata?: Record<string, string>;
+    },
+  ) {
     if (tier === 'explorer') throw new Error('Explorer is the free tier');
     const stripe = await getUncachableStripeClient();
     const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -498,10 +514,17 @@ export class SubscriptionService {
       return `${info.label}: ${val === -1 ? 'Unlimited' : val}/mo`;
     }).join(', ');
 
+    const checkoutMetadata = {
+      userId,
+      type: 'tier_subscription',
+      tier,
+      ...options?.metadata,
+    };
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
-      payment_method_types: ['card'],
+      payment_method_types: options?.paymentMethodTypes || ['card'],
       line_items: [{
         price_data: {
           currency: 'usd',
@@ -516,17 +539,9 @@ export class SubscriptionService {
       }],
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: {
-        userId,
-        type: 'tier_subscription',
-        tier,
-      },
+      metadata: checkoutMetadata,
       subscription_data: {
-        metadata: {
-          userId,
-          type: 'tier_subscription',
-          tier,
-        },
+        metadata: checkoutMetadata,
       },
     });
 

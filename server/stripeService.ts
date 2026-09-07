@@ -95,6 +95,32 @@ export class StripeService {
     return await stripe.checkout.sessions.retrieve(sessionId);
   }
 
+  async getCryptoCheckoutStatus(sessionId: string, userId: string, customerId?: string | null) {
+    const session = await this.retrieveCheckoutSession(sessionId);
+    const sessionCustomerId =
+      typeof session.customer === 'string' ? session.customer : session.customer?.id;
+    const belongsToUser =
+      session.metadata?.userId === userId ||
+      (!!customerId && sessionCustomerId === customerId);
+
+    if (!belongsToUser) {
+      return null;
+    }
+
+    return {
+      id: session.id,
+      provider: 'stripe',
+      status: session.status,
+      paymentStatus: session.payment_status,
+      paymentMethodTypes: session.payment_method_types || [],
+      mode: session.mode,
+      currency: session.currency,
+      amountTotal: session.amount_total,
+      created: session.created,
+      expiresAt: session.expires_at,
+    };
+  }
+
   async createCustomerPortalSession(customerId: string, returnUrl: string) {
     const stripe = await getUncachableStripeClient();
     return await stripe.billingPortal.sessions.create({

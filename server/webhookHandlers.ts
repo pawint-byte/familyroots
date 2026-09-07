@@ -16,6 +16,14 @@ export class WebhookHandlers {
       );
     }
 
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      throw new Error('STRIPE_WEBHOOK_SECRET is required');
+    }
+
+    const stripe = await getUncachableStripeClient();
+    const event: Stripe.Event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+
     try {
       const sync = await getStripeSync();
       await sync.processWebhook(payload, signature);
@@ -24,18 +32,6 @@ export class WebhookHandlers {
     }
 
     try {
-      const stripe = await getUncachableStripeClient();
-
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-      let event: Stripe.Event;
-
-      if (webhookSecret) {
-        event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-      } else {
-        console.warn('STRIPE_WEBHOOK_SECRET not set — falling back to unverified event parsing');
-        event = JSON.parse(payload.toString()) as Stripe.Event;
-      }
-
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         const metadata = session.metadata || {};
