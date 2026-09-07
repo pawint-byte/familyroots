@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -51,6 +51,10 @@ import AuthForgotPassword from "@/pages/auth-forgot-password";
 import AuthResetPassword from "@/pages/auth-reset-password";
 import AuthVerifyEmail from "@/pages/auth-verify-email";
 import NotFound from "@/pages/not-found";
+import About from "@/pages/about";
+import Blog from "@/pages/blog";
+import Privacy from "@/pages/privacy";
+import Terms from "@/pages/terms";
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -77,7 +81,9 @@ function Router() {
       <Route path="/reset-password/:token" component={AuthResetPassword} />
       <Route path="/reset-password" component={AuthResetPassword} />
       <Route path="/verify-email/:token" component={AuthVerifyEmail} />
-      <Route path="/dashboard" component={Dashboard} />
+      <Route path="/dashboard">
+        {user ? <Dashboard /> : <Redirect to="/login" />}
+      </Route>
       <Route path="/tree/:id" component={TreeView} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/gifts" component={Gifts} />
@@ -113,6 +119,10 @@ function Router() {
       <Route path="/connect/:treeId" component={ConnectToTree} />
       <Route path="/whats-new" component={WhatsNew} />
       <Route path="/radar" component={Radar} />
+      <Route path="/about" component={About} />
+      <Route path="/blog" component={Blog} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
       <Route component={NotFound} />
     </Switch>
   );

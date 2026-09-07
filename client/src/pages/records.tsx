@@ -591,14 +591,37 @@ export default function RecordsPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center">
-            <h2 className="text-xl font-semibold mb-2">Sign in Required</h2>
-            <p className="text-muted-foreground">Please sign in to use FamilySearch features.</p>
-          </CardContent>
-        </Card>
-      </div>
+      <>
+        <SEO
+          title="FamilySearch Records | FamilyRoots"
+          description="Log in to FamilyRoots to search FamilySearch records and import relatives into your private family tree."
+        />
+        <div className="min-h-screen bg-background flex items-center justify-center px-4">
+          <Card className="w-full max-w-lg border-card-border shadow-lg">
+            <CardContent className="p-8 text-center md:p-10">
+              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+                <BookOpen className="h-7 w-7 text-primary" />
+              </div>
+              <h1 className="font-serif text-3xl font-bold mb-3">Explore your family records</h1>
+              <p className="text-muted-foreground leading-relaxed">
+                Log in to search FamilySearch records and import relatives into your private FamilyRoots tree.
+              </p>
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                <Button size="lg" onClick={() => navigate("/login")} data-testid="button-records-login">
+                  Log in
+                </Button>
+                <Button size="lg" variant="outline" onClick={() => navigate("/login")} data-testid="button-records-get-started">
+                  Get Started
+                </Button>
+              </div>
+              <Button variant="ghost" className="mt-3 gap-2" onClick={() => navigate("/")} data-testid="button-records-home">
+                <ArrowLeft className="h-4 w-4" />
+                Back to home
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </>
     );
   }
 

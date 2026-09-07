@@ -795,12 +795,12 @@ export default function Landing() {
             
             <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 max-w-6xl mx-auto" data-testid="pricing-cards-grid">
               {/* Free Tier */}
-              <Card className="relative border-2 hover-elevate" data-testid="card-pricing-starter">
+              <Card className="relative border-2 hover-elevate" data-testid="card-pricing-explorer">
                 <CardContent className="p-6 text-center">
                   <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
                     <Users className="h-6 w-6 text-muted-foreground" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-1">Starter</h3>
+                  <h3 className="font-semibold text-lg mb-1">Explorer</h3>
                   <p className="text-sm text-muted-foreground mb-4">Up to 20 members</p>
                   <div className="text-3xl font-bold mb-2" data-testid="text-price-starter">Free</div>
                   <p className="text-xs text-muted-foreground">1 tree included</p>
@@ -808,12 +808,12 @@ export default function Landing() {
               </Card>
               
               {/* Tier 25 */}
-              <Card className="relative hover-elevate" data-testid="card-pricing-growing">
+              <Card className="relative hover-elevate" data-testid="card-pricing-cultivator">
                 <CardContent className="p-6 text-center">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                     <Trees className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-1">Growing</h3>
+                  <h3 className="font-semibold text-lg mb-1">Cultivator</h3>
                   <p className="text-sm text-muted-foreground mb-4">25-49 members</p>
                   <div className="text-3xl font-bold mb-1" data-testid="text-price-growing">$7.49</div>
                   <p className="text-sm text-muted-foreground">/month</p>
@@ -822,12 +822,12 @@ export default function Landing() {
               </Card>
               
               {/* Tier 50 */}
-              <Card className="relative hover-elevate" data-testid="card-pricing-extended">
+              <Card className="relative hover-elevate" data-testid="card-pricing-heritage">
                 <CardContent className="p-6 text-center">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                     <GitBranch className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-1">Extended</h3>
+                  <h3 className="font-semibold text-lg mb-1">Heritage</h3>
                   <p className="text-sm text-muted-foreground mb-4">50-74 members</p>
                   <div className="text-3xl font-bold mb-1" data-testid="text-price-extended">$4.99</div>
                   <p className="text-sm text-muted-foreground">/month</p>
@@ -836,12 +836,12 @@ export default function Landing() {
               </Card>
               
               {/* Tier 75 */}
-              <Card className="relative hover-elevate" data-testid="card-pricing-reunion">
+              <Card className="relative hover-elevate" data-testid="card-pricing-legacy">
                 <CardContent className="p-6 text-center">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                     <Share2 className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-1">Reunion</h3>
+                  <h3 className="font-semibold text-lg mb-1">Legacy</h3>
                   <p className="text-sm text-muted-foreground mb-4">75-99 members</p>
                   <div className="text-3xl font-bold mb-1" data-testid="text-price-reunion">$2.50</div>
                   <p className="text-sm text-muted-foreground">/month</p>
@@ -849,8 +849,8 @@ export default function Landing() {
                 </CardContent>
               </Card>
               
-              {/* Heritage Tier (Free) */}
-              <Card className="relative border-2 border-primary hover-elevate" data-testid="card-pricing-heritage">
+              {/* 100+ member reward (not a subscription tier) */}
+              <Card className="relative border-2 border-primary hover-elevate" data-testid="card-pricing-member-reward">
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                   <Badge className="bg-primary text-primary-foreground">Best Value</Badge>
                 </div>
@@ -858,7 +858,7 @@ export default function Landing() {
                   <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
                     <Sparkles className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-1">Heritage</h3>
+                  <h3 className="font-semibold text-lg mb-1">100+ Member Reward</h3>
                   <p className="text-sm text-muted-foreground mb-4">100+ members</p>
                   <div className="text-3xl font-bold text-primary mb-2" data-testid="text-price-heritage">Free</div>
                   <p className="text-xs text-muted-foreground">Forever free</p>
@@ -996,12 +996,14 @@ export default function Landing() {
               {new Date().getFullYear()} FamilyRoots. All rights reserved.
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <a href="/about" className="hover:text-foreground transition-colors">About</a>
+              <a href="/blog" className="hover:text-foreground transition-colors">Blog</a>
               <a href="/faq" className="hover:text-foreground transition-colors">FAQ</a>
               <a href="/features" className="hover:text-foreground transition-colors">Features</a>
               <a href="/comparison" className="hover:text-foreground transition-colors">Compare</a>
               <a href="/share" className="hover:text-foreground transition-colors">Share</a>
-              <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-              <a href="#" className="hover:text-foreground transition-colors">Terms</a>
+              <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
+              <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>
               <a href="mailto:pawint@me.com" className="hover:text-foreground transition-colors">Contact</a>
             </div>
           </div>
