@@ -5,20 +5,26 @@ Never commit values to the repository.
 
 ## Application and Stripe
 
-- `PUBLIC_APP_BASE_URL`
+- `PUBLIC_APP_BASE_URL` (public, non-secret; defaults to `https://familyroots.family`)
 - `STRIPE_SECRET_KEY`
 - `STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_CULTIVATOR`
-- `STRIPE_PRICE_HERITAGE`
-- `STRIPE_PRICE_LEGACY`
-- `STRIPE_PRICE_ADDON_STARTER_10`
-- `STRIPE_PRICE_ADDON_GROWTH_25`
-- `STRIPE_PRICE_ADDON_FAMILY_50`
 
 `POST /api/stripe/create-checkout` and `POST /api/addons/stripe-checkout`
-fail safely when their corresponding Stripe Price ID is not configured.
-Legacy checkout routes retain their existing inline-price behavior.
+use inline USD `price_data`; no pre-created Stripe Price IDs are required.
+
+Monthly subscriptions:
+
+- Cultivator: 499 cents
+- Heritage: 1299 cents
+- Legacy: 2499 cents
+- Explorer: free; no Checkout Session
+
+One-time member-credit add-ons:
+
+- `starter_10`: 799 cents
+- `growth_25`: 1499 cents
+- `family_50`: 2499 cents
 
 ## Crypto payment provider
 

@@ -10,6 +10,7 @@
     "check": "tsc",
     "test:crypto-payment": "tsx --test tests/crypto-payment-creator.test.ts",
     "test:static-cache": "tsx --test tests/static-cache.test.ts",
+    "test:stripe-pricing": "tsx --test tests/stripe-inline-pricing.test.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

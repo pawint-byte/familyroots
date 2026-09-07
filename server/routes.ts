@@ -7615,25 +7615,17 @@ export async function registerRoutes(
       }
 
       const userId = req.user.claims.sub;
-      const baseUrl = process.env.PUBLIC_APP_BASE_URL?.trim().replace(/\/+$/, "");
+      const baseUrl = (process.env.PUBLIC_APP_BASE_URL || "https://familyroots.family")
+        .trim()
+        .replace(/\/+$/, "");
       if (!baseUrl || !/^https?:\/\//.test(baseUrl)) {
         return res.status(503).json({ message: "PUBLIC_APP_BASE_URL is not configured" });
-      }
-      const priceEnvNames: Record<string, string> = {
-        starter_10: "STRIPE_PRICE_ADDON_STARTER_10",
-        growth_25: "STRIPE_PRICE_ADDON_GROWTH_25",
-        family_50: "STRIPE_PRICE_ADDON_FAMILY_50",
-      };
-      const priceId = process.env[priceEnvNames[addonKey]];
-      if (!priceId) {
-        return res.status(503).json({ message: `${priceEnvNames[addonKey]} is not configured` });
       }
       const session = await subscriptionService.createBulkPackCheckout(
         userId,
         addonKey as "starter_10" | "growth_25" | "family_50",
         `${baseUrl}/pricing?addon=${addonKey}&status=success&session_id={CHECKOUT_SESSION_ID}`,
         `${baseUrl}/pricing?addon=${addonKey}&status=cancel`,
-        { priceId },
       );
 
       return res.json({
@@ -8139,25 +8131,17 @@ export async function registerRoutes(
       }
 
       const userId = req.user.claims.sub;
-      const baseUrl = process.env.PUBLIC_APP_BASE_URL?.trim().replace(/\/+$/, "");
+      const baseUrl = (process.env.PUBLIC_APP_BASE_URL || "https://familyroots.family")
+        .trim()
+        .replace(/\/+$/, "");
       if (!baseUrl || !/^https?:\/\//.test(baseUrl)) {
         return res.status(503).json({ message: "PUBLIC_APP_BASE_URL is not configured" });
-      }
-      const priceEnvNames: Record<string, string> = {
-        cultivator: "STRIPE_PRICE_CULTIVATOR",
-        heritage: "STRIPE_PRICE_HERITAGE",
-        legacy: "STRIPE_PRICE_LEGACY",
-      };
-      const priceId = process.env[priceEnvNames[plan]];
-      if (!priceId) {
-        return res.status(503).json({ message: `${priceEnvNames[plan]} is not configured` });
       }
       const session = await subscriptionService.createTierCheckout(
         userId,
         plan as FeatureTier,
         `${baseUrl}/pricing?tier=${plan}&status=success`,
         `${baseUrl}/pricing?tier=${plan}&status=cancel`,
-        { priceId },
       );
 
       return res.json({ url: session.url });
