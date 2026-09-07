@@ -188,7 +188,7 @@ export function MemberVideosSection({ memberId, treeId, canEdit, memberName }: M
                         </div>
                       </div>
                       {vid.locked && (
-                        <Badge variant="secondary" className="text-xs">Premium</Badge>
+                        <Badge variant="secondary" className="text-xs">Paid plan</Badge>
                       )}
                       {canEdit && !vid.locked && (
                         <Button
@@ -205,7 +205,7 @@ export function MemberVideosSection({ memberId, treeId, canEdit, memberName }: M
                     {vid.locked || !vid.videoUrl ? (
                       <div className="flex items-center justify-center gap-2 rounded-md bg-muted h-32 text-muted-foreground text-sm">
                         <Film className="h-4 w-4" />
-                        Premium content
+                        Paid-plan content
                       </div>
                     ) : (
                       <video

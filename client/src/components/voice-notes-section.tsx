@@ -247,7 +247,7 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
                       </div>
                     </div>
                     {note.locked && (
-                      <Badge variant="secondary" className="text-xs">Premium</Badge>
+                      <Badge variant="secondary" className="text-xs">Paid plan</Badge>
                     )}
                     {canEdit && !note.locked && (
                       <Button

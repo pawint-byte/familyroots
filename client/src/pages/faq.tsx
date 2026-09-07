@@ -333,15 +333,15 @@ export default function FAQ() {
           answer: "Yes. Your credit balance is tied to your account, not a specific tree. You can create unlimited trees for free and use your credits to add members to any of them. Your total member count across all trees determines when your 20 free slots are used up."
         },
         {
-          question: "What is Premium and do I need it?",
-          answer: <>Subscriptions starting at $4.99/month (Cultivator tier) are entirely optional. Most families don't need them. Paid tiers unlock voice notes, video attachments, expanded media uploads, gift registries, advanced tree analytics, and priority support. The core experience, including unlimited trees, collaboration, privacy controls, profile claiming, photo uploads, and all relationship features, is available to every user regardless of subscription status.</>
+          question: "What are the FamilyRoots plans, and do I need a paid one?",
+          answer: <>Explorer is free. The optional paid plans are Cultivator at $4.99/month, Heritage at $12.99/month, and Legacy at $24.99/month. Paid plans provide progressively higher limits for features such as AI Chat, FamilySearch imports, group email, AI video, media uploads, and voice or video uploads. Core tree-building features remain available on Explorer. See our <Link href="/pricing" className="text-primary hover:underline font-medium">Pricing page</Link> for the current limits included with each plan.</>
         },
         {
           question: "What happens to my data if I stop buying credits?",
           answer: "Nothing changes. Your trees, members, relationships, photos, and everything you've built stays exactly as it is. You just won't be able to add new members beyond your free slots until you purchase more credits. Your family can still view, collaborate on, and interact with existing trees."
         },
         {
-          question: "Can I cancel Premium anytime?",
+          question: "Can I cancel a paid plan anytime?",
           answer: "Yes. You can cancel your subscription at any time and you'll keep access through the end of your billing period. After that, you'll lose access to paid features like voice notes, video attachments, and expanded upload limits, but all your trees, members, and data remain intact. Existing voice notes and videos you've already uploaded stay accessible."
         }
       ]
@@ -845,7 +845,7 @@ export default function FAQ() {
       ]
     },
     {
-      title: "Premium Content Features",
+      title: "Paid Plan Features",
       icon: <BookHeart className="h-5 w-5" />,
       items: [
         {

@@ -82,7 +82,7 @@ export function PremiumContentLocked({
               <Lock className="h-6 w-6 text-amber-500" />
             </div>
             <p className="text-white text-sm font-medium text-center px-4 drop-shadow">
-              {title || "Premium Content"}
+              {title || "Paid-Plan Content"}
             </p>
           </div>
         </div>
@@ -103,8 +103,8 @@ export function PremiumContentLocked({
       <div className="p-3 border-t border-dashed border-muted-foreground/20">
         <p className="text-xs text-muted-foreground mb-2 text-center">
           {isCreator
-            ? "Your subscription is no longer active. Resubscribe to unlock all your premium content."
-            : "This content was created with a premium subscription that is no longer active."}
+            ? "Your subscription is no longer active. Resubscribe to unlock your paid-plan content."
+            : "This content was created with a paid subscription that is no longer active."}
         </p>
         {isCreator && (
           <Button

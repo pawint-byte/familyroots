@@ -68,7 +68,7 @@ export const defaultStructuredData = {
   },
   "featureList": [
     "Interactive family tree visualization",
-    "Add unlimited family members with Premium",
+    "Free Explorer plan with optional Cultivator, Heritage, and Legacy upgrades",
     "Photo and document storage",
     "Collaboration with family members",
     "Timeline view of family events",

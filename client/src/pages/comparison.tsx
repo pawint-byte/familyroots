@@ -101,8 +101,8 @@ const features: FeatureRow[] = [
   { category: "Pricing", feature: "Free tier (20 members)", familyRoots: true, ancestry: false },
   { category: "Pricing", feature: "Credits that never expire", familyRoots: true, ancestry: false },
   { category: "Pricing", feature: "Activity rewards & milestones", familyRoots: true, ancestry: false },
-  { category: "Pricing", feature: "Free forever at 100+ members", familyRoots: true, ancestry: false },
-  { category: "Pricing", feature: "Monthly subscription", familyRoots: "Optional $4.99", ancestry: "$20-$50/mo" },
+  { category: "Pricing", feature: "100-member milestone reward", familyRoots: "Free 10-member pack", ancestry: false },
+  { category: "Pricing", feature: "Monthly plans", familyRoots: "Free–$24.99/mo", ancestry: "$20-$50/mo" },
 ];
 
 const categoryIcons: Record<string, any> = {

@@ -413,7 +413,7 @@ export default function FeaturesGuide() {
       ],
     },
     {
-      title: "Premium Content",
+      title: "Paid Plan Features",
       icon: <Crown className="h-5 w-5" />,
       features: [
         {

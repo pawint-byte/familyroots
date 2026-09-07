@@ -789,11 +789,11 @@ export default function Landing() {
                 Grow Your Tree, Save More
               </h2>
               <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                The bigger your family tree grows, the less you pay. Reach 100 members and it's completely free forever.
+                Start free with Explorer, then choose the feature level that fits your family.
               </p>
             </div>
             
-            <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 max-w-6xl mx-auto" data-testid="pricing-cards-grid">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto" data-testid="pricing-cards-grid">
               {/* Free Tier */}
               <Card className="relative border-2 hover-elevate" data-testid="card-pricing-explorer">
                 <CardContent className="p-6 text-center">
@@ -802,66 +802,50 @@ export default function Landing() {
                   </div>
                   <h3 className="font-semibold text-lg mb-1">Explorer</h3>
                   <p className="text-sm text-muted-foreground mb-4">Up to 20 members</p>
-                  <div className="text-3xl font-bold mb-2" data-testid="text-price-starter">Free</div>
+                  <div className="text-3xl font-bold mb-2" data-testid="text-price-explorer">Free</div>
                   <p className="text-xs text-muted-foreground">1 tree included</p>
                 </CardContent>
               </Card>
               
-              {/* Tier 25 */}
+              {/* Cultivator */}
               <Card className="relative hover-elevate" data-testid="card-pricing-cultivator">
                 <CardContent className="p-6 text-center">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                     <Trees className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="font-semibold text-lg mb-1">Cultivator</h3>
-                  <p className="text-sm text-muted-foreground mb-4">25-49 members</p>
-                  <div className="text-3xl font-bold mb-1" data-testid="text-price-growing">$7.49</div>
+                  <p className="text-sm text-muted-foreground mb-4">For regular tree builders</p>
+                  <div className="text-3xl font-bold mb-1" data-testid="text-price-cultivator">$4.99</div>
                   <p className="text-sm text-muted-foreground">/month</p>
-                  <Badge variant="secondary" className="mt-2">25% off</Badge>
+                  <Badge variant="secondary" className="mt-2">Paid features</Badge>
                 </CardContent>
               </Card>
               
-              {/* Tier 50 */}
+              {/* Heritage */}
               <Card className="relative hover-elevate" data-testid="card-pricing-heritage">
                 <CardContent className="p-6 text-center">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                     <GitBranch className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="font-semibold text-lg mb-1">Heritage</h3>
-                  <p className="text-sm text-muted-foreground mb-4">50-74 members</p>
-                  <div className="text-3xl font-bold mb-1" data-testid="text-price-extended">$4.99</div>
+                  <p className="text-sm text-muted-foreground mb-4">For power users and groups</p>
+                  <div className="text-3xl font-bold mb-1" data-testid="text-price-heritage">$12.99</div>
                   <p className="text-sm text-muted-foreground">/month</p>
-                  <Badge variant="secondary" className="mt-2">50% off</Badge>
+                  <Badge variant="secondary" className="mt-2">Most popular</Badge>
                 </CardContent>
               </Card>
               
-              {/* Tier 75 */}
+              {/* Legacy */}
               <Card className="relative hover-elevate" data-testid="card-pricing-legacy">
                 <CardContent className="p-6 text-center">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                     <Share2 className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="font-semibold text-lg mb-1">Legacy</h3>
-                  <p className="text-sm text-muted-foreground mb-4">75-99 members</p>
-                  <div className="text-3xl font-bold mb-1" data-testid="text-price-reunion">$2.50</div>
+                  <p className="text-sm text-muted-foreground mb-4">For high-volume use</p>
+                  <div className="text-3xl font-bold mb-1" data-testid="text-price-legacy">$24.99</div>
                   <p className="text-sm text-muted-foreground">/month</p>
-                  <Badge variant="secondary" className="mt-2">75% off</Badge>
-                </CardContent>
-              </Card>
-              
-              {/* 100+ member reward (not a subscription tier) */}
-              <Card className="relative border-2 border-primary hover-elevate" data-testid="card-pricing-member-reward">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <Badge className="bg-primary text-primary-foreground">Best Value</Badge>
-                </div>
-                <CardContent className="p-6 text-center">
-                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
-                    <Sparkles className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-1">100+ Member Reward</h3>
-                  <p className="text-sm text-muted-foreground mb-4">100+ members</p>
-                  <div className="text-3xl font-bold text-primary mb-2" data-testid="text-price-heritage">Free</div>
-                  <p className="text-xs text-muted-foreground">Forever free</p>
+                  <Badge variant="secondary" className="mt-2">Highest limits</Badge>
                 </CardContent>
               </Card>
             </div>
@@ -870,8 +854,8 @@ export default function Landing() {
               <p className="text-sm text-muted-foreground" data-testid="text-pricing-features">
                 All plans include unlimited trees, cross-tree connections, and collaboration features.
               </p>
-              <p className="text-sm font-medium" data-testid="text-annual-discount">
-                <span className="bg-primary/10 text-foreground px-2 py-1 rounded">Save 20% with annual billing</span>
+              <p className="text-sm font-medium" data-testid="text-plan-summary">
+                <span className="bg-primary/10 text-foreground px-2 py-1 rounded">Explorer free · Cultivator $4.99 · Heritage $12.99 · Legacy $24.99</span>
               </p>
               <a href="/pricing" data-testid="link-view-full-pricing">
                 <Button variant="outline" data-testid="button-view-full-pricing">
