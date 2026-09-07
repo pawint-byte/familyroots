@@ -8,6 +8,7 @@ import { ArrowLeft, Copy, Check, Download, Share2, QrCode, UserCircle, Sparkles 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { SEO } from "@/components/seo";
 
 export default function SharePage() {
   const [, navigate] = useLocation();
@@ -112,6 +113,10 @@ export default function SharePage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Share FamilyRoots with Family & Friends | FamilyRoots"
+        description="Share FamilyRoots or your personal profile with a secure link or QR code and invite family and friends to make meaningful connections."
+      />
       <header className="border-b sticky top-0 bg-background z-10">
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
           <Button

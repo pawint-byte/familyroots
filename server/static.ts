@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
+import { injectSeoMetadata } from "./seoMetadata";
 
 const HTML_CACHE_CONTROL = "no-store, no-cache, must-revalidate, proxy-revalidate";
 
@@ -19,6 +20,7 @@ export function serveStatic(app: Express, distPath = path.resolve(__dirname, "pu
 
   app.use(express.static(distPath, {
     fallthrough: true,
+    index: false,
     setHeaders: (res, filePath) => {
       const relativePath = path.relative(distPath, filePath).replaceAll(path.sep, "/");
 
@@ -42,6 +44,7 @@ export function serveStatic(app: Express, distPath = path.resolve(__dirname, "pu
     }
 
     setNoCacheHeaders(res);
-    res.sendFile(path.resolve(distPath, "index.html"));
+    const indexHtml = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
+    res.status(200).type("html").send(injectSeoMetadata(indexHtml, requestPath));
   });
 }

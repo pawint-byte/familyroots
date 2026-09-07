@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 
 interface SEOProps {
   title: string;
@@ -21,86 +21,35 @@ export function SEO({
   canonicalUrl,
   structuredData,
 }: SEOProps) {
-  useEffect(() => {
-    // Update document title
-    document.title = title;
+  const pageUrl =
+    canonicalUrl ??
+    (typeof window !== "undefined"
+      ? window.location.origin + window.location.pathname
+      : undefined);
 
-    // Resolve the canonical/OG URL for THIS page. Falls back to the current
-    // path so every page gets a correct, unique canonical instead of inheriting
-    // the root canonical baked into index.html.
-    const pageUrl =
-      canonicalUrl ??
-      (typeof window !== "undefined"
-        ? window.location.origin + window.location.pathname
-        : undefined);
-
-    // Helper to update or create meta tag
-    const setMeta = (name: string, content: string, isProperty = false) => {
-      const attr = isProperty ? "property" : "name";
-      let meta = document.querySelector(`meta[${attr}="${name}"]`) as HTMLMetaElement;
-      if (!meta) {
-        meta = document.createElement("meta");
-        meta.setAttribute(attr, name);
-        document.head.appendChild(meta);
-      }
-      meta.content = content;
-    };
-
-    // Basic meta tags
-    setMeta("description", description);
-    if (keywords) {
-      setMeta("keywords", keywords);
-    }
-
-    // Open Graph tags
-    setMeta("og:title", title, true);
-    setMeta("og:description", description, true);
-    setMeta("og:type", ogType, true);
-    setMeta("og:image", ogImage, true);
-    setMeta("og:site_name", "FamilyRoots", true);
-    if (pageUrl) {
-      setMeta("og:url", pageUrl, true);
-    }
-
-    // Twitter Card tags
-    setMeta("twitter:card", twitterCard);
-    setMeta("twitter:title", title);
-    setMeta("twitter:description", description);
-    setMeta("twitter:image", ogImage);
-
-    // Canonical URL
-    if (pageUrl) {
-      let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
-      if (!link) {
-        link = document.createElement("link");
-        link.rel = "canonical";
-        document.head.appendChild(link);
-      }
-      link.href = pageUrl;
-    }
-
-    // Structured data (JSON-LD)
-    if (structuredData) {
-      let script = document.querySelector('script[data-seo="structured-data"]') as HTMLScriptElement;
-      if (!script) {
-        script = document.createElement("script");
-        script.type = "application/ld+json";
-        script.setAttribute("data-seo", "structured-data");
-        document.head.appendChild(script);
-      }
-      script.textContent = JSON.stringify(structuredData);
-    }
-
-    // Cleanup function to remove structured data on unmount
-    return () => {
-      const script = document.querySelector('script[data-seo="structured-data"]');
-      if (script) {
-        script.remove();
-      }
-    };
-  }, [title, description, keywords, ogImage, ogType, twitterCard, canonicalUrl, structuredData]);
-
-  return null;
+  return (
+    <Helmet>
+      <title>{title}</title>
+      <meta name="description" content={description} />
+      {keywords && <meta name="keywords" content={keywords} />}
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={description} />
+      <meta property="og:type" content={ogType} />
+      <meta property="og:image" content={ogImage} />
+      <meta property="og:site_name" content="FamilyRoots" />
+      {pageUrl && <meta property="og:url" content={pageUrl} />}
+      <meta name="twitter:card" content={twitterCard} />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={ogImage} />
+      {pageUrl && <link rel="canonical" href={pageUrl} />}
+      {structuredData && (
+        <script type="application/ld+json" data-seo="structured-data">
+          {JSON.stringify(structuredData)}
+        </script>
+      )}
+    </Helmet>
+  );
 }
 
 // Default structured data for the site

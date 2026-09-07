@@ -26,6 +26,7 @@ import type { FamilyTree, MerchandiseOrder } from "@shared/schema";
 import { getTreeTypeConfig, getMemberRank, type TreeType, type TreeTypeConfig } from "@shared/treeTypes";
 import { type GroupLayoutMode } from "@/components/group-visualization";
 import PrintDesigner from "@/components/print-designer";
+import { SEO } from "@/components/seo";
 
 const MERCHANDISE_DISABLED = false;
 const MERCHANDISE_DISABLED_MESSAGE = "Merchandise ordering is temporarily unavailable while we complete setup with our print partner. We'll notify you when it's back. Any previous charges have been fully refunded.";
@@ -2839,6 +2840,10 @@ export default function MerchandisePage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Custom Family Tree Merchandise | FamilyRoots"
+        description="Create personalized FamilyRoots merchandise featuring your family tree, custom photos, connection QR codes, and meaningful family details."
+      />
       <header className="border-b sticky top-0 bg-background z-10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
