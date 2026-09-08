@@ -119,7 +119,7 @@ This document contains reference information for all external accounts and integ
 
 ### Google Analytics
 - **Dashboard URL**: https://analytics.google.com
-- **Measurement ID**: `G-WHS17V1WFW`
+- **Measurement ID**: `G-JFYQ8LKE96`
 - **Account Email**: pawint@me.com
 - **Property Name**: FamilyRoots
 
