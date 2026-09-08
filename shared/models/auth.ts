@@ -79,6 +79,8 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").default(false),
   emailVerifyToken: varchar("email_verify_token"),
   isAdmin: boolean("is_admin").default(false),
+  heardVia: varchar("heard_via"),
+  heardViaOther: text("heard_via_other"),
 
   subscriptionCancelledAt: timestamp("subscription_cancelled_at"),
   contentRetentionWarningsSent: integer("content_retention_warnings_sent").default(0),

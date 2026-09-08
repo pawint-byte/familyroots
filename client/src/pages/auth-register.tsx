@@ -8,9 +8,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Eye, EyeOff, UserPlus, TreeDeciduous, Mail } from "lucide-react";
+import {
+  HEARD_VIA_CHOICES,
+  optionalSignupAttributionSchema,
+} from "@shared/signup-attribution";
 
 const registerSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -22,7 +27,7 @@ const registerSchema = z.object({
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
   confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
+}).and(optionalSignupAttributionSchema).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
@@ -40,7 +45,10 @@ export default function AuthRegister() {
 
   const form = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { firstName: "", lastName: "", email: prefillEmail, password: "", confirmPassword: "" },
+    defaultValues: {
+      firstName: "", lastName: "", email: prefillEmail, password: "", confirmPassword: "",
+      heardVia: "", heardViaOther: "",
+    },
   });
 
   const resendMutation = useMutation({
@@ -58,7 +66,14 @@ export default function AuthRegister() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterForm) => {
-      const { confirmPassword, ...payload } = data;
+      const { confirmPassword, heardVia, heardViaOther, ...account } = data;
+      const payload = {
+        ...account,
+        ...(heardVia ? {
+          heardVia,
+          ...(heardVia === "Other" ? { heardViaOther: heardViaOther?.trim() } : {}),
+        } : {}),
+      };
       const res = await apiRequest("POST", "/api/auth/signup", payload);
       return res.json();
     },
@@ -221,6 +236,48 @@ export default function AuthRegister() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="heardVia"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>How did you hear about us? <span className="text-muted-foreground">(optional)</span></FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-heard-via">
+                          <SelectValue placeholder="Select an option" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {HEARD_VIA_CHOICES.map(choice => (
+                          <SelectItem key={choice} value={choice}>{choice}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {form.watch("heardVia") === "Other" && (
+                <FormField
+                  control={form.control}
+                  name="heardViaOther"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Where did you hear about us?</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Tell us where"
+                          maxLength={200}
+                          data-testid="input-heard-via-other"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <Button
                 type="submit"
                 className="w-full"

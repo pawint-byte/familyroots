@@ -9,6 +9,10 @@ import {
   validateEmail,
   validatePassword,
 } from "../services/email-auth";
+import {
+  normalizeSignupAttribution,
+  optionalSignupAttributionSchema,
+} from "@shared/signup-attribution";
 
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
 const MIGRATION_TOKEN_EXPIRY_MS = 72 * 60 * 60 * 1000;
@@ -45,6 +49,16 @@ export function setupLocalAuth(app: Express) {
         return res.status(400).json({ message: passwordCheck.message });
       }
 
+      const attributionResult = optionalSignupAttributionSchema.safeParse({
+        heardVia: req.body.heardVia,
+        heardViaOther: req.body.heardViaOther,
+      });
+      if (!attributionResult.success) {
+        return res.status(400).json({
+          message: attributionResult.error.errors[0]?.message || "Invalid signup attribution",
+        });
+      }
+      const attribution = normalizeSignupAttribution(attributionResult.data);
       const normalizedEmail = email.toLowerCase().trim();
 
       const [existingUser] = await db.select().from(users)
@@ -64,6 +78,8 @@ export function setupLocalAuth(app: Express) {
             emailVerifyToken: verifyToken,
             firstName: existingUser.firstName || firstName,
             lastName: existingUser.lastName || lastName || null,
+            heardVia: existingUser.heardVia || attribution.heardVia,
+            heardViaOther: existingUser.heardViaOther || attribution.heardViaOther,
             updatedAt: new Date(),
           })
           .where(eq(users.id, existingUser.id));
@@ -86,6 +102,7 @@ export function setupLocalAuth(app: Express) {
           authProvider: "email",
           emailVerified: false,
           emailVerifyToken: verifyToken,
+          ...attribution,
         });
 
       await sendVerificationEmail(req, normalizedEmail, firstName || "there", verifyToken);
