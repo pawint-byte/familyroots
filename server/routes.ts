@@ -13549,7 +13549,7 @@ export async function registerRoutes(
         .orderBy(desc(memories.createdAt));
 
       const membersMap = new Map<string, any>();
-      const treeMembers = await storage.getMembersByTreeId(treeId);
+      const treeMembers = await storage.getMembers(treeId);
       treeMembers.forEach(m => membersMap.set(m.id, m));
 
       const enriched = allMemories.map(mem => ({

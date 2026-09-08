@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { createMemory, deleteMemory, memoryErrorToast, type MemoryDraft } from "@/lib/memory-api";
 import { useUpload } from "@/hooks/use-upload";
 import { parseDateString } from "@/lib/utils";
 import {
@@ -51,9 +52,12 @@ export function MemoryLane({ treeId, members, canEdit }: MemoryLaneProps) {
     onSuccess: (response) => {
       setPhotoUrl(response.objectPath);
     },
+    onError: () => {
+      toast({ title: "Photo upload failed", description: "Please retry the photo upload before saving.", variant: "destructive" });
+    },
   });
 
-  const { data: memoriesData, isLoading } = useQuery<MemoryWithMember[]>({
+  const { data: memoriesData, isLoading, isError, refetch } = useQuery<MemoryWithMember[]>({
     queryKey: ['/api/trees', treeId, 'memories'],
     queryFn: async () => {
       const res = await fetch(`/api/trees/${treeId}/memories`, { credentials: 'include' });
@@ -63,35 +67,26 @@ export function MemoryLane({ treeId, members, canEdit }: MemoryLaneProps) {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiRequest(`/api/trees/${treeId}/memories`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' },
-      });
-    },
+    mutationFn: (data: MemoryDraft) => createMemory(treeId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/trees', treeId, 'memories'] });
       setShowCreate(false);
       resetForm();
       toast({ title: "Memory saved", description: "Your memory has been added to the lane." });
     },
-    onError: (err: any) => {
-      if (err?.error === 'tier_limit_reached') {
-        toast({ title: "Upload limit reached", description: err.message, variant: "destructive" });
-      } else {
-        toast({ title: "Error", description: "Failed to save memory", variant: "destructive" });
-      }
+    onError: (err: unknown) => {
+      toast({ ...memoryErrorToast(err, "Failed to save memory. Please try again."), variant: "destructive" });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest(`/api/memories/${id}`, { method: 'DELETE' });
-    },
+    mutationFn: deleteMemory,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/trees', treeId, 'memories'] });
       toast({ title: "Memory removed" });
+    },
+    onError: (err: unknown) => {
+      toast({ ...memoryErrorToast(err, "Failed to delete memory. Please try again."), variant: "destructive" });
     },
   });
 
@@ -105,14 +100,14 @@ export function MemoryLane({ treeId, members, canEdit }: MemoryLaneProps) {
   };
 
   const handleSubmit = () => {
-    if (!title.trim()) return;
+    if (!title.trim() || isUploading) return;
     createMutation.mutate({
-      title: title.trim(),
-      story: story.trim() || null,
-      eventDate: eventDate || null,
+      title,
+      story,
+      eventDate,
       category,
-      memberId: memberId || null,
-      photoUrl: photoUrl || null,
+      memberId,
+      photoUrl,
     });
   };
 
@@ -144,6 +139,20 @@ export function MemoryLane({ treeId, members, canEdit }: MemoryLaneProps) {
         {[1, 2, 3].map(i => (
           <Skeleton key={i} className="h-48 w-full rounded-xl" />
         ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-2xl" role="alert">
+        <h2 className="text-xl font-serif font-bold">Couldn't load memories</h2>
+        <p className="text-sm text-muted-foreground mt-2">
+          Your memories could not be loaded. Please try again.
+        </p>
+        <Button className="mt-4" variant="outline" onClick={() => refetch()} data-testid="button-retry-memories">
+          Try again
+        </Button>
       </div>
     );
   }
@@ -260,7 +269,7 @@ export function MemoryLane({ treeId, members, canEdit }: MemoryLaneProps) {
                 </div>
                 <Button
                   onClick={handleSubmit}
-                  disabled={!title.trim() || createMutation.isPending}
+                  disabled={!title.trim() || createMutation.isPending || isUploading}
                   className="w-full"
                   data-testid="button-save-memory"
                 >

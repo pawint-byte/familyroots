@@ -13,6 +13,7 @@
     "test:stripe-pricing": "tsx --test tests/stripe-inline-pricing.test.ts",
     "test:seo": "tsx --test tests/seo-metadata.test.ts",
     "test:qa-demo-user": "tsx --test tests/qa-demo-user.test.ts",
+    "test:memory": "tsx --test tests/memory-api.test.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
