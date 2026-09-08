@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -58,7 +58,13 @@ import Terms from "@/pages/terms";
 
 function Router() {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
   useAnalytics();
+
+  // The public guide must render even when the session lookup is still pending.
+  if (location === "/features" || location === "/features/") {
+    return <FeaturesGuide />;
+  }
 
   if (isLoading) {
     return (
@@ -115,7 +121,6 @@ function Router() {
       <Route path="/network-overview" component={NetworkOverview} />
       <Route path="/my-badge" component={MembershipBadge} />
       <Route path="/discover" component={Discover} />
-      <Route path="/features" component={FeaturesGuide} />
       <Route path="/connect/:treeId" component={ConnectToTree} />
       <Route path="/whats-new" component={WhatsNew} />
       <Route path="/radar" component={Radar} />
