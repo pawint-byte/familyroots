@@ -1,3 +1,4 @@
 - [Admin identity & dev/prod DB divergence](admin-and-prod-db.md) — admin paywall bypass must key off id/email (isAdminAccount), not the mutable users.is_admin column; dev & prod use separate DBs.
 - [Tree viz centering](tree-visualization-centering.md) — center on bounding box, not focus member, to avoid bottom-half white space
 - [Safe QA accounts](qa-account-safety.md) — prefer dev-only demo seeding over runtime verification bypasses; revocation must avoid legacy recovery mail.
+- [Full intent delivery](full-intent-delivery.md) — complete requests end-to-end, verify intended behavior, and surface gaps before declaring done.
