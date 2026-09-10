@@ -5,7 +5,7 @@ FamilyRoots is a full-stack web application designed for creating, managing, and
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
-Standing doctrines: [full-intent delivery](.agents/memory/full-intent-delivery.md), [product framing value exchange](.agents/memory/product-framing-value-exchange.md), and [protect-mission guardrails](.agents/memory/protect-mission-guardrails.md).
+Standing doctrines: [full-intent delivery](.agents/memory/full-intent-delivery.md), [product framing value exchange](.agents/memory/product-framing-value-exchange.md), [protect-mission guardrails](.agents/memory/protect-mission-guardrails.md), and [second set of eyes](.agents/memory/second-set-of-eyes.md).
 
 ## System Architecture
 
