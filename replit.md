@@ -5,6 +5,7 @@ FamilyRoots is a full-stack web application designed for creating, managing, and
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
+Product framing should follow the honest two-sided value-exchange doctrine documented in `.agents/memory/product-framing-value-exchange.md`.
 
 ## System Architecture
 
