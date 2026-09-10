@@ -1,3 +1,5 @@
+import { injectFaqHtml } from "./faqHtml";
+
 const SITE_URL = "https://familyroots.family";
 
 export interface SeoMetadata {
@@ -110,6 +112,10 @@ export function injectSeoMetadata(html: string, requestPath: string): string {
   const title = escapeHtml(seo.title);
   const description = escapeHtml(seo.description);
   const canonical = escapeHtml(seo.canonical);
+
+  if (seo === PUBLIC_SEO_METADATA["/faq"]) {
+    html = injectFaqHtml(html);
+  }
 
   return html
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`)

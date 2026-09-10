@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
 import { injectSeoMetadata } from "./seoMetadata";
+import { redirectFaqCase } from "./faqHtml";
 
 const HTML_CACHE_CONTROL = "no-store, no-cache, must-revalidate, proxy-revalidate";
 
@@ -18,6 +19,7 @@ export function serveStatic(app: Express, distPath = path.resolve(__dirname, "pu
     );
   }
 
+  app.use(redirectFaqCase);
   app.use(express.static(distPath, {
     fallthrough: true,
     index: false,
