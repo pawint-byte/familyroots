@@ -5,7 +5,7 @@ FamilyRoots is a full-stack web application designed for creating, managing, and
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
-Product framing should follow the honest two-sided value-exchange doctrine documented in `.agents/memory/product-framing-value-exchange.md`.
+Standing doctrines: [full-intent delivery](.agents/memory/full-intent-delivery.md), [product framing value exchange](.agents/memory/product-framing-value-exchange.md), and [protect-mission guardrails](.agents/memory/protect-mission-guardrails.md).
 
 ## System Architecture
 
