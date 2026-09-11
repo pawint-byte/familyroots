@@ -5,3 +5,4 @@
 - [Product value exchange](product-framing-value-exchange.md) — frame copy, features, and promotion around honest value for both members and sustainable operation.
 - [Protect mission guardrails](protect-mission-guardrails.md) — assess mission fit, explain scope concerns, and pair complete delivery with honest paid value.
 - [Second set of eyes](second-set-of-eyes.md) — question incomplete asks and improve the approach within mission fit before finishing fully.
+- [Bot owns Replit config](bot-owns-replit-config.md) — requested ownership of site/Replit configuration and publishing, subject to platform controls.
