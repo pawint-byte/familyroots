@@ -1,38 +1,18 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import { registerSchema, type RegisterForm } from "@/lib/register-validation";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { Eye, EyeOff, UserPlus, TreeDeciduous, Mail } from "lucide-react";
-import {
-  HEARD_VIA_CHOICES,
-  optionalSignupAttributionSchema,
-} from "@shared/signup-attribution";
-
-const registerSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number"),
-  confirmPassword: z.string(),
-}).and(optionalSignupAttributionSchema).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
-
-type RegisterForm = z.infer<typeof registerSchema>;
+import { HEARD_VIA_CHOICES } from "@shared/signup-attribution";
 
 export default function AuthRegister() {
   const [, setLocation] = useLocation();
@@ -200,7 +180,7 @@ export default function AuthRegister() {
                       <div className="relative">
                         <Input
                           type={showPassword ? "text" : "password"}
-                          placeholder="Min 8 chars, uppercase, lowercase, number"
+                          placeholder="8–128 characters, uppercase, lowercase, number"
                           data-testid="input-password"
                           {...field}
                         />
@@ -208,12 +188,17 @@ export default function AuthRegister() {
                           type="button"
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                           onClick={() => setShowPassword(!showPassword)}
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          aria-pressed={showPassword}
                           data-testid="button-toggle-password"
                         >
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
                     </FormControl>
+                    <FormDescription>
+                      Use 8–128 characters with at least one uppercase letter, one lowercase letter, and one number.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

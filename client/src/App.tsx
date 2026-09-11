@@ -9,6 +9,8 @@ import { I18nProvider } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { Chatbot } from "@/components/chatbot";
 import { MaintenanceMode } from "@/components/maintenance-mode";
+import { AppLoadingShell } from "@/components/app-loading-shell";
+import { isPublicRoute } from "@/lib/public-routes";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import Landing from "@/pages/landing";
@@ -57,23 +59,19 @@ import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
 
 function Router() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isError, refetch } = useAuth();
   const [location] = useLocation();
   useAnalytics();
 
-  // The public guide must render even when the session lookup is still pending.
-  if (location === "/features" || location === "/features/") {
-    return <FeaturesGuide />;
-  }
-
-  if (isLoading) {
+  // Public pages should not be held hostage by a session request. This is
+  // particularly important for direct links to policy and marketing pages.
+  const canRenderWithoutAuth = isPublicRoute(location);
+  if (!canRenderWithoutAuth && (isLoading || isError)) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-primary/20" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
+      <AppLoadingShell
+        onRetry={() => refetch()}
+        hasError={isError}
+      />
     );
   }
 
@@ -113,6 +111,7 @@ function Router() {
       <Route path="/profile/:userId" component={PublicProfile} />
       <Route path="/network" component={Network} />
       <Route path="/comparison" component={Comparison} />
+      <Route path="/features" component={FeaturesGuide} />
       <Route path="/records" component={Records} />
       <Route path="/familysearch" component={Records} />
       <Route path="/familysearch/import" component={Records} />

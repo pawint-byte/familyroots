@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { RefreshCw, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocation } from "wouter";
+import { AppLoadingShell } from "@/components/app-loading-shell";
+import { isPublicRoute } from "@/lib/public-routes";
 
 interface MaintenanceModeProps {
   children: React.ReactNode;
@@ -12,6 +15,7 @@ const INITIAL_CHECK_TIMEOUT = 5000; // 5 second timeout for initial health check
 export function MaintenanceMode({ children }: MaintenanceModeProps) {
   const [isServerAvailable, setIsServerAvailable] = useState<boolean | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [location] = useLocation();
   const wasInMaintenanceMode = useRef(false);
   const hasCompletedInitialCheck = useRef(false);
 
@@ -65,14 +69,18 @@ export function MaintenanceMode({ children }: MaintenanceModeProps) {
     return () => clearInterval(interval);
   }, [checkServerHealth, isServerAvailable]);
 
+  const canRenderWithoutServer = isPublicRoute(location);
+
+  // A health check should never make a static public page disappear. The
+  // privacy policy and other marketing routes can render while the API
+  // recovers, and their own interactive requests can fail independently.
+  if (canRenderWithoutServer && (isServerAvailable === null || isServerAvailable === false)) {
+    return <>{children}</>;
+  }
+
   if (isServerAvailable === null) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-primary/20" />
-          <p className="text-muted-foreground">Connecting...</p>
-        </div>
-      </div>
+      <AppLoadingShell onRetry={checkServerHealth} />
     );
   }
 

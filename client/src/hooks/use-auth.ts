@@ -49,7 +49,12 @@ export function useAuth() {
   const queryClient = useQueryClient();
   const hasTrackedSignUp = useRef(false);
   
-  const { data: user, isLoading } = useQuery<User | null>({
+  const {
+    data: user,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: fetchUser,
     retry: false,
@@ -71,7 +76,7 @@ export function useAuth() {
   }, [user]);
 
   const logoutMutation = useMutation({
-    mutationFn: () => logout(user?.authProvider),
+    mutationFn: () => logout(user?.authProvider ?? undefined),
     onSuccess: () => {
       queryClient.setQueryData(["/api/auth/user"], null);
     },
@@ -80,6 +85,8 @@ export function useAuth() {
   return {
     user,
     isLoading,
+    isError,
+    refetch,
     isAuthenticated: !!user,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,

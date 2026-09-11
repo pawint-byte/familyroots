@@ -59,8 +59,156 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Keep direct public links useful while the application bundle starts.
+         This stays outside #root so server-side FAQ injection can target the
+         intentionally empty React mount point. -->
+    <div id="app-bootstrap-fallback" role="status" aria-live="polite">
+      <div class="app-bootstrap-header">
+        <div class="app-bootstrap-brand"><span class="app-bootstrap-mark">✦</span><strong>FamilyRoots</strong></div>
+        <div class="app-bootstrap-actions"><span></span><span></span></div>
+      </div>
+      <main class="app-bootstrap-main">
+        <div class="app-bootstrap-kicker"></div>
+        <div class="app-bootstrap-title"></div>
+        <div class="app-bootstrap-copy"></div>
+        <div class="app-bootstrap-cards"><span></span><span></span><span></span></div>
+        <div class="app-bootstrap-message">
+          <strong>Getting this page ready</strong>
+          <p id="app-bootstrap-message">Loading the latest FamilyRoots experience…</p>
+          <button id="app-bootstrap-retry" type="button" hidden>Try again</button>
+        </div>
+      </main>
+    </div>
+    <style>
+      #app-bootstrap-fallback {
+        min-height: 100vh;
+        color: hsl(0 0% 9%);
+        background: hsl(0 0% 100%);
+        font: 16px/1.5 Inter, system-ui, sans-serif;
+      }
+      .app-bootstrap-header {
+        min-height: 4rem;
+        padding: .75rem max(1rem, calc((100vw - 64rem) / 2));
+        border-bottom: 1px solid hsl(0 0% 90%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .app-bootstrap-brand { display: flex; align-items: center; gap: .7rem; }
+      .app-bootstrap-mark {
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: .75rem;
+        display: grid;
+        place-items: center;
+        color: hsl(142 76% 36%);
+        background: hsl(142 18% 88%);
+      }
+      .app-bootstrap-actions { display: flex; gap: .75rem; }
+      .app-bootstrap-actions span {
+        width: 4.5rem;
+        height: 2rem;
+        border-radius: .5rem;
+        background: hsl(0 2% 92%);
+        animation: app-bootstrap-pulse 1.5s ease-in-out infinite;
+      }
+      .app-bootstrap-actions span:last-child { width: 5.5rem; animation-delay: .15s; }
+      .app-bootstrap-main { max-width: 56rem; margin: 0 auto; padding: 4rem 1rem; }
+      .app-bootstrap-kicker {
+        width: 7rem;
+        height: .75rem;
+        border-radius: 999px;
+        background: hsl(0 2% 92%);
+        animation: app-bootstrap-pulse 1.5s ease-in-out infinite;
+      }
+      .app-bootstrap-title {
+        width: min(100%, 35rem);
+        height: 2.75rem;
+        margin-top: 1.25rem;
+        border-radius: .5rem;
+        background: hsl(0 2% 92%);
+        animation: app-bootstrap-pulse 1.5s ease-in-out infinite;
+      }
+      .app-bootstrap-copy {
+        width: min(100%, 27rem);
+        height: 1.25rem;
+        margin-top: 1rem;
+        border-radius: .5rem;
+        background: hsl(0 2% 92%);
+        animation: app-bootstrap-pulse 1.5s ease-in-out infinite;
+      }
+      .app-bootstrap-cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+        margin-top: 2.5rem;
+      }
+      .app-bootstrap-cards span {
+        height: 8rem;
+        border-radius: 1rem;
+        background: hsl(0 2% 92%);
+        animation: app-bootstrap-pulse 1.5s ease-in-out infinite;
+      }
+      .app-bootstrap-cards span:nth-child(2) { animation-delay: .15s; }
+      .app-bootstrap-cards span:nth-child(3) { animation-delay: .3s; }
+      .app-bootstrap-message {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        border: 1px solid hsl(0 0% 90%);
+        border-radius: 1rem;
+        background: hsl(0 0% 98%);
+      }
+      .app-bootstrap-message p { margin: .5rem 0 0; color: hsl(0 0% 45%); }
+      #app-bootstrap-retry {
+        margin-top: 1rem;
+        padding: .55rem .9rem;
+        border: 1px solid hsl(0 0% 80%);
+        border-radius: .5rem;
+        color: hsl(0 0% 9%);
+        background: hsl(0 0% 100%);
+        cursor: pointer;
+      }
+      @keyframes app-bootstrap-pulse {
+        0%, 100% { opacity: .55; }
+        50% { opacity: 1; }
+      }
+      @media (max-width: 640px) {
+        .app-bootstrap-main { padding-top: 3rem; }
+        .app-bootstrap-cards { grid-template-columns: 1fr; }
+        .app-bootstrap-cards span { height: 5rem; }
+        .app-bootstrap-actions { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .app-bootstrap-actions span,
+        .app-bootstrap-kicker,
+        .app-bootstrap-title,
+        .app-bootstrap-copy,
+        .app-bootstrap-cards span { animation: none; }
+      }
+    </style>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // FAQ SSR occupies #root before this script runs. In that case it is
+      // already useful and does not need the client bootstrap placeholder.
+      const appRoot = document.getElementById('root');
+      const appFallback = document.getElementById('app-bootstrap-fallback');
+      if (appRoot && appRoot.hasChildNodes()) appFallback?.remove();
+
+      // If the module cannot start (for example, during a deployment), keep
+      // the direct-link shell actionable instead of leaving a blank root.
+      window.setTimeout(() => {
+        const fallback = document.getElementById('app-bootstrap-fallback');
+        if (!fallback || !fallback.isConnected) return;
+
+        const message = document.getElementById('app-bootstrap-message');
+        const retry = document.getElementById('app-bootstrap-retry');
+        if (message) message.textContent = 'This is taking longer than expected. You can try again.';
+        if (retry) {
+          retry.hidden = false;
+          retry.addEventListener('click', () => window.location.reload());
+        }
+      }, 8000);
+
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })

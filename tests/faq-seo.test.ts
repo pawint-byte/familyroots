@@ -60,6 +60,23 @@ test("initial FAQ HTML includes every question, answer, links and matching JSON-
   }
 });
 
+test("injects the full FAQ into the actual client shell's empty React root", async () => {
+  const clientIndex = await readFile("client/index.html", "utf-8");
+  assert.match(clientIndex, /<div id="root"><\/div>/);
+
+  const html = injectSeoMetadata(clientIndex, "/faq");
+  const items = faqCategories.flatMap((category) => category.items);
+  const renderedItems = [...html.matchAll(/<h3>([\s\S]*?)<\/h3>\s*<div data-faq-answer>/g)];
+  const jsonScripts = [...html.matchAll(/<script type="application\/ld\+json" data-faq-jsonld>([\s\S]*?)<\/script>/g)];
+
+  assert.equal(items.length, 199);
+  assert.equal(renderedItems.length, 199);
+  assert.equal(jsonScripts.length, 1);
+  assert.equal(JSON.parse(jsonScripts[0][1]).mainEntity.length, 199);
+  assertCompleteFaq(html);
+  assert.match(html, /<div id="root"><main data-faq-prerender>/);
+});
+
 test("does not add FAQ content or schema to other pages", () => {
   for (const route of ["/", "/pricing", "/features", "/unknown", "/faq-other"]) {
     const html = injectSeoMetadata(template, route);

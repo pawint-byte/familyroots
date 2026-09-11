@@ -4,39 +4,27 @@ import { familyTrees, familyMembers } from '@shared/schema';
 import { eq, sql, and, gte, desc, lte } from 'drizzle-orm';
 import { getUncachableStripeClient } from './stripeClient';
 import { isAdminAccount } from './adminConfig';
+import {
+  PRICING_CONFIG as SHARED_PRICING_CONFIG,
+  TIER_CONFIG as SHARED_TIER_CONFIG,
+  TIER_LIMITS as SHARED_TIER_LIMITS,
+  FEATURE_INFO as SHARED_FEATURE_INFO,
+  TIER_ORDER as SHARED_TIER_ORDER,
+  type PremiumFeature as SharedPremiumFeature,
+  type FeatureTier as SharedFeatureTier,
+} from '@shared/pricing';
 
-export type PremiumFeature = 'ai_chat' | 'familysearch_import' | 'email_tagged_group' | 'ai_avatar_video' | 'media_upload' | 'voice_video_upload' | 'tree_wall';
+export type PremiumFeature = SharedPremiumFeature;
 
-export type FeatureTier = 'explorer' | 'cultivator' | 'heritage' | 'legacy';
+export type FeatureTier = SharedFeatureTier;
 
-export const TIER_ORDER: FeatureTier[] = ['explorer', 'cultivator', 'heritage', 'legacy'];
+export const TIER_ORDER: FeatureTier[] = [...SHARED_TIER_ORDER];
 
-export const TIER_CONFIG: Record<FeatureTier, { label: string; tagline: string; monthlyPriceCents: number; color: string }> = {
-  explorer:   { label: 'Explorer',   tagline: 'Try it out, no commitment',              monthlyPriceCents: 0,    color: '#6b7280' },
-  cultivator: { label: 'Cultivator', tagline: 'For regular users building their trees',  monthlyPriceCents: 499,  color: '#3b82f6' },
-  heritage:   { label: 'Heritage',   tagline: 'For power users and large groups',        monthlyPriceCents: 1299, color: '#8b5cf6' },
-  legacy:     { label: 'Legacy',     tagline: 'High-volume, still capped for your safety', monthlyPriceCents: 2499, color: '#f59e0b' },
-};
+export const TIER_CONFIG = SHARED_TIER_CONFIG;
 
-export const TIER_LIMITS: Record<PremiumFeature, Record<FeatureTier, number>> = {
-  ai_chat:             { explorer: 5,   cultivator: 30,  heritage: 100, legacy: 300 },
-  familysearch_import: { explorer: 1,   cultivator: 5,   heritage: 15,  legacy: 40  },
-  email_tagged_group:  { explorer: 2,   cultivator: 10,  heritage: 30,  legacy: -1  },
-  ai_avatar_video:     { explorer: 0,   cultivator: 2,   heritage: 5,   legacy: 10  },
-  media_upload:        { explorer: 10,  cultivator: 50,  heritage: 200, legacy: 500 },
-  voice_video_upload:  { explorer: 0,   cultivator: 20,  heritage: 80,  legacy: 200 },
-  tree_wall:           { explorer: 0,   cultivator: -1,  heritage: -1,  legacy: -1  },
-};
+export const TIER_LIMITS = SHARED_TIER_LIMITS;
 
-export const FEATURE_INFO: Record<PremiumFeature, { label: string; description: string }> = {
-  ai_chat:             { label: 'AI Chat',             description: 'AI-powered family tree assistant' },
-  familysearch_import: { label: 'FamilySearch Import', description: 'Import ancestors from FamilySearch' },
-  email_tagged_group:  { label: 'Email Tagged Group',  description: 'Send emails to tagged members' },
-  ai_avatar_video:     { label: 'AI Avatar Video',     description: 'Generate AI avatar videos' },
-  media_upload:        { label: 'Media Upload',        description: 'Upload photos and media to events' },
-  voice_video_upload:  { label: 'Voice & Video',       description: 'Record voice notes and attach videos to members' },
-  tree_wall:           { label: 'Group Wall',          description: 'Group messaging wall within your trees' },
-};
+export const FEATURE_INFO = SHARED_FEATURE_INFO;
 
 export const PREMIUM_LIMITS: Record<PremiumFeature, { freeLimit: number; period: 'monthly' | 'lifetime'; label: string; description: string }> = {
   ai_chat: { freeLimit: 5, period: 'monthly', label: 'AI Chat', description: 'AI-powered family tree assistant' },
@@ -49,22 +37,7 @@ export const PREMIUM_LIMITS: Record<PremiumFeature, { freeLimit: number; period:
 };
 
 // New pricing model: Bulk add packs + tiered subscriptions
-export const PRICING_CONFIG = {
-  packs: [
-    { type: 'starter_10' as const, credits: 10, priceCents: 799, perMemberCents: 80, label: 'Starter Pack' },
-    { type: 'growth_25' as const, credits: 25, priceCents: 1499, perMemberCents: 60, label: 'Growth Pack', savings: '25%' },
-    { type: 'family_50' as const, credits: 50, priceCents: 2499, perMemberCents: 50, label: 'Family Pack', savings: '37%' },
-  ],
-  tiers: TIER_CONFIG,
-  tierLimits: TIER_LIMITS,
-  featureInfo: FEATURE_INFO,
-  rewards: {
-    monthlyAddsThreshold: 5,
-    monthlyDiscountPercent: 20,
-    milestoneFreePack: { memberCount: 100, freeCredits: 10 },
-  },
-  freeTierCredits: 20,
-};
+export const PRICING_CONFIG = SHARED_PRICING_CONFIG;
 
 // Legacy config kept for backward compatibility with existing subscribers
 export const SUBSCRIPTION_CONFIG = {

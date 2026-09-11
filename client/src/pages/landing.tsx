@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,15 +7,39 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SEO, defaultStructuredData } from "@/components/seo";
 import { useI18n } from "@/lib/i18n";
-import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase, Lock, Eye, EyeOff, Globe, UserCheck, Search, BookHeart, Mic, BarChart3, Gift, Clock } from "lucide-react";
+import { Trees, Users, Share2, Shield, Calendar, ArrowRight, Sparkles, GitBranch, Link, Quote, Home, Shirt, QrCode, Smartphone, Church, Trophy, GraduationCap, Heart, Briefcase, Lock, Eye, EyeOff, Globe, UserCheck, Search, BookHeart, Mic, BarChart3, Gift, Clock, Menu, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DemoFamilyTree } from "@/components/demo-family-tree";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
+import { getRegisterHref } from "@/lib/register-link";
+import { PRICING_CONFIG } from "@shared/pricing";
+
+const planIcons: Record<string, typeof Users> = {
+  explorer: Users,
+  cultivator: Trees,
+  heritage: GitBranch,
+  legacy: Share2,
+};
+
+const planOrder = ["explorer", "cultivator", "heritage", "legacy"] as const;
 
 export default function Landing() {
   const [, navigate] = useLocation();
   const { t } = useI18n();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const registerHref = getRegisterHref();
+  const navigationLinks = [
+    { href: "#why-private", label: "Why Private", testId: "link-why-private" },
+    { href: "#features", label: t.nav.features, testId: "link-features" },
+    { href: "#testimonials", label: t.nav.testimonials, testId: "link-testimonials" },
+    { href: "/pricing", label: t.nav.pricing, testId: "link-pricing" },
+    { href: "/gifts", label: t.nav.gifts, testId: "link-gifts" },
+    { href: "/faq", label: "FAQ", testId: "link-faq" },
+    { href: "/features", label: "Features Guide", testId: "link-features-guide" },
+    { href: "/whats-new", label: "What's New", testId: "link-whats-new" },
+    { href: "/comparison", label: "Compare", testId: "link-comparison" },
+  ];
 
   // Capture referral code from URL and store in localStorage
   useEffect(() => {
@@ -29,7 +53,7 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="landing-page min-h-screen overflow-x-hidden bg-background">
       <SEO
         title="FamilyRoots - Your Private Network for Real Connections"
         description="Build private, members-only networks where every connection means something. Family trees, church groups, sports teams, Greek life chapters, and professional networks - all in one secure, invitation-only platform."
@@ -38,43 +62,83 @@ export default function Landing() {
         structuredData={defaultStructuredData}
       />
       <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-2 sm:gap-4 flex-nowrap">
+          <div className="flex min-w-0 items-center gap-2 shrink-0">
             <Trees className="h-7 w-7 text-primary" />
             <span className="font-serif text-xl font-semibold">FamilyRoots</span>
           </div>
-          <nav className="hidden md:flex items-center gap-6">
-            <a href="#why-private" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-why-private">Why Private</a>
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features">{t.nav.features}</a>
-            <a href="#testimonials" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-testimonials">{t.nav.testimonials}</a>
-            <a href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">{t.nav.pricing}</a>
-            <a href="/gifts" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-gifts">{t.nav.gifts}</a>
-            <a href="/faq" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-faq">FAQ</a>
-            <a href="/features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features-guide">Features Guide</a>
-            <a href="/whats-new" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-whats-new">What's New</a>
-            <a href="/comparison" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-comparison">Compare</a>
+          <nav className="hidden xl:flex items-center gap-6">
+            {navigationLinks.map((link) => (
+              <a key={link.testId} href={link.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid={link.testId}>
+                {link.label}
+              </a>
+            ))}
           </nav>
-          <div className="flex items-center gap-2">
-            <LanguageSwitcher />
-            <ThemeToggle />
-            <a href="/login">
+          <div className="flex items-center gap-1 shrink-0">
+            <div className="hidden xl:flex items-center gap-1">
+              <LanguageSwitcher />
+              <ThemeToggle />
+            </div>
+            <a href="/login" className="hidden xl:inline-flex">
               <Button variant="ghost" data-testid="button-login">{t.nav.login}</Button>
             </a>
-            <a href="/login">
+            <a href={registerHref} className="hidden xl:inline-flex">
               <Button data-testid="button-get-started">{t.nav.getStarted}</Button>
             </a>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="xl:hidden"
+              aria-expanded={mobileNavOpen}
+              aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+              onClick={() => setMobileNavOpen((open) => !open)}
+              data-testid="button-mobile-nav"
+            >
+              {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
           </div>
         </div>
+        {mobileNavOpen && (
+          <div className="xl:hidden border-t border-border bg-background/95 backdrop-blur-md">
+            <nav className="container mx-auto grid gap-1 px-4 py-3">
+              {navigationLinks.map((link) => (
+                <a
+                  key={`mobile-${link.testId}`}
+                  href={link.href}
+                  className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                  data-testid={`mobile-${link.testId}`}
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </nav>
+            <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+              <div className="flex items-center gap-1">
+                <LanguageSwitcher />
+                <ThemeToggle />
+              </div>
+              <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+                <a href="/login" onClick={() => setMobileNavOpen(false)}>
+                  <Button variant="ghost" data-testid="mobile-button-login">{t.nav.login}</Button>
+                </a>
+                <a href={registerHref} onClick={() => setMobileNavOpen(false)}>
+                  <Button data-testid="mobile-button-get-started">{t.nav.getStarted}</Button>
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="pt-16">
         {/* Hero Section */}
         <section className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/10" />
-          <div className="container mx-auto px-4 py-24 md:py-32 relative">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
-              <div className="space-y-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
+          <div className="container mx-auto min-w-0 px-4 py-20 sm:py-24 md:py-32 relative">
+            <div className="grid min-w-0 xl:grid-cols-2 gap-10 lg:gap-12 items-center">
+              <div className="min-w-0 space-y-8">
+                <div className="inline-flex max-w-full flex-wrap items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
                   <Sparkles className="h-4 w-4" />
                   <span>{t.landing.heroTagline}</span>
                 </div>
@@ -85,8 +149,8 @@ export default function Landing() {
                   {t.landing.heroDescription}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <a href="/login">
-                    <Button size="lg" className="gap-2" data-testid="button-hero-start">
+                  <a href={registerHref} className="w-full sm:w-auto">
+                    <Button size="lg" className="w-full gap-2 sm:w-auto" data-testid="button-hero-start">
                       {t.landing.startTree}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
@@ -112,14 +176,14 @@ export default function Landing() {
                   </div>
                 </div>
               </div>
-              <div className="relative">
+              <div className="relative min-w-0 w-full max-w-full">
                 {/* Visual: Multiple trees connecting */}
-                <div className="relative bg-gradient-to-br from-card to-card/50 rounded-2xl border border-card-border p-8 shadow-xl" data-testid="hero-visual">
+                <div className="relative w-full max-w-full overflow-hidden bg-gradient-to-br from-card to-card/50 rounded-2xl border border-card-border p-4 sm:p-8 shadow-xl" data-testid="hero-visual">
                   <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl" />
                   <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-accent/30 rounded-full blur-2xl" />
                   <div className="relative">
                     {/* Three household trees connecting */}
-                    <div className="flex justify-between items-start mb-6">
+                    <div className="flex min-w-0 justify-between items-start gap-2 mb-6">
                       {/* Household 1 */}
                       <div className="text-center">
                         <div className="w-12 h-12 rounded-lg bg-primary/20 border-2 border-primary flex items-center justify-center mx-auto mb-2">
@@ -137,11 +201,11 @@ export default function Landing() {
                       </div>
                       
                       {/* Connection Lines */}
-                      <div className="flex-1 flex items-center justify-center">
-                        <div className="flex items-center gap-1 text-primary">
-                          <div className="w-8 h-0.5 bg-primary/50" />
+                      <div className="min-w-0 flex-1 flex items-center justify-center">
+                        <div className="flex min-w-0 items-center gap-1 text-primary">
+                          <div className="w-4 sm:w-8 h-0.5 bg-primary/50" />
                           <Link className="h-5 w-5" />
-                          <div className="w-8 h-0.5 bg-primary/50" />
+                          <div className="w-4 sm:w-8 h-0.5 bg-primary/50" />
                         </div>
                       </div>
                       
@@ -257,7 +321,7 @@ export default function Landing() {
             
             {/* CTA after steps */}
             <div className="text-center mt-12">
-              <a href="/login">
+              <a href={registerHref} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2" data-testid="button-how-cta">
                   {t.landing.startTree}
                   <ArrowRight className="h-4 w-4" />
@@ -339,7 +403,7 @@ export default function Landing() {
               <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
                 Your family knows you're their cousin. Your church knows you're their pastor. Your team knows you're the captain. But outsiders? They see nothing.
               </p>
-              <a href="/login">
+              <a href={registerHref} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2" data-testid="button-private-cta">
                   Build Your Private Network
                   <ArrowRight className="h-4 w-4" />
@@ -451,7 +515,7 @@ export default function Landing() {
               </Card>
             </div>
             <div className="text-center mt-8">
-              <a href="/login">
+              <a href={registerHref} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2" data-testid="button-demo-cta">
                   Start Building Your Tree
                   <ArrowRight className="h-4 w-4" />
@@ -507,7 +571,7 @@ export default function Landing() {
                 You are the common anchor across all your private networks. 
                 Each group has its own roles and relationships, all members-only, and all under your control.
               </p>
-              <a href="/login">
+              <a href={registerHref} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2" data-testid="button-tree-types-cta">
                   Start Building
                   <ArrowRight className="h-4 w-4" />
@@ -789,73 +853,60 @@ export default function Landing() {
                 Grow Your Tree, Save More
               </h2>
               <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                Start free with Explorer, then choose the feature level that fits your family.
+                Every plan includes unlimited trees and your first {PRICING_CONFIG.freeTierCredits} member profiles free.
+                Choose the feature level that fits your family.
               </p>
             </div>
             
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto" data-testid="pricing-cards-grid">
-              {/* Free Tier */}
-              <Card className="relative border-2 hover-elevate" data-testid="card-pricing-explorer">
-                <CardContent className="p-6 text-center">
-                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                    <Users className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-1">Explorer</h3>
-                  <p className="text-sm text-muted-foreground mb-4">Up to 20 members</p>
-                  <div className="text-3xl font-bold mb-2" data-testid="text-price-explorer">Free</div>
-                  <p className="text-xs text-muted-foreground">1 tree included</p>
-                </CardContent>
-              </Card>
-              
-              {/* Cultivator */}
-              <Card className="relative hover-elevate" data-testid="card-pricing-cultivator">
-                <CardContent className="p-6 text-center">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <Trees className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-1">Cultivator</h3>
-                  <p className="text-sm text-muted-foreground mb-4">For regular tree builders</p>
-                  <div className="text-3xl font-bold mb-1" data-testid="text-price-cultivator">$4.99</div>
-                  <p className="text-sm text-muted-foreground">/month</p>
-                  <Badge variant="secondary" className="mt-2">Paid features</Badge>
-                </CardContent>
-              </Card>
-              
-              {/* Heritage */}
-              <Card className="relative hover-elevate" data-testid="card-pricing-heritage">
-                <CardContent className="p-6 text-center">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <GitBranch className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-1">Heritage</h3>
-                  <p className="text-sm text-muted-foreground mb-4">For power users and groups</p>
-                  <div className="text-3xl font-bold mb-1" data-testid="text-price-heritage">$12.99</div>
-                  <p className="text-sm text-muted-foreground">/month</p>
-                  <Badge variant="secondary" className="mt-2">Most popular</Badge>
-                </CardContent>
-              </Card>
-              
-              {/* Legacy */}
-              <Card className="relative hover-elevate" data-testid="card-pricing-legacy">
-                <CardContent className="p-6 text-center">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <Share2 className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-1">Legacy</h3>
-                  <p className="text-sm text-muted-foreground mb-4">For high-volume use</p>
-                  <div className="text-3xl font-bold mb-1" data-testid="text-price-legacy">$24.99</div>
-                  <p className="text-sm text-muted-foreground">/month</p>
-                  <Badge variant="secondary" className="mt-2">Highest limits</Badge>
-                </CardContent>
-              </Card>
+              {planOrder.map((planKey) => {
+                const plan = PRICING_CONFIG.tiers[planKey];
+                const PlanIcon = planIcons[planKey];
+                const isFree = planKey === "explorer";
+
+                return (
+                  <Card
+                    key={planKey}
+                    className={`relative hover-elevate ${isFree ? "border-2" : ""}`}
+                    data-testid={`card-pricing-${planKey}`}
+                  >
+                    <CardContent className="p-6 text-center">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${isFree ? "bg-muted" : "bg-primary/10"}`}>
+                        <PlanIcon className={`h-6 w-6 ${isFree ? "text-muted-foreground" : "text-primary"}`} />
+                      </div>
+                      <h3 className="font-semibold text-lg mb-1">{plan.label}</h3>
+                      <p className="text-sm text-muted-foreground mb-4">{plan.tagline}</p>
+                      <div className="text-3xl font-bold mb-1" data-testid={`text-price-${planKey}`}>
+                        {isFree ? "Free" : `$${(plan.monthlyPriceCents / 100).toFixed(2)}`}
+                      </div>
+                      {!isFree && <p className="text-sm text-muted-foreground">/month</p>}
+                      <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                        <p>Unlimited trees</p>
+                        <p>{PRICING_CONFIG.freeTierCredits} free member profiles</p>
+                      </div>
+                      <Badge variant="secondary" className="mt-3">
+                        {isFree ? "Start free" : planKey === "heritage" ? "Most popular" : "Paid features"}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
             
             <div className="text-center mt-8 space-y-4">
               <p className="text-sm text-muted-foreground" data-testid="text-pricing-features">
-                All plans include unlimited trees, cross-tree connections, and collaboration features.
+                All plans include unlimited trees, {PRICING_CONFIG.freeTierCredits} free member profiles,
+                cross-tree connections, and collaboration features.
+                After that, one member credit adds one person profile across your trees.
               </p>
               <p className="text-sm font-medium" data-testid="text-plan-summary">
-                <span className="bg-primary/10 text-foreground px-2 py-1 rounded">Explorer free · Cultivator $4.99 · Heritage $12.99 · Legacy $24.99</span>
+                <span className="bg-primary/10 text-foreground px-2 py-1 rounded">
+                  {planOrder.map((planKey, index) => {
+                    const plan = PRICING_CONFIG.tiers[planKey];
+                    const price = plan.monthlyPriceCents === 0 ? "free" : `$${(plan.monthlyPriceCents / 100).toFixed(2)}`;
+                    return `${index > 0 ? " · " : ""}${plan.label} ${price}`;
+                  })}
+                </span>
               </p>
               <a href="/pricing" data-testid="link-view-full-pricing">
                 <Button variant="outline" data-testid="button-view-full-pricing">
@@ -871,7 +922,7 @@ export default function Landing() {
         <section className="py-24">
           <div className="container mx-auto px-4">
             <div className="max-w-4xl mx-auto text-center space-y-8">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary font-medium">
+              <div className="inline-flex max-w-full flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary font-medium text-center">
                 <Home className="h-5 w-5" />
                 <span>{t.landing.headsOfHouseholdCta}</span>
               </div>
@@ -885,7 +936,7 @@ export default function Landing() {
                 {t.landing.headsOfHouseholdDesc}
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="/login">
+                <a href={registerHref} className="w-full sm:w-auto">
                   <Button size="lg" className="gap-2" data-testid="button-cta-start">
                     {t.landing.ctaButton}
                     <ArrowRight className="h-4 w-4" />
@@ -897,7 +948,7 @@ export default function Landing() {
                   </Button>
                 </a>
               </div>
-              <div className="flex items-center justify-center gap-8 pt-8 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 pt-8 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Shield className="h-4 w-4 text-primary" />
                   <span>{t.landing.gdprCompliant}</span>
@@ -971,7 +1022,7 @@ export default function Landing() {
 
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 min-w-0">
             <div className="flex items-center gap-2">
               <Trees className="h-5 w-5 text-primary" />
               <span className="font-serif text-sm">FamilyRoots</span>
@@ -979,7 +1030,7 @@ export default function Landing() {
             <p className="text-sm text-muted-foreground">
               {new Date().getFullYear()} FamilyRoots. All rights reserved.
             </p>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
               <a href="/about" className="hover:text-foreground transition-colors">About</a>
               <a href="/blog" className="hover:text-foreground transition-colors">Blog</a>
               <a href="/faq" className="hover:text-foreground transition-colors">FAQ</a>

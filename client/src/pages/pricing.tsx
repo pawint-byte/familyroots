@@ -9,6 +9,8 @@ import { SEO } from "@/components/seo";
 import { useAuth } from "@/hooks/use-auth";
 import { Trees, Check, ArrowLeft, Loader2, Users, Crown, Gift, TrendingUp, Package, Zap, Star, Sparkles, X, Infinity } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { PRICING_CONFIG as DEFAULT_PRICING_CONFIG, type FeatureTier } from "@shared/pricing";
+import { getRegisterHref } from "@/lib/register-link";
 
 interface PricingPack {
   type: string;
@@ -50,6 +52,7 @@ interface PricingConfig {
     milestoneFreePack: { memberCount: number; freeCredits: number };
   };
   freeTierCredits: number;
+  unlimitedTrees: boolean;
 }
 
 interface ActiveReward {
@@ -132,50 +135,15 @@ export default function Pricing() {
     return `${val}/mo`;
   };
 
-  const config = pricingStatus?.config || publicConfig || {
-    packs: [
-      { type: 'starter_10', credits: 10, priceCents: 799, perMemberCents: 80, label: 'Starter Pack' },
-      { type: 'growth_25', credits: 25, priceCents: 1499, perMemberCents: 60, label: 'Growth Pack', savings: '25%' },
-      { type: 'family_50', credits: 50, priceCents: 2499, perMemberCents: 50, label: 'Family Pack', savings: '37%' },
-    ],
-    tiers: {
-      explorer:   { label: 'Explorer',   tagline: 'Try it out, no commitment',              monthlyPriceCents: 0,    color: '#6b7280' },
-      cultivator: { label: 'Cultivator', tagline: 'For regular users building their trees',  monthlyPriceCents: 499,  color: '#3b82f6' },
-      heritage:   { label: 'Heritage',   tagline: 'For power users and large groups',        monthlyPriceCents: 1299, color: '#8b5cf6' },
-      legacy:     { label: 'Legacy',     tagline: 'High-volume, still capped for your safety', monthlyPriceCents: 2499, color: '#f59e0b' },
-    },
-    tierLimits: {
-      ai_chat:             { explorer: 5,   cultivator: 30,  heritage: 100, legacy: 300 },
-      familysearch_import: { explorer: 1,   cultivator: 5,   heritage: 15,  legacy: 40  },
-      email_tagged_group:  { explorer: 2,   cultivator: 10,  heritage: 30,  legacy: -1  },
-      ai_avatar_video:     { explorer: 0,   cultivator: 2,   heritage: 5,   legacy: 10  },
-      media_upload:        { explorer: 10,  cultivator: 50,  heritage: 200, legacy: 500 },
-      voice_video_upload:  { explorer: 0,   cultivator: 20,  heritage: 80,  legacy: 200 },
-      tree_wall:           { explorer: 0,   cultivator: -1,  heritage: -1,  legacy: -1  },
-    },
-    featureInfo: {
-      ai_chat:             { label: 'AI Chat',             description: 'AI-powered assistant' },
-      familysearch_import: { label: 'FamilySearch Import', description: 'Import ancestors' },
-      email_tagged_group:  { label: 'Group Email',         description: 'Email tagged members' },
-      ai_avatar_video:     { label: 'AI Avatar Video',     description: 'Generate videos' },
-      media_upload:        { label: 'Media Upload',        description: 'Upload photos' },
-      voice_video_upload:  { label: 'Voice & Video',       description: 'Voice notes & video attachments' },
-      tree_wall:           { label: 'Group Wall',          description: 'Group messaging within trees' },
-    },
-    rewards: {
-      monthlyAddsThreshold: 5,
-      monthlyDiscountPercent: 20,
-      milestoneFreePack: { memberCount: 100, freeCredits: 10 },
-    },
-    freeTierCredits: 20,
-  };
+  const config = pricingStatus?.config || publicConfig || DEFAULT_PRICING_CONFIG;
 
-  const currentTier = pricingStatus?.featureTier || 'explorer';
+  const currentTier = (pricingStatus?.featureTier as FeatureTier) || 'explorer';
   const memberCredits = pricingStatus?.memberCredits || 0;
   const totalMembers = pricingStatus?.totalMemberCount || 0;
   const monthlyAdds = pricingStatus?.monthlyAddsCount || 0;
   const activeReward = pricingStatus?.activeReward;
   const freeRemaining = Math.max(0, config.freeTierCredits - totalMembers);
+  const registerHref = getRegisterHref();
 
   const handleTierCheckout = (tier: string) => {
     if (!user) {
@@ -203,15 +171,15 @@ export default function Pricing() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="pricing-page min-h-screen overflow-x-hidden bg-background">
       <SEO
         title="Pricing - FamilyRoots | Plans & Member Packs"
-        description="Start free with 20 members. Choose a plan that fits your needs — from Explorer to Legacy. Add more members with affordable packs."
+        description={`Start free with ${config.freeTierCredits} members. Choose a plan that fits your needs — from Explorer to Legacy. Add more members with affordable packs.`}
         keywords="family tree pricing, genealogy plans, family history subscription"
       />
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-2 sm:gap-4 flex-nowrap">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <Button 
               variant="ghost" 
               size="icon" 
@@ -222,7 +190,7 @@ export default function Pricing() {
             </Button>
             <div className="flex items-center gap-2">
               <Trees className="h-7 w-7 text-primary" />
-              <span className="font-serif text-xl font-semibold">FamilyRoots</span>
+              <span className="hidden font-serif text-xl font-semibold sm:inline">FamilyRoots</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -250,21 +218,26 @@ export default function Pricing() {
             Every plan starts with <strong>{config.freeTierCredits} free members</strong> — no credit card required.
             Upgrade anytime for more features.
           </p>
+          <p className="mt-3 text-sm text-muted-foreground max-w-2xl mx-auto">
+            A member is one person profile. After your free members, one member credit adds one more person
+            across all of your unlimited trees.
+          </p>
         </div>
 
         {/* 20 Free Members Banner */}
         <div className="max-w-3xl mx-auto mb-10">
           <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 border border-green-500/20 p-6 text-center">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <Gift className="h-7 w-7 text-green-500" />
-              <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-2">
+              <Gift className="h-7 w-7 shrink-0 text-green-500" />
+              <span className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400 text-center">
                 First {config.freeTierCredits} Members Free
               </span>
-              <Gift className="h-7 w-7 text-green-500" />
+              <Gift className="h-7 w-7 shrink-0 text-green-500" />
             </div>
             <p className="text-muted-foreground">
-              Create unlimited trees. Add up to {config.freeTierCredits} people across all your trees at no cost. 
-              No credit card. No trial period. Just start building.
+              Create unlimited trees. Add up to {config.freeTierCredits} people across all your trees at no cost.
+              After that, each credit adds one member profile. Credits are shared across your trees and do not expire.
+              No credit card or trial period is required to start.
             </p>
           </div>
         </div>
@@ -296,7 +269,7 @@ export default function Pricing() {
             <CardContent className="space-y-3 pt-0">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-lg bg-muted/50">
-                  <p className="text-xs text-muted-foreground">Member Credits</p>
+                   <p className="text-xs text-muted-foreground">Member credits (1 = 1 person)</p>
                   <p className="text-xl font-bold" data-testid="text-credits-balance">
                     {freeRemaining > 0 ? `${freeRemaining} free` : memberCredits}
                   </p>
@@ -330,8 +303,8 @@ export default function Pricing() {
         {/* ==================== TIER COMPARISON ==================== */}
         <h2 className="text-2xl font-serif font-bold text-center mb-2">Choose Your Plan</h2>
         <p className="text-center text-muted-foreground mb-8 text-sm">
-          All plans include {config.freeTierCredits} free members, unlimited trees, and core features. 
-          Paid plans unlock higher usage of advanced features.
+          All plans include {config.freeTierCredits} free members, unlimited trees, and core features.
+          Paid plans unlock higher usage of advanced features. One member credit is one additional person profile.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-6xl mx-auto mb-16">
@@ -388,6 +361,14 @@ export default function Pricing() {
                   </div>
 
                   <div className="space-y-2 text-left">
+                    <div className="flex items-center justify-between text-sm py-1 border-b border-border/50">
+                      <span className="text-muted-foreground">Family trees</span>
+                      <span className="font-medium">{config.unlimitedTrees ? "Unlimited" : "Included"}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm py-1 border-b border-border/50">
+                      <span className="text-muted-foreground">Free member profiles</span>
+                      <span className="font-medium">{config.freeTierCredits}</span>
+                    </div>
                     {FEATURE_KEYS.map((featureKey) => {
                       const limits = config.tierLimits[featureKey];
                       if (!limits) return null;
@@ -453,7 +434,8 @@ export default function Pricing() {
         <div className="max-w-4xl mx-auto mb-16">
           <h2 className="text-2xl font-serif font-bold text-center mb-2">Need More Members?</h2>
           <p className="text-center text-muted-foreground mb-8 text-sm">
-            After your {config.freeTierCredits} free members, add more with one-time member packs. No subscription needed.
+            After your {config.freeTierCredits} free members, add more with one-time packs. Each credit adds
+            one member profile to the shared balance for all your trees; no subscription is needed for packs.
           </p>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -484,7 +466,7 @@ export default function Pricing() {
                       {getPackIcon(pack.type)}
                     </div>
                     <CardTitle className="text-lg">{pack.label}</CardTitle>
-                    <CardDescription>{pack.credits} member credits</CardDescription>
+                    <CardDescription>{pack.credits} credits = {pack.credits} additional member profiles</CardDescription>
                   </CardHeader>
                   <CardContent className="text-center pb-4">
                     <div className="text-3xl font-bold mb-1">
@@ -566,7 +548,7 @@ export default function Pricing() {
           <div className="text-center mt-12">
             <p className="text-muted-foreground mb-4">Sign in to start building your family tree — {config.freeTierCredits} members free.</p>
             <Button asChild size="lg" data-testid="button-get-started">
-              <a href="/login">Get Started Free</a>
+              <a href={registerHref}>Get Started Free</a>
             </Button>
           </div>
         )}
