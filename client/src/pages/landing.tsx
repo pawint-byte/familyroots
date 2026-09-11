@@ -53,7 +53,7 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="landing-page min-h-screen overflow-x-hidden bg-background">
+    <div className="landing-page min-h-screen w-full max-w-full overflow-x-hidden bg-background">
       <SEO
         title="FamilyRoots - Your Private Network for Real Connections"
         description="Build private, members-only networks where every connection means something. Family trees, church groups, sports teams, Greek life chapters, and professional networks - all in one secure, invitation-only platform."

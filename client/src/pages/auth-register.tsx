@@ -18,6 +18,7 @@ export default function AuthRegister() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
 
   const params = new URLSearchParams(window.location.search);
@@ -161,6 +162,7 @@ export default function AuthRegister() {
                     <FormControl>
                       <Input
                         type="email"
+                        autoComplete="email"
                         placeholder="you@example.com"
                         data-testid="input-email"
                         {...field}
@@ -180,6 +182,7 @@ export default function AuthRegister() {
                       <div className="relative">
                         <Input
                           type={showPassword ? "text" : "password"}
+                          autoComplete="new-password"
                           placeholder="8–128 characters, uppercase, lowercase, number"
                           data-testid="input-password"
                           {...field}
@@ -210,12 +213,25 @@ export default function AuthRegister() {
                   <FormItem>
                     <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
-                      <Input
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Re-enter your password"
-                        data-testid="input-confirm-password"
-                        {...field}
-                      />
+                      <div className="relative">
+                        <Input
+                          type={showConfirmPassword ? "text" : "password"}
+                          autoComplete="new-password"
+                          placeholder="Re-enter your password"
+                          data-testid="input-confirm-password"
+                          {...field}
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                          aria-pressed={showConfirmPassword}
+                          data-testid="button-toggle-confirm-password"
+                        >
+                          {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

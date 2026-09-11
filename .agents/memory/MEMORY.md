@@ -6,3 +6,4 @@
 - [Protect mission guardrails](protect-mission-guardrails.md) — assess mission fit, explain scope concerns, and pair complete delivery with honest paid value.
 - [Second set of eyes](second-set-of-eyes.md) — question incomplete asks and improve the approach within mission fit before finishing fully.
 - [Bot owns Replit config](bot-owns-replit-config.md) — requested ownership of site/Replit configuration and publishing, subject to platform controls.
+- [GitHub backup after green](github-backup-after-green.md) — back up only final published, tested-green state; never secrets or partial work.

@@ -171,7 +171,7 @@ export default function Pricing() {
   };
 
   return (
-    <div className="pricing-page min-h-screen overflow-x-hidden bg-background">
+    <div className="pricing-page min-h-screen w-full max-w-full overflow-x-hidden bg-background">
       <SEO
         title="Pricing - FamilyRoots | Plans & Member Packs"
         description={`Start free with ${config.freeTierCredits} members. Choose a plan that fits your needs — from Explorer to Legacy. Add more members with affordable packs.`}
