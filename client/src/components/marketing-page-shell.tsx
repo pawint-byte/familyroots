@@ -48,12 +48,28 @@ export function MarketingPageShell({ children, title }: MarketingPageShellProps)
             <span className="font-serif">FamilyRoots</span>
           </Link>
           <p>{new Date().getFullYear()} FamilyRoots. All rights reserved.</p>
-          <nav className="flex items-center gap-4">
+          <nav className="flex flex-wrap items-center justify-center gap-4">
             <Link href="/about" className="hover:text-foreground">About</Link>
             <Link href="/blog" className="hover:text-foreground">Blog</Link>
             <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
             <Link href="/terms" className="hover:text-foreground">Terms</Link>
             <Link href="/faq" className="hover:text-foreground">FAQ</Link>
+            <a
+              href="https://www.youtube.com/@FamilyRoots-n1c"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground"
+            >
+              YouTube
+            </a>
+            <a
+              href="https://www.tiktok.com/@familyroots.family"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground"
+            >
+              TikTok
+            </a>
           </nav>
         </div>
       </footer>
