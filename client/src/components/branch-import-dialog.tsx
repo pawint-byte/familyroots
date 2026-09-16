@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { getSignupAttributionPayload } from "@/lib/attribution";
 import { Users, User, ArrowRight, DollarSign, Check, AlertCircle, Search, UserPlus } from "lucide-react";
 
 interface AvailableMember {
@@ -190,7 +191,8 @@ export function BranchImportDialog({
   const importMutation = useMutation({
     mutationFn: async () => {
       return apiRequest("POST", `/api/trees/${treeId}/connections/${connectionId}/import`, {
-        memberIds: Array.from(selectedIds)
+        memberIds: Array.from(selectedIds),
+        ...getSignupAttributionPayload(),
       });
     },
     onSuccess: (data: any) => {

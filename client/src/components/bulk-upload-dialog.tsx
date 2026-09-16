@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { getSignupAttributionPayload } from "@/lib/attribution";
 import { Download, Upload, FileText, CheckCircle, AlertCircle, Loader2, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -26,7 +27,10 @@ export function BulkUploadDialog({ treeId, treeName, open, onOpenChange }: BulkU
 
   const uploadMutation = useMutation({
     mutationFn: async (data: string) => {
-      const response = await apiRequest("POST", `/api/trees/${treeId}/bulk-upload`, { csvData: data });
+      const response = await apiRequest("POST", `/api/trees/${treeId}/bulk-upload`, {
+        csvData: data,
+        ...getSignupAttributionPayload(),
+      });
       return response as any;
     },
     onSuccess: (data: any) => {

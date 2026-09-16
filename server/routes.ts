@@ -28,6 +28,7 @@ import type { TreeType } from "@shared/treeTypes";
 import { z } from "zod";
 import crypto from "crypto";
 import { calculateRelationship, getSubtreeBetweenMembers } from "./lib/relationship-calculator";
+import { persistUserAttribution } from "./lib/attribution";
 
 // Validation schemas for API requests
 const createInvitationSchema = z.object({
@@ -1288,6 +1289,7 @@ export async function registerRoutes(
       }
       
       const member = await storage.createMember(data);
+      await persistUserAttribution(userId, req.body.attribution);
 
       // If this is the first member in the tree, set them as the root member
       if (!tree.rootMemberId) {
@@ -3427,6 +3429,7 @@ export async function registerRoutes(
           canEdit,
           acceptedAt: new Date(),
         });
+        await persistUserAttribution(userId, req.body.attribution);
 
         // Notify tree owner that someone joined (non-blocking)
         (async () => {

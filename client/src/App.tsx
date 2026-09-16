@@ -12,6 +12,7 @@ import { MaintenanceMode } from "@/components/maintenance-mode";
 import { AppLoadingShell } from "@/components/app-loading-shell";
 import { isPublicRoute } from "@/lib/public-routes";
 import { initGA } from "@/lib/analytics";
+import { captureAttribution } from "@/lib/attribution";
 import { useAnalytics } from "@/hooks/use-analytics";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
@@ -134,6 +135,7 @@ function Router() {
 
 function App() {
   useEffect(() => {
+    captureAttribution();
     initGA();
   }, []);
 

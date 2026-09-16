@@ -39,6 +39,7 @@ import type { FamilyTree, FamilyMember, Relationship, InsertFamilyMember, TreeTa
 import FamilyTreeVisualization from "@/components/family-tree-visualization";
 import GroupVisualization, { type GroupLayoutMode, type MemberUpcomingEvent } from "@/components/group-visualization";
 import MemberForm from "@/components/member-form";
+import { getSignupAttributionPayload } from "@/lib/attribution";
 import { NameHistorySection } from "@/components/name-history";
 import { MemberDiscoverability } from "@/components/member-discoverability";
 import { MatchRequests } from "@/components/match-requests";
@@ -488,7 +489,7 @@ export default function TreeView() {
       const res = await fetch(`/api/trees/${treeId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(memberData),
+        body: JSON.stringify({ ...memberData, ...getSignupAttributionPayload() }),
         credentials: "include",
       });
       if (!res.ok) {

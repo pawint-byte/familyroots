@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { getSignupAttributionPayload } from "@/lib/attribution";
 import { Users, User, Search, UserPlus, TreeDeciduous, MapPin, Check } from "lucide-react";
 
 interface PoolMember {
@@ -108,6 +109,7 @@ export function MemberPoolDialog({ isOpen, onClose, treeId }: MemberPoolDialogPr
         const result = await apiRequest("POST", `/api/trees/${treeId}/member-pool/import`, {
           sourceMemberIds: memberIds,
           sourceTreeId,
+          ...getSignupAttributionPayload(),
         });
         results.push(result);
       }

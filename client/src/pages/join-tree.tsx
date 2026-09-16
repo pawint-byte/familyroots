@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/seo";
 import { apiRequest } from "@/lib/queryClient";
+import { getSignupAttributionPayload } from "@/lib/attribution";
 import { Trees, Users, Crown, Edit, Eye, AlertCircle, CheckCircle2 } from "lucide-react";
 
 export default function JoinTree() {
@@ -33,7 +34,7 @@ export default function JoinTree() {
 
   const joinMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", `/api/invitations/${inviteCode}/accept`, {});
+      return apiRequest("POST", `/api/invitations/${inviteCode}/accept`, getSignupAttributionPayload());
     },
     onSuccess: (response: any) => {
       setJoined(true);

@@ -15,6 +15,7 @@
     "test:qa-demo-user": "tsx --test tests/qa-demo-user.test.ts",
     "test:memory": "tsx --test tests/memory-api.test.ts",
     "test:signup-attribution": "tsx --test tests/signup-attribution.test.ts",
+    "test:cob-attribution": "tsx --test tests/cob-attribution.test.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

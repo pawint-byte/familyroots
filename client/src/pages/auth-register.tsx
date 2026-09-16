@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { Eye, EyeOff, UserPlus, TreeDeciduous, Mail } from "lucide-react";
 import { HEARD_VIA_CHOICES } from "@shared/signup-attribution";
+import { getSignupAttributionPayload } from "@/lib/attribution";
 
 export default function AuthRegister() {
   const [, setLocation] = useLocation();
@@ -50,6 +51,7 @@ export default function AuthRegister() {
       const { confirmPassword, heardVia, heardViaOther, ...account } = data;
       const payload = {
         ...account,
+        ...getSignupAttributionPayload(),
         ...(heardVia ? {
           heardVia,
           ...(heardVia === "Other" ? { heardViaOther: heardViaOther?.trim() } : {}),

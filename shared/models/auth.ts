@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { index, jsonb, pgTable, timestamp, varchar, integer, boolean, pgEnum, date, text, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import type { AttributionPayload } from "../attribution";
 
 // Subscription tier enum (legacy - kept for backward compatibility)
 export const subscriptionTierEnum = pgEnum("subscription_tier", ["free", "tier_25", "tier_50", "tier_75", "tier_100"]);
@@ -81,6 +82,10 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").default(false),
   heardVia: varchar("heard_via"),
   heardViaOther: text("heard_via_other"),
+  attribution: jsonb("attribution").$type<AttributionPayload>(),
+  utmSource: varchar("utm_source", { length: 200 }),
+  utmMedium: varchar("utm_medium", { length: 200 }),
+  utmCampaign: varchar("utm_campaign", { length: 200 }),
 
   subscriptionCancelledAt: timestamp("subscription_cancelled_at"),
   contentRetentionWarningsSent: integer("content_retention_warnings_sent").default(0),

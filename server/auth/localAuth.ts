@@ -13,6 +13,7 @@ import {
   normalizeSignupAttribution,
   optionalSignupAttributionSchema,
 } from "@shared/signup-attribution";
+import { attributionInsertFields, parseAttribution } from "../lib/attribution";
 
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
 const MIGRATION_TOKEN_EXPIRY_MS = 72 * 60 * 60 * 1000;
@@ -59,6 +60,8 @@ export function setupLocalAuth(app: Express) {
         });
       }
       const attribution = normalizeSignupAttribution(attributionResult.data);
+      const cobAttribution = parseAttribution(req.body.attribution);
+      const cobAttributionFields = attributionInsertFields(cobAttribution);
       const normalizedEmail = email.toLowerCase().trim();
 
       const [existingUser] = await db.select().from(users)
@@ -80,6 +83,10 @@ export function setupLocalAuth(app: Express) {
             lastName: existingUser.lastName || lastName || null,
             heardVia: existingUser.heardVia || attribution.heardVia,
             heardViaOther: existingUser.heardViaOther || attribution.heardViaOther,
+            attribution: existingUser.attribution || cobAttributionFields.attribution,
+            utmSource: existingUser.utmSource || cobAttributionFields.utmSource,
+            utmMedium: existingUser.utmMedium || cobAttributionFields.utmMedium,
+            utmCampaign: existingUser.utmCampaign || cobAttributionFields.utmCampaign,
             updatedAt: new Date(),
           })
           .where(eq(users.id, existingUser.id));
@@ -103,6 +110,7 @@ export function setupLocalAuth(app: Express) {
           emailVerified: false,
           emailVerifyToken: verifyToken,
           ...attribution,
+          ...cobAttributionFields,
         });
 
       await sendVerificationEmail(req, normalizedEmail, firstName || "there", verifyToken);
