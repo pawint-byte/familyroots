@@ -19,7 +19,9 @@ function renderAnswer(parts: FAQAnswerPart[]): string {
   return parts.map((part) => {
     if (typeof part === "string") return escapeHtml(part);
     if ("href" in part) {
-      return `<a href="${escapeHtml(part.href)}">${escapeHtml(part.text)}</a>`;
+      const target = part.target ? ` target="${escapeHtml(part.target)}"` : "";
+      const rel = part.rel ? ` rel="${escapeHtml(part.rel)}"` : "";
+      return `<a href="${escapeHtml(part.href)}"${target}${rel}>${escapeHtml(part.text)}</a>`;
     }
     if (part.tag === "br") return "<br>";
     return `<${part.tag}>${renderAnswer(part.children)}</${part.tag}>`;

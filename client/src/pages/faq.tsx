@@ -75,6 +75,8 @@ function renderFaqAnswerPart(part: FAQAnswerPart, key: string): ReactNode {
       <Link
         key={key}
         href={part.href}
+        target={part.target}
+        rel={part.rel}
         className="text-primary hover:underline font-medium"
       >
         {part.text}

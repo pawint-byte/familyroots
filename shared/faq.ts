@@ -1,6 +1,6 @@
 export type FAQAnswerPart =
   | string
-  | { text: string; href: string }
+  | { text: string; href: string; target?: "_blank"; rel?: string }
   | {
       tag: "ul" | "li" | "strong" | "p" | "br";
       className?: string;
@@ -1054,7 +1054,21 @@ export const faqCategories: FAQCategory[] = [
       {
         "question": "Is there an AI assistant to help me?",
         "answer": [
-          "Yes! Look for the Help button at the bottom of any page. Our AI assistant can answer questions about genealogy, help you understand relationship terms, give tips on researching your family history, and guide you through using FamilyRoots features."
+          "Yes! Look for the Help button at the bottom of any page. Our AI assistant can answer questions about genealogy, help you understand relationship terms, give tips on researching your family history, and guide you through using FamilyRoots features. You can also learn more on ",
+          {
+            "text": "YouTube",
+            "href": "https://www.youtube.com/@FamilyRoots-n1c",
+            "target": "_blank",
+            "rel": "noopener noreferrer"
+          },
+          " and ",
+          {
+            "text": "TikTok",
+            "href": "https://www.tiktok.com/@familyroots.family",
+            "target": "_blank",
+            "rel": "noopener noreferrer"
+          },
+          "."
         ]
       },
       {

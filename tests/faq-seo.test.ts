@@ -55,6 +55,12 @@ test("initial FAQ HTML includes every question, answer, links and matching JSON-
       category.items.flatMap((item) => item.answer))) {
       if (typeof part !== "string" && "href" in part) {
         assert.ok(html.includes(`href="${part.href}"`), `preserves link ${part.href}`);
+        if (part.target) {
+          assert.ok(html.includes(`target="${part.target}"`), `preserves target for ${part.href}`);
+        }
+        if (part.rel) {
+          assert.ok(html.includes(`rel="${part.rel}"`), `preserves rel for ${part.href}`);
+        }
       }
     }
   }
