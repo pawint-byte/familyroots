@@ -31,6 +31,7 @@ import VideoPage from "@/pages/video";
 import JoinTree from "@/pages/join-tree";
 import AccountSettings from "@/pages/account-settings";
 import FAQ from "@/pages/faq";
+import Contact from "@/pages/Contact";
 import Merchandise from "@/pages/merchandise";
 import Share from "@/pages/share";
 import MyQR from "@/pages/my-qr";
@@ -105,6 +106,7 @@ function Router() {
       <Route path="/join/:inviteCode" component={JoinTree} />
       <Route path="/account/settings" component={AccountSettings} />
       <Route path="/faq" component={FAQ} />
+      <Route path="/contact" component={Contact} />
       <Route path="/merchandise" component={Merchandise} />
       <Route path="/share" component={Share} />
       <Route path="/my-qr" component={MyQR} />

@@ -8,6 +8,7 @@ const PUBLIC_EXACT_PATHS = new Set([
   "/pricing",
   "/gifts",
   "/faq",
+  "/contact",
   "/merchandise",
   "/comparison",
   "/whats-new",
