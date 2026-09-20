@@ -1,0 +1,42 @@
+# Replit brief — Fix video playback ("Unable to play media")
+
+## Problem
+Uploaded videos save successfully but cannot be played back. The player shows
+"Unable to play media.", all controls disabled, duration 0:00. Verified with two
+independent uploads of a valid 3-second H.264/AAC .mp4 (53,234 bytes) on a test
+member — upload flow works end to end (preview → "Uploading..." → green
+"Video saved" toast → player appears), playback fails every time, in both the
+site's player and Chrome's native player on the direct object URL.
+
+## Diagnosis (already done, don't redo)
+- The object URL (e.g. /objects/uploads/<uuid>) returns HTTP 200 with a video
+  Content-Type — headers are fine, this is NOT a content-type or player bug.
+- The served bytes are not a valid playable MP4. Root cause is server-side:
+  the file is being corrupted between upload receipt and storage.
+
+## What to do
+1. Pick any stored video object under /objects/uploads/<uuid>. Download the
+   stored bytes server-side and compare against the original upload:
+   - Check for the "ftyp" MP4 signature at byte offset 4.
+   - Compare exact byte count against the original file size.
+2. Audit the upload handler for anything that transforms the bytes:
+   - Re-encoding/transcoding step that fails silently.
+   - Base64 encode/decode mismatch (stored encoded, served raw, or vice versa).
+   - Multipart boundary bytes leaking into the stored file.
+   - Truncation (stream not fully consumed before save).
+   - Wrong storage write mode (text vs binary).
+3. Fix the handler so stored bytes are byte-identical to the uploaded file.
+4. Verify with a real upload: upload an .mp4, confirm it plays in the site
+   player with correct duration, then delete the test video.
+
+## Do NOT change
+- The upload UI, the player component, response headers, or any other feature.
+  This is a bytes-in/bytes-out fix in the upload/storage path only.
+
+## Acceptance criteria
+- [ ] Stored object bytes are byte-identical to the uploaded file (ftyp present,
+      byte counts match).
+- [ ] A freshly uploaded .mp4 plays in the member-card player with correct
+      duration and working controls.
+- [ ] Existing upload UI flow unchanged (preview, progress, "Video saved" toast).
+- [ ] No new type errors; checkpoint before and after.
