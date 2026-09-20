@@ -1,5 +1,5 @@
 import { Storage, File } from "@google-cloud/storage";
-import { Response } from "express";
+import { Request, Response } from "express";
 import { randomUUID } from "crypto";
 import {
   ObjectAclPolicy,
@@ -95,24 +95,80 @@ export class ObjectStorageService {
   }
 
   // Downloads an object to the response.
-  async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
+  async downloadObject(
+    file: File,
+    req: Request,
+    res: Response,
+    cacheTtlSec: number = 3600,
+  ) {
     try {
       // Get file metadata
       const [metadata] = await file.getMetadata();
+      const fileSize = Number(metadata.size);
       // Get the ACL policy for the object.
       const aclPolicy = await getObjectAclPolicy(file);
       const isPublic = aclPolicy?.visibility === "public";
       // Set appropriate headers
       res.set({
         "Content-Type": metadata.contentType || "application/octet-stream",
-        "Content-Length": metadata.size,
+        "Accept-Ranges": "bytes",
         "Cache-Control": `${
           isPublic ? "public" : "private"
         }, max-age=${cacheTtlSec}`,
       });
 
-      // Stream the file to the response
-      const stream = file.createReadStream();
+      const rangeHeader = req.headers.range;
+      let stream;
+
+      if (rangeHeader && Number.isFinite(fileSize)) {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
+        if (!match || (!match[1] && !match[2])) {
+          res.status(416).set("Content-Range", `bytes */${fileSize}`).end();
+          return;
+        }
+
+        let start: number;
+        let end: number;
+
+        if (!match[1]) {
+          const suffixLength = Number(match[2]);
+          if (!Number.isFinite(suffixLength) || suffixLength <= 0) {
+            res.status(416).set("Content-Range", `bytes */${fileSize}`).end();
+            return;
+          }
+          start = Math.max(fileSize - suffixLength, 0);
+          end = fileSize - 1;
+        } else {
+          start = Number(match[1]);
+          end = match[2] ? Number(match[2]) : fileSize - 1;
+        }
+
+        if (
+          !Number.isFinite(start) ||
+          !Number.isFinite(end) ||
+          start < 0 ||
+          start >= fileSize ||
+          end < start
+        ) {
+          res.status(416).set("Content-Range", `bytes */${fileSize}`).end();
+          return;
+        }
+
+        end = Math.min(end, fileSize - 1);
+        res.status(206).set({
+          "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+          "Content-Length": String(end - start + 1),
+        });
+        stream = file.createReadStream({ start, end });
+      } else {
+        res.set("Content-Length", metadata.size);
+        stream = file.createReadStream();
+      }
+
+      if (req.method === "HEAD") {
+        res.end();
+        return;
+      }
 
       stream.on("error", (err) => {
         console.error("Stream error:", err);
