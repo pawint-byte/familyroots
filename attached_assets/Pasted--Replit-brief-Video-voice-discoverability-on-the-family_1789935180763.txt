@@ -1,0 +1,48 @@
+# Replit brief — Video/voice discoverability on the family tree
+
+## Goal
+Members with video or voice memories are invisible from the tree view — the only
+way to know is to open each member's card. Make attachments discoverable and
+addable directly from the tree.
+
+## What to do
+
+### 1. Attachment badges on tree member cards
+- On each member card in the tree view, show small badge icons when that member
+  HAS attachments: a play icon with count (videos), a mic icon with count
+  (voice notes). Only render when count > 0.
+- Position: bottom corner of the card, not overlapping the name or connector
+  lines (note: cards currently overlap each other — see bug list #3 — place
+  badges clear of card edges).
+- Tapping a badge opens that member's card scrolled to the Videos / Voice Notes
+  section.
+
+### 2. Quick-add from the tree card
+- Add a hover/long-press (desktop/mobile) quick action on the member card:
+  "Add video memory" and "Record voice note".
+- This opens the member card directly at the Videos / Voice Notes section with
+  the upload/recorder ready — same dialogs as today, no new upload logic.
+
+### 3. Empty state on the member card
+- When a member has no videos: show "No video memories yet" + one warm line
+  ("Their stories deserve more than text.") above the upload button.
+- Same for voice notes.
+
+### 4. Button copy
+- Rename "Upload Video (max 100MB)" → "Add a video memory" (keep the size limit
+  as small subtext, not the label).
+
+## Do NOT change
+- Upload/record backend logic, storage, player, or the playback corruption fix
+  (separate brief). This is UI/discoverability only.
+- No changes to tree layout algorithm itself — badges must fit existing cards.
+
+## Acceptance criteria
+- [ ] Tree cards for members with videos/voice notes show the correct badges
+      and counts; members without show none.
+- [ ] Tapping a badge opens the member card at the right section.
+- [ ] Quick-add from a tree card opens the correct upload/recorder for that
+      member.
+- [ ] Empty states render on members with no videos/voice notes.
+- [ ] No overlap with card names, photos, or connector lines at default zoom.
+- [ ] No new type errors; checkpoint before and after.
