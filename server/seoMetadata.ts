@@ -61,8 +61,13 @@ export const PUBLIC_SEO_METADATA: Record<string, SeoMetadata> = {
   ),
   "/comparison": metadata(
     "/comparison",
-    "FamilyRoots vs Ancestry - Private Networks vs Traditional Genealogy",
-    "Compare FamilyRoots private networks with traditional genealogy tools, including members-only access, labeled connections, and multi-group support.",
+    "Compare: FamilyRoots vs. the alternatives",
+    "An honest look at FamilyRoots versus Ancestry/MyHeritage, Facebook & social, and WhatsApp-style group chats — so you can pick the right tool.",
+  ),
+  "/compare": metadata(
+    "/compare",
+    "Compare: FamilyRoots vs. the alternatives",
+    "An honest look at FamilyRoots versus Ancestry/MyHeritage, Facebook & social, and WhatsApp-style group chats — so you can pick the right tool.",
   ),
   "/whats-new": metadata(
     "/whats-new",
