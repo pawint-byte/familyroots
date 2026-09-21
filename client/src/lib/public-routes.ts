@@ -11,6 +11,7 @@ const PUBLIC_EXACT_PATHS = new Set([
   "/contact",
   "/merchandise",
   "/comparison",
+  "/compare",
   "/whats-new",
   "/about",
   "/blog",

@@ -62,6 +62,7 @@ export default function Contact() {
           </Link>
           .
         </p>
+        <p className="mt-4 text-sm text-muted-foreground">Built by Wint Enterprises.</p>
       </main>
     </div>
   );

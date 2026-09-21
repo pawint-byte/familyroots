@@ -1,285 +1,182 @@
-import { useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Link } from "wouter";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { SEO } from "@/components/seo";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { 
-  ArrowLeft, Check, X, TreePine, Users, Shield, Heart, 
-  MapPin, ShoppingBag, Bot, Sparkles, Tag, Layers, Smartphone
-} from "lucide-react";
+import { MarketingPageShell } from "@/components/marketing-page-shell";
+import { getRegisterHref } from "@/lib/register-link";
+import { PRICING_CONFIG } from "@shared/pricing";
+import { Check, ArrowRight } from "lucide-react";
 
-interface FeatureRow {
-  feature: string;
-  familyRoots: boolean | string;
-  ancestry: boolean | string;
-  category: string;
-}
-
-const features: FeatureRow[] = [
-  { category: "Tree Building", feature: "Create family trees", familyRoots: true, ancestry: true },
-  { category: "Tree Building", feature: "Visual tree display", familyRoots: true, ancestry: true },
-  { category: "Tree Building", feature: "Unique visual layouts per tree type", familyRoots: true, ancestry: false },
-  { category: "Tree Building", feature: "Photo uploads", familyRoots: true, ancestry: true },
-  { category: "Tree Building", feature: "Export tree as image", familyRoots: true, ancestry: false },
-  { category: "Tree Building", feature: "Life events tracking", familyRoots: true, ancestry: true },
-  { category: "Tree Building", feature: "Education & career history", familyRoots: true, ancestry: false },
-  { category: "Tree Building", feature: "Name history tracking (maiden, married, etc.)", familyRoots: true, ancestry: false },
-  { category: "Tree Building", feature: "Upcoming birthday & gift registry indicators", familyRoots: true, ancestry: false },
-  { category: "Tree Building", feature: "Soft delete with 30-day restore", familyRoots: true, ancestry: false },
-
-  { category: "Organization & Structure", feature: "Nested sub-groups (tree-in-tree)", familyRoots: true, ancestry: false },
-  { category: "Organization & Structure", feature: "Re-parent / detach sub-groups", familyRoots: true, ancestry: false },
-  { category: "Organization & Structure", feature: "Split tree into separate groups", familyRoots: true, ancestry: false },
-  { category: "Organization & Structure", feature: "Color-coded member tags", familyRoots: true, ancestry: false },
-  { category: "Organization & Structure", feature: "Filter tree view by tag", familyRoots: true, ancestry: false },
-  { category: "Organization & Structure", feature: "Create new tree from tagged group", familyRoots: true, ancestry: false },
-  { category: "Organization & Structure", feature: "Email tagged members", familyRoots: true, ancestry: false },
-  { category: "Organization & Structure", feature: "Bulk tag assignment", familyRoots: true, ancestry: false },
-
-  { category: "Collaboration", feature: "Share trees with others", familyRoots: true, ancestry: true },
-  { category: "Collaboration", feature: "Role-based permissions (Viewer/Editor/Co-owner)", familyRoots: true, ancestry: true },
-  { category: "Collaboration", feature: "Profile claiming by members", familyRoots: true, ancestry: false },
-  { category: "Collaboration", feature: "Custodianship for deceased members", familyRoots: true, ancestry: false },
-  { category: "Collaboration", feature: "Invitation links with expiry", familyRoots: true, ancestry: true },
-  { category: "Collaboration", feature: "In-tree connection invite links", familyRoots: true, ancestry: false },
-  { category: "Collaboration", feature: "Email invitations (via Resend)", familyRoots: true, ancestry: true },
-  { category: "Collaboration", feature: "Disassociation protections for tree owners", familyRoots: true, ancestry: false },
-
-  { category: "Privacy & Security", feature: "Private by default (invitation-only)", familyRoots: true, ancestry: false },
-  { category: "Privacy & Security", feature: "Three-tier visibility controls", familyRoots: true, ancestry: false },
-  { category: "Privacy & Security", feature: "Per-member privacy overrides", familyRoots: true, ancestry: false },
-  { category: "Privacy & Security", feature: "Members-only private networks", familyRoots: true, ancestry: false },
-  { category: "Privacy & Security", feature: "Labeled, meaningful connections", familyRoots: true, ancestry: false },
-  { category: "Privacy & Security", feature: "Member/branch muting", familyRoots: true, ancestry: false },
-  { category: "Privacy & Security", feature: "Private trees", familyRoots: true, ancestry: true },
-  { category: "Privacy & Security", feature: "Account heir (deadman switch)", familyRoots: true, ancestry: false },
-
-  { category: "Connections & Discovery", feature: "Special connections (godparents, friends, mentors)", familyRoots: true, ancestry: false },
-  { category: "Connections & Discovery", feature: "Cross-tree connection requests", familyRoots: true, ancestry: false },
-  { category: "Connections & Discovery", feature: "Discoverable community trees", familyRoots: true, ancestry: false },
-  { category: "Connections & Discovery", feature: "Smart matching (opt-in)", familyRoots: true, ancestry: true },
-  { category: "Connections & Discovery", feature: "Location sharing with map", familyRoots: true, ancestry: false },
-  { category: "Connections & Discovery", feature: "Network overview across trees", familyRoots: true, ancestry: false },
-  { category: "Connections & Discovery", feature: "Relationship calculator", familyRoots: true, ancestry: true },
-  { category: "Connections & Discovery", feature: "Referral system", familyRoots: true, ancestry: false },
-
-  { category: "Records & Research", feature: "FamilySearch record search", familyRoots: true, ancestry: false },
-  { category: "Records & Research", feature: "FamilySearch tree import (4 generations)", familyRoots: true, ancestry: false },
-  { category: "Records & Research", feature: "Selective member import", familyRoots: true, ancestry: false },
-  { category: "Records & Research", feature: "Smart conflict detection (fuzzy matching)", familyRoots: true, ancestry: false },
-  { category: "Records & Research", feature: "Smart merge sync (keeps most complete data)", familyRoots: true, ancestry: false },
-  { category: "Records & Research", feature: "Linked data transfer during merge", familyRoots: true, ancestry: false },
-  { category: "Records & Research", feature: "Spouse preservation on skip", familyRoots: true, ancestry: false },
-  { category: "Records & Research", feature: "Post-import integrity verification", familyRoots: true, ancestry: false },
-  { category: "Records & Research", feature: "Built-in historical records", familyRoots: false, ancestry: "65+ billion" },
-  { category: "Records & Research", feature: "Cemetery records", familyRoots: false, ancestry: true },
-  { category: "Records & Research", feature: "Newspaper archives", familyRoots: false, ancestry: true },
-
-  { category: "DNA", feature: "DNA testing", familyRoots: false, ancestry: true },
-  { category: "DNA", feature: "DNA matching", familyRoots: false, ancestry: true },
-  { category: "DNA", feature: "Ethnicity estimates", familyRoots: false, ancestry: true },
-
-  { category: "AI & Technology", feature: "AI chatbot assistant (GPT-4.1)", familyRoots: true, ancestry: "Beta" },
-  { category: "AI & Technology", feature: "AI avatar video generation", familyRoots: true, ancestry: false },
-  { category: "AI & Technology", feature: "Multi-language support (4 languages)", familyRoots: true, ancestry: true },
-  { category: "AI & Technology", feature: "QR code sharing (profiles, trees, app)", familyRoots: true, ancestry: false },
-  { category: "AI & Technology", feature: "Progressive Web App (installable)", familyRoots: true, ancestry: false },
-  { category: "AI & Technology", feature: "Membership badge with stats", familyRoots: true, ancestry: false },
-
-  { category: "Beyond Family", feature: "7 tree types (family, church, sports, Greek life, friends, professional, custom)", familyRoots: true, ancestry: false },
-  { category: "Beyond Family", feature: "Custom relationship types per tree", familyRoots: true, ancestry: false },
-  { category: "Beyond Family", feature: "Qualifier tags on relationships", familyRoots: true, ancestry: false },
-  { category: "Beyond Family", feature: "Add your own custom roles", familyRoots: true, ancestry: false },
-  { category: "Beyond Family", feature: "Anchor yourself across all your groups", familyRoots: true, ancestry: false },
-
-  { category: "Shopping & Gifts", feature: "Custom merchandise (mugs, shirts, posters)", familyRoots: true, ancestry: false },
-  { category: "Shopping & Gifts", feature: "4 print elements (tree, QR, image, text)", familyRoots: true, ancestry: false },
-  { category: "Shopping & Gifts", feature: "Gift registries tied to members", familyRoots: true, ancestry: false },
-  { category: "Shopping & Gifts", feature: "Curated gift marketplace", familyRoots: true, ancestry: false },
-
-  { category: "Pricing", feature: "Free tier (20 members)", familyRoots: true, ancestry: false },
-  { category: "Pricing", feature: "Credits that never expire", familyRoots: true, ancestry: false },
-  { category: "Pricing", feature: "Activity rewards & milestones", familyRoots: true, ancestry: false },
-  { category: "Pricing", feature: "100-member milestone reward", familyRoots: "Free 10-member pack", ancestry: false },
-  { category: "Pricing", feature: "Monthly plans", familyRoots: "Free–$24.99/mo", ancestry: "$20-$50/mo" },
-];
-
-const categoryIcons: Record<string, any> = {
-  "Tree Building": TreePine,
-  "Organization & Structure": Layers,
-  "Collaboration": Users,
-  "Privacy & Security": Shield,
-  "Connections & Discovery": Heart,
-  "Records & Research": MapPin,
-  "DNA": Sparkles,
-  "AI & Technology": Bot,
-  "Beyond Family": Tag,
-  "Shopping & Gifts": ShoppingBag,
-  "Pricing": Smartphone,
+type Row = {
+  topic: string;
+  familyRoots: string;
+  ancestry: string;
+  social: string;
+  chat: string;
 };
 
-function FeatureValue({ value }: { value: boolean | string }) {
-  if (value === true) {
-    return <Check className="h-5 w-5 text-green-500" />;
-  }
-  if (value === false) {
-    return <X className="h-5 w-5 text-muted-foreground" />;
-  }
-  return <Badge variant="secondary">{value}</Badge>;
-}
+const rows: Row[] = [
+  {
+    topic: "Private by default",
+    familyRoots:
+      "Invitation-only living trees — not a public billboard. Outsiders do not browse your family by default.",
+    ancestry:
+      "Trees can be private, but the product centers on historical records and paid subscriptions.",
+    social:
+      "Public-by-default feeds and ads; family photos and posts often reach a wider audience than you intend.",
+    chat:
+      "Chats are private between participants, but there is no structured tree or lasting family graph.",
+  },
+  {
+    topic: "Relationship labels",
+    familyRoots:
+      "Family trees plus invited circles — labeled connections inside your private network.",
+    ancestry: "Genealogy relationships for researched trees and historical people.",
+    social: "Friends / follows — not a clear family map.",
+    chat: "Group membership only — no relationship labels.",
+  },
+  {
+    topic: "How you collaborate",
+    familyRoots: "Living collaboration — relatives build and update a shared private network together.",
+    ancestry: "Primarily solo research with optional sharing of trees and findings.",
+    social: "Unstructured feed of posts, comments, and reactions.",
+    chat: "Chaotic group chat threads that are hard to turn into a lasting tree.",
+  },
+  {
+    topic: "Historical records",
+    familyRoots:
+      "FamilySearch integration where enabled (import limits vary by plan) — not a records warehouse itself.",
+    ancestry: "Deep historical records libraries and DNA-scale matching (paid subscriptions).",
+    social: "Not designed for census or archival research.",
+    chat: "Not a records tool.",
+  },
+  {
+    topic: "Free plan",
+    familyRoots: `First ${PRICING_CONFIG.freeTierCredits} member profiles free, unlimited trees — no credit card required to start.`,
+    ancestry: "Limited free browsing; full research typically needs a paid subscription.",
+    social: "Free to use, with ads and public-by-default sharing.",
+    chat: "Free messaging apps you already use.",
+  },
+  {
+    topic: "Paid plans",
+    familyRoots:
+      "Paid plans from $4.99–$24.99/mo (Cultivator, Heritage, Legacy). Extra member profiles via one-time packs after the free allotment.",
+    ancestry: "Paid subscription for full records / DNA features — pricing varies by product and region.",
+    social: "Mostly free; optional boosts and ads.",
+    chat: "Usually free; optional business plans on some apps.",
+  },
+];
 
-export default function ComparisonPage() {
-  const [, navigate] = useLocation();
-
-  const categories = Array.from(new Set(features.map(f => f.category)));
-
-  const familyRootsAdvantages = features.filter(f => 
-    f.familyRoots === true && f.ancestry === false
-  ).length;
-
-  const ancestryAdvantages = features.filter(f => 
-    f.ancestry === true && f.familyRoots === false
-  ).length;
+export default function Comparison() {
+  const registerHref = getRegisterHref();
+  const freeProfiles = PRICING_CONFIG.freeTierCredits;
 
   return (
-    <>
+    <MarketingPageShell title="Compare">
       <SEO
-        title="FamilyRoots vs Ancestry - Private Networks vs Traditional Genealogy"
-        description="See how FamilyRoots private networks compare to Ancestry.com. Members-only access, labeled connections, and multi-group support vs traditional genealogy."
+        title="Compare: FamilyRoots vs. the alternatives"
+        description="An honest look at FamilyRoots versus Ancestry/MyHeritage, Facebook & social, and WhatsApp-style group chats — so you can pick the right tool."
       />
-      <div className="min-h-screen bg-background">
-        <header className="border-b border-border sticky top-0 z-[100] bg-background/95 backdrop-blur">
-          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate("/")} className="gap-2" data-testid="button-back-home">
-                <ArrowLeft className="h-4 w-4" />
-                Home
-              </Button>
-              <h1 className="font-serif text-xl font-semibold">Feature Comparison</h1>
-            </div>
-            <ThemeToggle />
-          </div>
-        </header>
-
-        <main className="container mx-auto px-4 py-8 max-w-5xl">
-          <div className="text-center mb-8">
-            <h1 className="font-serif text-3xl md:text-4xl font-bold mb-4">
-              FamilyRoots vs Ancestry
+      <main>
+        <section className="border-b border-border bg-gradient-to-br from-primary/10 via-background to-accent/10">
+          <div className="container mx-auto max-w-5xl px-4 py-14 text-center md:py-20">
+            <h1 className="font-serif text-3xl font-bold md:text-5xl" data-testid="text-compare-title">
+              Compare: FamilyRoots vs. the alternatives
             </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              FamilyRoots is a private, members-only network where connections are labeled and meaningful. See how it compares to traditional genealogy platforms.
+            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground leading-relaxed" data-testid="text-compare-lead">
+              FamilyRoots is not the only way to keep a family story. Here is an honest look so you can pick the right tool.
             </p>
           </div>
+        </section>
 
-          <div className="grid md:grid-cols-2 gap-4 mb-8">
-            <Card className="border-primary" data-testid="card-summary-familyroots">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                  <TreePine className="h-5 w-5 text-primary" />
-                  FamilyRoots
-                </CardTitle>
-                <CardDescription>Modern family connection platform</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <span className="text-3xl font-bold text-primary" data-testid="text-familyroots-advantages">{familyRootsAdvantages}</span>
-                  <span className="text-muted-foreground">unique features</span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Focus: Living family connections, collaboration, and modern features
-                </p>
+        <section className="container mx-auto max-w-6xl px-4 py-12">
+          <div className="overflow-x-auto rounded-2xl border border-border bg-card/50">
+            <table className="w-full min-w-[720px] text-left text-sm" data-testid="table-compare">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="p-4 font-semibold w-[16%]">Topic</th>
+                  <th className="p-4 font-semibold w-[21%]">FamilyRoots</th>
+                  <th className="p-4 font-semibold w-[21%]">Ancestry / MyHeritage</th>
+                  <th className="p-4 font-semibold w-[21%]">Facebook &amp; social</th>
+                  <th className="p-4 font-semibold w-[21%]">WhatsApp / group chats</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.topic} className="border-b border-border align-top">
+                    <th className="p-4 font-medium text-foreground">{row.topic}</th>
+                    <td className="p-4 text-muted-foreground">{row.familyRoots}</td>
+                    <td className="p-4 text-muted-foreground">{row.ancestry}</td>
+                    <td className="p-4 text-muted-foreground">{row.social}</td>
+                    <td className="p-4 text-muted-foreground">{row.chat}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="container mx-auto max-w-5xl px-4 pb-8">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardContent className="space-y-3 p-6">
+                <h2 className="font-serif text-xl font-semibold">When FamilyRoots is right</h2>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  {[
+                    "You want a living private network relatives can collaborate on",
+                    "You need circles beyond a public social feed",
+                    "You want the tree invisible to outsiders by default",
+                  ].map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
-
-            <Card data-testid="card-summary-ancestry">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5" />
-                  Ancestry
-                </CardTitle>
-                <CardDescription>Historical research platform</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <span className="text-3xl font-bold" data-testid="text-ancestry-advantages">{ancestryAdvantages}</span>
-                  <span className="text-muted-foreground">unique features</span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Focus: Historical records, DNA testing, and ancestry research
-                </p>
+            <Card>
+              <CardContent className="space-y-3 p-6">
+                <h2 className="font-serif text-xl font-semibold">When something else is better</h2>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>
+                    <strong className="text-foreground">FamilySearch</strong> — deep census and archival research (free); FamilyRoots can import where FamilySearch integration is enabled.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Ancestry / MyHeritage</strong> — DNA-scale matching and large historical libraries.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Facebook</strong> — if you only want public reunion photos and an open social feed.
+                  </li>
+                </ul>
               </CardContent>
             </Card>
           </div>
+        </section>
 
-          {categories.map((category) => {
-            const categoryFeatures = features.filter(f => f.category === category);
-            const Icon = categoryIcons[category] || TreePine;
-            
-            return (
-              <Card key={category} className="mb-6" data-testid={`card-category-${category.toLowerCase().replace(/\s+/g, '-')}`}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg" data-testid={`title-category-${category.toLowerCase().replace(/\s+/g, '-')}`}>
-                    <Icon className="h-5 w-5 text-primary" />
-                    {category}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full" data-testid={`table-${category.toLowerCase().replace(/\s+/g, '-')}`}>
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2 pr-4 font-medium">Feature</th>
-                          <th className="text-center py-2 px-4 font-medium min-w-[120px]">
-                            <span className="text-primary">FamilyRoots</span>
-                          </th>
-                          <th className="text-center py-2 pl-4 font-medium min-w-[120px]">Ancestry</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {categoryFeatures.map((row, index) => (
-                          <tr key={index} className="border-b last:border-0" data-testid={`row-feature-${row.feature.toLowerCase().replace(/\s+/g, '-')}`}>
-                            <td className="py-3 pr-4" data-testid={`text-feature-name-${index}`}>{row.feature}</td>
-                            <td className="py-3 px-4 text-center" data-testid={`value-familyroots-${index}`}>
-                              <div className="flex justify-center">
-                                <FeatureValue value={row.familyRoots} />
-                              </div>
-                            </td>
-                            <td className="py-3 pl-4 text-center" data-testid={`value-ancestry-${index}`}>
-                              <div className="flex justify-center">
-                                <FeatureValue value={row.ancestry} />
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <h3 className="font-serif text-xl font-semibold mb-2">Ready to try FamilyRoots?</h3>
-                <p className="text-muted-foreground mb-4">
-                  Start building your family tree today with our modern, collaborative platform.
-                </p>
-                <div className="flex flex-wrap justify-center gap-3">
-                  <Button onClick={() => navigate("/")} data-testid="button-get-started">
-                    Get Started Free
-                  </Button>
-                  <Button variant="outline" onClick={() => navigate("/pricing")} data-testid="button-view-pricing">
-                    View Pricing
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    </>
+        <section className="container mx-auto max-w-3xl px-4 pb-16 text-center">
+          <p className="text-sm text-muted-foreground leading-relaxed" data-testid="text-compare-pricing">
+            Pricing matches our live plans: first {freeProfiles} member profiles free with unlimited trees;
+            paid plans from $4.99–$24.99/mo. After the free allotment, extra member profiles come from one-time packs.
+            See{" "}
+            <Link href="/pricing" className="underline-offset-4 hover:underline text-foreground">
+              /pricing
+            </Link>{" "}
+            for current details.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Button asChild size="lg" data-testid="button-compare-cta">
+              <a href={registerHref}>
+                Start free — no credit card
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/pricing">View pricing</Link>
+            </Button>
+          </div>
+        </section>
+      </main>
+    </MarketingPageShell>
   );
 }

@@ -29,7 +29,7 @@ const sections = [
   },
   {
     title: "Contact",
-    content: "Questions or requests about this privacy policy can be sent to pawint@me.com.",
+    content: "Questions or requests about this privacy policy can be sent to pawint@me.com. FamilyRoots is built by Wint Enterprises.",
   },
 ];
 

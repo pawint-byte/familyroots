@@ -32,13 +32,12 @@ export default function Landing() {
   const navigationLinks = [
     { href: "#why-private", label: "Why Private", testId: "link-why-private" },
     { href: "#features", label: t.nav.features, testId: "link-features" },
-    { href: "#testimonials", label: t.nav.testimonials, testId: "link-testimonials" },
     { href: "/pricing", label: t.nav.pricing, testId: "link-pricing" },
     { href: "/gifts", label: t.nav.gifts, testId: "link-gifts" },
     { href: "/faq", label: "FAQ", testId: "link-faq" },
     { href: "/features", label: "Features Guide", testId: "link-features-guide" },
     { href: "/whats-new", label: "What's New", testId: "link-whats-new" },
-    { href: "/comparison", label: "Compare", testId: "link-comparison" },
+    { href: "/compare", label: "Compare", testId: "link-comparison" },
   ];
 
   // Capture referral code from URL and store in localStorage
@@ -752,94 +751,6 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* Testimonials Section */}
-        <section id="testimonials" className="py-24 bg-card/50">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-16">
-              <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4">{t.landing.testimonialsTitle}</h2>
-              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                {t.landing.testimonialsSubtitle}
-              </p>
-            </div>
-            <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-              {/* Testimonial 1 - Reunion Organizer */}
-              <Card className="hover-elevate">
-                <CardContent className="p-6 space-y-4">
-                  <Quote className="h-8 w-8 text-primary/30" />
-                  <p className="text-muted-foreground italic leading-relaxed">
-                    "{t.landing.testimonial1Quote}"
-                  </p>
-                  <div className="flex items-center gap-4 pt-4 border-t border-border">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary/10 text-primary">MR</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{t.landing.testimonial1Name}</p>
-                      <p className="text-sm text-muted-foreground">{t.landing.testimonial1Role}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* Testimonial 2 - Family Historian */}
-              <Card className="hover-elevate">
-                <CardContent className="p-6 space-y-4">
-                  <Quote className="h-8 w-8 text-primary/30" />
-                  <p className="text-muted-foreground italic leading-relaxed">
-                    "{t.landing.testimonial2Quote}"
-                  </p>
-                  <div className="flex items-center gap-4 pt-4 border-t border-border">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary/10 text-primary">JC</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{t.landing.testimonial2Name}</p>
-                      <p className="text-sm text-muted-foreground">{t.landing.testimonial2Role}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* Testimonial 3 - New Parent */}
-              <Card className="hover-elevate">
-                <CardContent className="p-6 space-y-4">
-                  <Quote className="h-8 w-8 text-primary/30" />
-                  <p className="text-muted-foreground italic leading-relaxed">
-                    "{t.landing.testimonial3Quote}"
-                  </p>
-                  <div className="flex items-center gap-4 pt-4 border-t border-border">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary/10 text-primary">SW</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{t.landing.testimonial3Name}</p>
-                      <p className="text-sm text-muted-foreground">{t.landing.testimonial3Role}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* Testimonial 4 - Blended Family */}
-              <Card className="hover-elevate">
-                <CardContent className="p-6 space-y-4">
-                  <Quote className="h-8 w-8 text-primary/30" />
-                  <p className="text-muted-foreground italic leading-relaxed">
-                    "{t.landing.testimonial4Quote}"
-                  </p>
-                  <div className="flex items-center gap-4 pt-4 border-t border-border">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary/10 text-primary">MD</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{t.landing.testimonial4Name}</p>
-                      <p className="text-sm text-muted-foreground">{t.landing.testimonial4Role}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
 
         {/* Pricing Section */}
         <section id="pricing" className="py-24">
@@ -885,7 +796,7 @@ export default function Landing() {
                         <p>{PRICING_CONFIG.freeTierCredits} free member profiles</p>
                       </div>
                       <Badge variant="secondary" className="mt-3">
-                        {isFree ? "Start free" : planKey === "heritage" ? "Most popular" : "Paid features"}
+                        {isFree ? "Start free" : `Upgrade to ${plan.label}`}
                       </Badge>
                     </CardContent>
                   </Card>
@@ -1023,19 +934,23 @@ export default function Landing() {
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 min-w-0">
-            <div className="flex items-center gap-2">
-              <Trees className="h-5 w-5 text-primary" />
-              <span className="font-serif text-sm">FamilyRoots</span>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <Trees className="h-5 w-5 text-primary" />
+                <span className="font-serif text-sm">FamilyRoots</span>
+              </div>
+              <span className="text-xs text-muted-foreground">Built by Wint Enterprises</span>
             </div>
             <p className="text-sm text-muted-foreground">
               {new Date().getFullYear()} FamilyRoots. All rights reserved.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+              <a href="/pricing" className="hover:text-foreground transition-colors">Pricing</a>
               <a href="/about" className="hover:text-foreground transition-colors">About</a>
               <a href="/blog" className="hover:text-foreground transition-colors">Blog</a>
               <a href="/faq" className="hover:text-foreground transition-colors">FAQ</a>
               <a href="/features" className="hover:text-foreground transition-colors">Features</a>
-              <a href="/comparison" className="hover:text-foreground transition-colors">Compare</a>
+              <a href="/compare" className="hover:text-foreground transition-colors">Compare</a>
               <a href="/share" className="hover:text-foreground transition-colors">Share</a>
               <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
               <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>

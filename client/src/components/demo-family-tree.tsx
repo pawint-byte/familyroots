@@ -17,10 +17,10 @@ const DEMO_MEMBERS: DemoMember[] = [
   { id: "dad", name: "Dad", initials: "D" },
   { id: "mom", name: "Mom", initials: "M" },
   { id: "uncle", name: "Uncle", initials: "U" },
-  { id: "aunt", name: "Aunt", initials: "A", isUnknown: true },
+  { id: "aunt", name: "Aunt Pat", initials: "AP" },
   { id: "you", name: "You", initials: "Y" },
   { id: "sibling", name: "Brother", initials: "B" },
-  { id: "cousin", name: "Cousin", initials: "C" },
+  { id: "cousin", name: "Cousin Alex", initials: "CA" },
   { id: "child1", name: "Son", initials: "S" },
   { id: "child2", name: "Daughter", initials: "D" },
 ];

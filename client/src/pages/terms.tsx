@@ -33,7 +33,7 @@ const sections = [
   },
   {
     title: "Changes and contact",
-    content: "We may update these terms as FamilyRoots evolves. Continued use after an updated version takes effect constitutes acceptance where permitted by law. Questions can be sent to pawint@me.com.",
+    content: "We may update these terms as FamilyRoots evolves. Continued use after an updated version takes effect constitutes acceptance where permitted by law. Questions can be sent to pawint@me.com. FamilyRoots is built by Wint Enterprises.",
   },
 ];
 

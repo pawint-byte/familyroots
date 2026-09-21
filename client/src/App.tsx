@@ -114,6 +114,7 @@ function Router() {
       <Route path="/profile/:userId" component={PublicProfile} />
       <Route path="/network" component={Network} />
       <Route path="/comparison" component={Comparison} />
+      <Route path="/compare" component={Comparison} />
       <Route path="/features" component={FeaturesGuide} />
       <Route path="/records" component={Records} />
       <Route path="/familysearch" component={Records} />
