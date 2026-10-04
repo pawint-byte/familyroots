@@ -67,7 +67,7 @@ export default function GiftRegistryPage() {
   });
 
   const createRegistryMutation = useMutation({
-    mutationFn: async (data: { memberId: string; treeId: string; title: string; eventType: string; eventDate: string | null; description: string }) => {
+    mutationFn: async (data: { memberId: string; treeId: string; title: string; eventType: string; eventDate: string | null; description: string; notifyMembers?: boolean }) => {
       return apiRequest("POST", "/api/registries", data);
     },
     onSuccess: () => {

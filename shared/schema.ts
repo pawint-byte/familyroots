@@ -836,7 +836,9 @@ export const insertFamilyTreeSchema = createInsertSchema(familyTrees).omit({
   updatedAt: true,
 });
 
-export const insertFamilyMemberSchema = createInsertSchema(familyMembers).omit({
+export const insertFamilyMemberSchema = createInsertSchema(familyMembers, {
+  customPosition: z.object({ x: z.number().finite(), y: z.number().finite() }).nullable().optional(),
+}).omit({
   id: true,
   createdAt: true,
   updatedAt: true,

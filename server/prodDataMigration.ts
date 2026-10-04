@@ -17,7 +17,7 @@ interface MemberData {
   birthDate?: string | null;
   birthPlace?: string | null;
   deathDate?: string | null;
-  gender?: string | null;
+  gender?: "male" | "female" | "other" | null;
   email?: string | null;
   nickname?: string | null;
   photoUrl?: string | null;
@@ -408,7 +408,7 @@ async function restoreSplitMembers() {
 
     let eventsCopied = 0;
     for (const evt of ashleyEvents) {
-      const newMemberId = idMapping.get(evt.memberId);
+      const newMemberId = evt.memberId ? idMapping.get(evt.memberId) : undefined;
       if (newMemberId) {
         await db.insert(familyEvents).values({
           treeId: MAIN_TREE_ID,

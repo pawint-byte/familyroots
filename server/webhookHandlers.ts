@@ -4,6 +4,7 @@ import { subscriptionService } from './subscriptionService';
 import { storage } from './storage';
 import { printfulService } from './printful';
 import { buildPrintfulFiles, sendOrderConfirmationEmail, sendOrderFailureEmail } from './merchandiseHelpers';
+import { stripeObjectId } from './lib/stripe-object-id';
 
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
@@ -43,19 +44,19 @@ export class WebhookHandlers {
             metadata.packType,
             parseInt(metadata.credits, 10),
             session.id,
-            session.payment_intent,
+            stripeObjectId(session.payment_intent),
             metadata.rewardId || undefined
           );
         } else if (metadata.type === 'tier_subscription') {
           const tier = metadata.tier || 'cultivator';
           console.log(`Tier subscription created for user ${metadata.userId}: ${tier}`);
-          const subscriptionId = session.subscription;
+          const subscriptionId = stripeObjectId(session.subscription);
           if (subscriptionId) {
             await subscriptionService.handleTierSubscriptionCreated(metadata.userId, tier as any, subscriptionId);
           }
         } else if (metadata.type === 'premium_subscription') {
           console.log(`Premium subscription created for user ${metadata.userId}`);
-          const subscriptionId = session.subscription;
+          const subscriptionId = stripeObjectId(session.subscription);
           if (subscriptionId) {
             await subscriptionService.handlePremiumSubscriptionCreated(metadata.userId, subscriptionId);
           }
@@ -64,7 +65,7 @@ export class WebhookHandlers {
           await subscriptionService.handleMilestonePaymentCompleted(
             metadata.userId,
             parseInt(metadata.milestone, 10),
-            session.payment_intent
+            stripeObjectId(session.payment_intent)
           );
         } else if (metadata.type === 'merchandise') {
           console.log(`Merchandise payment completed for order ${metadata.orderId}, session ${session.id}`);

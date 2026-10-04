@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
@@ -20,13 +20,14 @@ import {
   discoverableMembers,
   memories, insertMemorySchema,
   poolUpdateNotifications,
-  treeWallMessages
+  treeWallMessages, shippingAddressSchema, users
 } from "@shared/schema";
 import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
 import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType, TREE_TYPE_CONFIGS } from "@shared/treeTypes";
 import type { TreeType } from "@shared/treeTypes";
 import { z } from "zod";
 import { validateEventMedia, eventMediaUsage, EventMediaError } from "./lib/event-media";
+import { memberCopyData } from "./lib/member-copy";
 import crypto from "crypto";
 import { calculateRelationship, getSubtreeBetweenMembers } from "./lib/relationship-calculator";
 import { persistUserAttribution } from "./lib/attribution";
@@ -277,7 +278,7 @@ export async function registerRoutes(
       // Merge claimed member data with user profiles (single source of truth)
       const mergedMembers = await Promise.all(
         members.map(async (member) => {
-          let merged = member;
+          let merged: typeof member & { _profileSourceInfo?: unknown } = member;
           if (member.claimedByUserId) {
             const claimedUser = await storage.getUser(member.claimedByUserId);
             const mergedProfile = mergeMemberWithUserProfile(member, claimedUser);
@@ -353,8 +354,8 @@ export async function registerRoutes(
             isLiving: true,
           };
           if (profileMode === 'full') {
-            memberData.photoUrl = user.photoUrl || null;
-            memberData.bio = user.bio || null;
+            memberData.photoUrl = user.profileImageUrl || null;
+            memberData.notes = user.bio || null;
           }
           const creatorMember = await storage.createMember(memberData);
           await storage.updateTree(tree.id, { rootMemberId: creatorMember.id });
@@ -1108,7 +1109,7 @@ export async function registerRoutes(
       const newTree = await storage.splitTree(treeId, {
         name: treeName,
         treeType: tree.treeType || "family",
-        treeTypeLabel: tree.treeTypeLabel,
+        treeTypeLabel: tree.treeTypeLabel ?? undefined,
         privacy: tree.privacy || "private",
         parentTreeId: createAsSubGroup ? treeId : null,
         newOwnerId: userId,
@@ -1176,7 +1177,7 @@ export async function registerRoutes(
       }
 
       const sender = await storage.getUser(userId);
-      const senderName = sender?.name || "A FamilyRoots member";
+      const senderName = [sender?.firstName, sender?.lastName].filter(Boolean).join(" ") || "A FamilyRoots member";
       const { sendEmail } = await import("./lib/email");
 
       let sent = 0;
@@ -3789,7 +3790,7 @@ export async function registerRoutes(
         const user = await storage.getUser(userId);
         const firstName = user?.firstName || "New";
         const lastName = user?.lastName || "Member";
-        await storage.addMember({
+        await storage.createMember({
           treeId,
           firstName,
           lastName,
@@ -4153,14 +4154,15 @@ export async function registerRoutes(
         // Copy linked data from the secondary member to the primary (additive, no deletion)
         // 1. Copy life events
         try {
-          const keepEvents = await storage.getLifeEvents(keepMemberId);
-          const mergeEvents = await storage.getLifeEvents(mergeMemberId);
+          const keepEvents = await storage.getEventsByMember(keepMemberId);
+          const mergeEvents = await storage.getEventsByMember(mergeMemberId);
           const keepEventKeys = new Set(keepEvents.map(e => `${e.eventType}-${e.title}-${e.eventDate}`));
           let copied = 0;
           for (const event of mergeEvents) {
             const key = `${event.eventType}-${event.title}-${event.eventDate}`;
             if (!keepEventKeys.has(key)) {
-              await storage.createLifeEvent({
+              await storage.createEvent({
+                ...memberCopyData(event),
                 memberId: keepMemberId,
                 treeId: keepMember.treeId,
                 eventType: event.eventType,
@@ -4173,70 +4175,63 @@ export async function registerRoutes(
             }
           }
           transferResults.lifeEvents = copied;
-        } catch (e) { transferResults.lifeEvents = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: life events could not be copied; source profile was not removed.", { cause: e }); }
         
         // 2. Copy education records
         try {
-          const keepEdu = await storage.getEducationRecords(keepMemberId);
-          const mergeEdu = await storage.getEducationRecords(mergeMemberId);
-          const keepEduKeys = new Set(keepEdu.map(e => `${e.institution}-${e.degree}-${e.startYear}`));
+          const keepEdu = await storage.getEducationHistory(keepMemberId);
+          const mergeEdu = await storage.getEducationHistory(mergeMemberId);
+          const keepEduKeys = new Set(keepEdu.map(e => `${e.institution}-${e.degree}-${e.startDate}`));
           let copied = 0;
           for (const edu of mergeEdu) {
-            const key = `${edu.institution}-${edu.degree}-${edu.startYear}`;
+            const key = `${edu.institution}-${edu.degree}-${edu.startDate}`;
             if (!keepEduKeys.has(key)) {
-              await storage.createEducationRecord({
+              await storage.createEducationHistory({
+                ...memberCopyData(edu),
                 memberId: keepMemberId,
                 institution: edu.institution,
                 degree: edu.degree || undefined,
                 fieldOfStudy: edu.fieldOfStudy || undefined,
-                startYear: edu.startYear || undefined,
-                endYear: edu.endYear || undefined,
-                description: edu.description || undefined,
               });
               copied++;
             }
           }
           transferResults.education = copied;
-        } catch (e) { transferResults.education = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: education could not be copied; source profile was not removed.", { cause: e }); }
         
         // 3. Copy career records
         try {
-          const keepCareer = await storage.getCareerRecords(keepMemberId);
-          const mergeCareer = await storage.getCareerRecords(mergeMemberId);
-          const keepCareerKeys = new Set(keepCareer.map(c => `${c.company}-${c.position}-${c.startYear}`));
+          const keepCareer = await storage.getCareerHistory(keepMemberId);
+          const mergeCareer = await storage.getCareerHistory(mergeMemberId);
+          const keepCareerKeys = new Set(keepCareer.map(c => `${c.employer}-${c.jobTitle}-${c.startDate}`));
           let copied = 0;
           for (const career of mergeCareer) {
-            const key = `${career.company}-${career.position}-${career.startYear}`;
+            const key = `${career.employer}-${career.jobTitle}-${career.startDate}`;
             if (!keepCareerKeys.has(key)) {
-              await storage.createCareerRecord({
+              await storage.createCareerHistory({
+                ...memberCopyData(career),
                 memberId: keepMemberId,
-                company: career.company,
-                position: career.position || undefined,
-                startYear: career.startYear || undefined,
-                endYear: career.endYear || undefined,
-                description: career.description || undefined,
                 isCurrent: career.isCurrent || undefined,
               });
               copied++;
             }
           }
           transferResults.career = copied;
-        } catch (e) { transferResults.career = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: career history could not be copied; source profile was not removed.", { cause: e }); }
         
         // 4. Copy name history
         try {
           const mergeNames = await storage.getNameHistory(mergeMemberId);
           for (const nh of mergeNames) {
-            await storage.createNameHistoryEntry({
+            await storage.createNameHistory({
+              ...memberCopyData(nh),
               memberId: keepMemberId,
-              previousFirstName: nh.previousFirstName || undefined,
-              previousLastName: nh.previousLastName || undefined,
               reason: nh.reason || undefined,
               effectiveDate: nh.effectiveDate || undefined,
             });
           }
           transferResults.nameHistory = mergeNames.length;
-        } catch (e) { transferResults.nameHistory = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: name history could not be copied; source profile was not removed.", { cause: e }); }
         
         // Mark cross-tree match records as resolved
         try {
@@ -4271,9 +4266,10 @@ export async function registerRoutes(
         
         // Transfer life events
         try {
-          const mergeEvents = await storage.getLifeEvents(mergeMemberId);
+          const mergeEvents = await storage.getEventsByMember(mergeMemberId);
           for (const event of mergeEvents) {
-            await storage.createLifeEvent({
+            await storage.createEvent({
+              ...memberCopyData(event),
               memberId: keepMemberId,
               treeId: keepMember.treeId,
               eventType: event.eventType,
@@ -4284,72 +4280,65 @@ export async function registerRoutes(
             });
           }
           transferResults.lifeEvents = mergeEvents.length;
-        } catch (e) { transferResults.lifeEvents = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: life events could not be copied; source profile was not removed.", { cause: e }); }
         
         // Transfer education
         try {
-          const mergeEducation = await storage.getEducationRecords(mergeMemberId);
+          const mergeEducation = await storage.getEducationHistory(mergeMemberId);
           for (const edu of mergeEducation) {
-            await storage.createEducationRecord({
+            await storage.createEducationHistory({
+              ...memberCopyData(edu),
               memberId: keepMemberId,
               institution: edu.institution,
               degree: edu.degree || undefined,
               fieldOfStudy: edu.fieldOfStudy || undefined,
-              startYear: edu.startYear || undefined,
-              endYear: edu.endYear || undefined,
-              description: edu.description || undefined,
             });
           }
           transferResults.education = mergeEducation.length;
-        } catch (e) { transferResults.education = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: education could not be copied; source profile was not removed.", { cause: e }); }
         
         // Transfer career
         try {
-          const mergeCareer = await storage.getCareerRecords(mergeMemberId);
+          const mergeCareer = await storage.getCareerHistory(mergeMemberId);
           for (const career of mergeCareer) {
-            await storage.createCareerRecord({
+            await storage.createCareerHistory({
+              ...memberCopyData(career),
               memberId: keepMemberId,
-              company: career.company,
-              position: career.position || undefined,
-              startYear: career.startYear || undefined,
-              endYear: career.endYear || undefined,
-              description: career.description || undefined,
               isCurrent: career.isCurrent || undefined,
             });
           }
           transferResults.career = mergeCareer.length;
-        } catch (e) { transferResults.career = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: career history could not be copied; source profile was not removed.", { cause: e }); }
         
         // Transfer name history
         try {
           const mergeNames = await storage.getNameHistory(mergeMemberId);
           for (const nh of mergeNames) {
-            await storage.createNameHistoryEntry({
+            await storage.createNameHistory({
+              ...memberCopyData(nh),
               memberId: keepMemberId,
-              previousFirstName: nh.previousFirstName || undefined,
-              previousLastName: nh.previousLastName || undefined,
               reason: nh.reason || undefined,
               effectiveDate: nh.effectiveDate || undefined,
             });
           }
           transferResults.nameHistory = mergeNames.length;
-        } catch (e) { transferResults.nameHistory = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: name history could not be copied; source profile was not removed.", { cause: e }); }
         
         // Transfer voice notes
         try {
-          const mergeVoiceNotes = await storage.getVoiceNotes(mergeMember.treeId, mergeMemberId);
+          const mergeVoiceNotes = await db.select().from(voiceNotes)
+            .where(and(eq(voiceNotes.treeId, mergeMember.treeId), eq(voiceNotes.memberId, mergeMemberId)));
           for (const vn of mergeVoiceNotes) {
-            await storage.createVoiceNote({
+            await db.insert(voiceNotes).values({
+              ...memberCopyData(vn),
               memberId: keepMemberId,
               treeId: keepMember.treeId,
-              audioData: vn.audioData,
-              duration: vn.duration || undefined,
               title: vn.title || undefined,
               recordedByUserId: vn.recordedByUserId,
             });
           }
           transferResults.voiceNotes = mergeVoiceNotes.length;
-        } catch (e) { transferResults.voiceNotes = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: voice notes could not be copied; source profile was not removed.", { cause: e }); }
 
         // Transfer member videos
         try {
@@ -4366,36 +4355,36 @@ export async function registerRoutes(
             });
           }
           (transferResults as any).memberVideos = mergeMemberVideos.length;
-        } catch (e) { (transferResults as any).memberVideos = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: videos could not be copied; source profile was not removed.", { cause: e }); }
         
         // Transfer gift registries
         try {
-          const mergeRegistries = await storage.getGiftRegistries(mergeMember.treeId, mergeMemberId);
+          const mergeRegistries = await storage.getGiftRegistriesByMember(mergeMemberId);
           for (const reg of mergeRegistries) {
             const newReg = await storage.createGiftRegistry({
+              ...memberCopyData(reg),
               memberId: keepMemberId,
               treeId: keepMember.treeId,
               title: reg.title,
               description: reg.description || undefined,
-              eventType: reg.eventType || undefined,
+              eventType: reg.eventType,
               eventDate: reg.eventDate || undefined,
               isActive: reg.isActive ?? true,
             });
             const items = await storage.getGiftRegistryItems(reg.id);
             for (const item of items) {
               await storage.createGiftRegistryItem({
+                ...memberCopyData(item),
                 registryId: newReg.id,
                 name: item.name,
                 description: item.description || undefined,
-                url: item.url || undefined,
                 price: item.price || undefined,
-                isPurchased: item.isPurchased || false,
                 purchasedByUserId: item.purchasedByUserId || undefined,
               });
             }
           }
           transferResults.giftRegistries = mergeRegistries.length;
-        } catch (e) { transferResults.giftRegistries = 0; }
+        } catch (e) { throw new Error("Profile merge stopped: gift registries could not be copied; source profile was not removed.", { cause: e }); }
         
         // Delete the merged member (safe in same-tree context)
         await storage.deleteMember(mergeMemberId);
@@ -8036,10 +8025,10 @@ export async function registerRoutes(
   app.get("/api/pricing/all-members", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const userTrees = await storage.getTreesByOwner(userId);
+      const userTrees = await storage.getTrees(userId);
       const result: {
         trees: Array<{
-          treeId: number;
+          treeId: string;
           treeName: string;
           treeType: string;
           members: Array<{
@@ -8053,10 +8042,10 @@ export async function registerRoutes(
       } = { trees: [] };
 
       for (const tree of userTrees) {
-        const members = await storage.getMembersByTreeId(tree.id);
+        const members = await storage.getMembers(tree.id);
         const importedMembers = await storage.getImportedMembersForTree(tree.id);
 
-        const ownedList = members.map((m) => ({
+        const ownedList: (typeof result.trees)[number]["members"] = members.map((m) => ({
           id: m.id,
           firstName: m.firstName,
           lastName: m.lastName,
@@ -8896,10 +8885,11 @@ export async function registerRoutes(
 
       let eventsCopied = 0;
       for (const evt of sourceEvents) {
-        if (copiedIds.has(evt.memberId)) {
+        if (evt.memberId && copiedIds.has(evt.memberId)) {
           const newMemberId = idMapping.get(evt.memberId);
           if (newMemberId) {
             await db.insert(familyEvents).values({
+              ...memberCopyData(evt),
               treeId: targetTreeId,
               memberId: newMemberId,
               eventType: evt.eventType,
@@ -9271,6 +9261,7 @@ export async function registerRoutes(
               copiedMembers.push(`${otherSourceMember.firstName} ${otherSourceMember.lastName || ''}`);
             }
 
+            if (!otherInKeep) throw new Error("Could not create the linked family member");
             const refreshedKeepRels = await storage.getRelationships(keepTreeId);
             const fromId = rel.fromMemberId === rmId ? keepMemberId : otherInKeep.id;
             const toId = rel.toMemberId === rmId ? keepMemberId : otherInKeep.id;
@@ -9868,7 +9859,6 @@ export async function registerRoutes(
           if (m.gender) filledFields++;
           if (m.birthPlace) filledFields++;
           if (m.photoUrl) filledFields++;
-          if (m.phoneNumber) filledFields++;
 
           const relCount = rels.filter(r => r.fromMemberId === m.id || r.toMemberId === m.id).length;
 
@@ -9905,7 +9895,6 @@ export async function registerRoutes(
           if (!existing.gender && best.member.gender) { updates.gender = best.member.gender; needsUpdate = true; }
           if (!existing.birthPlace && best.member.birthPlace) { updates.birthPlace = best.member.birthPlace; needsUpdate = true; }
           if (!existing.photoUrl && best.member.photoUrl) { updates.photoUrl = best.member.photoUrl; needsUpdate = true; }
-          if (!existing.phoneNumber && best.member.phoneNumber) { updates.phoneNumber = best.member.phoneNumber; needsUpdate = true; }
 
           if (needsUpdate) {
             await db.update(familyMembers).set(updates).where(eq(familyMembers.id, existing.id));
@@ -9927,10 +9916,9 @@ export async function registerRoutes(
             deathDate: best.member.deathDate,
             birthPlace: best.member.birthPlace,
             email: best.member.email,
-            phoneNumber: best.member.phoneNumber,
             photoUrl: best.member.photoUrl,
             isLiving: best.member.isLiving,
-            bio: best.member.bio,
+            notes: best.member.notes,
             nickname: best.member.nickname,
             sharedInPool: true,
           });
@@ -10538,7 +10526,7 @@ export async function registerRoutes(
   app.get("/api/admin/users/:userId/tree-health", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { userId } = req.params;
-      const userTrees = await storage.getUserTrees(userId);
+      const userTrees = await storage.getTrees(userId);
       const activeTrees = userTrees.filter(t => !t.deletedAt);
 
       const treeSummaries = [];
@@ -11510,8 +11498,7 @@ export async function registerRoutes(
       }
 
       const { getRetailPrice, getBufferedShipping, getStateTaxRate, getCartDiscount, MAX_ITEM_QUANTITY } = await import("./merchandisePricing");
-      const { v4: uuidv4 } = await import("uuid");
-      const cartSessionId = uuidv4();
+      const cartSessionId = crypto.randomUUID();
 
       const totalItemCount = items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
 
@@ -13712,8 +13699,8 @@ export async function registerRoutes(
       const yearStart = new Date(`${year}-01-01T00:00:00Z`);
       const yearEnd = new Date(`${year + 1}-01-01T00:00:00Z`);
 
-      const allMembers = await storage.getMembersByTreeId(treeId);
-      const allRelationships = await storage.getRelationshipsByTreeId(treeId);
+      const allMembers = await storage.getMembers(treeId);
+      const allRelationships = await storage.getRelationships(treeId);
 
       const membersAddedThisYear = allMembers.filter(m => {
         const created = m.createdAt ? new Date(m.createdAt) : null;
@@ -17108,7 +17095,7 @@ export async function registerRoutes(
         mode: z.enum(["broadcast", "watch"]),
       });
       const parsed = schema.parse(req.body);
-      const session = await storage.activateRadar(req.user!.id, parsed.latitude, parsed.longitude, parsed.mode);
+      const session = await storage.activateRadar(req.user!.claims.sub, parsed.latitude, parsed.longitude, parsed.mode);
       res.json(session);
     } catch (error: any) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Invalid input", errors: error.errors });
@@ -17125,7 +17112,7 @@ export async function registerRoutes(
         longitude: z.number().min(-180).max(180),
       });
       const parsed = schema.parse(req.body);
-      const session = await storage.updateRadarPosition(req.user!.id, parsed.latitude, parsed.longitude);
+      const session = await storage.updateRadarPosition(req.user!.claims.sub, parsed.latitude, parsed.longitude);
       if (!session) return res.status(404).json({ message: "No active radar session" });
       res.json(session);
     } catch (error: any) {
@@ -17138,7 +17125,7 @@ export async function registerRoutes(
   app.post("/api/radar/deactivate", async (req: Request, res: Response) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      await storage.deactivateRadar(req.user!.id);
+      await storage.deactivateRadar(req.user!.claims.sub);
       res.json({ message: "Radar deactivated" });
     } catch (error) {
       console.error("Error deactivating radar:", error);
@@ -17149,7 +17136,7 @@ export async function registerRoutes(
   app.get("/api/radar/status", async (req: Request, res: Response) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const session = await storage.getRadarSession(req.user!.id);
+      const session = await storage.getRadarSession(req.user!.claims.sub);
       res.json({ active: !!session, session: session || null });
     } catch (error) {
       console.error("Error fetching radar status:", error);
@@ -17160,10 +17147,10 @@ export async function registerRoutes(
   app.get("/api/radar/nearby", async (req: Request, res: Response) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const session = await storage.getRadarSession(req.user!.id);
+      const session = await storage.getRadarSession(req.user!.claims.sub);
       if (!session) return res.status(400).json({ message: "Radar is not active" });
       const radius = Math.min(Math.max(Number(req.query.radius) || 5, 0.1), 50);
-      const nearby = await storage.getNearbyRadarUsers(session.latitude, session.longitude, radius, req.user!.id);
+      const nearby = await storage.getNearbyRadarUsers(session.latitude, session.longitude, radius, req.user!.claims.sub);
       res.json({ nearby, radius });
     } catch (error) {
       console.error("Error fetching nearby users:", error);

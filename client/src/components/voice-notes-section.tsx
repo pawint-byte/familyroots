@@ -51,10 +51,8 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
 
   const createMutation = useMutation({
     mutationFn: async ({ audioUrl, durationSeconds, title }: { audioUrl: string; durationSeconds: number; title: string }) => {
-      return apiRequest(`/api/trees/${treeId}/members/${memberId}/voice-notes`, {
-        method: 'POST',
-        body: JSON.stringify({ audioUrl, durationSeconds, title: title || `Voice note for ${memberName}` }),
-        headers: { 'Content-Type': 'application/json' },
+      return apiRequest('POST', `/api/trees/${treeId}/members/${memberId}/voice-notes`, {
+        audioUrl, durationSeconds, title: title || `Voice note for ${memberName}`,
       });
     },
     onSuccess: () => {
@@ -75,7 +73,7 @@ export function VoiceNotesSection({ memberId, treeId, canEdit, memberName }: Voi
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/voice-notes/${id}`, { method: 'DELETE' });
+      return apiRequest('DELETE', `/api/voice-notes/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/trees', treeId, 'members', memberId, 'voice-notes'] });

@@ -563,7 +563,7 @@ export class DatabaseStorage implements IStorage {
             inArray(familyEvents.memberId, params.memberIds)
           ));
         for (const evt of sourceEvents) {
-          const newMemberId = idMapping.get(evt.memberId);
+          const newMemberId = evt.memberId ? idMapping.get(evt.memberId) : undefined;
           if (newMemberId) {
             await tx.insert(familyEvents).values({
               treeId: newTree.id,

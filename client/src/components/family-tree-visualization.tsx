@@ -300,15 +300,33 @@ export default function FamilyTreeVisualization({
       deathDate: null,
       birthPlace: null,
       photoUrl: null,
-      bio: null,
+      notes: null,
       suffix: null,
       isLiving: true,
       isUnknown: true,
       unknownLabel: label,
       claimedByUserId: null,
-      createdAt: null,
-      updatedAt: null,
-    } as FamilyMember;
+      nickname: null,
+      email: null,
+      alternateEmail: null,
+      claimedAt: null,
+      disassociatedAt: null,
+      disassociatedName: null,
+      custodianUserId: null,
+      custodianAssignedAt: null,
+      visibilityOverride: null,
+      currentCity: null,
+      currentRegion: null,
+      currentCountry: null,
+      locationVisible: false,
+      customPosition: null,
+      sharedInPool: false,
+      poolSourceMemberId: null,
+      poolSourceTreeId: null,
+      deletedAt: null,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    };
   }, []);
 
   const ensureTwoParents = useCallback((childId: string, knownParentIds: string[], allMembers: FamilyMember[]): FamilyMember[] => {
@@ -941,7 +959,7 @@ export default function FamilyTreeVisualization({
         if (anchorPos) {
           let newX = anchorPos.x;
           let newY = anchorPos.y;
-          let branchType: NodePosition['branchType'] = 'extended';
+          let branchType: NodePosition['branchType'] = 'unconnected';
 
           const nodesAtLevel = positioned.filter(p => Math.abs(p.y - newY) < 10);
           const maxXAtLevel = nodesAtLevel.length > 0 ? Math.max(...nodesAtLevel.map(p => p.x)) : newX;

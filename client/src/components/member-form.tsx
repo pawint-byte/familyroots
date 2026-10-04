@@ -38,6 +38,7 @@ const memberFormSchema = z.object({
   suffix: z.string().optional(), // Jr, Sr, III, etc.
   nickname: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
+  alternateEmail: z.string().email().optional().or(z.literal("")),
   gender: z.enum(["male", "female", "other"]).optional(),
   birthDate: z.string().optional(),
   birthPlace: z.string().optional(),
@@ -520,7 +521,7 @@ export default function MemberForm({ treeId, initialData, onSubmit, isLoading, s
                     key={tag.id}
                     variant={isSelected ? "default" : "outline"}
                     className="cursor-pointer text-xs select-none transition-colors"
-                    style={isSelected ? { backgroundColor: tag.color, borderColor: tag.color, color: "#fff" } : { borderColor: tag.color, color: tag.color }}
+                    style={isSelected ? { backgroundColor: tag.color ?? undefined, borderColor: tag.color ?? undefined, color: "#fff" } : { borderColor: tag.color ?? undefined, color: tag.color ?? undefined }}
                     onClick={() => {
                       setSelectedTagIds((prev) => {
                         const next = new Set(prev);

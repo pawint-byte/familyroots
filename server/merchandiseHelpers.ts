@@ -36,7 +36,7 @@ function getUniquePlacements(productId: number): string[] {
     const products = service.getProducts();
     const product = products.find((p: any) => p.id === productId);
     if (product?.placements) {
-      const types = new Set(product.placements.map((p: any) => p.printfulType));
+      const types = new Set<string>(product.placements.map((p: { printfulType: string }) => p.printfulType));
       return [...types];
     }
   } catch {}
@@ -383,11 +383,7 @@ export async function sendOrderFailureEmail(order: any, userId: string, errorMes
       </div>
     `;
 
-    await sendEmail({
-      to: user.email,
-      subject: `Order Issue: ${order.productName} - #${order.id.slice(0, 8).toUpperCase()}`,
-      html: failureHtml,
-    });
+    await sendEmail(user.email, `Order Issue: ${order.productName} - #${order.id.slice(0, 8).toUpperCase()}`, failureHtml);
     console.log(`[merchandise] Failure notification email sent to ${user.email} for order ${order.id}`);
   } catch (emailError) {
     console.error("[merchandise] Failed to send failure notification email:", emailError);
@@ -457,11 +453,7 @@ export async function sendOrderConfirmationEmail(order: any, userId: string) {
       </div>
     `;
 
-    await sendEmail({
-      to: user.email,
-      subject: `Order Confirmed: ${order.productName} - #${order.id.slice(0, 8).toUpperCase()}`,
-      html: confirmationHtml,
-    });
+    await sendEmail(user.email, `Order Confirmed: ${order.productName} - #${order.id.slice(0, 8).toUpperCase()}`, confirmationHtml);
     console.log(`[merchandise] Confirmation email sent to ${user.email} for order ${order.id}`);
   } catch (emailError) {
     console.error("[merchandise] Failed to send confirmation email:", emailError);

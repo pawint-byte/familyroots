@@ -67,7 +67,6 @@ export default function TimelineView({ members, treeId }: TimelineViewProps) {
           date: parseDateString(member.deathDate) || new Date(),
           type: "death",
           title: `${member.firstName} ${member.lastName || ""} passed away`,
-          location: member.deathPlace || undefined,
           member,
         });
       }

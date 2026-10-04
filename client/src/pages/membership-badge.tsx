@@ -42,7 +42,7 @@ function MembershipCard({
   user: any;
   stats: BadgeStats;
   referralUrl: string;
-  cardRef: React.RefObject<HTMLDivElement | null>;
+  cardRef: React.RefObject<HTMLDivElement>;
 }) {
   const tier = getMemberTier(stats.totalMembers);
   const memberSinceDate = stats.memberSince

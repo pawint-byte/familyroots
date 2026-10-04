@@ -4751,7 +4751,7 @@ export default function TreeView() {
         />
       )}
 
-      {isBulkUploadOpen && treeData && (
+      {isBulkUploadOpen && treeData && treeId && (
         <BulkUploadDialog
           treeId={treeId}
           treeName={treeData.tree.name}

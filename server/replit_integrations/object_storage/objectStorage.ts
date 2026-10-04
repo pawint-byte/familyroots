@@ -161,7 +161,7 @@ export class ObjectStorageService {
         });
         stream = file.createReadStream({ start, end });
       } else {
-        res.set("Content-Length", metadata.size);
+        res.set("Content-Length", String(fileSize));
         stream = file.createReadStream();
       }
 

@@ -40,7 +40,7 @@ import { RevenueForecastSection } from "@/components/revenue-forecast-section";
 import type { FamilyTree } from "@shared/schema";
 
 // Extended tree type with member count from API
-type FamilyTreeWithCount = FamilyTree & { memberCount?: number };
+type FamilyTreeWithCount = FamilyTree & { memberCount?: number; tags?: Array<{ id: string; label: string; color: string | null }> };
 
 interface AllMembersTree {
   treeId: number;
@@ -1455,7 +1455,7 @@ export default function Dashboard() {
                   </p>
                   {tree.tags && tree.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-3" data-testid={`tree-tags-${tree.id}`}>
-                      {tree.tags.map((tag: any) => (
+                      {tree.tags.map((tag) => (
                         <Badge
                           key={tag.id}
                           variant="outline"

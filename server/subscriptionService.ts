@@ -417,7 +417,7 @@ export class SubscriptionService {
     packType: string,
     credits: number,
     stripeSessionId: string,
-    paymentIntentId: string,
+    paymentIntentId: string | null,
     rewardId?: string
   ): Promise<void> {
     // Update purchase record
@@ -715,7 +715,7 @@ export class SubscriptionService {
       .where(eq(users.id, userId));
   }
 
-  async handleMilestonePaymentCompleted(userId: string, milestone: number, paymentIntentId: string) {
+  async handleMilestonePaymentCompleted(userId: string, milestone: number, paymentIntentId: string | null) {
     await db.update(memberMilestonePayments)
       .set({
         status: 'paid',

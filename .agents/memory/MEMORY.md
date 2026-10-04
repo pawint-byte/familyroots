@@ -8,3 +8,4 @@
 - [Bot owns Replit config](bot-owns-replit-config.md) — requested ownership of site/Replit configuration and publishing, subject to platform controls.
 - [GitHub backup after green](github-backup-after-green.md) — back up only final published, tested-green state; never secrets or partial work.
 - [Phone-down autonomy](phone-down-autonomy.md) — ordinary mission-fit operations are pre-approved; ping only for listed access, spending, hard-block, or mission exceptions.
+- [Compiler verification](compiler-verification.md) — verify compiler-option changes without incremental caching when diagnostics contradict the effective configuration.

@@ -397,10 +397,10 @@ export default function RecordsPage() {
       deathDate: rp.display?.deathDate,
       living: !rp.display?.deathDate,
     }));
-    const normalizedRels = (result.relationships || []).map(r => ({
-      ...r,
-      type: r.type.includes("ParentChild") ? "parent-child" : r.type.includes("Couple") ? "couple" : r.type,
-    }));
+    const normalizedRels = (result.relationships || []).flatMap<FamilySearchRelationship>(r => {
+      const type = r.type.includes("ParentChild") ? "parent-child" : r.type.includes("Couple") ? "couple" : null;
+      return type ? [{ ...r, type }] : [];
+    });
     setFamilyMembers([mainPerson, ...relatedPersons]);
     setFamilyRelationships(normalizedRels);
     setSelectedFamilyIds(new Set([mainPerson.id, ...relatedPersons.map(p => p.id)]));
