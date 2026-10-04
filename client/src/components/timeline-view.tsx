@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, MapPin, Cake, Heart, Star, GraduationCap, Briefcase, Church, Baby, Ribbon } from "lucide-react";
 import { parseDateString } from "@/lib/utils";
-import type { FamilyMember, FamilyEvent } from "@shared/schema";
+import { EventMediaDetail } from "@/components/event-media-detail";
+import type { FamilyMember, FamilyEvent, EventMediaAttachment } from "@shared/schema";
 
 interface TimelineViewProps {
   members: FamilyMember[];
@@ -20,6 +21,7 @@ interface TimelineEvent {
   title: string;
   description?: string;
   location?: string;
+  mediaAttachments?: EventMediaAttachment[];
   member: FamilyMember | null;
 }
 
@@ -78,8 +80,29 @@ export default function TimelineView({ members, treeId }: TimelineViewProps) {
 
         const linkedMember = event.memberId ? memberMap.get(event.memberId) : null;
 
-        if (event.eventType === "birth" && event.memberId && addedEventKeys.has(`birth-${event.memberId}`)) return;
-        if (event.eventType === "death" && event.memberId && addedEventKeys.has(`death-${event.memberId}`)) return;
+        const duplicateKey = event.eventType === "birth" && event.memberId && addedEventKeys.has(`birth-${event.memberId}`)
+          ? `birth-${event.memberId}`
+          : event.eventType === "death" && event.memberId && addedEventKeys.has(`death-${event.memberId}`)
+            ? `death-${event.memberId}`
+            : null;
+        if (duplicateKey) {
+          const existingIndex = allEvents.findIndex(candidate => candidate.id === duplicateKey);
+          if (existingIndex >= 0 && (event.mediaAttachments?.length || event.description || event.location)) {
+            const previousAttachments = allEvents[existingIndex].mediaAttachments || [];
+            const attachmentByUrl = new Map<string, EventMediaAttachment>();
+            [...previousAttachments, ...(event.mediaAttachments || [])].forEach(attachment => {
+              attachmentByUrl.set(`${attachment.type}:${attachment.url}`, attachment);
+            });
+            allEvents[existingIndex] = {
+              ...allEvents[existingIndex],
+              title: event.title || allEvents[existingIndex].title,
+              description: event.description || allEvents[existingIndex].description,
+              location: event.location || allEvents[existingIndex].location,
+              mediaAttachments: Array.from(attachmentByUrl.values()),
+            };
+          }
+          return;
+        }
 
         allEvents.push({
           id: `event-${event.id}`,
@@ -88,6 +111,7 @@ export default function TimelineView({ members, treeId }: TimelineViewProps) {
           title: event.title,
           description: event.description || undefined,
           location: event.location || undefined,
+          mediaAttachments: event.mediaAttachments || [],
           member: linkedMember || null,
         });
       });
@@ -211,7 +235,7 @@ export default function TimelineView({ members, treeId }: TimelineViewProps) {
 
         {years.map((year) => (
           <div key={year} className="relative">
-            <div className="sticky top-20 z-10 mb-6">
+            <div className="pointer-events-none sticky top-20 z-10 mb-6">
               <div className="inline-flex items-center px-4 py-2 bg-background border border-border rounded-full shadow-sm">
                 <span className="font-serif text-lg font-semibold">{year}</span>
                 <Badge variant="secondary" className="ml-2">
@@ -227,8 +251,16 @@ export default function TimelineView({ members, treeId }: TimelineViewProps) {
                     className={`absolute -left-[25px] w-4 h-4 rounded-full border-2 ${getEventColor(event.type)}`}
                   />
                   
-                  <Card className="hover-elevate">
-                    <CardContent className="p-4">
+                  <EventMediaDetail
+                    className="w-full text-left"
+                    title={event.title}
+                    date={event.date.toISOString()}
+                    description={event.description}
+                    location={event.location}
+                    attachments={event.mediaAttachments}
+                  >
+                    <Card className="hover-elevate">
+                      <CardContent className="p-4">
                       <div className="flex items-start gap-4">
                         {event.member ? (
                           <Avatar className="h-12 w-12 flex-shrink-0">
@@ -286,8 +318,9 @@ export default function TimelineView({ members, treeId }: TimelineViewProps) {
                           )}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  </EventMediaDetail>
                 </div>
               ))}
             </div>

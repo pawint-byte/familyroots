@@ -2569,7 +2569,12 @@ export default function TreeView() {
         <>
           {/* View Depth Controls */}
           <div 
-            className="fixed bottom-24 sm:bottom-4 right-2 sm:right-4 z-50 bg-background/90 backdrop-blur rounded-lg p-1.5 sm:p-2 shadow-lg border"
+            className="fixed right-4 top-56 z-30 max-h-[calc(100dvh_-_16rem)] max-w-[calc(100vw_-_2rem)] overflow-y-auto rounded-lg border bg-background/90 p-1.5 shadow-lg backdrop-blur sm:p-2"
+            style={{
+              top: "max(8rem, min(14rem, calc(26dvh + env(safe-area-inset-top))))",
+              right: "max(1rem, env(safe-area-inset-right))",
+              maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16rem)",
+            }}
             role="group"
             aria-label="Family view depth controls"
           >

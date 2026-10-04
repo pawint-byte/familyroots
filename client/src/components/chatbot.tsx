@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,10 @@ interface ChatMessage {
 }
 
 export function Chatbot() {
+  const [pathname] = useLocation();
+  // Leave the tree's bottom-right Connection Requests controls accessible.
+  const bottomOffset = pathname.startsWith("/tree/") ? "5rem" : "1rem";
+  const floatingBottom = `max(${bottomOffset}, env(safe-area-inset-bottom))`;
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -134,7 +139,8 @@ export function Chatbot() {
       {!isOpen && (
         <Button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 rounded-full shadow-lg z-50"
+          className="fixed bottom-4 right-4 z-50 max-w-[calc(100vw_-_2rem)] rounded-full shadow-lg"
+          style={{ position: "fixed", zIndex: 50, bottom: floatingBottom, right: "max(1rem, env(safe-area-inset-right))" }}
           size="lg"
           data-testid="button-open-chatbot"
         >
@@ -144,7 +150,7 @@ export function Chatbot() {
       )}
 
       {isOpen && (
-        <Card className="fixed bottom-6 right-6 w-[380px] max-w-[calc(100vw-48px)] h-[500px] max-h-[calc(100vh-100px)] shadow-xl z-50 flex flex-col" data-testid="chatbot-container">
+        <Card className="fixed bottom-4 right-4 z-50 flex h-[500px] max-h-[calc(100dvh_-_2rem)] w-[380px] max-w-[calc(100vw_-_2rem)] flex-col shadow-xl" style={{ position: "fixed", zIndex: 50, bottom: floatingBottom, right: "max(1rem, env(safe-area-inset-right))", maxHeight: `calc(100dvh - ${bottomOffset} - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 1rem)`, width: "min(380px, calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left) - 2rem))" }} data-testid="chatbot-container">
           <CardHeader className="flex flex-row items-center justify-between gap-2 py-3 px-4 border-b">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">

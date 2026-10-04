@@ -15,6 +15,7 @@ const expectedPaths = [
   "/privacy",
   "/terms",
   "/comparison",
+  "/compare",
   "/whats-new",
   "/gifts",
   "/merchandise",
@@ -24,8 +25,13 @@ const expectedPaths = [
 
 test("defines unique complete metadata for every requested public route", () => {
   assert.deepEqual(Object.keys(PUBLIC_SEO_METADATA).sort(), expectedPaths.sort());
-  assert.equal(new Set(Object.values(PUBLIC_SEO_METADATA).map((seo) => seo.title)).size, expectedPaths.length);
-  assert.equal(new Set(Object.values(PUBLIC_SEO_METADATA).map((seo) => seo.description)).size, expectedPaths.length);
+  // /compare is an existing alias of /comparison and shares its page copy.
+  const uniquePages = Object.entries(PUBLIC_SEO_METADATA)
+    .filter(([path]) => path !== "/compare")
+    .map(([, seo]) => seo);
+  assert.equal(new Set(uniquePages.map((seo) => seo.title)).size, expectedPaths.length - 1);
+  assert.equal(new Set(uniquePages.map((seo) => seo.description)).size, expectedPaths.length - 1);
+  assert.equal(PUBLIC_SEO_METADATA["/compare"].title, PUBLIC_SEO_METADATA["/comparison"].title);
 
   for (const path of expectedPaths) {
     const seo = PUBLIC_SEO_METADATA[path];

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, MapPin, Image, Film, Trash2, Megaphone, Send } from "lucide-react";
+import { Plus, Calendar, MapPin, Image, Film, Trash2, Megaphone, Send, X, Upload } from "lucide-react";
 import type { FamilyEvent, FamilyTree, EventMediaAttachment } from "@shared/schema";
+import { EventMediaDetail } from "@/components/event-media-detail";
 
 interface LifeEventsSectionProps {
   memberId: string;
@@ -31,6 +32,10 @@ const EVENT_TYPES = [
   { value: "achievement", label: "Achievement", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
 ];
 
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+type PendingEventMedia = { id: string; file: File; caption: string; uploaded?: EventMediaAttachment; status?: string };
+
 export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: LifeEventsSectionProps) {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -43,6 +48,14 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
+  const [pendingMedia, setPendingMedia] = useState<PendingEventMedia[]>([]);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
+  const { data: pricingStatus } = useQuery<any>({ queryKey: ["/api/pricing/status"] });
+  const { data: adminCheck } = useQuery<{ isAdmin: boolean }>({ queryKey: ["/api/admin/check"] });
+  const videoLocked = (pricingStatus?.featureTier || "explorer") === "explorer" && !adminCheck?.isAdmin;
 
   const { data: events = [], isLoading } = useQuery<FamilyEvent[]>({
     queryKey: ['/api/members', memberId, 'events'],
@@ -72,6 +85,7 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/members', memberId, 'events'] });
       toast({ title: "Event deleted" });
+      queryClient.invalidateQueries({ queryKey: ['/api/trees', treeId, 'events'] });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete event", variant: "destructive" });
@@ -135,23 +149,114 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
     setTitle("");
     setDescription("");
     setLocation("");
+    setPendingMedia([]);
+    setUploadError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (submittingRef.current) return;
     if (!eventType || !eventDate || !title) {
       toast({ title: "Missing fields", description: "Please fill in event type, date, and title", variant: "destructive" });
       return;
     }
 
-    createEventMutation.mutate({
-      memberId,
-      eventType,
-      eventDate,
-      title,
-      description: description || undefined,
-      location: location || undefined,
-      mediaAttachments: [],
-    });
+    setUploadError("");
+    submittingRef.current = true;
+    let postingEvent = false;
+    try {
+      const uploaded: EventMediaAttachment[] = [];
+      for (const item of pendingMedia) {
+        if (item.uploaded) {
+          uploaded.push({ ...item.uploaded, caption: item.caption || undefined });
+          continue;
+        }
+        setUploadingId(item.id);
+        setPendingMedia(current => current.map(entry => entry.id === item.id ? { ...entry, status: "Preparing upload…" } : entry));
+        const extension = item.file.name.split(".").pop() || (item.file.type === "image/jpeg" ? "jpg" : item.file.type.split("/")[1] || "bin");
+        const urlResponse = await fetch("/api/uploads/request-url", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: `event-${Date.now()}-${item.id}.${extension}`, size: item.file.size, contentType: item.file.type }),
+        });
+        if (!urlResponse.ok) {
+          const details = await urlResponse.json().catch(() => null);
+          throw new Error(details?.message || "Could not prepare attachment upload.");
+        }
+        const { uploadURL, objectPath } = await urlResponse.json();
+        setPendingMedia(current => current.map(entry => entry.id === item.id ? { ...entry, status: "Uploading…" } : entry));
+        await new Promise<void>((resolve, reject) => {
+          const request = new XMLHttpRequest();
+          request.open("PUT", uploadURL);
+          request.setRequestHeader("Content-Type", item.file.type);
+          request.upload.onprogress = event => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded / event.total) * 100);
+              setPendingMedia(current => current.map(entry => entry.id === item.id ? { ...entry, status: `Uploading ${percent}%` } : entry));
+            }
+          };
+          request.onload = () => request.status >= 200 && request.status < 300 ? resolve() : reject(new Error("Attachment upload failed."));
+          request.onerror = () => reject(new Error("Attachment upload failed. Check your connection and try again."));
+          request.onabort = () => reject(new Error("Attachment upload was cancelled."));
+          request.send(item.file);
+        });
+        const attachment: EventMediaAttachment = {
+          url: objectPath,
+          type: item.file.type.startsWith("video/") ? "video" : "image",
+          caption: item.caption || undefined,
+          uploadedAt: new Date().toISOString(),
+        };
+        uploaded.push(attachment);
+        setPendingMedia(current => current.map(entry => entry.id === item.id ? { ...entry, uploaded: attachment, status: "Uploaded" } : entry));
+      }
+      setUploadingId(null);
+      postingEvent = true;
+      await createEventMutation.mutateAsync({
+        memberId, eventType, eventDate, title,
+        description: description || undefined,
+        location: location || undefined,
+        mediaAttachments: uploaded,
+      });
+    } catch (error: any) {
+      setUploadingId(null);
+      const message = error?.message || "Could not save this event. Please try again.";
+      setUploadError(message);
+      if (!postingEvent) {
+        toast({ title: "Attachment upload failed", description: message, variant: "destructive" });
+      }
+    } finally {
+      submittingRef.current = false;
+    }
+  };
+
+  const selectMedia = (files: FileList | null) => {
+    if (!files) return;
+    const additions: PendingEventMedia[] = [];
+    const validationErrors: string[] = [];
+    for (const file of Array.from(files)) {
+      const isVideo = file.type.startsWith("video/");
+      const isImage = file.type.startsWith("image/");
+      const limit = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+      if (!isImage && !isVideo) {
+        validationErrors.push(`${file.name} is not a supported photo or video.`);
+        continue;
+      }
+      if (isVideo && videoLocked) {
+        validationErrors.push("Video attachments require a paid plan. Your selected photo attachments remain available.");
+        continue;
+      }
+      if (file.size > limit) {
+        validationErrors.push(`${file.name} exceeds the ${isVideo ? "100MB video" : "10MB photo"} limit.`);
+        continue;
+      }
+      additions.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, caption: "" });
+    }
+    if (additions.length) {
+      setPendingMedia(current => [...current, ...additions]);
+    }
+    setUploadError(validationErrors.join(" "));
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const getEventTypeConfig = (type: string) => {
@@ -191,14 +296,20 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
         <CardTitle className="text-lg">Life Events</CardTitle>
         {canEdit && (
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <Dialog
+            open={isAddDialogOpen}
+            onOpenChange={(open) => {
+              if (!open && (uploadingId || createEventMutation.isPending)) return;
+              setIsAddDialogOpen(open);
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm" variant="outline" data-testid="button-add-life-event">
                 <Plus className="h-4 w-4 mr-1" />
                 Add Event
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90dvh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Record Life Event for {memberName}</DialogTitle>
               </DialogHeader>
@@ -217,6 +328,29 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Photos and videos</Label>
+                  <input ref={fileInputRef} type="file" multiple accept="image/*,video/*" className="sr-only" onChange={event => selectMedia(event.target.files)} aria-label="Choose event photos or videos" />
+                  <Button type="button" variant="outline" size="sm" className="gap-2" disabled={createEventMutation.isPending || !!uploadingId} onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="h-4 w-4" /> Add photos or videos
+                  </Button>
+                  <p className="text-xs text-muted-foreground">Photos up to 10MB; videos up to 100MB. Video uploads require a paid plan.</p>
+                  {videoLocked && <p className="text-xs text-muted-foreground">Your current plan includes photos. Upgrade to attach videos.</p>}
+                  {pendingMedia.length > 0 && (
+                    <div className="space-y-2">
+                      {pendingMedia.map(item => (
+                        <div key={item.id} className="flex items-center gap-2 rounded-md border p-2">
+                          {item.file.type.startsWith("image/") ? <Image className="h-4 w-4 shrink-0" /> : <Film className="h-4 w-4 shrink-0" />}
+                          <span className="min-w-0 flex-1 truncate text-xs">{item.file.name} · {(item.file.size / 1048576).toFixed(1)}MB</span>
+                          <Input disabled={createEventMutation.isPending || !!uploadingId} aria-label={`Caption for ${item.file.name}`} placeholder="Caption (optional)" value={item.caption} onChange={event => setPendingMedia(current => current.map(entry => entry.id === item.id ? { ...entry, caption: event.target.value } : entry))} className="h-8 max-w-40 text-xs" />
+                          <span className="w-20 text-right text-xs text-muted-foreground">{item.status || (item.uploaded ? "Uploaded" : "")}</span>
+                          <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${item.file.name}`} disabled={createEventMutation.isPending || !!uploadingId} onClick={() => setPendingMedia(current => current.filter(entry => entry.id !== item.id))}><X className="h-4 w-4" /></Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {uploadError && <p role="alert" className="text-sm text-destructive">{uploadError}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -265,15 +399,15 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <Button variant="outline" disabled={createEventMutation.isPending || !!uploadingId} onClick={() => setIsAddDialogOpen(false)}>
                   Cancel
                 </Button>
                 <Button 
                   onClick={handleSubmit} 
-                  disabled={createEventMutation.isPending}
+                  disabled={createEventMutation.isPending || !!uploadingId}
                   data-testid="button-save-event"
                 >
-                  {createEventMutation.isPending ? "Saving..." : "Save Event"}
+                  {uploadingId ? "Uploading…" : createEventMutation.isPending ? "Saving..." : "Save Event"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -297,7 +431,15 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
                   className="flex items-start gap-3 p-3 rounded-lg border bg-card"
                   data-testid={`event-item-${event.id}`}
                 >
-                  <div className="flex-1 min-w-0">
+                  <EventMediaDetail
+                    className="flex-1 min-w-0 text-left"
+                    title={event.title}
+                    date={event.eventDate}
+                    description={event.description}
+                    location={event.location}
+                    attachments={event.mediaAttachments}
+                    formatDate={formatDate}
+                  >
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <Badge className={typeConfig.color} variant="secondary">
                         {typeConfig.label}
@@ -333,7 +475,7 @@ export function LifeEventsSection({ memberId, treeId, canEdit, memberName }: Lif
                         )}
                       </div>
                     )}
-                  </div>
+                  </EventMediaDetail>
                   <div className="flex flex-col gap-1">
                     {canEdit && otherTrees.length > 0 && (
                       <Button

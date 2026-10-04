@@ -26,6 +26,7 @@ import { mergeMemberWithUserProfile } from "@shared/utils/profile-merge";
 import { getValidRelationshipValues, getDefaultPeerRelationship, getDefaultLeaderRelationship, getRelationshipTypesForTree, getReverseRelationshipType, TREE_TYPE_CONFIGS } from "@shared/treeTypes";
 import type { TreeType } from "@shared/treeTypes";
 import { z } from "zod";
+import { validateEventMedia, eventMediaUsage, EventMediaError } from "./lib/event-media";
 import crypto from "crypto";
 import { calculateRelationship, getSubtreeBetweenMembers } from "./lib/relationship-calculator";
 import { persistUserAttribution } from "./lib/attribution";
@@ -3205,10 +3206,40 @@ export async function registerRoutes(
         }
       }
 
-      const data = insertFamilyEventSchema.parse({ ...req.body, treeId });
+      const mediaAttachments = await validateEventMedia(req.body.mediaAttachments);
+      const usage = eventMediaUsage(mediaAttachments);
+      for (const feature of ["media_upload", "voice_video_upload"] as const) {
+        if (!usage[feature]) continue;
+        const access = await subscriptionService.checkFeatureAccess(userId, feature);
+        if (!access.allowed || (access.limit !== -1 && access.used + usage[feature] > access.limit)) {
+          return res.status(403).json({
+            error: "tier_limit_reached",
+            message: feature === "voice_video_upload" && access.limit === 0
+              ? "Video attachments require a Cultivator subscription or above."
+              : "These attachments exceed your remaining monthly upload allowance.",
+            tier: access.tier,
+            nextTier: access.nextTier,
+          });
+        }
+      }
+      if (req.body.memberId) {
+        const member = await storage.getMember(req.body.memberId);
+        if (!member || member.treeId !== treeId) {
+          return res.status(400).json({ message: "Member does not belong to this tree" });
+        }
+      }
+      const data = insertFamilyEventSchema.parse({ ...req.body, treeId, createdBy: userId, mediaAttachments });
       const event = await storage.createEvent(data);
+      for (const feature of ["media_upload", "voice_video_upload"] as const) {
+        for (let i = 0; i < usage[feature]; i++) {
+          await subscriptionService.incrementFeatureUsage(userId, feature);
+        }
+      }
       res.status(201).json(event);
     } catch (error) {
+      if (error instanceof EventMediaError) {
+        return res.status(400).json({ message: error.message });
+      }
       console.error("Error adding event:", error);
       res.status(400).json({ message: "Failed to add event" });
     }

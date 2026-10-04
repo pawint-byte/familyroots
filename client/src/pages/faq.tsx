@@ -40,6 +40,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { SEO } from "@/components/seo";
+import { MarketingFooter } from "@/components/marketing-page-shell";
 import {
   FAQ_DESCRIPTION,
   FAQ_HEADING,
@@ -295,11 +296,9 @@ export default function FAQ() {
         </Card>
       </main>
 
-      <footer className="border-t border-border mt-16 py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} FamilyRoots. All rights reserved.</p>
-        </div>
-      </footer>
+      <div className="mt-16">
+        <MarketingFooter />
+      </div>
     </div>
   );
 }

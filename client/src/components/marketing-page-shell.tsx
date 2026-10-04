@@ -41,38 +41,32 @@ export function MarketingPageShell({ children, title }: MarketingPageShellProps)
 
       {children}
 
-      <footer className="border-t border-border py-8">
-        <div className="container mx-auto flex flex-col items-center justify-between gap-4 px-4 text-sm text-muted-foreground md:flex-row">
-          <Link href="/" className="flex items-center gap-2 text-foreground">
-            <Trees className="h-5 w-5 text-primary" />
-            <span className="font-serif">FamilyRoots</span>
-          </Link>
-          <p>{new Date().getFullYear()} FamilyRoots. All rights reserved.</p>
-          <nav className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/about" className="hover:text-foreground">About</Link>
-            <Link href="/blog" className="hover:text-foreground">Blog</Link>
-            <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
-            <Link href="/terms" className="hover:text-foreground">Terms</Link>
-            <Link href="/faq" className="hover:text-foreground">FAQ</Link>
-            <a
-              href="https://www.youtube.com/@FamilyRoots-n1c"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground"
-            >
-              YouTube
-            </a>
-            <a
-              href="https://www.tiktok.com/@familyroots.family"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground"
-            >
-              TikTok
-            </a>
-          </nav>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
+  );
+}
+
+export function MarketingFooter() {
+  return (
+    <footer className="border-t border-border pb-20 pt-8">
+      <div className="container mx-auto flex flex-col items-center justify-between gap-4 px-4 text-sm text-muted-foreground md:flex-row">
+        <Link href="/" className="flex items-center gap-2 text-foreground">
+          <Trees className="h-5 w-5 text-primary" />
+          <span className="font-serif">FamilyRoots</span>
+        </Link>
+        <p>{new Date().getFullYear()} FamilyRoots. All rights reserved.</p>
+        <nav className="flex flex-wrap items-center justify-center gap-4">
+          <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
+          <Link href="/features" className="hover:text-foreground">Features</Link>
+          <Link href="/about" className="hover:text-foreground">About</Link>
+          <Link href="/blog" className="hover:text-foreground">Blog</Link>
+          <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+          <Link href="/terms" className="hover:text-foreground">Terms</Link>
+          <Link href="/faq" className="hover:text-foreground">FAQ</Link>
+          <a href="https://www.youtube.com/@FamilyRoots-n1c" target="_blank" rel="noopener noreferrer" className="hover:text-foreground">YouTube</a>
+          <a href="https://www.tiktok.com/@familyroots.family" target="_blank" rel="noopener noreferrer" className="hover:text-foreground">TikTok</a>
+        </nav>
+      </div>
+    </footer>
   );
 }

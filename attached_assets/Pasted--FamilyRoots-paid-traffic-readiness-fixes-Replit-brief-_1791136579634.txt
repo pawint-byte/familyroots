@@ -1,0 +1,41 @@
+# FamilyRoots — paid-traffic readiness fixes (Replit brief)
+
+Copy-paste this entire brief to the Replit agent. Verified by live QA audit 2026-10-04: the items marked STILL BROKEN below were re-checked today and are still broken in production.
+
+## Context
+We are about to run paid ads ($250 test) sending visitors to familyroots.family. These fixes must land before the ads launch. Do not change pricing, plans, or the referral program. Keep every existing feature working.
+
+## Fix 1 (blocker): Life-event photo/video attachments
+**Problem:** The FAQ ("Can I attach photos and videos to life events?") promises: "Each life event can have multiple photo and video attachments." But the "Record Life Event" dialog only has Event Type, Date, Title, Location, Description — no attachment fields. The product does not deliver what the FAQ promises.
+
+**What to do (preferred):** Add photo/video attachment support to life events, reusing the existing member-profile upload/storage pattern:
+- Add an attachments section to the "Record Life Event" dialog (photo + video, same file-type/size limits as the member-profile "Upload Video (max 100MB)" flow).
+- Store attachments against the life event and render them on the event's timeline card.
+- Make timeline cards clickable to open the event detail with its attachments.
+
+**Fallback (only if the above is too large for this pass):** Change the FAQ answer to describe what actually exists today (video via the member-profile VIDEOS section), so the site never promises what it doesn't do. Do not leave the false promise in place.
+
+## Fix 2: Verify video playback end-to-end
+**Problem:** In September, uploaded videos failed to play (0:00 duration) — suspected upload/storage corruption. There are currently no videos on the test account, so playback could not be re-verified today.
+
+**What to do:** Upload a real test video through the member-profile "Upload Video" flow, then confirm: (a) the stored object has non-zero duration, (b) it plays in the site player, (c) navigating directly to the stored object URL also plays. If any step fails, diagnose the upload/storage pipeline (byte-for-byte compare stored object vs original; check Content-Type, Content-Length, Accept-Ranges handling) and fix. Delete the test video afterwards.
+
+## Fix 3: FAQ footer navigation
+**Problem:** /faq ends in a bare copyright bar ("©2026 FamilyRoots") with no nav links, while /compare has a full footer (Pricing / Features / FAQ / Legal). Looks unfinished.
+
+**What to do:** Give /faq the same full footer as /compare.
+
+## Fix 4: Tree-view minor overlaps
+**Problem:** Opening "View Depth" overlaps the "Connections" toggle button; the green Help button is clipped at the viewport edge.
+
+**What to do:** Adjust layout/z-index so the View Depth panel doesn't cover the Connections toggle, and ensure the Help button is fully visible within the viewport at common desktop widths.
+
+## Acceptance criteria (report back on each)
+1. Record Life Event dialog has working photo/video attachment fields, attachments persist and display on timeline cards — OR the FAQ no longer promises them.
+2. Test video uploads and plays with real duration in the site player and via direct object URL.
+3. /faq has the full footer with nav links.
+4. View Depth panel and Connections toggle don't overlap; Help button fully visible.
+5. Nothing else broke: homepage, /compare, /pricing, signup validation, tree rendering all still work.
+
+## Already verified working (do not regress)
+Homepage, Google Analytics tag (G-JFYQ8LKE96), /compare page content, signup form validation, FAQ single-render answers, pricing packs ($7.99/10, $14.99/25, $24.99/50 after 20 free members).
