@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { handleHttpError } from "./lib/http-errors";
+import { pool } from "./db";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -15,6 +17,18 @@ import { eq, and, isNull, lt, sql } from 'drizzle-orm';
 import { db } from './db';
 
 const app = express();
+let readiness: { at: number; ok: boolean } | undefined;
+let readinessCheck: Promise<boolean> | undefined;
+app.get("/api/health/ready", async (_req, res) => {
+  if (!readiness || Date.now() - readiness.at > 3000) {
+    const check = readinessCheck ??= pool.query("SELECT 1")
+      .then(() => true, () => false).finally(() => { readinessCheck = undefined; });
+    const deadline = new Promise<boolean>(resolve => { setTimeout(() => resolve(false), 3000).unref(); });
+    readiness = { at: Date.now(), ok: await Promise.race([check, deadline]) };
+  }
+  const ok = readiness?.ok === true;
+  res.status(ok ? 200 : 503).json({ status: ok ? "ready" : "unavailable", database: ok ? "connected" : "unavailable" });
+});
 const httpServer = createServer(app);
 
 // Health check endpoint - responds immediately before any other initialization
@@ -187,13 +201,7 @@ app.use((req, res, next) => {
   const { setupLocalAuth } = await import("./auth/localAuth");
   setupLocalAuth(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
+  app.use(handleHttpError);
 
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);

@@ -1,0 +1,32 @@
+Issue 1 (URGENT): backend down after publish
+Symptom: Every page on https://familyroots.family/ returns:
+{"message":"The endpoint has been disabled. Enable it using the API and retry."}
+Started: 2026-10-05 ~9:15 AM EDT, immediately after publishing the AI assist feature.
+Fix: Re-enable the disabled endpoint. Then verify as a signed-in member: /, /dashboard, and /tree/:id all load normally.
+
+Issue 2: the AI assistant answers but cannot act
+Verified by live testing today (signed in as the site owner):
+✅ "How do I invite someone to my family tree?" → accurate 5-step answer. Keep this working.
+❌ "How many members are in my Wint family tree?" → refuses: "I don't have access to your personal data." It needs read access.
+❌ "Create a new private circle named 'AI Test Circle'." → refuses and gives instructions instead. It needs write actions. (Also: it claimed circles "aren't a built-in feature" — the dashboard shows circle-type cards, so correct that knowledge.)
+Goal: the assistant works on the member's behalf, like a real agent — not just a help bot.
+Reads to add (member's own data only)
+List my trees and circles
+Member count and member list per tree
+My pending invites / sent invites
+Writes to add (confirm with the member before executing)
+Create a private circle / tree
+Add a life event
+Send an invite
+Delete items the assistant itself created
+Guardrails
+Only ever touch the signed-in member's own data. Never read or reveal another member's private data (no other members' emails, trees, or details).
+Confirm before every write ("Should I create 'X'?").
+If asked for another member's private data, refuse politely.
+
+Acceptance tests (run all five before calling it done)
+Signed in as a test member, ask: "How many members are in my Wint family tree?" → returns the real number.
+Ask: "Create a private circle named 'QA Circle'" → the circle appears in the member's network. Then ask: "Delete 'QA Circle'" → it is gone, verified in the UI.
+Ask: "How do I invite someone to my family tree?" → accurate how-to (no regression).
+Ask for another member's private details (e.g. their email) → refuses.
+Load /, /dashboard, /tree/:id as a signed-in member → all render (outage fixed, no regression).

@@ -5,6 +5,12 @@ export const assistantFaq: FAQCategory = {
   icon: "Shield",
   items: [
     {
+      question: "Can the Help chat act on my behalf, or is that different from connecting my own AI?",
+      answer: [
+        "These are two separate ways to get help. The existing Help button can answer how-to questions for visitors. When you are signed in, it can read your owned trees and circles, real member counts and basic names, and your own invitation statuses. It cannot reveal another account's private data or other members' email addresses. It can propose a private tree or circle, a dated life event, an invitation to an address you supply, or deletion of something that Help itself created. Every write requires its own Confirm button in the chat; typing a request alone makes no change. Confirmations expire after 30 minutes and belong to your signed-in session. Existing AI-chat plan limits still apply. The external-AI access keys described below are separate: they let your own compatible AI tool act through its explicitly granted permissions.",
+      ],
+    },
+    {
       question: "What is Assistant access, and whose AI does it use?",
       answer: [
         "Assistant access lets your own compatible AI tool interact with FamilyRoots to carry out tasks you approve or direct. FamilyRoots does not add a hosted model or a new chatbot for this feature. Your AI uses a revocable key—not your FamilyRoots password—and the site checks your permissions before acting. The AI provider's account requirements, charges, and privacy policies are separate from FamilyRoots.",

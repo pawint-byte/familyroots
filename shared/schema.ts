@@ -1,5 +1,6 @@
 import { sql, relations } from "drizzle-orm";
 export * from "./assistant-schema";
+export { helpAssistantActions } from "./help-assistant";
 import { pgTable, text, varchar, timestamp, boolean, date, pgEnum, integer, jsonb, real, unique, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";

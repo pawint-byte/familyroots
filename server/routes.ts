@@ -91,7 +91,8 @@ const createConnectionRequestSchema = z.object({
 
 import { stripeService } from "./stripeService";
 import { getStripePublishableKey, isStripeConfigured } from "./stripeClient";
-import { streamChatResponse } from "./chatbot";
+import { streamChatResponse, chatRequestSchema } from "./chatbot";
+import { registerHelpAssistantRoutes } from "./help-assistant/routes";
 import { 
   getAvatars, getVoices, generateVideo, syncVideoStatus, 
   getAllVideos, getVideoById, deleteVideo 
@@ -193,6 +194,7 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
   registerAssistantRoutes(app);
+  registerHelpAssistantRoutes(app);
   
   // Setup object storage for photo uploads
   registerObjectStorageRoutes(app);
@@ -8314,11 +8316,9 @@ export async function registerRoutes(
   // AI Chatbot endpoint (streaming) — premium gated
   app.post("/api/chat", async (req: any, res) => {
     try {
-      const { message, history = [] } = req.body;
-
-      if (!message || typeof message !== "string") {
-        return res.status(400).json({ error: "Message is required" });
-      }
+      const parsed = chatRequestSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Provide a message and up to ten user/assistant history entries." });
+      const { message, history } = parsed.data;
 
       const userId = req.user?.claims?.sub;
       if (userId) {
@@ -8353,10 +8353,11 @@ export async function registerRoutes(
         aborted = true;
       });
 
-      for await (const chunk of streamChatResponse(message, history)) {
+      const context = userId && req.isAuthenticated?.() ? { userId, sessionId: req.sessionID } : undefined;
+      for await (const event of streamChatResponse(message, history, context)) {
         if (aborted) break;
-        fullResponse += chunk;
-        res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+        if ("content" in event) fullResponse += event.content;
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
 
       // Increment usage after successful response

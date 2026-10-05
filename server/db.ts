@@ -13,4 +13,8 @@ if (!process.env.DATABASE_URL) {
 }
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+pool.on("error", () => {
+  // Idle connection failures are recoverable. Do not crash the process or log credentials.
+  console.error("Database pool connection failed; subsequent requests will reconnect.");
+});
 export const db = drizzle(pool, { schema });
