@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/lib/theme-provider";
 import { I18nProvider } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { Chatbot } from "@/components/chatbot";
+import { AssistantReviewReminder } from "@/components/assistant-access";
 import { MaintenanceMode } from "@/components/maintenance-mode";
 import { AppLoadingShell } from "@/components/app-loading-shell";
 import { isPublicRoute } from "@/lib/public-routes";
@@ -151,6 +152,7 @@ function App() {
               <Toaster />
               <Router />
               <Chatbot />
+              <AssistantReviewReminder />
             </TooltipProvider>
           </MaintenanceMode>
         </I18nProvider>

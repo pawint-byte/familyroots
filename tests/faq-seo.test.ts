@@ -75,10 +75,10 @@ test("injects the full FAQ into the actual client shell's empty React root", asy
   const renderedItems = [...html.matchAll(/<h3>([\s\S]*?)<\/h3>\s*<div data-faq-answer>/g)];
   const jsonScripts = [...html.matchAll(/<script type="application\/ld\+json" data-faq-jsonld>([\s\S]*?)<\/script>/g)];
 
-  assert.equal(items.length, 199);
-  assert.equal(renderedItems.length, 199);
+  assert.ok(items.length >= 199, "Keep the existing FAQ and allow new questions");
+  assert.equal(renderedItems.length, items.length);
   assert.equal(jsonScripts.length, 1);
-  assert.equal(JSON.parse(jsonScripts[0][1]).mainEntity.length, 199);
+  assert.equal(JSON.parse(jsonScripts[0][1]).mainEntity.length, items.length);
   assertCompleteFaq(html);
   assert.match(html, /<div id="root"><main data-faq-prerender>/);
 });

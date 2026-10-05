@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { eq, and, or, inArray, desc, gte, lt, isNull, sql } from "drizzle-orm";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
+import { registerAssistantRoutes } from "./assistant/routes";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { 
   familyTrees, familyMembers, relationships as relationshipsTable,
@@ -191,6 +192,7 @@ export async function registerRoutes(
   // Setup authentication
   await setupAuth(app);
   registerAuthRoutes(app);
+  registerAssistantRoutes(app);
   
   // Setup object storage for photo uploads
   registerObjectStorageRoutes(app);

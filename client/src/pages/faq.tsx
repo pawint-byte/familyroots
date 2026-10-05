@@ -67,6 +67,8 @@ const faqIcons: Record<string, LucideIcon> = {
 };
 
 const faqStructuredData = getFaqStructuredData();
+const distinctiveFeaturesCategoryIndex = faqCategories.findIndex(category => category.title === "Features You Won't Find Elsewhere");
+const familySearchCategoryIndex = faqCategories.findIndex(category => category.title === "FamilySearch Integration");
 
 function renderFaqAnswerPart(part: FAQAnswerPart, key: string): ReactNode {
   if (typeof part === "string") return part;
@@ -198,12 +200,12 @@ export default function FAQ() {
           </p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[
-              { icon: <UserCheck className="h-5 w-5 text-green-600" />, title: "Profile Claiming", teaser: "Family members own and update their own profiles — the tree stays accurate without one person doing all the work.", categoryIdx: 2, itemIdx: 0 },
-              { icon: <GitMerge className="h-5 w-5 text-blue-600" />, title: "Cross-Tree Connections", teaser: "Link separate family trees when they share members. See the full extended family across both sides.", categoryIdx: 2, itemIdx: 4 },
-              { icon: <Shield className="h-5 w-5 text-red-600" />, title: "Deadman Switch", teaser: "Designate an heir so your trees are never lost if something happens to you. No other platform does this.", categoryIdx: 2, itemIdx: 3 },
-              { icon: <QrCode className="h-5 w-5 text-gray-700" />, title: "QR Code Profiles", teaser: "Scan QR codes at reunions to instantly connect. Print them on name tags and invitations.", categoryIdx: 2, itemIdx: 5 },
-              { icon: <Search className="h-5 w-5 text-green-700" />, title: "FamilySearch Integration", teaser: "Search 66B+ historical records and import ancestors with smart duplicate detection and true sync merge.", categoryIdx: 8, itemIdx: 0 },
-              { icon: <ShoppingBag className="h-5 w-5 text-orange-600" />, title: "Custom Merchandise", teaser: "Print your actual tree on mugs, shirts, posters, and blankets. Add QR codes, custom text, and photos.", categoryIdx: 2, itemIdx: 8 },
+              { icon: <UserCheck className="h-5 w-5 text-green-600" />, title: "Profile Claiming", teaser: "Family members own and update their own profiles — the tree stays accurate without one person doing all the work.", categoryIdx: distinctiveFeaturesCategoryIndex, itemIdx: 0 },
+              { icon: <GitMerge className="h-5 w-5 text-blue-600" />, title: "Cross-Tree Connections", teaser: "Link separate family trees when they share members. See the full extended family across both sides.", categoryIdx: distinctiveFeaturesCategoryIndex, itemIdx: 4 },
+              { icon: <Shield className="h-5 w-5 text-red-600" />, title: "Deadman Switch", teaser: "Designate an heir so your trees are never lost if something happens to you. No other platform does this.", categoryIdx: distinctiveFeaturesCategoryIndex, itemIdx: 3 },
+              { icon: <QrCode className="h-5 w-5 text-gray-700" />, title: "QR Code Profiles", teaser: "Scan QR codes at reunions to instantly connect. Print them on name tags and invitations.", categoryIdx: distinctiveFeaturesCategoryIndex, itemIdx: 5 },
+              { icon: <Search className="h-5 w-5 text-green-700" />, title: "FamilySearch Integration", teaser: "Search 66B+ historical records and import ancestors with smart duplicate detection and true sync merge.", categoryIdx: familySearchCategoryIndex, itemIdx: 0 },
+              { icon: <ShoppingBag className="h-5 w-5 text-orange-600" />, title: "Custom Merchandise", teaser: "Print your actual tree on mugs, shirts, posters, and blankets. Add QR codes, custom text, and photos.", categoryIdx: distinctiveFeaturesCategoryIndex, itemIdx: 8 },
             ].map((item, i) => (
               <button
                 key={i}

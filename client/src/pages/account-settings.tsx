@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Shield, User, Clock, AlertTriangle, Save, Trash2, Pencil, X, Check } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { NotificationPreferences } from "@/components/notification-preferences";
+import { AssistantAccess } from "@/components/assistant-access";
 import type { AccountHeir } from "@shared/schema";
 
 export default function AccountSettings() {
@@ -412,6 +413,8 @@ export default function AccountSettings() {
 
           {/* Notification Preferences */}
           <NotificationPreferences />
+
+          <AssistantAccess />
         </div>
       </main>
     </div>

@@ -1,3 +1,5 @@
+import { assistantFaq } from "./assistant-faq";
+
 export type FAQAnswerPart =
   | string
   | { text: string; href: string; target?: "_blank"; rel?: string }
@@ -19,9 +21,10 @@ export interface FAQCategory {
 }
 
 export const FAQ_HEADING = "Frequently Asked Questions";
-export const FAQ_DESCRIPTION = "Find answers to common questions about FamilyRoots. Can't find what you're looking for? Use the Help button on any page to chat with our AI assistant.";
+export const FAQ_DESCRIPTION = "Find answers about FamilyRoots, privacy, tree building, and connecting your own AI safely through member-controlled permissions.";
 
 export const faqCategories: FAQCategory[] = [
+  assistantFaq,
   {
     "title": "Getting Started",
     "icon": "TreeDeciduous",
