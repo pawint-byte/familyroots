@@ -9,3 +9,4 @@
 - [GitHub backup after green](github-backup-after-green.md) — back up only final published, tested-green state; never secrets or partial work.
 - [Phone-down autonomy](phone-down-autonomy.md) — ordinary mission-fit operations are pre-approved; ping only for listed access, spending, hard-block, or mission exceptions.
 - [Compiler verification](compiler-verification.md) — verify compiler-option changes without incremental caching when diagnostics contradict the effective configuration.
+- [Assistant delegation](assistant-delegation.md) — the member's own AI performs member-approved or directed tasks through revocable permissions; no hosted assistant or chatbot.
