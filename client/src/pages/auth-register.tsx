@@ -14,6 +14,7 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, For
 import { Eye, EyeOff, UserPlus, TreeDeciduous, Mail } from "lucide-react";
 import { HEARD_VIA_CHOICES } from "@shared/signup-attribution";
 import { getSignupAttributionPayload } from "@/lib/attribution";
+import { trackNewAccountSignUp } from "@/lib/analytics";
 
 export default function AuthRegister() {
   const [, setLocation] = useLocation();
@@ -72,6 +73,9 @@ export default function AuthRegister() {
         variant: "destructive",
       });
     },
+    // The server cookie proves a new account was persisted. This also handles
+    // a downstream mail failure without changing the existing signup behavior.
+    onSettled: () => trackNewAccountSignUp(),
   });
 
   if (verificationEmail) {

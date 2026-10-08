@@ -1,3 +1,7 @@
+import { consumeSignUpAnalytics } from "./signup-analytics";
+
+let gaScriptLoaded = false;
+
 declare global {
   interface Window {
     dataLayer: any[];
@@ -16,6 +20,10 @@ export const initGA = () => {
   const script1 = document.createElement('script');
   script1.async = true;
   script1.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
+  script1.addEventListener('load', () => {
+    gaScriptLoaded = true;
+    trackNewAccountSignUp();
+  }, { once: true });
   document.head.appendChild(script1);
 
   const script2 = document.createElement('script');
@@ -26,6 +34,11 @@ export const initGA = () => {
     gtag('config', '${measurementId}');
   `;
   document.head.appendChild(script2);
+};
+
+export const trackNewAccountSignUp = () => {
+  if (!gaScriptLoaded) return;
+  consumeSignUpAnalytics(import.meta.env.VITE_GA_MEASUREMENT_ID, import.meta.env.DEV);
 };
 
 export const trackPageView = (url: string) => {

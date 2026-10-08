@@ -1,5 +1,5 @@
 import * as client from "openid-client";
-import { Strategy, type VerifyFunction } from "openid-client/passport";
+import { Strategy, type VerifyFunctionWithRequest } from "openid-client/passport";
 
 import passport from "passport";
 import session from "express-session";
@@ -7,6 +7,7 @@ import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
+import { recordSignUpAnalytics } from "../../lib/signupAnalytics";
 
 const getOidcConfig = memoize(
   async () => {
@@ -50,7 +51,7 @@ function updateUserSession(
   user.expires_at = user.claims?.exp;
 }
 
-async function upsertUser(claims: any): Promise<{ id: string }> {
+async function upsertUser(claims: any): Promise<{ id: string; isNewUserForAnalytics: boolean }> {
   const userData: any = {
     id: claims["sub"],
   };
@@ -85,7 +86,7 @@ async function upsertUser(claims: any): Promise<{ id: string }> {
     }
   }
 
-  return { id: user.id };
+  return { id: user.id, isNewUserForAnalytics: isNewUser };
 }
 
 export async function setupAuth(app: Express) {
@@ -96,7 +97,8 @@ export async function setupAuth(app: Express) {
 
   const config = await getOidcConfig();
 
-  const verify: VerifyFunction = async (
+  const verify: VerifyFunctionWithRequest = async (
+    req,
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
@@ -105,6 +107,9 @@ export async function setupAuth(app: Express) {
     
     // Upsert user and get the actual user ID (might differ if email conflict)
     const dbUser = await upsertUser(tokens.claims());
+    if (dbUser.isNewUserForAnalytics && req.res) {
+      recordSignUpAnalytics(req.res, "replit");
+    }
     
     // Update claims.sub to use the actual database user ID
     // This handles cases where an email already exists with a different ID
@@ -128,6 +133,7 @@ export async function setupAuth(app: Express) {
           config,
           scope: "openid email profile offline_access",
           callbackURL: `https://${domain}/api/callback`,
+          passReqToCallback: true,
         },
         verify
       );

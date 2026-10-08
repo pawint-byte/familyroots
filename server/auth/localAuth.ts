@@ -1,3 +1,4 @@
+import { recordSignUpAnalytics } from "../lib/signupAnalytics";
 import { Express, RequestHandler } from "express";
 import { db } from "../db";
 import { users } from "@shared/models/auth";
@@ -113,6 +114,7 @@ export function setupLocalAuth(app: Express) {
           ...cobAttributionFields,
         });
 
+      recordSignUpAnalytics(res, "email");
       await sendVerificationEmail(req, normalizedEmail, firstName || "there", verifyToken);
 
       res.status(201).json({

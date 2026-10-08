@@ -12,3 +12,4 @@
 - [Assistant delegation](assistant-delegation.md) — the member's own AI performs member-approved or directed tasks through revocable permissions; no hosted assistant or chatbot.
 - [Assistant client compatibility](assistant-client-compatibility.md) — GPT Actions need JSON retry IDs and private key setups; Claude connectors require MCP, not an OpenAPI URL.
 - [Existing Help permissions](help-assistant-scope.md) — Help is separate from external AI access; owned data only, explicit write confirmations, and real action-card verification.
+- [GA4 conversion verification](ga4-conversion-verification.md) — confirm signup hits reach GA4 collection, not merely the browser queue; wait for the tag to load.
