@@ -1,0 +1,55 @@
+      </h4>
+
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">Loading...</div>
+      ) : (
+        <>
+          {videos && videos.length > 0 && (
+            <div className="space-y-2">
+              {videos.map(vid => (
+                <Card key={vid.id} className="bg-muted/50" data-testid={`member-video-${vid.id}`}>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{vid.title || "Video"}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {vid.durationSeconds ? (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDuration(vid.durationSeconds)}
+                            </span>
+                          ) : null}
+                          <span>{new Date(vid.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      {vid.locked && (
+                        <Badge variant="secondary" className="text-xs">Paid plan</Badge>
+                      )}
+                      {canEdit && !vid.locked && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => deleteMutation.mutate(vid.id)}
+                          data-testid={`button-delete-video-${vid.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                    {vid.locked || !vid.videoUrl ? (
+                      <div className="flex items-center justify-center gap-2 rounded-md bg-muted h-32 text-muted-foreground text-sm">
+                        <Film className="h-4 w-4" />
+                        Paid-plan content
+                      </div>
+                    ) : (
+                      <video
+                        controls
+                        preload="metadata"
+                        className="w-full rounded-md max-h-72 bg-black"
+                        src={resolveUrl(vid.videoUrl)}
+                        data-testid={`video-player-${vid.id}`}
+                      />
+                    )}
+                  </CardContent>
+                </Card>

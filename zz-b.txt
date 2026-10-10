@@ -1,0 +1,136 @@
+client/src/components/ui/chart.tsx:55:          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
+client/src/components/tier-upgrade-prompt.tsx:61:    ai_avatar_video: "AI avatar videos",
+client/src/components/member-videos-section.tsx:9:import { Video, Trash2, Upload, Clock, Film } from "lucide-react";
+client/src/components/member-videos-section.tsx:11:import type { MemberVideo } from "@shared/schema";
+client/src/components/member-videos-section.tsx:13:interface MemberVideosSectionProps {
+client/src/components/member-videos-section.tsx:20:interface MemberVideoWithLock extends MemberVideo {
+client/src/components/member-videos-section.tsx:25:const MAX_VIDEO_SIZE_MB = 100;
+client/src/components/member-videos-section.tsx:27:export function MemberVideosSection({ memberId, treeId, canEdit, memberName }: MemberVideosSectionProps) {
+client/src/components/member-videos-section.tsx:38:  const isVoiceVideoLocked = userTier === 'explorer';
+client/src/components/member-videos-section.tsx:40:  const { data: videos, isLoading } = useQuery<MemberVideoWithLock[]>({
+client/src/components/member-videos-section.tsx:41:    queryKey: ['/api/trees', treeId, 'members', memberId, 'videos'],
+client/src/components/member-videos-section.tsx:43:      const res = await fetch(`/api/trees/${treeId}/members/${memberId}/videos`, { credentials: 'include' });
+client/src/components/member-videos-section.tsx:44:      if (!res.ok) throw new Error('Failed to fetch videos');
+client/src/components/member-videos-section.tsx:50:    mutationFn: async ({ videoUrl, durationSeconds, title }: { videoUrl: string; durationSeconds: number; title: string }) => {
+client/src/components/member-videos-section.tsx:51:      const res = await apiRequest('POST', `/api/trees/${treeId}/members/${memberId}/videos`, {
+client/src/components/member-videos-section.tsx:52:        videoUrl,
+client/src/components/member-videos-section.tsx:54:        title: title || `Video of ${memberName}`,
+client/src/components/member-videos-section.tsx:59:      queryClient.invalidateQueries({ queryKey: ['/api/trees', treeId, 'members', memberId, 'videos'] });
+client/src/components/member-videos-section.tsx:63:      toast({ title: "Video saved" });
+client/src/components/member-videos-section.tsx:69:        toast({ title: "Error", description: "Failed to save video", variant: "destructive" });
+client/src/components/member-videos-section.tsx:76:      return apiRequest('DELETE', `/api/member-videos/${id}`);
+client/src/components/member-videos-section.tsx:79:      queryClient.invalidateQueries({ queryKey: ['/api/trees', treeId, 'members', memberId, 'videos'] });
+client/src/components/member-videos-section.tsx:80:      toast({ title: "Video removed" });
+client/src/components/member-videos-section.tsx:84:  const getVideoDuration = (file: File): Promise<number> => {
+client/src/components/member-videos-section.tsx:86:      const el = document.createElement('video');
+client/src/components/member-videos-section.tsx:100:    if (!file.type.startsWith('video/')) {
+client/src/components/member-videos-section.tsx:101:      toast({ title: "Invalid file", description: "Please select a video file.", variant: "destructive" });
+client/src/components/member-videos-section.tsx:104:    if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
+client/src/components/member-videos-section.tsx:105:      toast({ title: "File too large", description: `Videos must be under ${MAX_VIDEO_SIZE_MB}MB.`, variant: "destructive" });
+client/src/components/member-videos-section.tsx:115:      const duration = await getVideoDuration(selectedFile);
+client/src/components/member-videos-section.tsx:121:        body: JSON.stringify({ name: `member-video-${Date.now()}.${ext}`, size: selectedFile.size, contentType: selectedFile.type }),
+client/src/components/member-videos-section.tsx:142:        videoUrl: objectPath,
+client/src/components/member-videos-section.tsx:144:        title: title.trim() || `Video of ${memberName}`,
+client/src/components/member-videos-section.tsx:147:      toast({ title: "Upload failed", description: "Could not upload video", variant: "destructive" });
+client/src/components/member-videos-section.tsx:164:        <Video className="h-4 w-4" />
+client/src/components/member-videos-section.tsx:165:        Videos
+client/src/components/member-videos-section.tsx:172:          {videos && videos.length > 0 && (
+client/src/components/member-videos-section.tsx:174:              {videos.map(vid => (
+client/src/components/member-videos-section.tsx:175:                <Card key={vid.id} className="bg-muted/50" data-testid={`member-video-${vid.id}`}>
+client/src/components/member-videos-section.tsx:179:                        <p className="text-sm font-medium truncate">{vid.title || "Video"}</p>
+client/src/components/member-videos-section.tsx:199:                          data-testid={`button-delete-video-${vid.id}`}
+client/src/components/member-videos-section.tsx:205:                    {vid.locked || !vid.videoUrl ? (
+client/src/components/member-videos-section.tsx:211:                      <video
+client/src/components/member-videos-section.tsx:215:                        src={resolveUrl(vid.videoUrl)}
+client/src/components/member-videos-section.tsx:216:                        data-testid={`video-player-${vid.id}`}
+client/src/components/member-videos-section.tsx:225:          {canEdit && isVoiceVideoLocked && (
+client/src/components/member-videos-section.tsx:228:              title="Videos require a subscription"
+client/src/components/member-videos-section.tsx:234:          {canEdit && !isVoiceVideoLocked && (
+client/src/components/member-videos-section.tsx:249:                      data-testid="input-video-title"
+client/src/components/member-videos-section.tsx:257:                        data-testid="button-save-video"
+client/src/components/member-videos-section.tsx:266:                        data-testid="button-discard-video"
+client/src/components/member-videos-section.tsx:278:                    accept="video/*"
+client/src/components/member-videos-section.tsx:281:                    data-testid="input-video-file"
+client/src/components/member-videos-section.tsx:288:                    data-testid="button-upload-video"
+client/src/components/member-videos-section.tsx:290:                    <Video className="h-3.5 w-3.5" />
+client/src/components/member-videos-section.tsx:291:                    Upload Video (max {MAX_VIDEO_SIZE_MB}MB)
+client/src/components/member-videos-section.tsx:298:          {(!videos || videos.length === 0) && !canEdit && (
+client/src/components/member-videos-section.tsx:299:            <p className="text-sm text-muted-foreground">No videos uploaded yet.</p>
+client/src/components/premium-content-locked.tsx:3:import { Lock, Video, Mic, Crown } from "lucide-react";
+client/src/components/premium-content-locked.tsx:6:  type: "video" | "voice_note" | "media";
+===
+client/src/components/ui/badge.tsx
+client/src/components/ui/sidebar.tsx
+client/src/components/name-history.tsx
+client/src/components/education-history.tsx
+client/src/components/career-history.tsx
+client/src/components/member-discoverability.tsx
+client/src/components/custodianship-section.tsx
+client/src/components/pending-custodianship.tsx
+client/src/components/invitation-status.tsx
+client/src/components/connect-trees-section.tsx
+client/src/components/referral-section.tsx
+client/src/components/email-invite-form.tsx
+client/src/components/revenue-forecast-section.tsx
+client/src/components/special-connections.tsx
+client/src/components/relationship-display.tsx
+client/src/components/gift-registry-section.tsx
+client/src/components/share-tree-dialog.tsx
+client/src/components/merge-members-dialog.tsx
+client/src/components/outgoing-requests.tsx
+client/src/components/invite-connect-dialog.tsx
+client/src/components/smart-match-dialog.tsx
+client/src/components/tier-upgrade-prompt.tsx
+client/src/components/annual-tree-report.tsx
+client/src/components/import-conflict-resolution.tsx
+client/src/components/tree-registries-tab.tsx
+client/src/components/profile-claim-section.tsx
+client/src/components/pending-claims.tsx
+client/src/components/pending-matches-section.tsx
+client/src/components/member-merge-dialog.tsx
+client/src/components/pending-connections.tsx
+client/src/components/match-requests.tsx
+client/src/components/my-connections.tsx
+client/src/components/pool-updates.tsx
+client/src/components/print-designer.tsx
+client/src/components/group-visualization.tsx
+client/src/components/member-videos-section.tsx
+client/src/components/memory-lane.tsx
+client/src/components/bulk-upload-dialog.tsx
+client/src/components/member-pool-dialog.tsx
+client/src/components/branch-import-dialog.tsx
+client/src/components/life-events-section.tsx
+client/src/components/voice-notes-section.tsx
+client/src/components/member-form.tsx
+client/src/components/family-tree-visualization.tsx
+client/src/components/timeline-view.tsx
+client/src/pages/admin-videos.tsx
+client/src/pages/network.tsx
+client/src/pages/my-profile.tsx
+client/src/pages/gifts.tsx
+client/src/pages/admin-connections.tsx
+client/src/pages/admin-tree-connections.tsx
+client/src/pages/admin-users.tsx
+client/src/pages/network-overview.tsx
+client/src/pages/admin-relationships.tsx
+client/src/pages/discover.tsx
+client/src/pages/public-profile.tsx
+client/src/pages/connect-to-tree.tsx
+client/src/pages/whats-new.tsx
+client/src/pages/admin-duplicates.tsx
+client/src/pages/admin-tree-manager.tsx
+client/src/pages/radar.tsx
+client/src/pages/registry-detail.tsx
+client/src/pages/blog.tsx
+client/src/pages/merchandise.tsx
+client/src/pages/features-guide.tsx
+client/src/pages/landing.tsx
+client/src/pages/pricing.tsx
+client/src/pages/join-tree.tsx
+client/src/pages/membership-badge.tsx
+client/src/pages/dashboard.tsx
+client/src/pages/tree-view.tsx
+client/src/pages/records.tsx
+client/src/pages/gift-registry.tsx
+client/src/App.tsx
+DONE

@@ -1,0 +1,5 @@
+client/src/pages/features-guide.tsx
+client/src/pages/membership-badge.tsx
+client/src/pages/dashboard.tsx
+shared/faq.ts
+DONE

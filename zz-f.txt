@@ -1,0 +1,78 @@
+                    onUpdate={async (updates) => {
+                      await updateMemberMutation.mutateAsync({ memberId: selectedMember.id, updates });
+                    }}
+                  />
+                )}
+
+                {treeData && (
+                  <VoiceNotesSection
+                    memberId={selectedMember.id}
+                    treeId={treeData.tree.id}
+                    canEdit={canEdit}
+                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '')}
+                  />
+                )}
+
+                {treeData && (
+                  <MemberVideosSection
+                    memberId={selectedMember.id}
+                    treeId={treeData.tree.id}
+                    canEdit={canEdit}
+                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '')}
+                  />
+                )}
+
+                {/* Existing Relationships Section */}
+                {treeData && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Link2 className="h-4 w-4" />
+                      {(() => {
+                        const tt = (treeData.tree.treeType || "family") as TreeType;
+                        const config = getTreeTypeConfig(tt);
+                        return tt === "family" ? "Family Relationships" : `${config.label} Relationships`;
+                      })()}
+                    </h4>
+                    {(() => {
+===
+14:import { isPublicRoute } from "@/lib/public-routes";
+83:      <Route path="/" component={user ? Dashboard : Landing} />
+84:      <Route path="/login" component={AuthLogin} />
+85:      <Route path="/signup" component={AuthRegister} />
+86:      <Route path="/register" component={AuthRegister} />
+87:      <Route path="/forgot-password" component={AuthForgotPassword} />
+88:      <Route path="/reset-password/:token" component={AuthResetPassword} />
+89:      <Route path="/reset-password" component={AuthResetPassword} />
+90:      <Route path="/verify-email/:token" component={AuthVerifyEmail} />
+91:      <Route path="/dashboard">
+94:      <Route path="/tree/:id" component={TreeView} />
+95:      <Route path="/pricing" component={Pricing} />
+96:      <Route path="/gifts" component={Gifts} />
+97:      <Route path="/admin/videos" component={AdminVideos} />
+98:      <Route path="/admin/users" component={AdminUsers} />
+99:      <Route path="/admin/relationships" component={AdminRelationships} />
+100:      <Route path="/admin/members" component={AdminMembers} />
+101:      <Route path="/admin/connections" component={AdminConnections} />
+102:      <Route path="/admin/tree-connections" component={AdminTreeConnections} />
+103:      <Route path="/admin/tree-manager" component={AdminTreeManager} />
+104:      <Route path="/admin/duplicates" component={AdminDuplicates} />
+105:      <Route path="/manage-relationships" component={AdminRelationships} />
+106:      <Route path="/video/:id" component={VideoPage} />
+107:      <Route path="/join/:inviteCode" component={JoinTree} />
+108:      <Route path="/account/settings" component={AccountSettings} />
+109:      <Route path="/faq" component={FAQ} />
+110:      <Route path="/contact" component={Contact} />
+111:      <Route path="/merchandise" component={Merchandise} />
+112:      <Route path="/share" component={Share} />
+113:      <Route path="/my-qr" component={MyQR} />
+114:      <Route path="/my-profile" component={MyProfile} />
+115:      <Route path="/profile/:userId" component={PublicProfile} />
+116:      <Route path="/network" component={Network} />
+117:      <Route path="/comparison" component={Comparison} />
+118:      <Route path="/compare" component={Comparison} />
+119:      <Route path="/features" component={FeaturesGuide} />
+120:      <Route path="/records" component={Records} />
+121:      <Route path="/familysearch" component={Records} />
+122:      <Route path="/familysearch/import" component={Records} />
+123:      <Route path="/tree/:treeId/registries" component={GiftRegistry} />
+DONE

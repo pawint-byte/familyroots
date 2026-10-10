@@ -1,0 +1,55 @@
+305 client/src/components/member-videos-section.tsx
+client/src/pages/dashboard.tsx:827:                <Button variant="ghost" size="sm" onClick={() => navigate("/my-badge")} className="hidden md:flex gap-1" data-testid="link-my-badge">
+client/src/pages/dashboard.tsx:829:                  <span className="hidden lg:inline">My Badge</span>
+client/src/pages/dashboard.tsx:946:                  onClick={() => navigate("/my-badge")}
+client/src/pages/dashboard.tsx:947:                  data-testid="menu-my-badge"
+client/src/pages/dashboard.tsx:950:                  <span>My Badge</span>
+client/src/App.tsx:126:      <Route path="/my-badge" component={MembershipBadge} />
+===CTX===
+                {/* Location Section */}
+                {treeData && (
+                  <LocationSection
+                    member={selectedMember}
+                    canEdit={canEdit}
+                    onUpdate={async (updates) => {
+                      await updateMemberMutation.mutateAsync({ memberId: selectedMember.id, updates });
+                    }}
+                  />
+                )}
+
+                {treeData && (
+                  <VoiceNotesSection
+                    memberId={selectedMember.id}
+                    treeId={treeData.tree.id}
+                    canEdit={canEdit}
+                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '')}
+                  />
+                )}
+
+                {treeData && (
+                  <MemberVideosSection
+                    memberId={selectedMember.id}
+                    treeId={treeData.tree.id}
+                    canEdit={canEdit}
+                    memberName={selectedMember.firstName + (selectedMember.lastName ? ` ${selectedMember.lastName}` : '')}
+                  />
+                )}
+
+                {/* Existing Relationships Section */}
+                {treeData && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Link2 className="h-4 w-4" />
+                      {(() => {
+                        const tt = (treeData.tree.treeType || "family") as TreeType;
+                        const config = getTreeTypeConfig(tt);
+                        return tt === "family" ? "Family Relationships" : `${config.label} Relationships`;
+                      })()}
+                    </h4>
+                    {(() => {
+===LANDING===
+18:const planIcons: Record<string, typeof Users> = {
+688:                    Search 66 billion+ historical records and import entire family branches with relationships intact. Smart conflict detection merges duplicates and preserves every connection.
+691:                    Explore Records
+735:                    Record audio memories directly on member profiles. Preserve the voices of loved ones and attach personal voice messages to any family member.
+DONE

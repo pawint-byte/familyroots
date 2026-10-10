@@ -1,0 +1,55 @@
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/trees', treeId, 'members', memberId, 'videos'] });
+      setSelectedFile(null);
+      setTitle("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      toast({ title: "Video saved" });
+    },
+    onError: (err: any) => {
+      if (err?.error === 'tier_limit_reached') {
+        toast({ title: "Upload limit reached", description: err.message, variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: "Failed to save video", variant: "destructive" });
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/member-videos/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/trees', treeId, 'members', memberId, 'videos'] });
+      toast({ title: "Video removed" });
+    },
+  });
+
+  const getVideoDuration = (file: File): Promise<number> => {
+    return new Promise((resolve) => {
+      const el = document.createElement('video');
+      el.preload = 'metadata';
+      el.onloadedmetadata = () => {
+        URL.revokeObjectURL(el.src);
+        resolve(Number.isFinite(el.duration) ? Math.round(el.duration) : 0);
+      };
+      el.onerror = () => resolve(0);
+      el.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      toast({ title: "Invalid file", description: "Please select a video file.", variant: "destructive" });
+      return;
+    }
+    if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
+      toast({ title: "File too large", description: `Videos must be under ${MAX_VIDEO_SIZE_MB}MB.`, variant: "destructive" });
+      return;
+    }
+    setSelectedFile(file);
+  };
+

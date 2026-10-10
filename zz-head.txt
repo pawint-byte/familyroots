@@ -1,0 +1,121 @@
+import { useState, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { SEO } from "@/components/seo";
+import { QRCodeSVG } from "qrcode.react";
+import {
+  ArrowLeft, Download, Share2, Copy, Check, TreeDeciduous,
+  Users, Award, Calendar, Sparkles, Shield, Star, Loader2
+} from "lucide-react";
+
+interface BadgeStats {
+  treeCount: number;
+  totalMembers: number;
+  treeNames: string[];
+  completedReferrals: number;
+  memberSince: string;
+  referralCode: string | null;
+}
+
+function getMemberTier(totalMembers: number): { label: string; color: string; bgClass: string; borderClass: string } {
+  if (totalMembers >= 100) return { label: "Legacy Builder", color: "#f59e0b", bgClass: "from-amber-500 to-yellow-600", borderClass: "border-amber-400" };
+  if (totalMembers >= 50) return { label: "Heritage Keeper", color: "#8b5cf6", bgClass: "from-violet-500 to-purple-600", borderClass: "border-violet-400" };
+  if (totalMembers >= 25) return { label: "Family Historian", color: "#3b82f6", bgClass: "from-blue-500 to-indigo-600", borderClass: "border-blue-400" };
+  if (totalMembers >= 10) return { label: "Tree Grower", color: "#10b981", bgClass: "from-emerald-500 to-green-600", borderClass: "border-emerald-400" };
+  return { label: "Root Starter", color: "#6b7280", bgClass: "from-gray-500 to-slate-600", borderClass: "border-gray-400" };
+}
+
+function MembershipCard({
+  user,
+  stats,
+  referralUrl,
+  cardRef,
+}: {
+  user: any;
+  stats: BadgeStats;
+  referralUrl: string;
+  cardRef: React.RefObject<HTMLDivElement>;
+}) {
+  const tier = getMemberTier(stats.totalMembers);
+  const memberSinceDate = stats.memberSince
+    ? new Date(stats.memberSince).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : "Recently";
+
+  const initials = `${user.firstName?.[0] || user.email?.[0]?.toUpperCase() || ""}${user.lastName?.[0] || ""}`.toUpperCase() || "?";
+  const displayName = user.firstName
+    ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}`
+    : user.email?.split("@")[0] || "Member";
+
+  return (
+    <div
+      ref={cardRef}
+      className="relative w-full max-w-md mx-auto overflow-hidden rounded-md shadow-sm border"
+      data-testid="membership-card"
+    >
+      <div className={`bg-gradient-to-br ${tier.bgClass} p-6 pb-4 text-white relative`}>
+        <div className="absolute top-0 left-0 right-0 bottom-0 opacity-10">
+          <svg viewBox="0 0 400 200" className="w-full h-full">
+            <path d="M0,100 Q100,20 200,100 T400,100" fill="none" stroke="white" strokeWidth="2" opacity="0.3" />
+            <path d="M0,120 Q100,40 200,120 T400,120" fill="none" stroke="white" strokeWidth="1.5" opacity="0.2" />
+            <path d="M0,140 Q100,60 200,140 T400,140" fill="none" stroke="white" strokeWidth="1" opacity="0.1" />
+            <circle cx="50" cy="30" r="30" fill="white" opacity="0.05" />
+            <circle cx="350" cy="50" r="45" fill="white" opacity="0.04" />
+          </svg>
+        </div>
+
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <TreeDeciduous className="h-5 w-5" />
+              <span className="text-sm font-semibold tracking-wider uppercase opacity-90">FamilyRoots</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+12
+total 1220
+drwxr-xr-x 1 runner runner   1394 Oct  8 12:37 .
+drwxr-xr-x 1 runner runner     94 Oct  5 12:16 ..
+-rw-r--r-- 1 runner runner   3784 Sep  7 12:30 about.tsx
+-rw-r--r-- 1 runner runner  16190 Oct  5 12:16 account-settings.tsx
+-rw-r--r-- 1 runner runner   9474 Jan 24  2026 admin-connections.tsx
+-rw-r--r-- 1 runner runner  30884 Feb 25  2026 admin-duplicates.tsx
+-rw-r--r-- 1 runner runner  15673 Feb 25  2026 admin-members.tsx
+-rw-r--r-- 1 runner runner  21394 Feb 21  2026 admin-relationships.tsx
+-rw-r--r-- 1 runner runner   8734 Jan 24  2026 admin-tree-connections.tsx
+-rw-r--r-- 1 runner runner  21491 Feb 25  2026 admin-tree-manager.tsx
+-rw-r--r-- 1 runner runner  20088 Jan 24  2026 admin-users.tsx
+-rw-r--r-- 1 runner runner  14911 Jan 20  2026 admin-videos.tsx
+-rw-r--r-- 1 runner runner   4455 Mar  3  2026 auth-forgot-password.tsx
+-rw-r--r-- 1 runner runner  10837 Mar  4  2026 auth-login.tsx
+-rw-r--r-- 1 runner runner  13315 Oct  8 12:37 auth-register.tsx
+-rw-r--r-- 1 runner runner   7394 Mar  3  2026 auth-reset-password.tsx
+-rw-r--r-- 1 runner runner   2781 Mar  3  2026 auth-verify-email.tsx
+-rw-r--r-- 1 runner runner   3769 Sep  7 12:31 blog.tsx
+-rw-r--r-- 1 runner runner   8694 Sep 21 22:39 comparison.tsx
+-rw-r--r-- 1 runner runner  12968 Feb 23  2026 connect-to-tree.tsx
+-rw-r--r-- 1 runner runner   2792 Sep 21 22:38 Contact.tsx
+-rw-r--r-- 1 runner runner  87969 Oct  4 18:31 dashboard.tsx
+-rw-r--r-- 1 runner runner  15544 Feb 22  2026 discover.tsx
+-rw-r--r-- 1 runner runner    497 Feb 21  2026 familysearch-import.tsx
+-rw-r--r-- 1 runner runner  13416 Oct  5 12:46 faq.tsx
+-rw-r--r-- 1 runner runner  34256 Sep  7 16:58 features-guide.tsx
+-rw-r--r-- 1 runner runner  15129 Oct  4 18:32 gift-registry.tsx
+-rw-r--r-- 1 runner runner  12240 Jan 24  2026 gifts.tsx
+-rw-r--r-- 1 runner runner   7649 Sep 16 17:22 join-tree.tsx
+-rw-r--r-- 1 runner runner  54599 Sep 21 22:38 landing.tsx
+-rw-r--r-- 1 runner runner  18194 Oct  4 18:30 membership-badge.tsx
+-rw-r--r-- 1 runner runner 160593 Sep  7 16:43 merchandise.tsx
+-rw-r--r-- 1 runner runner  14820 Jan 23  2026 my-profile.tsx
+-rw-r--r-- 1 runner runner   9057 Jan 23  2026 my-qr.tsx
+-rw-r--r-- 1 runner runner  39627 Feb 19  2026 network-overview.tsx
+-rw-r--r-- 1 runner runner  11973 Jan 23  2026 network.tsx
+-rw-r--r-- 1 runner runner    711 Jan 16  2026 not-found.tsx
+-rw-r--r-- 1 runner runner  24196 Sep 11 17:32 pricing.tsx
+-rw-r--r-- 1 runner runner   4057 Sep 21 22:38 privacy.tsx
