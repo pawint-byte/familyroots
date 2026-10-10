@@ -38,6 +38,8 @@ interface FamilyTreeVisualizationProps {
   upcomingEvents?: MemberUpcomingEvent[];
   onMemberPositionChange?: (memberId: string, position: { x: number; y: number }) => void;
   importPreview?: ImportPreviewConfig | null;
+  onAutoFitZoom?: (zoom: number) => void;
+  fitSignal?: number;
 }
 
 type RelationshipQualifier = 'biological' | 'step' | 'adopted' | 'foster' | 'half' | 'in-law' | null;

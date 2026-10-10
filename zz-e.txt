@@ -1,6 +1,0 @@
-70:import { MemberVideosSection } from "@/components/member-videos-section";
-3056:                  <MemberVideosSection
-70:import { MemberVideosSection } from "@/components/member-videos-section";
-client/src/components/member-videos-section.tsx
-client/src/pages/tree-view.tsx
-DONE

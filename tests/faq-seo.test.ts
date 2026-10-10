@@ -66,6 +66,18 @@ test("initial FAQ HTML includes every question, answer, links and matching JSON-
   }
 });
 
+test("kinkeeper positioning is included once with the exact answer and matching FAQ schema", () => {
+  const question = "What is a kinkeeper?";
+  const answer = "The kinkeeper is the one relative who keeps the whole family's history and contact list up to date — the photos, the birthdays, the stories. If everyone calls you when they need a phone number or a memory, that's you. FamilyRoots is built for kinkeepers: instead of carrying it all yourself, invite relatives to claim their own profiles and record their own stories in a private, invite-only tree.";
+  const matches = faqCategories.flatMap(category => category.items).filter(item => item.question === question);
+  assert.equal(matches.length, 1);
+  assert.equal(faqAnswerText(matches[0].answer), answer);
+  const schemaMatches = getFaqStructuredData().mainEntity.filter(item => item.name === question);
+  assert.equal(schemaMatches.length, 1);
+  assert.equal(schemaMatches[0].acceptedAnswer.text, answer);
+  assertCompleteFaq(injectSeoMetadata(template, "/faq"));
+});
+
 test("injects the full FAQ into the actual client shell's empty React root", async () => {
   const clientIndex = await readFile("client/index.html", "utf-8");
   assert.match(clientIndex, /<div id="root"><\/div>/);

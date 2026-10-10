@@ -2,7 +2,7 @@
 - [Tree viz centering](tree-visualization-centering.md) — center on bounding box, not focus member, to avoid bottom-half white space
 - [Safe QA accounts](qa-account-safety.md) — prefer dev-only demo seeding over runtime verification bypasses; revocation must avoid legacy recovery mail.
 - [Full intent delivery](full-intent-delivery.md) — complete requests end-to-end, verify intended behavior, and surface gaps before declaring done.
-- [Product value exchange](product-framing-value-exchange.md) — frame copy, features, and promotion around honest value for both members and sustainable operation.
+- [Product positioning & value exchange](product-framing-value-exchange.md) — honest value for members and sustainable operation; kinkeeper messaging emphasizes shared family participation.
 - [Protect mission guardrails](protect-mission-guardrails.md) — assess mission fit, explain scope concerns, and pair complete delivery with honest paid value.
 - [Second set of eyes](second-set-of-eyes.md) — question incomplete asks and improve the approach within mission fit before finishing fully.
 - [Bot owns Replit config](bot-owns-replit-config.md) — requested ownership of site/Replit configuration and publishing, subject to platform controls.

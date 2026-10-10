@@ -64,6 +64,12 @@ export const faqCategories: FAQCategory[] = [
         "answer": [
           "For the best experience, we recommend viewing your family tree on a desktop computer or tablet with a larger screen. The tree visualization works on phones, but larger screens give you more space to see multiple generations and navigate your family connections. On tablets and desktops, you can also use zoom controls and drag to pan around the tree more easily."
         ]
+      },
+      {
+        "question": "What is a kinkeeper?",
+        "answer": [
+          "The kinkeeper is the one relative who keeps the whole family's history and contact list up to date — the photos, the birthdays, the stories. If everyone calls you when they need a phone number or a memory, that's you. FamilyRoots is built for kinkeepers: instead of carrying it all yourself, invite relatives to claim their own profiles and record their own stories in a private, invite-only tree."
+        ]
       }
     ]
   },

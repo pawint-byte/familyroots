@@ -1,9 +1,0 @@
-28:function getMemberTier(totalMembers: number): { label: string; color: string; bgClass: string; borderClass: string } {
-36:function MembershipCard({
-151:export default function MembershipBadgePage() {
-152:  const [, navigate] = useLocation();
-155:  const [copied, setCopied] = useState(false);
-156:  const [isDownloading, setIsDownloading] = useState(false);
-223:          const response = await fetch(dataUrl);
-===
-DONE

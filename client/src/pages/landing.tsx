@@ -262,6 +262,26 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Kinkeeper Section */}
+        <section id="kinkeeper" data-testid="kinkeeper-section" className="py-20 sm:py-24 bg-card/50">
+          <div className="container mx-auto px-4">
+            <div className="mx-auto max-w-4xl rounded-2xl border border-card-border bg-card p-8 text-center shadow-sm sm:p-12">
+              <h2 className="font-serif text-3xl font-bold md:text-4xl mb-5">Are you the kinkeeper?</h2>
+              <p className="mx-auto max-w-3xl text-lg leading-relaxed text-muted-foreground">
+                Every family has one — the person who keeps the photos, the phone numbers, the stories. FamilyRoots is built for you: a private, invite-only tree where each relative claims their own profile and records their own stories, so it's not all on you anymore.
+              </p>
+              <div className="mt-8">
+                <a href={registerHref} className="w-full sm:w-auto">
+                  <Button size="lg" className="w-full gap-2 sm:w-auto" data-testid="button-kinkeeper-start">
+                    Start your private tree
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* How It Works Section */}
         <section id="how-it-works" className="py-24 bg-card/50">
           <div className="container mx-auto px-4">
