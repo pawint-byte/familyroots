@@ -15,6 +15,7 @@ import { userConnectionRequests } from '@shared/schema';
 import { users } from '@shared/models/auth';
 import { eq, and, isNull, lt, sql } from 'drizzle-orm';
 import { db } from './db';
+import { startSalesEmailRetryWorker } from './sales-alerts';
 
 const app = express();
 let readiness: { at: number; ok: boolean } | undefined;
@@ -235,6 +236,7 @@ app.use((req, res, next) => {
       startRegistryReminderScheduler();
       startConnectionReminderScheduler();
       startAnnualReviewScheduler();
+      startSalesEmailRetryWorker();
     },
   );
 })();

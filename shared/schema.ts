@@ -1370,3 +1370,16 @@ export const insertTreeWallMessageSchema = createInsertSchema(treeWallMessages).
 
 export type TreeWallMessage = typeof treeWallMessages.$inferSelect;
 export type InsertTreeWallMessage = z.infer<typeof insertTreeWallMessageSchema>;
+
+// Durable email outbox, not a second source of truth for payments.
+export const salesEmailAlerts = pgTable("sales_email_alerts", {
+  paymentKey: varchar("payment_key").primaryKey(),
+  recipients: jsonb("recipients").$type<string[]>().notNull(),
+  subject: text("subject").notNull(),
+  html: text("html").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastAttemptAt: timestamp("last_attempt_at"),
+  sentAt: timestamp("sent_at"),
+  attempts: integer("attempts").default(0).notNull(),
+  providerEmailId: varchar("provider_email_id"),
+});

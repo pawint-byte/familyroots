@@ -5,6 +5,7 @@ import { storage } from './storage';
 import { printfulService } from './printful';
 import { buildPrintfulFiles, sendOrderConfirmationEmail, sendOrderFailureEmail } from './merchandiseHelpers';
 import { stripeObjectId } from './lib/stripe-object-id';
+import { recordStripeSalesEvent } from './sales-alerts';
 
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
@@ -140,6 +141,11 @@ export class WebhookHandlers {
       }
     } catch (customError) {
       console.error('Error processing custom webhook handler:', customError);
+    }
+    try {
+      await recordStripeSalesEvent(event);
+    } catch {
+      console.error('[sales-alerts] Could not queue verified payment notification');
     }
   }
 

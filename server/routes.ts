@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { recordCheckoutSale } from "./sales-alerts";
 import { uniqueTrees } from "./lib/unique-trees";
 import { db } from "./db";
 import { eq, and, or, inArray, desc, gte, lt, isNull, sql } from "drizzle-orm";
@@ -11412,6 +11413,8 @@ export async function registerRoutes(
         try {
           const session = await stripeService.retrieveCheckoutSession(order.stripePaymentIntentId);
           if (session.payment_status === 'paid') {
+            try { await recordCheckoutSale(session); }
+            catch { console.error('[sales-alerts] Could not queue verified merchandise payment'); }
             // Mark as paid first to prevent race conditions
             await storage.updateMerchandiseOrder(order.id, { status: "paid" });
 
@@ -11671,6 +11674,9 @@ export async function registerRoutes(
       if (session.payment_status !== 'paid') {
         return res.json({ success: false, status: "unpaid" });
       }
+
+      try { await recordCheckoutSale(session); }
+      catch { console.error('[sales-alerts] Could not queue verified cart payment'); }
 
       const { buildPrintfulFiles, sendOrderConfirmationEmail } = await import("./merchandiseHelpers");
       const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;

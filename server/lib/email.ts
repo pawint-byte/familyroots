@@ -38,21 +38,38 @@ async function getCredentials() {
 
 async function getResendClient() {
   const { apiKey, fromEmail } = await getCredentials();
-  return { client: new Resend(apiKey), fromEmail };
+  return { client: new Resend(apiKey), fromEmail, apiKey };
 }
 
 // Generic email sending function
-export async function sendEmail(to: string, subject: string, html: string) {
-  const { client, fromEmail } = await getResendClient();
-  const verifiedSender = 'FamilyRoots <noreply@pawint-app.com>';
-  const sender = verifiedSender;
+export async function sendEmail(to: string | string[], subject: string, html: string, idempotencyKey?: string) {
+  const { client, fromEmail, apiKey } = await getResendClient();
+  const existingSender = 'FamilyRoots <noreply@pawint-app.com>';
+  if (idempotencyKey && !fromEmail?.trim()) {
+    throw new Error("A sales-alert sender must be configured in the Resend integration");
+  }
+  const sender = idempotencyKey ? fromEmail.trim() : existingSender;
 
-  let result = await client.emails.send({
+  const payload = {
     from: sender,
     to,
     subject,
     html
-  });
+  };
+  // This SDK version cannot accept custom headers through emails.send().
+  // Its low-level request requires explicit auth as well as idempotency.
+  const result = idempotencyKey
+    ? await client.fetchRequest<{ id: string }>("/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15_000),
+    })
+    : await client.emails.send(payload);
 
   if (result?.error) {
     console.error(`[email] Send failed from ${sender}:`, result.error.message);

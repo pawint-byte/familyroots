@@ -17,3 +17,5 @@
 - [Membership visibility and verification](membership-visibility.md) — show membership and upgrade access everywhere; distinguish purchased plans from admin or included access.
 - [Exact tree identity](tree-identity.md) — duplicate names are not identifiers; use the specific tree URL before diagnosing ownership or recording permissions.
 - [Media preview verification](media-preview-verification.md) — native autoplay must be disabled when simulating blocked playback; synthetic cameras do not prove phone compatibility.
+- [Sales alert channel](sales-alert-channel.md) — automatic verified-purchase alerts are email-only, not Discord.
+- [Email request headers](email-request-headers.md) — custom SDK headers can remove authentication; check request construction before reconnecting an integration.
