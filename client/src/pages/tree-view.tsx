@@ -200,6 +200,7 @@ export default function TreeView() {
     return 1;
   };
   const [zoom, setZoom] = useState(getInitialZoom);
+  const [fitSignal, setFitSignal] = useState(0);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [newTreeName, setNewTreeName] = useState("");
   const [newTreeType, setNewTreeType] = useState<string>("");
@@ -1899,7 +1900,7 @@ export default function TreeView() {
       </header>
 
       <div className="flex-1 flex min-h-0">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 min-w-0">
           <ScrollableTabBar activeTab={activeTab}>
                 <TabsTrigger 
                   value="tree" 
@@ -1992,7 +1993,7 @@ export default function TreeView() {
             </div>
           )}
 
-          <TabsContent value="tree" className="flex-1 m-0 relative overflow-hidden">
+          <TabsContent value="tree" className="flex-1 min-h-0 m-0 relative overflow-hidden">
             {isLoading || (showMergedView && isMergedLoading) ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
@@ -2263,7 +2264,7 @@ export default function TreeView() {
                     </div>
                   )}
                 </div>
-                <div ref={treeContainerRef} className="w-full h-full">
+                <div ref={treeContainerRef} className="absolute inset-0">
                   {(treeData?.tree.treeType || "family") === "family" ? (
                     <FamilyTreeVisualization
                       members={displayMembers}
@@ -2276,6 +2277,8 @@ export default function TreeView() {
                       upcomingEvents={upcomingEvents}
                       onMemberPositionChange={canEditTree ? handleMemberPositionChange : undefined}
                       importPreview={importPreviewConfig}
+                      onAutoFitZoom={setZoom}
+                      fitSignal={fitSignal}
                     />
                   ) : (
                     <GroupVisualization
@@ -2643,7 +2646,9 @@ export default function TreeView() {
             <Button 
               variant="secondary" 
               size="icon" 
-              onClick={() => setZoom(z => Math.max(z - 0.2, 0.4))}
+              onClick={() => setZoom(z => (treeData?.tree.treeType || "family") === "family"
+                ? z - Math.min(0.2, z / 2)
+                : Math.max(z - 0.2, 0.4))}
               data-testid="button-zoom-out"
               className="h-10 w-10 sm:h-9 sm:w-9"
               aria-label="Zoom out"
@@ -2670,6 +2675,18 @@ export default function TreeView() {
             >
               <ZoomIn className="h-5 w-5 sm:h-4 sm:w-4" />
             </Button>
+            {(treeData?.tree.treeType || "family") === "family" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setFitSignal(signal => signal + 1)}
+                data-testid="button-fit-screen"
+                aria-label="Fit to screen"
+                className="shadow-md"
+              >
+                Fit to screen
+              </Button>
+            )}
             {canEditTree && pendingPositionChanges.size > 0 && (
               <Tooltip>
                 <TooltipTrigger asChild>

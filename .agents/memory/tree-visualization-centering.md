@@ -5,8 +5,8 @@ description: How/why the family tree viewport centers, and the white-space bug t
 
 # Family tree visualization auto-centering
 
-In `client/src/components/family-tree-visualization.tsx`, the viewport auto-centers
-on the tree's **bounding box** (min/max of all node x/y), NOT on a single focus member.
+Center and fit on the whole rendered tree's **bounding box**, not on a single
+focus member or the fixed-size drawing canvas.
 
 **Why:** Centering on the focus member (commonly the youngest person, who has only
 ancestors above and no descendants below) clustered the whole tree in the top half of
@@ -14,12 +14,23 @@ the screen and left the bottom half empty white space. Users perceived this as a
 layout where dragging couldn't "fill" the page. Centering the bounding box fills the
 viewport evenly.
 
-**How to apply:**
-- Keep `centerTree()` measuring the laid-out container and bailing on a 0x0 rect
-  (the tree mounts inside a Radix `TabsContent`, which can be 0-sized before layout).
-- A `ResizeObserver` re-centers once the container is first measured / resized, but is
-  guarded by `userPannedRef` so it never overrides a manual pan.
-- `userPannedRef` is reset to false whenever the tree/focus/zoom/depth changes (a fresh
-  layout is allowed to auto-center again) and set true on mouse/touch pan start.
-- `GroupVisualization` has its own `onAutoFitZoom` auto-fit; `FamilyTreeVisualization`
-  only centers (no auto-zoom). Pan has no offset clamping by design (free panning).
+**How to apply:** Preserve bounding-box centering when changing focus, depth, or
+viewport behavior. Measurements must wait for a nonzero viewport because tabs can
+initially mount without dimensions.
+
+Auto-fit must measure a viewport constrained to the visible page, rather than
+allowing the canvas's intrinsic width to expand a flex container.
+
+**Why:** In a real large-tree preview, the apparent viewport expanded beyond the
+browser width; cards were technically inside that rectangle but still offscreen.
+
+**How to apply:** Validate both the card bounds against the viewport and the
+viewport against the browser bounds. Keep the oversized drawing canvas separate
+from viewport sizing.
+
+Do not make automatic fitting depend on the current manual zoom or pan.
+
+**Why:** Manual interactions must remain usable after fitting rather than snapping
+back. Resize and actual data/depth changes intentionally request a new fit.
+
+**How to apply:** Verify manual zoom and pan persist between explicit fit events.

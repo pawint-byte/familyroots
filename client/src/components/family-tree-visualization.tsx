@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { HelpCircle, Cake, Gift } from "lucide-react";
 import { parseDateString } from "@/lib/utils";
+import { calculateTreeFit } from "@/lib/tree-fit";
 import type { FamilyMember, Relationship } from "@shared/schema";
 import type { MemberUpcomingEvent } from "@/components/group-visualization";
 
@@ -90,8 +91,16 @@ export default function FamilyTreeVisualization({
   upcomingEvents,
   onMemberPositionChange,
   importPreview,
+  onAutoFitZoom,
+  fitSignal = 0,
 }: FamilyTreeVisualizationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(zoom);
+  const onAutoFitZoomRef = useRef(onAutoFitZoom);
+  const fittedZoomRef = useRef<number | null>(null);
+  zoomRef.current = zoom;
+  onAutoFitZoomRef.current = onAutoFitZoom;
   const userPannedRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -1412,26 +1421,70 @@ export default function FamilyTreeVisualization({
     return true;
   }, [positions, zoom, nodeWidth, nodeHeight]);
 
-  // Auto-center when the tree, focus, zoom, or depth changes. Treat this as a
-  // fresh layout, so allow a subsequent resize-driven recenter to run again.
-  useEffect(() => {
-    if (positions.length === 0) return;
+  // Read the rendered cards, not the oversized SVG canvas or nominal card height.
+  // Undo the current transform so a manual pan/zoom cannot affect the fit bounds.
+  const fitTree = useCallback(() => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!container || !content || !onAutoFitZoomRef.current) return;
+    const origin = content.getBoundingClientRect();
+    const rects = Array.from(content.querySelectorAll<HTMLElement>("[data-member-node]"))
+      .map(node => node.getBoundingClientRect())
+      .filter(rect => rect.width > 0 && rect.height > 0);
+    if (!rects.length) return;
+    const currentZoom = zoomRef.current;
+    const fit = calculateTreeFit(container.clientWidth, container.clientHeight, {
+      left: (Math.min(...rects.map(rect => rect.left)) - origin.left) / currentZoom,
+      top: (Math.min(...rects.map(rect => rect.top)) - origin.top) / currentZoom,
+      right: (Math.max(...rects.map(rect => rect.right)) - origin.left) / currentZoom,
+      bottom: (Math.max(...rects.map(rect => rect.bottom)) - origin.top) / currentZoom,
+    });
+    if (!fit) return;
     userPannedRef.current = false;
-    const raf = requestAnimationFrame(() => centerTree());
-    return () => cancelAnimationFrame(raf);
-  }, [focusMemberId, positions, zoom, nodeWidth, nodeHeight, viewDepth, centerTree]);
+    fittedZoomRef.current = fit.zoom !== currentZoom ? fit.zoom : null;
+    onAutoFitZoomRef.current(fit.zoom);
+    setOffset(fit.offset);
+  }, []);
 
-  // Re-center when the container is first measured (e.g. it mounts at 0x0 inside
-  // a tab) or is resized, but never override a manual pan.
+  // Zoom is deliberately excluded: manual zoom must not trigger another fit.
+  useEffect(() => {
+    const raf = requestAnimationFrame(fitTree);
+    return () => cancelAnimationFrame(raf);
+  }, [positions, members, relationships, focusMemberId, viewDepth, fitSignal, fitTree]);
+
+  // Keep the existing manual zoom/reset centering, but do not overwrite an
+  // auto-fit's DOM-measured translation when its zoom update reaches React.
+  const previousZoomRef = useRef(zoom);
+  useEffect(() => {
+    if (previousZoomRef.current === zoom) return;
+    previousZoomRef.current = zoom;
+    if (fittedZoomRef.current === zoom) {
+      fittedZoomRef.current = null;
+      return;
+    }
+    userPannedRef.current = false;
+    centerTree();
+  }, [zoom, centerTree]);
+
+  // A tab can initially measure 0x0. Fit when it becomes visible and whenever
+  // its viewport changes; listeners remain stable during manual zoom/pan.
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      if (!userPannedRef.current) centerTree();
-    });
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [centerTree]);
+    if (!container) return;
+    let raf = 0;
+    const scheduleFit = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(fitTree);
+    };
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(scheduleFit) : null;
+    observer?.observe(container);
+    window.addEventListener("resize", scheduleFit);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+      window.removeEventListener("resize", scheduleFit);
+    };
+  }, [fitTree]);
 
   const handleNodeDragStart = useCallback((e: React.MouseEvent, memberId: string) => {
     e.stopPropagation();
@@ -1828,6 +1881,7 @@ export default function FamilyTreeVisualization({
           See replit.md "Family Tree Visualization" section for details.
           DO NOT CHANGE without testing on both desktop and mobile. */}
       <div
+        ref={contentRef}
         className="relative"
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
