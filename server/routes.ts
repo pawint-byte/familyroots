@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { uniqueTrees } from "./lib/unique-trees";
 import { db } from "./db";
 import { eq, and, or, inArray, desc, gte, lt, isNull, sql } from "drizzle-orm";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
@@ -213,9 +214,7 @@ export async function registerRoutes(
       // Get collaborated trees
       const { collaboratedTrees } = await storage.getCollaboratedTrees(userId);
       
-      const seenIds = new Set(ownedTrees.map(t => t.id));
-      const uniqueCollaborated = collaboratedTrees.filter(t => !seenIds.has(t.id));
-      const allTrees = [...ownedTrees, ...uniqueCollaborated];
+      const allTrees = uniqueTrees([...ownedTrees, ...collaboratedTrees]);
       
       // Add member counts to each tree
       const treesWithCounts = await Promise.all(

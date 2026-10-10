@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SEO } from "@/components/seo";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { Trees, Check, ArrowLeft, Loader2, Users, Crown, Gift, TrendingUp, Package, Zap, Star, Sparkles, X, Infinity } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PRICING_CONFIG as DEFAULT_PRICING_CONFIG, type FeatureTier } from "@shared/pricing";
@@ -87,6 +89,7 @@ const tierIcons: Record<string, typeof Crown> = {
 export default function Pricing() {
   const [, navigate] = useLocation();
   const { user, isLoading: authLoading } = useAuth();
+  const { toast } = useToast();
 
   const { data: pricingStatus, isLoading: statusLoading } = useQuery<PricingStatus>({
     queryKey: ["/api/pricing/status"],
@@ -98,15 +101,32 @@ export default function Pricing() {
     enabled: !user,
   });
 
+  useEffect(() => {
+    if (authLoading || (user && statusLoading) || window.location.hash !== "#paid-plans") return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById("paid-plans")?.scrollIntoView({ block: "start" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [authLoading, statusLoading, user]);
+
   const tierCheckoutMutation = useMutation({
     mutationFn: async (plan: string) => {
       const res = await apiRequest("POST", "/api/stripe/create-checkout", { plan });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data.url) {
-        window.location.href = data.url;
+      const data = await res.json();
+      if (typeof data.url !== "string" || !data.url.trim()) {
+        throw new Error("Checkout did not return a payment link. Please try again.");
       }
+      return data.url as string;
+    },
+    onSuccess: (url) => {
+      window.location.href = url;
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Unable to open checkout",
+        description: error.message || "Please try again in a moment.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -301,11 +321,41 @@ export default function Pricing() {
         )}
 
         {/* ==================== TIER COMPARISON ==================== */}
-        <h2 className="text-2xl font-serif font-bold text-center mb-2">Choose Your Plan</h2>
+        <h2 id="paid-plans" className="scroll-mt-24 text-2xl font-serif font-bold text-center mb-2">Choose Your Plan</h2>
         <p className="text-center text-muted-foreground mb-8 text-sm">
           All plans include {config.freeTierCredits} free members, unlimited trees, and core features.
           Paid plans unlock higher usage of advanced features. One member credit is one additional person profile.
         </p>
+
+        <Card className="max-w-6xl mx-auto mb-8 border-primary/30" data-testid="card-subscribe-now">
+          <CardHeader className="pb-3">
+            <CardTitle>Subscribe now</CardTitle>
+            <CardDescription>Choose a monthly plan to continue to secure checkout, or compare all features below.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            {TIER_KEYS.filter(tierKey => tierKey !== "explorer").map(tierKey => {
+              const tier = config.tiers[tierKey];
+              if (!tier) return null;
+              const isCurrent = !!user && currentTier === tierKey;
+              return (
+                <Button
+                  key={tierKey}
+                  className="h-auto min-h-10 whitespace-normal py-3"
+                  disabled={isCurrent || tierCheckoutMutation.isPending || (!!user && statusLoading)}
+                  onClick={() => handleTierCheckout(tierKey)}
+                  data-testid={`button-subscribe-${tierKey}`}
+                >
+                  {isCurrent
+                    ? `${tier.label} — Current plan`
+                    : `${tier.label} — ${formatPrice(tier.monthlyPriceCents)}/month`}
+                  {tierCheckoutMutation.isPending && tierCheckoutMutation.variables === tierKey ? (
+                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                </Button>
+              );
+            })}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-6xl mx-auto mb-16">
           {TIER_KEYS.map((tierKey) => {

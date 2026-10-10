@@ -12,6 +12,11 @@
   }
 }
 
+/* Keep existing sticky page headers below the centrally mounted membership bar. */
+.membership-page-offset .sticky.top-0 {
+  top: var(--membership-bar-height);
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);

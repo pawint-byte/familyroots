@@ -15,6 +15,7 @@ import { ArrowLeft, Save, Download, RefreshCw, User, MapPin, Calendar, FileText,
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SubscriptionBillingCard } from "@/components/subscription-billing-card";
 
 interface UserProfile {
   id: string;
@@ -195,6 +196,8 @@ export default function MyProfile() {
           </p>
         </div>
       </div>
+
+      <SubscriptionBillingCard />
 
       <Alert>
         <User className="h-4 w-4" />

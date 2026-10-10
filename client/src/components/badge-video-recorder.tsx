@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Camera, Check, Circle, Clock, RotateCcw, Square } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,8 @@ export function BadgeVideoRecorder({ memberId, onUse }: BadgeVideoRecorderProps)
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [previewReady, setPreviewReady] = useState(false);
+  const [previewMessage, setPreviewMessage] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -111,6 +113,8 @@ export function BadgeVideoRecorder({ memberId, onUse }: BadgeVideoRecorderProps)
       });
     }
     setCameraStream(null);
+    setPreviewReady(false);
+    setPreviewMessage("");
     if (videoRef.current) videoRef.current.srcObject = null;
   };
 
@@ -138,14 +142,43 @@ export function BadgeVideoRecorder({ memberId, onUse }: BadgeVideoRecorderProps)
     setElapsedSeconds(0);
   };
 
+  const showCameraPreview = useCallback(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    // Set both attributes and properties before attaching the stream. WebKit
+    // needs an explicitly muted, inline element for camera autoplay.
+    video.muted = true;
+    video.defaultMuted = true;
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    if (video.srcObject !== stream) video.srcObject = stream;
+    const requestId = sessionRef.current;
+    void video.play().catch(error => {
+      if (requestId !== sessionRef.current || videoRef.current !== video) return;
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setPreviewMessage("The camera preview could not play. Tap Show camera to try again.");
+    });
+  }, []);
+
+  // Conditional recorder screens can replace the video element while keeping
+  // the same stream. Bind on mount as well as on a new camera stream.
+  const attachCameraPreview = useCallback((video: HTMLVideoElement | null) => {
+    videoRef.current = video;
+    if (video) showCameraPreview();
+  }, [showCameraPreview]);
+
   useEffect(() => {
-    if (cameraStream && videoRef.current) {
-      videoRef.current.srcObject = cameraStream;
-      void videoRef.current.play().catch(() => {
-        // A muted inline preview may need a browser gesture; Start remains user initiated.
-      });
+    if (cameraStream && videoRef.current?.srcObject !== cameraStream) showCameraPreview();
+  }, [cameraStream, showCameraPreview]);
+
+  const confirmPreviewFrame = () => {
+    const video = videoRef.current;
+    if (video && !video.paused && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+      setPreviewReady(true);
+      setPreviewMessage("");
     }
-  }, [cameraStream]);
+  };
 
   useEffect(() => {
     if (phase !== "explaining") return;
@@ -214,11 +247,17 @@ export function BadgeVideoRecorder({ memberId, onUse }: BadgeVideoRecorderProps)
     const requestId = ++sessionRef.current;
     setPhase("requesting");
     setErrorMessage("");
+    setPreviewReady(false);
+    setPreviewMessage("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       if (requestId !== sessionRef.current) {
         stream.getTracks().forEach(track => track.stop());
         return;
+      }
+      if (!stream.getVideoTracks().some(track => track.readyState === "live" && track.enabled)) {
+        stream.getTracks().forEach(track => track.stop());
+        throw new DOMException("No active camera video track", "NotFoundError");
       }
       streamRef.current = stream;
       intentionalTrackStopRef.current = false;
@@ -259,7 +298,8 @@ export function BadgeVideoRecorder({ memberId, onUse }: BadgeVideoRecorderProps)
 
   function startRecording() {
     const stream = streamRef.current;
-    if (!stream || !mimeType || phase !== "live" || recorderRef.current) return;
+    if (!stream || !mimeType || phase !== "live" || recorderRef.current || !previewReady) return;
+    showCameraPreview();
     let recorder: MediaRecorder;
     try {
       recorder = new MediaRecorder(stream, { mimeType });
@@ -476,10 +516,12 @@ export function BadgeVideoRecorder({ memberId, onUse }: BadgeVideoRecorderProps)
           <CardContent className="space-y-3 p-3">
             <div className="relative overflow-hidden rounded-md bg-slate-950">
               <video
-                ref={videoRef}
+                ref={attachCameraPreview}
                 autoPlay
                 muted
                 playsInline
+                onLoadedData={confirmPreviewFrame}
+                onPlaying={confirmPreviewFrame}
                 className="aspect-video w-full object-cover"
                 aria-label="Live camera preview"
                 data-testid="video-recording-preview"
@@ -499,7 +541,7 @@ export function BadgeVideoRecorder({ memberId, onUse }: BadgeVideoRecorderProps)
               </span>
               <div className="flex gap-2">
                 {phase === "live" ? (
-                  <Button type="button" size="sm" onClick={startRecording} className="gap-1.5">
+                  <Button type="button" size="sm" onClick={startRecording} disabled={!previewReady} className="gap-1.5">
                     <Circle className="h-3 w-3 fill-current" />
                     Start
                   </Button>
@@ -523,6 +565,16 @@ export function BadgeVideoRecorder({ memberId, onUse }: BadgeVideoRecorderProps)
                 <Button type="button" size="sm" variant="ghost" onClick={cancel}>Cancel</Button>
               </div>
             </div>
+            {!previewReady || previewMessage ? (
+              <div className="flex flex-wrap items-center gap-2" role="status">
+                <p className="flex-1 text-xs text-muted-foreground">
+                  {previewMessage || "Waiting for camera video before recording…"}
+                </p>
+                <Button type="button" size="sm" variant="outline" onClick={showCameraPreview}>
+                  Show camera
+                </Button>
+              </div>
+            ) : null}
             <p className="text-xs text-muted-foreground">Maximum recording time is 5 minutes.</p>
           </CardContent>
         </Card>

@@ -14,3 +14,6 @@
 - [Existing Help permissions](help-assistant-scope.md) — Help is separate from external AI access; owned data only, explicit write confirmations, and real action-card verification.
 - [GA4 conversion verification](ga4-conversion-verification.md) — confirm signup hits reach GA4 collection, not merely the browser queue; wait for the tag to load.
 - [Member video recording boundaries](member-video-recording-scope.md) — recording stays in the tree member panel, not /my-badge, and hands a draft to the existing Save flow.
+- [Membership visibility and verification](membership-visibility.md) — show membership and upgrade access everywhere; distinguish purchased plans from admin or included access.
+- [Exact tree identity](tree-identity.md) — duplicate names are not identifiers; use the specific tree URL before diagnosing ownership or recording permissions.
+- [Media preview verification](media-preview-verification.md) — native autoplay must be disabled when simulating blocked playback; synthetic cameras do not prove phone compatibility.

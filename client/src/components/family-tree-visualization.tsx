@@ -98,7 +98,6 @@ export default function FamilyTreeVisualization({
   const contentRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef(zoom);
   const onAutoFitZoomRef = useRef(onAutoFitZoom);
-  const fittedZoomRef = useRef<number | null>(null);
   zoomRef.current = zoom;
   onAutoFitZoomRef.current = onAutoFitZoom;
   const userPannedRef = useRef(false);
@@ -1441,7 +1440,6 @@ export default function FamilyTreeVisualization({
     });
     if (!fit) return;
     userPannedRef.current = false;
-    fittedZoomRef.current = fit.zoom !== currentZoom ? fit.zoom : null;
     onAutoFitZoomRef.current(fit.zoom);
     setOffset(fit.offset);
   }, []);
@@ -1455,6 +1453,7 @@ export default function FamilyTreeVisualization({
   // Keep the existing manual zoom/reset centering, but do not overwrite an
   // auto-fit's DOM-measured translation when its zoom update reaches React.
   const previousZoomRef = useRef(zoom);
+  const fittedZoomRef = useRef<number | null>(null);
   useEffect(() => {
     if (previousZoomRef.current === zoom) return;
     previousZoomRef.current = zoom;

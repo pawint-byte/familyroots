@@ -14,6 +14,7 @@ import { ArrowLeft, Shield, User, Clock, AlertTriangle, Save, Trash2, Pencil, X,
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { NotificationPreferences } from "@/components/notification-preferences";
 import { AssistantAccess } from "@/components/assistant-access";
+import { SubscriptionBillingCard } from "@/components/subscription-billing-card";
 import type { AccountHeir } from "@shared/schema";
 
 export default function AccountSettings() {
@@ -207,6 +208,7 @@ export default function AccountSettings() {
 
       <main className="container py-8 max-w-3xl">
         <div className="space-y-6">
+          <SubscriptionBillingCard />
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

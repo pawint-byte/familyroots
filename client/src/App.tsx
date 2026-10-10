@@ -15,6 +15,7 @@ import { isPublicRoute } from "@/lib/public-routes";
 import { initGA } from "@/lib/analytics";
 import { captureAttribution } from "@/lib/attribution";
 import { useAnalytics } from "@/hooks/use-analytics";
+import { MembershipStatusBar } from "@/components/membership-status-bar";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import TreeView from "@/pages/tree-view";
@@ -79,8 +80,11 @@ function Router() {
   }
 
   return (
-    <Switch>
-      <Route path="/" component={user ? Dashboard : Landing} />
+    <>
+      {user ? <MembershipStatusBar /> : null}
+      <div className={user ? "membership-page-offset" : undefined}>
+        <Switch>
+          <Route path="/" component={user ? Dashboard : Landing} />
       <Route path="/login" component={AuthLogin} />
       <Route path="/signup" component={AuthRegister} />
       <Route path="/register" component={AuthRegister} />
@@ -132,8 +136,10 @@ function Router() {
       <Route path="/blog" component={Blog} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
-      <Route component={NotFound} />
-    </Switch>
+          <Route component={NotFound} />
+        </Switch>
+      </div>
+    </>
   );
 }
 

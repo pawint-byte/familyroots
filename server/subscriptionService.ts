@@ -4,6 +4,8 @@ import { familyTrees, familyMembers } from '@shared/schema';
 import { eq, sql, and, gte, desc, lte } from 'drizzle-orm';
 import { getUncachableStripeClient } from './stripeClient';
 import { isAdminAccount } from './adminConfig';
+import { MissingSubscriptionRecovery, verifyMissingSubscription } from './subscription-recovery';
+import { getMembershipStatus, type MembershipStatus } from './membership-status';
 import {
   PRICING_CONFIG as SHARED_PRICING_CONFIG,
   TIER_CONFIG as SHARED_TIER_CONFIG,
@@ -80,6 +82,7 @@ export interface UserSubscriptionInfo {
   memberCredits: number;
   isPremium: boolean;
   featureTier: FeatureTier;
+  membership: MembershipStatus;
   monthlyAddsCount: number;
   hasActiveReward: boolean;
   activeRewardDiscount: number;
@@ -87,6 +90,11 @@ export interface UserSubscriptionInfo {
 }
 
 export class SubscriptionService {
+  private missingSubscriptionRecovery = new MissingSubscriptionRecovery(
+    verifyMissingSubscription,
+    (userId, tier, subscriptionId) => this.handleTierSubscriptionCreated(userId, tier, subscriptionId),
+  );
+
   async calculateTotalMemberCount(userId: string): Promise<number> {
     const result = await db.execute(sql`
       SELECT COUNT(*) as total FROM (
@@ -143,7 +151,20 @@ export class SubscriptionService {
     const tier = this.getTierForMemberCount(totalMemberCount);
     const nextTier = this.getNextTier(tier.name, totalMemberCount);
 
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    let [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (user?.stripeCustomerId && this.getUserTier(user) === 'explorer') {
+      try {
+        const recovered = await this.missingSubscriptionRecovery.recover(userId, user.stripeCustomerId);
+        if (recovered) {
+          [user] = await db.select().from(users).where(eq(users.id, userId));
+          console.log('Recovered missing paid subscription from verified Stripe billing.');
+        }
+      } catch (error: any) {
+        // Preserve existing access during provider failures; never grant access
+        // without verification or make all tree requests depend on Stripe.
+        console.error('Missing subscription verification failed:', error.message);
+      }
+    }
     const lastMilestoneReached = user?.lastMilestoneReached || 100;
     const isSubscriptionActive = user?.isSubscriptionActive || false;
 
@@ -183,6 +204,7 @@ export class SubscriptionService {
       memberCredits,
       isPremium,
       featureTier,
+      membership: getMembershipStatus(user || {}),
       monthlyAddsCount,
       hasActiveReward,
       activeRewardDiscount,
