@@ -736,6 +736,19 @@ export default function TreeView() {
     },
   });
 
+const setDefaultTreeMutation = useMutation({
+  mutationFn: async () => {
+    const res = await apiRequest("PUT", "/api/user/profile", { defaultTreeId: treeId });
+    return res.json();
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    toast({ title: "Default tree set", description: "You will land on this tree when you log in." });
+  },
+  onError: () => {
+    toast({ title: "Error", description: "Could not set default tree.", variant: "destructive" });
+  },
+});
   const createSubgroupMutation = useMutation({
     mutationFn: async (data: { name: string }) => {
       const res = await apiRequest("POST", `/api/trees/${treeId}/children`, { name: data.name });
@@ -1488,6 +1501,15 @@ export default function TreeView() {
                     </DropdownMenuItem>
                   </>
                 )}
+    <DropdownMenuItem
+      className="gap-2"
+      onClick={() => setDefaultTreeMutation.mutate()}
+      disabled={(user as any)?.defaultTreeId === treeId || setDefaultTreeMutation.isPending}
+      data-testid="menu-set-default-tree"
+    >
+      <Star className="h-4 w-4" />
+      {(user as any)?.defaultTreeId === treeId ? "Default tree" : "Set as default tree"}
+    </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="gap-2" 

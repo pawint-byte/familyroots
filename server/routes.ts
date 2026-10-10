@@ -51,6 +51,7 @@ const updateUserProfileSchema = z.object({
   currentRegion: z.string().max(100).optional().nullable(),
   currentCountry: z.string().max(100).optional().nullable(),
   locationVisible: z.boolean().optional(),
+  defaultTreeId: z.string().max(100).optional().nullable(),
 });
 
 const updateCollaboratorRoleSchema = z.object({
@@ -4868,6 +4869,7 @@ export async function registerRoutes(
         currentRegion: updated.currentRegion,
         currentCountry: updated.currentCountry,
         locationVisible: updated.locationVisible,
+  defaultTreeId: updated.defaultTreeId,
       });
     } catch (error) {
       if (error instanceof z.ZodError) {

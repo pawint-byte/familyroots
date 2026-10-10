@@ -55,6 +55,7 @@ export const users = pgTable("users", {
   currentRegion: text("current_region"),
   currentCountry: text("current_country"),
   locationVisible: boolean("location_visible").default(false),
+  defaultTreeId: varchar("default_tree_id"),
   
   // Subscription and payment fields
   stripeCustomerId: varchar("stripe_customer_id"),

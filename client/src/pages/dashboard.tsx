@@ -266,12 +266,15 @@ export default function Dashboard() {
     if (pendingConnectionInfo) return;
     if (trees.length > 0) {
       setAutoRedirectDone(true);
-      const sorted = [...trees].sort((a, b) => {
-        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-        return bTime - aTime;
-      });
-      navigate(`/tree/${sorted[0].id}`);
+    const defaultTreeId = (user as any)?.defaultTreeId;
+    const targetId = defaultTreeId && trees.some((t: any) => t.id === defaultTreeId)
+      ? defaultTreeId
+      : [...trees].sort((a, b) => {
+          const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          return bTime - aTime;
+        })[0].id;
+    navigate(`/tree/${targetId}`);
     } else {
       setAutoRedirectDone(true);
     }

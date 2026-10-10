@@ -181,6 +181,7 @@ export interface IStorage {
     currentRegion?: string;
     currentCountry?: string;
     locationVisible?: boolean;
+  defaultTreeId?: string | null;
   }): Promise<User | undefined>;
   
   // Account Heirs
@@ -1248,6 +1249,7 @@ export class DatabaseStorage implements IStorage {
     currentRegion?: string;
     currentCountry?: string;
     locationVisible?: boolean;
+  defaultTreeId?: string | null;
   }): Promise<User | undefined> {
     const [updated] = await db.update(users)
       .set({ ...profile, updatedAt: new Date() })
