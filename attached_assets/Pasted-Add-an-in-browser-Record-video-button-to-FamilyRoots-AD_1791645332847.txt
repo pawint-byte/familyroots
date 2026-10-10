@@ -1,0 +1,32 @@
+Add an in-browser "Record video" button to FamilyRoots. ADDITIVE ONLY — do not
+change the existing upload flow, badge stats, paywall/tier logic, or any other page.
+
+LOCATION (verified): the existing video upload control is the MemberVideosSection
+component (client/src/components/member-videos-section.tsx), rendered in the
+member detail panel of client/src/pages/tree-view.tsx. Add the "Record video"
+button NEXT TO the existing upload button inside MemberVideosSection, subject to
+the same canEdit/paywall gating already there. Do NOT put it on the /my-badge page.
+
+RECORDING FLOW:
+1. Click "Record video" → show inline explainer FIRST: "FamilyRoots will use your
+   camera and microphone to record a video for your badge. Nothing is recorded
+   until you press Start." THEN call navigator.mediaDevices.getUserMedia (camera+mic).
+2. Live camera preview with Start / Stop / Retake controls.
+3. Record with the MediaRecorder API. mimeType priority: 'video/webm;codecs=vp9'
+   → 'video/webm' → 'video/mp4' (pick first supported via MediaRecorder.isTypeSupported).
+   Show elapsed time; cap recordings at 5 minutes.
+4. After Stop: playback preview with "Use this video" and "Retake" buttons.
+5. "Use this video" → create a File named badge-video-<memberid>-<timestamp>.<ext>
+   from the blob and feed it through the EXISTING upload pipeline in
+   member-videos-section.tsx (same validation, same 100MB limit, same endpoints).
+
+FALLBACK: if getUserMedia/MediaRecorder is unavailable or permission is denied,
+hide the Record button, keep the existing upload control, and show this note:
+"Recording isn't available in this browser — upload a video file instead."
+
+REQUIREMENTS:
+- Works on desktop (Chrome, Safari, Edge, Firefox) and mobile (iOS Safari 14.1+,
+  Chrome Android).
+- New file: client/src/components/badge-video-recorder.tsx (or equivalent).
+- Run the typechecker; fix any type errors.
+- Do NOT publish to production. Deploy to preview only and report what changed.

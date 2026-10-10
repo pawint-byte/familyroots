@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Video, Trash2, Upload, Clock, Film } from "lucide-react";
 import { PremiumContentLocked } from "@/components/premium-content-locked";
+import { BadgeVideoRecorder } from "@/components/badge-video-recorder";
 import type { MemberVideo } from "@shared/schema";
 
 interface MemberVideosSectionProps {
@@ -94,18 +95,23 @@ export function MemberVideosSection({ memberId, treeId, canEdit, memberName }: M
     });
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const validateAndSelectFile = (file: File): boolean => {
     if (!file.type.startsWith('video/')) {
       toast({ title: "Invalid file", description: "Please select a video file.", variant: "destructive" });
-      return;
+      return false;
     }
     if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
       toast({ title: "File too large", description: `Videos must be under ${MAX_VIDEO_SIZE_MB}MB.`, variant: "destructive" });
-      return;
+      return false;
     }
     setSelectedFile(file);
+    return true;
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    validateAndSelectFile(file);
   };
 
   const uploadAndSave = async () => {
@@ -280,16 +286,23 @@ export function MemberVideosSection({ memberId, treeId, canEdit, memberName }: M
                     onChange={handleFileSelect}
                     data-testid="input-video-file"
                   />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 w-full"
-                    onClick={() => fileInputRef.current?.click()}
-                    data-testid="button-upload-video"
-                  >
-                    <Video className="h-3.5 w-3.5" />
-                    Upload Video (max {MAX_VIDEO_SIZE_MB}MB)
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 flex-1 whitespace-normal h-auto min-h-9 py-2"
+                      onClick={() => fileInputRef.current?.click()}
+                      data-testid="button-upload-video"
+                    >
+                      <Video className="h-3.5 w-3.5" />
+                      Upload Video (max {MAX_VIDEO_SIZE_MB}MB)
+                    </Button>
+                    <BadgeVideoRecorder
+                      key={memberId}
+                      memberId={memberId}
+                      onUse={validateAndSelectFile}
+                    />
+                  </div>
                 </>
               )}
             </div>
